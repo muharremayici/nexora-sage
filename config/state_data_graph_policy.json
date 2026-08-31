@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "kind": "state_data_graph_policy",
+    "version": "v1",
+    "purpose": "Config-backed policy for state/data graph reference surface calibration and cache action semantics."
+  },
+  "reference_surfaces": {
+    "path_markers": [
+      "__fixtures__",
+      "__testfixtures__",
+      "fixtures",
+      "fixture",
+      "examples",
+      "example",
+      "demos",
+      "demo",
+      "docs",
+      "stories",
+      "storybook",
+      "templates",
+      "template"
+    ],
+    "file_suffixes": [
+      ".test.ts",
+      ".test.tsx",
+      ".spec.ts",
+      ".spec.tsx",
+      ".stories.ts",
+      ".stories.tsx"
+    ]
+  },
+  "client_invalidation_tokens": [
+    "invalidate",
+    "refetch",
+    "resetqueries",
+    "setquerydata",
+    "removequeries"
+  ],
+  "key_token_stopwords": [
+    "query",
+    "mutation",
+    "key"
+  ],
+  "validation_contract": {
+    "required_client_invalidation_tokens": [
+      "removequeries"
+    ],
+    "forbidden_client_invalidation_tokens": [
+      "removqueries"
+    ],
+    "required_policy_tokens": [
+      "__fixtures__",
+      "__testfixtures__",
+      "storybook",
+      "resetqueries",
+      "setquerydata",
+      "removequeries"
+    ]
+  }
+}

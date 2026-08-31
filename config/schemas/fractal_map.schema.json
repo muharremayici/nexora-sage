@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Fractal Map Artifact",
+  "type": "object",
+  "required": [
+    "projects",
+    "capability_winners",
+    "all_decisions",
+    "merge_candidates",
+    "suppressed_duplicates",
+    "merge_waves",
+    "structure_preparation",
+    "meta"
+  ],
+  "properties": {
+    "projects": {
+      "type": "object"
+    },
+    "capability_winners": {
+      "type": "object"
+    },
+    "all_decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "merge_candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "suppressed_duplicates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/suppressed"
+      }
+    },
+    "merge_waves": {
+      "type": "object",
+      "required": [
+        "wave_1_low",
+        "wave_2_medium",
+        "wave_3_high",
+        "manual_review"
+      ],
+      "properties": {
+        "wave_1_low": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/waveItem"
+          }
+        },
+        "wave_2_medium": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/waveItem"
+          }
+        },
+        "wave_3_high": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/waveItem"
+          }
+        },
+        "manual_review": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/waveItem"
+          }
+        }
+      }
+    },
+    "structure_preparation": {
+      "type": "object",
+      "required": [
+        "missing_directories"
+      ],
+      "properties": {
+        "missing_directories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "decision_count",
+        "candidate_count",
+        "suppressed_duplicates",
+        "keep_main_count",
+        "low",
+        "medium",
+        "high",
+        "manual_review",
+        "unresolved_targets",
+        "semantic_source_mode_requested",
+        "semantic_scanned_from_atlas",
+        "semantic_scanned_from_content"
+      ],
+      "properties": {
+        "decision_count": {
+          "type": "number"
+        },
+        "candidate_count": {
+          "type": "number"
+        },
+        "suppressed_duplicates": {
+          "type": "number"
+        },
+        "keep_main_count": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
+        "medium": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "manual_review": {
+          "type": "number"
+        },
+        "unresolved_targets": {
+          "type": "number"
+        },
+        "semantic_source_mode_requested": {
+          "type": "string",
+          "enum": [
+            "atlas",
+            "content"
+          ]
+        },
+        "semantic_scanned_from_atlas": {
+          "type": "number"
+        },
+        "semantic_scanned_from_content": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "required": [
+        "name",
+        "action",
+        "chosen_source",
+        "source_project",
+        "source_path",
+        "target_studio",
+        "target_layer",
+        "target_path_suggestion",
+        "gateway_entry",
+        "fractal_contract_ok",
+        "confidence",
+        "variation_score",
+        "main_score",
+        "delta",
+        "risk",
+        "main_first_bucket",
+        "export_recommendation",
+        "export_reason"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "chosen_source": {
+          "type": "string"
+        },
+        "source_project": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_studio": {
+          "type": "string"
+        },
+        "target_studio": {
+          "type": "string"
+        },
+        "target_layer": {
+          "type": "string"
+        },
+        "target_path_suggestion": {
+          "type": "string"
+        },
+        "gateway_entry": {
+          "type": "string"
+        },
+        "fractal_contract_ok": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "variation_score": {
+          "type": "number"
+        },
+        "main_score": {
+          "type": "number"
+        },
+        "delta": {
+          "type": "number"
+        },
+        "risk": {
+          "type": "string"
+        },
+        "main_first_bucket": {
+          "type": "string"
+        },
+        "export_recommendation": {
+          "type": "string"
+        },
+        "export_reason": {
+          "type": "string"
+        }
+      }
+    },
+    "candidate": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/decision"
+        },
+        {
+          "type": "object",
+          "required": [
+            "duplicate_group_id",
+            "selected_winner",
+            "merge_strategy"
+          ],
+          "properties": {
+            "duplicate_group_id": {
+              "type": "string"
+            },
+            "selected_winner": {
+              "type": "boolean"
+            },
+            "merge_strategy": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "suppressed": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/decision"
+        },
+        {
+          "type": "object",
+          "required": [
+            "duplicate_group_id",
+            "selected_winner",
+            "suppressed_by"
+          ],
+          "properties": {
+            "duplicate_group_id": {
+              "type": "string"
+            },
+            "selected_winner": {
+              "type": "boolean"
+            },
+            "suppressed_by": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "waveItem": {
+      "type": "object",
+      "required": [
+        "name",
+        "source_project",
+        "target",
+        "target_studio",
+        "target_layer",
+        "gateway",
+        "action",
+        "delta",
+        "confidence",
+        "export_recommendation",
+        "merge_strategy"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source_project": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "target_studio": {
+          "type": "string"
+        },
+        "target_layer": {
+          "type": "string"
+        },
+        "gateway": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "export_recommendation": {
+          "type": "string"
+        },
+        "merge_strategy": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

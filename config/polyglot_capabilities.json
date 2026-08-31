@@ -1,0 +1,199 @@
+{
+  "_meta": {
+    "kind": "polyglot_capability_matrix",
+    "version": "1.1",
+    "positioning": "Nexora SAGE is a polyglot architecture governance substrate with deepest expertise in TypeScript/React."
+  },
+  "languages": {
+    "typescript": {
+      "claim_level": "deep_specialist",
+      "supported_extensions": [
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts"
+      ],
+      "evidence": [
+        "atlas_ast_sequence",
+        "import_dependency_resolution",
+        "react_frontier_analysis",
+        "typescript_diagnostics",
+        "compiler_readiness"
+      ],
+      "semantic_depth": "React/TypeScript specialist analysis across AST, imports, diagnostics, compiler readiness and framework contracts.",
+      "not_claimed": []
+    },
+    "javascript": {
+      "claim_level": "deep_specialist",
+      "supported_extensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "evidence": [
+        "atlas_ast_sequence",
+        "import_dependency_resolution",
+        "react_frontier_analysis"
+      ],
+      "semantic_depth": "JavaScript/React structural and framework-aware analysis, without TypeScript-only diagnostics.",
+      "not_claimed": [
+        "typescript_typecheck"
+      ]
+    },
+    "python": {
+      "claim_level": "ast_strong",
+      "supported_extensions": [
+        ".py",
+        ".pyi"
+      ],
+      "evidence": [
+        "python_ast_sequencer",
+        "polyglot_import_extraction",
+        "atlas_symbol_normalization"
+      ],
+      "semantic_depth": "Python implementation and typing-stub AST symbol/import extraction with normalized Atlas integration; type-checker, framework, type-flow and runtime semantics remain outside the active claim.",
+      "not_claimed": [
+        "mypy_grade_type_semantics",
+        "runtime_import_execution",
+        "django_framework_semantics",
+        "fastapi_dependency_injection_resolution",
+        "orm_model_migration_compatibility",
+        "runtime_middleware_route_resolution",
+        "interprocedural_data_flow",
+        "reflection_metaclass_monkey_patch_behavior"
+      ],
+      "roadmap_candidates": [
+        "python_framework_semantic_adapters",
+        "python_type_semantic_adapter",
+        "python_orm_migration_contracts",
+        "python_runtime_trace_integration"
+      ]
+    },
+    "java": {
+      "claim_level": "structural",
+      "supported_extensions": [
+        ".java"
+      ],
+      "evidence": [
+        "java_structural_sequencer",
+        "polyglot_import_extraction",
+        "atlas_symbol_normalization"
+      ],
+      "semantic_depth": "Java package/class/method/import structural extraction.",
+      "not_claimed": [
+        "javac_grade_semantics",
+        "maven_gradle_resolution"
+      ]
+    },
+    "go": {
+      "claim_level": "structural",
+      "supported_extensions": [
+        ".go"
+      ],
+      "evidence": [
+        "go_structural_sequencer",
+        "polyglot_import_extraction",
+        "atlas_symbol_normalization"
+      ],
+      "semantic_depth": "Go package/function/import structural extraction.",
+      "not_claimed": [
+        "go_types_grade_semantics",
+        "go_list_module_resolution"
+      ]
+    },
+    "csharp": {
+      "claim_level": "structural",
+      "supported_extensions": [
+        ".cs"
+      ],
+      "evidence": [
+        "csharp_structural_sequencer",
+        "polyglot_import_extraction",
+        "atlas_symbol_normalization"
+      ],
+      "semantic_depth": "C# namespace/class/method/using structural extraction.",
+      "not_claimed": [
+        "roslyn_grade_semantics",
+        "dotnet_build_diagnostics"
+      ]
+    }
+  },
+  "claim_level_order": [
+    "structural",
+    "ast_strong",
+    "deep_specialist"
+  ],
+  "release_guardrails": {
+    "deepest_expertise": "typescript",
+    "forbid_compiler_grade_claims_without_adapters": true,
+    "required_roadmap_adapters": [
+      "javac",
+      "go/types",
+      "roslyn"
+    ]
+  },
+  "validation_contract": {
+    "required_claim_levels": {
+      "typescript": "deep_specialist",
+      "javascript": "deep_specialist",
+      "python": "ast_strong",
+      "java": "structural",
+      "go": "structural",
+      "csharp": "structural"
+    },
+    "compiler_grade_forbidden_claims": {
+      "java": [
+        "javac_grade_semantics",
+        "maven_gradle_resolution"
+      ],
+      "go": [
+        "go_types_grade_semantics",
+        "go_list_module_resolution"
+      ],
+      "csharp": [
+        "roslyn_grade_semantics",
+        "dotnet_build_diagnostics"
+      ]
+    },
+    "required_not_claimed_by_language": {
+      "python": [
+        "mypy_grade_type_semantics",
+        "runtime_import_execution",
+        "django_framework_semantics",
+        "fastapi_dependency_injection_resolution",
+        "orm_model_migration_compatibility",
+        "runtime_middleware_route_resolution",
+        "interprocedural_data_flow",
+        "reflection_metaclass_monkey_patch_behavior"
+      ]
+    },
+    "required_roadmap_candidates_by_language": {
+      "python": [
+        "python_framework_semantic_adapters",
+        "python_type_semantic_adapter",
+        "python_orm_migration_contracts",
+        "python_runtime_trace_integration"
+      ]
+    },
+    "human_surface_required_phrases": {
+      "docs/POLYGLOT_CAPABILITY_MATRIX.md": [
+        "polyglot architecture governance substrate",
+        "TypeScript/React remains the deepest specialist surface",
+        "Python is strong AST-backed support",
+        "Java/Go/C# are currently structural",
+        "Python framework and runtime semantics are roadmap candidates, not active claims.",
+        "config/polyglot_capabilities.json"
+      ],
+      "README.md": [
+        "TypeScript/React is the v1 surgical specialist surface. Python is AST-backed.",
+        "Python framework, type-flow, ORM/migration, dependency-injection, reflection, and runtime semantics are not active v1 claims."
+      ]
+    },
+    "required_roadmap_adapters": [
+      "javac",
+      "go/types",
+      "roslyn"
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "kind": "nexora.runtime_config_compiler_contract",
+    "version": "v1",
+    "purpose": "Own the non-recursive content identity used to decide whether compiled runtime configuration is stale."
+  },
+  "identity": {
+    "algorithm": "sha256_json_canonical_v1",
+    "source_inputs": [
+      "codemaps.discovery.json",
+      "codemaps.overrides.json"
+    ],
+    "baseline_owned_keys": [
+      "architecture",
+      "audit",
+      "environment",
+      "host_intelligence",
+      "project_display_names",
+      "quality_gates",
+      "use_sqlite",
+      "variations"
+    ],
+    "provenance_fields": {
+      "source_fingerprint": "source_content_fingerprint",
+      "baseline_fingerprint": "runtime_baseline_fingerprint"
+    },
+    "rule": "The source fingerprint covers semantic discovery and overrides content. The baseline fingerprint covers only declared baseline-owned fields from the final compiled output. Never include _meta, _compiled_from, _provenance or the compiled document as a whole in its own identity."
+  },
+  "validation": {
+    "required_identity_fields": [
+      "algorithm",
+      "source_inputs",
+      "baseline_owned_keys",
+      "provenance_fields",
+      "rule"
+    ],
+    "required_provenance_fields": [
+      "source_fingerprint",
+      "baseline_fingerprint"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "kind": "nexora.principle_pack",
+    "namespace": "principles.cognitive_load",
+    "version": "1.0.0",
+    "status": "advisory",
+    "description": "Universal cognitive-load guidance for AI-assisted code changes."
+  },
+  "principles": [
+    {
+      "id": "principle.cognitive_load.reduce_extraneous_load",
+      "label": "Reduce extraneous cognitive load",
+      "applies_to": [
+        "agent_directive",
+        "refactor",
+        "complex_condition",
+        "nested_control_flow"
+      ],
+      "rationale": "Code should minimize unnecessary working-memory burden beyond the intrinsic domain task.",
+      "directive_hint": "Prefer named guard variables, early returns, and clear local flow when a change would otherwise force readers to track many conditions at once.",
+      "enforcement": "advisory"
+    },
+    {
+      "id": "principle.cognitive_load.avoid_shallow_abstractions",
+      "label": "Avoid shallow abstractions",
+      "applies_to": [
+        "agent_directive",
+        "refactor",
+        "abstraction",
+        "module_boundary"
+      ],
+      "rationale": "Many tiny modules with complex interactions can increase cognitive load more than a slightly larger deep module with a simple interface.",
+      "directive_hint": "Do not split code into new helper files or layers unless the new boundary hides meaningful complexity or clarifies ownership.",
+      "enforcement": "advisory"
+    },
+    {
+      "id": "principle.cognitive_load.delay_irreversible_boundaries",
+      "label": "Delay irreversible boundaries",
+      "applies_to": [
+        "agent_directive",
+        "architecture_change",
+        "service_boundary",
+        "layer_boundary"
+      ],
+      "rationale": "Premature network, service, or layer boundaries can harden guesses into expensive cognitive and operational load.",
+      "directive_hint": "Prefer modular monolith or local module boundaries until deployment, ownership, scaling, or governance evidence justifies a harder boundary.",
+      "enforcement": "advisory"
+    }
+  ]
+}

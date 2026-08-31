@@ -1,0 +1,565 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "languages.universal",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "semantic_rules": {
+    "strict_aliasing": true,
+    "domain_restricted_imports": [
+      "react",
+      "axios",
+      "zustand"
+    ],
+    "entities_restricted_imports": [
+      "react"
+    ],
+    "entities_forbids_async_side_effects": true,
+    "api_restricted_imports": [
+      "react"
+    ]
+  },
+  "semantic_taxonomy": {
+    "state_zustand": [
+      "createStore",
+      "useStore",
+      "subscribe",
+      "shallow",
+      "persist",
+      "middleware",
+      "devtools",
+      "getState",
+      "setState",
+      "zustand"
+    ],
+    "react_18": [
+      "useTransition",
+      "useDeferredValue",
+      "Suspense",
+      "lazy",
+      "startTransition",
+      "useId",
+      "useSyncExternalStore",
+      "memo",
+      "useMemo",
+      "useCallback",
+      "forwardRef",
+      "useRef",
+      "useEffect",
+      "useState",
+      "useContext"
+    ],
+    "data_tanstack": [
+      "useQuery",
+      "useMutation",
+      "QueryClient",
+      "invalidateQueries",
+      "setQueryData",
+      "optimistic",
+      "staleTime",
+      "fetchQuery",
+      "prefetchQuery",
+      "queryKey",
+      "QueryClientProvider"
+    ],
+    "pwa_storage": [
+      "indexeddb",
+      "dexie",
+      "serviceworker",
+      "workbox",
+      "stale-while-revalidate",
+      "offline",
+      "syncManager",
+      "cacheFirst",
+      "networkFirst"
+    ],
+    "realtime_crdt": [
+      "yjs",
+      "crdt",
+      "websocket",
+      "presence",
+      "awareness",
+      "sync",
+      "conflict",
+      "Y.Doc",
+      "applyUpdate",
+      "webrtc"
+    ],
+    "multitenant_plugin": [
+      "tenant",
+      "subdomain",
+      "plugin",
+      "extension",
+      "registry",
+      "activate",
+      "deactivate",
+      "feature_flag",
+      "featureGate"
+    ],
+    "performance": [
+      "virtualiz",
+      "worker",
+      "debounce",
+      "throttle",
+      "memoiz",
+      "fps",
+      "latency",
+      "profiler",
+      "requestIdleCallback",
+      "IntersectionObserver"
+    ],
+    "security": [
+      "zod",
+      "dompurify",
+      "sanitize",
+      "csp",
+      "xss",
+      "helmet",
+      "rbac",
+      "encrypt",
+      "jwt",
+      "auth",
+      "bcrypt",
+      "csrf"
+    ],
+    "a11y_i18n": [
+      "aria",
+      "role",
+      "tabindex",
+      "i18next",
+      "useTranslation",
+      "intl",
+      "rtl",
+      "screenreader",
+      "focusTrap",
+      "liveRegion"
+    ],
+    "domain_hexagonal": [
+      "entity",
+      "valueobject",
+      "aggregate",
+      "usecase",
+      "port",
+      "adapter",
+      "service",
+      "repository",
+      "domainEvent"
+    ],
+    "ai_engine": [
+      "agent",
+      "inference",
+      "embedding",
+      "semantic",
+      "genai",
+      "prompt",
+      "completion",
+      "context",
+      "temperature",
+      "chain",
+      "vector"
+    ],
+    "testing": [
+      "describe",
+      "it",
+      "expect",
+      "mock",
+      "spy",
+      "stub",
+      "fixture",
+      "beforeEach",
+      "afterEach",
+      "vitest",
+      "jest",
+      "renderHook"
+    ],
+    "error_observability": [
+      "ErrorBoundary",
+      "Sentry",
+      "captureException",
+      "fallback",
+      "retry",
+      "timeout",
+      "circuitBreaker",
+      "webVitals",
+      "LCP",
+      "CLS",
+      "INP"
+    ],
+    "routing": [
+      "useNavigate",
+      "useParams",
+      "useSearchParams",
+      "Route",
+      "Link",
+      "Navigate",
+      "Outlet",
+      "createBrowserRouter",
+      "useLocation",
+      "createMemoryRouter",
+      "createHashRouter"
+    ],
+    "form_validation": [
+      "useForm",
+      "register",
+      "handleSubmit",
+      "validate",
+      "schema",
+      "zodResolver",
+      "Controller",
+      "formState",
+      "FieldValues"
+    ],
+    "animation": [
+      "framer-motion",
+      "animate",
+      "transition",
+      "spring",
+      "keyframe",
+      "gsap",
+      "motion",
+      "AnimatePresence",
+      "useSpring"
+    ],
+    "theming": [
+      "ThemeProvider",
+      "useTheme",
+      "css-variable",
+      "darkMode",
+      "lightMode",
+      "colorScheme",
+      "cssVar",
+      "brandColor"
+    ],
+    "ui_ux": [
+      "Lucide",
+      "clsx",
+      "tailwind",
+      "shadcn",
+      "Radix",
+      "LucideIcon"
+    ],
+    "editors": [
+      "Canvas",
+      "Dnd",
+      "Prosemirror",
+      "Lexical"
+    ],
+    "infrastructure_tech": [
+      "Prisma",
+      "Postgres",
+      "Redis",
+      "S3",
+      "Supabase",
+      "Vercel",
+      "AWS"
+    ]
+  },
+  "semantic_weights": {
+    "domain_hexagonal": 3.0,
+    "editors": 3.0,
+    "realtime_crdt": 2.5,
+    "ai_engine": 2.5,
+    "infrastructure_tech": 2.0,
+    "security": 2.0,
+    "performance": 2.0,
+    "error_observability": 1.8,
+    "state_zustand": 1.5,
+    "data_tanstack": 1.5,
+    "multitenant_plugin": 1.5,
+    "pwa_storage": 1.5,
+    "ui_ux": 1.2,
+    "animation": 1.2,
+    "form_validation": 1.2,
+    "routing": 1.0,
+    "theming": 1.0,
+    "a11y_i18n": 1.0,
+    "testing": 0.8,
+    "react_18": 0.8
+  },
+  "leak_detection": {
+    "Browser": [
+      "localStorage",
+      "sessionStorage",
+      "window.",
+      "document.",
+      "navigator."
+    ],
+    "Runtime": [
+      "process.env",
+      "console.log",
+      "setTimeout",
+      "setInterval",
+      "Date.now"
+    ],
+    "Architecture": [
+      "../../..",
+      "dist/",
+      "build/",
+      ".js'",
+      ".jsx'",
+      "eslint-disable"
+    ]
+  },
+  "architectural_markers": [
+    "Manager",
+    "Engine",
+    "Builder",
+    "Strategy",
+    "Factory",
+    "Provider",
+    "Service",
+    "Repository",
+    "Controller",
+    "Adapter",
+    "Port",
+    "Facade",
+    "Orchestrator",
+    "Observer",
+    "Command",
+    "Gateway",
+    "Mediator",
+    "Dispatcher",
+    "Registry",
+    "Resolver"
+  ],
+  "side_effect_governance": {
+    "identifiers": {
+      "NetworkIO": [
+        "fetch",
+        "axios"
+      ],
+      "StorageIO": [
+        "localStorage",
+        "sessionStorage",
+        "indexedDB"
+      ],
+      "EventBus": [
+        "eventBus"
+      ],
+      "Timer": [
+        "setTimeout",
+        "setInterval"
+      ],
+      "DOMGlobal": [
+        "window",
+        "document"
+      ],
+      "Navigation": [
+        "router",
+        "navigate",
+        "history",
+        "location"
+      ]
+    },
+    "property_patterns": [
+      [
+        "EnvAccess",
+        [
+          "process.env",
+          "import.meta.env"
+        ]
+      ],
+      [
+        "StorageIO",
+        [
+          "localStorage.",
+          "sessionStorage.",
+          "indexedDB."
+        ]
+      ],
+      [
+        "EventBus",
+        [
+          "eventBus.",
+          ".emit(",
+          ".dispatchEvent(",
+          ".addEventListener("
+        ]
+      ]
+    ]
+  },
+  "discovery_taxonomy": {
+    "semantic_tokens": {
+      "UI/UX": [
+        "Lucide",
+        "framer-motion",
+        "clsx",
+        "tailwind",
+        "shadcn",
+        "Radix",
+        "LucideIcon"
+      ],
+      "State": [
+        "Zustand",
+        "ReactQuery",
+        "useQuery",
+        "useMutation",
+        "QueryClient",
+        "persist",
+        "createStore",
+        "createSlice",
+        "createAsyncThunk",
+        "configureStore"
+      ],
+      "Logic": [
+        "Zod",
+        "Schema",
+        "Validation",
+        "Logic",
+        "Service",
+        "Adapter",
+        "Port"
+      ],
+      "Auth/Security": [
+        "Auth",
+        "Session",
+        "JWT",
+        "Encryption",
+        "Hash",
+        "Secret",
+        "Credential"
+      ],
+      "Editors": [
+        "Canvas",
+        "Dnd",
+        "Draggable",
+        "Sortable",
+        "Prosemirror",
+        "Tiptap",
+        "Lexical"
+      ],
+      "Infrastructure": [
+        "Prisma",
+        "Postgres",
+        "Redis",
+        "S3",
+        "Supabase",
+        "Vercel",
+        "AWS"
+      ],
+      "Routing": [
+        "RouterProvider",
+        "createBrowserRouter",
+        "createMemoryRouter",
+        "createHashRouter",
+        "redirect",
+        "useRouteError"
+      ]
+    },
+    "complexity_weights": {
+      "Editors": 3.0,
+      "UI/UX": 1.2,
+      "State": 1.5,
+      "Infrastructure": 2.0
+    },
+    "architectural_markers": [
+      "Manager",
+      "Engine",
+      "Builder",
+      "Strategy",
+      "Factory",
+      "Provider",
+      "Service",
+      "Repository",
+      "Controller",
+      "Adapter",
+      "Port",
+      "Facade",
+      "Orchestrator",
+      "Registry",
+      "Resolver"
+    ],
+    "side_effect_taxonomy": {
+      "identifiers": {
+        "NetworkIO": [
+          "fetch",
+          "axios"
+        ],
+        "StorageIO": [
+          "localStorage",
+          "sessionStorage",
+          "indexedDB"
+        ],
+        "EventBus": [
+          "eventBus"
+        ],
+        "Timer": [
+          "setTimeout",
+          "setInterval"
+        ],
+        "DOMGlobal": [
+          "window",
+          "document"
+        ],
+        "Navigation": [
+          "router",
+          "navigate",
+          "history",
+          "location"
+        ]
+      },
+      "property_patterns": [
+        {
+          "marker": "EnvAccess",
+          "patterns": [
+            "process.env",
+            "import.meta.env"
+          ]
+        },
+        {
+          "marker": "StorageIO",
+          "patterns": [
+            "localStorage.",
+            "sessionStorage.",
+            "indexedDB."
+          ]
+        },
+        {
+          "marker": "EventBus",
+          "patterns": [
+            "eventBus.",
+            ".emit(",
+            ".dispatchEvent(",
+            ".addEventListener("
+          ]
+        }
+      ]
+    },
+    "framework_patterns": {
+      "redux_toolkit": [
+        "createSlice",
+        "configureStore",
+        "combineSlices",
+        "createAsyncThunk"
+      ],
+      "react_query": [
+        "useQuery",
+        "useInfiniteQuery",
+        "useSuspenseQuery",
+        "fetchQuery",
+        "prefetchQuery",
+        "ensureQueryData",
+        "useMutation",
+        "executeMutation"
+      ],
+      "query_client_actions": [
+        "invalidateQueries",
+        "prefetchQuery",
+        "fetchQuery",
+        "ensureQueryData",
+        "setQueryData",
+        "getQueryData",
+        "cancelQueries"
+      ],
+      "react_router": [
+        "createBrowserRouter",
+        "createMemoryRouter",
+        "createHashRouter",
+        "RouterProvider",
+        "redirect"
+      ]
+    }
+  }
+}

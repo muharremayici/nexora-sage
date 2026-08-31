@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "kind": "nexora.principle_pack",
+    "namespace": "principles.error_handling",
+    "version": "1.0.0",
+    "status": "advisory",
+    "description": "Universal resilience guidance for code that crosses process, network, IO, or tool boundaries."
+  },
+  "principles": [
+    {
+      "id": "principle.resilience.explicit_failure_boundary",
+      "label": "Keep failure boundaries explicit",
+      "applies_to": [
+        "agent_directive",
+        "network_call",
+        "subprocess",
+        "filesystem_write",
+        "external_tool"
+      ],
+      "rationale": "External boundaries fail in ways local code does not; explicit failure handling keeps agent patches auditable.",
+      "directive_hint": "When touching external IO, preserve or add explicit timeout, error handling, and observable failure reporting.",
+      "enforcement": "advisory"
+    },
+    {
+      "id": "principle.resilience.no_silent_fallback",
+      "label": "Do not hide unknown state",
+      "applies_to": [
+        "agent_directive",
+        "fallback",
+        "validation",
+        "telemetry"
+      ],
+      "rationale": "SAGE should say what it knows and what it does not know; silent fallback weakens trust in downstream decisions.",
+      "directive_hint": "If a fallback is used, preserve a visible status, warning, or telemetry trail.",
+      "enforcement": "advisory"
+    }
+  ]
+}

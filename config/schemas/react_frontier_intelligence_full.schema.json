@@ -1,0 +1,161 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "evidence_imports",
+    "files",
+    "findings",
+    "refactor_plan"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "files_analyzed",
+        "findings",
+        "dimension_counts",
+        "confidence_counts",
+        "risk_tiers",
+        "high_risk",
+        "medium_risk",
+        "bundle_evidence_files",
+        "profiler_evidence_files",
+        "ts_diagnostics_total",
+        "ts_diagnostics_projects_with_errors",
+        "primary_report_finding_limit",
+        "truncated_in_primary_report",
+        "full_artifact",
+        "evidence_readiness_artifact"
+      ],
+      "properties": {
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "findings": {
+          "type": "integer"
+        },
+        "dimension_counts": {
+          "type": "object"
+        },
+        "confidence_counts": {
+          "type": "object"
+        },
+        "risk_tiers": {
+          "type": "object"
+        },
+        "high_risk": {
+          "type": "integer"
+        },
+        "medium_risk": {
+          "type": "integer"
+        },
+        "bundle_evidence_files": {
+          "type": "integer"
+        },
+        "profiler_evidence_files": {
+          "type": "integer"
+        },
+        "ts_diagnostics_total": {
+          "type": "integer"
+        },
+        "ts_diagnostics_projects_with_errors": {
+          "type": "integer"
+        },
+        "primary_report_finding_limit": {
+          "type": "integer"
+        },
+        "truncated_in_primary_report": {
+          "type": "integer"
+        },
+        "full_artifact": {
+          "type": "string"
+        },
+        "evidence_readiness_artifact": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence_imports": {
+      "type": "object"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "dimension",
+          "risk",
+          "risk_tier",
+          "confidence",
+          "score",
+          "evidence_kinds",
+          "evidence",
+          "recommended_action"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string"
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "likely",
+              "probable",
+              "needs_runtime_proof"
+            ]
+          },
+          "score": {
+            "type": "integer"
+          },
+          "evidence_kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "refactor_plan": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

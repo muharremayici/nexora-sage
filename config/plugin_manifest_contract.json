@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "kind": "nexora.plugin_manifest_contract",
+    "version": "v1",
+    "purpose": "Machine-readable contract for SAGE plugin manifest validation."
+  },
+  "validation_contract": {
+    "required_fields": [
+      "kind",
+      "version",
+      "id",
+      "title",
+      "status",
+      "capability_id",
+      "domain",
+      "language_scope",
+      "maturity",
+      "entrypoints",
+      "contracts",
+      "claim_boundary",
+      "activation"
+    ],
+    "active_statuses": [
+      "active"
+    ],
+    "non_active_statuses_must_not_default_enable": [
+      "template",
+      "planned",
+      "roadmap"
+    ]
+  }
+}

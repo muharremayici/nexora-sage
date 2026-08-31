@@ -1,0 +1,28 @@
+{
+  "kind": "nexora.plugin_manifest",
+  "version": "1.0",
+  "id": "example.future-capability",
+  "title": "Example Future Capability",
+  "status": "template",
+  "capability_id": "data_privacy_cage",
+  "domain": "capabilities.security.privacy",
+  "language_scope": [
+    "language_agnostic"
+  ],
+  "maturity": "roadmap",
+  "entrypoints": {
+    "engines": [],
+    "validators": []
+  },
+  "contracts": {
+    "reads_artifacts": [],
+    "writes_artifacts": [],
+    "required_doctrine_packs": [],
+    "required_policy_files": []
+  },
+  "claim_boundary": "Template only. A plugin becomes active only after its capability, artifacts, validators and release proof are registered.",
+  "activation": {
+    "default_enabled": false,
+    "requires_human_approval": true
+  }
+}

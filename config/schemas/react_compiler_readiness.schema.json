@@ -1,0 +1,196 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "policy",
+    "findings"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "react_compiler_readiness"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "findings",
+        "files_analyzed",
+        "ready",
+        "observe",
+        "review",
+        "blocked",
+        "status_counts",
+        "dimension_counts",
+        "runtime_proof_status_counts",
+        "by_project"
+      ],
+      "properties": {
+        "findings": {
+          "type": "integer"
+        },
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "ready": {
+          "type": "integer"
+        },
+        "observe": {
+          "type": "integer"
+        },
+        "review": {
+          "type": "integer"
+        },
+        "blocked": {
+          "type": "integer"
+        },
+        "status_counts": {
+          "type": "object"
+        },
+        "dimension_counts": {
+          "type": "object"
+        },
+        "runtime_proof_status_counts": {
+          "type": "object"
+        },
+        "by_project": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "compiler_dimensions",
+        "blocking_risks",
+        "review_risks"
+      ],
+      "properties": {
+        "compiler_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blocking_risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "line",
+          "source_artifact",
+          "dimension",
+          "risk",
+          "risk_tier",
+          "confidence",
+          "score",
+          "readiness_status",
+          "evidence_kinds",
+          "evidence_ladder",
+          "runtime_proof_status",
+          "recommended_action"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "source_artifact": {
+            "type": "string"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string"
+          },
+          "risk_tier": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "readiness_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "observe",
+              "review",
+              "blocked"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "evidence_kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ladder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_spans": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "runtime_proof_status": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

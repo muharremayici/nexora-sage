@@ -1,0 +1,134 @@
+{
+  "meta": {
+    "kind": "validator_policy_registry",
+    "version": "v1",
+    "description": "Central policy for validator-owned scan scope, allowlists and classification decisions. Algorithmic parsing and matching remain executable code."
+  },
+  "hardcoded_decision_inventory": {
+    "scan_root": "tools",
+    "decision_words": [
+      "allowed",
+      "required",
+      "release",
+      "profile",
+      "budget",
+      "timeout",
+      "threshold",
+      "policy",
+      "claim",
+      "mode",
+      "phase",
+      "scope",
+      "gate"
+    ],
+    "path_or_artifact_suffixes": [
+      ".json",
+      ".md",
+      ".py",
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".cjs",
+      ".log"
+    ],
+    "policy_assignment_markers": [
+      "POLICY",
+      "THRESHOLD",
+      "BUDGET",
+      "TIMEOUT",
+      "ALLOWLIST",
+      "DENYLIST",
+      "REQUIRED",
+      "ALLOWED",
+      "DEFAULT"
+    ],
+    "decision_table_row_field_markers": [
+      "allowed",
+      "budget",
+      "default_mode",
+      "label",
+      "layer",
+      "mode",
+      "policy",
+      "rationale",
+      "required",
+      "requires",
+      "scope",
+      "threshold",
+      "timeout"
+    ],
+    "decision_table_min_rows": 2,
+    "decision_table_min_matching_fields": 3,
+    "triage_actions": {
+      "actionable": [
+        "inspect_for_shared_contract",
+        "inspect_for_registry",
+        "must_fix"
+      ],
+      "bulk_deferred": [
+        "usually_keep_local",
+        "usually_keep_local_unless_duplicated_contract",
+        "usually_keep_local_unless_shared_policy",
+        "exclude_from_refactor_queue"
+      ]
+    },
+    "allowed_decision_table_files": [
+      "tools/core/artifact_validator.py",
+      "tools/core/capability_registry.py",
+      "tools/core/operational_limits.py",
+      "tools/core/agent_packet_budget.py",
+      "tools/core/roadmap_phase_registry.py",
+      "tools/validate_hardcoded_decision_inventory.py"
+    ],
+    "allowed_test_or_fixture_parts": [
+      "tests"
+    ]
+  },
+  "sqlite_proxy_coverage": {
+    "hot_integration_targets": [
+      "codemaps.py",
+      "tools/generate_nexora_agent_contract.py",
+      "tools/generate_nexora_agent_handoff.py",
+      "tools/generate_nexora_brief.py",
+      "tools/generate_nexora_operator_packet.py",
+      "tools/generate_nexora_surface_inventory.py",
+      "tools/mcp/server.py",
+      "tools/orchestrators/orchestrator.py",
+      "tools/core/audit_report.py",
+      "tools/core/host_intelligence.py",
+      "tools/engines/quality_gate.py",
+      "tools/engines/release_readiness_report.py",
+      "tools/engines/fractal_mapper.py",
+      "tools/engines/clone_detector.py",
+      "tools/engines/nanometric_diff_engine.py",
+      "tools/engines/variation_manager.py",
+      "tools/engines/dead_code_detector.py",
+      "tools/engines/merge_script_generator.py",
+      "tools/engines/nuclear_processor.py",
+      "tools/validate_contextos_signals.py"
+    ],
+    "active_runtime_roots": [
+      "tools/core",
+      "tools/engines",
+      "tools/mcp",
+      "tools/orchestrators"
+    ],
+    "active_runtime_exists_gate_roots": [
+      "tools/core",
+      "tools/engines",
+      "tools/mcp",
+      "tools/orchestrators",
+      "tools/utils"
+    ],
+    "raw_disk_read_allowed_files": [
+      "tools/core/artifact_store.py",
+      "tools/core/json_io.py"
+    ],
+    "raw_exists_gate_allowed_files": [
+      "tools/core/artifact_store.py",
+      "tools/core/artifact_validator.py",
+      "tools/core/json_io.py"
+    ]
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "_meta": {
+    "kind": "nexora.contributor_extension_contract",
+    "version": "1.0.0",
+    "description": "Minimal V1 contributor contract for extending SAGE without splitting truth, widening claims silently, or bypassing human governance."
+  },
+  "default_rules": {
+    "paths": "repository_relative_only",
+    "public_claims": "must_not_expand_without_release_claim_profile_and_claim_guard",
+    "human_authority": "hard_hitl_required_for_doctrine_seal_claim_boundary_or_mutating_enforcement_changes",
+    "third_party_code": "contract_only_in_v1_no_executable_plugin_runtime",
+    "engine_decision_boundary": "engines_produce_signals_evidence_and_governance_decide_actions",
+    "agent_surface_boundary": "agent_facing_changes_must_preserve_nanometric_context_token_budget_and_no_internal_noise"
+  },
+  "extension_surfaces": [
+    {
+      "id": "doctrine_pack",
+      "extension_kind": "binding_repository_constitution",
+      "registry_or_manifest": "config/doctrines/manifest.json",
+      "canonical_location": "config/doctrines/",
+      "required_validator": "tools/validate_modular_doctrine_registry.py",
+      "release_proof_step": "modular_doctrine_registry",
+      "claim_boundary": "Binding doctrine can affect engine findings and agent directives; V1 claim expansion requires release profile and claim guard approval.",
+      "human_seal_policy": "hard_for_seal_or_claim_expansion"
+    },
+    {
+      "id": "principle_pack",
+      "extension_kind": "advisory_engineering_wisdom",
+      "registry_or_manifest": "config/principles/manifest.json",
+      "canonical_location": "config/principles/",
+      "required_validator": "tools/validate_principle_packs.py",
+      "release_proof_step": "principle_pack_contracts",
+      "claim_boundary": "Principles may guide directives but do not create V1 violations, quality gates, or human-sealed doctrine.",
+      "human_seal_policy": "soft_for_advisory_text_hard_if_promoted_to_doctrine_or_cage"
+    },
+    {
+      "id": "capability_registry_entry",
+      "extension_kind": "capability_and_claim_boundary",
+      "registry_or_manifest": "config/capability_registry.json",
+      "canonical_location": "config/capability_registry.json",
+      "required_validator": "tools/validate_capability_registry.py",
+      "release_proof_step": "capability_registry_validation",
+      "claim_boundary": "Capabilities describe what SAGE can prove, which artifacts are trusted, and which claims remain out of scope.",
+      "human_seal_policy": "hard_for_public_claim_or_release_gate_changes"
+    },
+    {
+      "id": "cage_contract",
+      "extension_kind": "policy_backed_detection_cage",
+      "registry_or_manifest": "config/cage_mvp_contracts.json",
+      "canonical_location": "config/*_policy.json and tools/engines/*_cage.py",
+      "required_validator": "tools/validate_cage_mvp_contracts.py",
+      "release_proof_step": "cage_mvp_contracts",
+      "claim_boundary": "V1 cages are advisory candidate signals unless the cage contract and release proof explicitly promote them.",
+      "human_seal_policy": "hard_for_release_blocking_or_mutating_enforcement"
+    },
+    {
+      "id": "engine_or_pipeline_step",
+      "extension_kind": "signal_producer",
+      "registry_or_manifest": "tools/core/pipeline_registry.py",
+      "central_owner_files": [
+        "tools/orchestrators/orchestrator.py",
+        "tools/core/pipeline_registry.py"
+      ],
+      "canonical_location": "tools/engines/ or tools/orchestrators/",
+      "required_validator": "tools/validate_pipeline_execution_contract.py",
+      "release_proof_step": "pipeline_execution_contract",
+      "claim_boundary": "New engines must declare inputs, outputs, dependencies, profile cost, validator coverage, and claim scope before release use.",
+      "human_seal_policy": "soft_for_internal_signal_hard_if_it_blocks_release_or_mutates_files"
+    },
+    {
+      "id": "source_governance_contract",
+      "extension_kind": "source_contract_and_boundary_guard",
+      "registry_or_manifest": "config/source_contract_policy.json",
+      "central_owner_files": [
+        "tools/validate_source_contracts.py"
+      ],
+      "canonical_location": "config/source_contract_policy.json and tools/validate_source_contracts.py",
+      "required_validator": "tools/validate_source_contracts.py",
+      "release_proof_step": "source_contracts",
+      "claim_boundary": "Source governance contracts guard SAGE's own source boundaries, large-file allowlists, source snapshots, watchdog and agent-surface red lines; changes must not weaken source-clean or release proof expectations.",
+      "human_seal_policy": "hard_if_source_boundary_or_release_gate_is_weakened"
+    },
+    {
+      "id": "product_boundary_contract",
+      "extension_kind": "product_value_ownership_and_packaging_boundary",
+      "registry_or_manifest": "config/product_boundary_contract.json",
+      "central_owner_files": [
+        "tools/generate_product_boundary_map.py"
+      ],
+      "canonical_location": "config/product_boundary_contract.json",
+      "required_validator": "tools/generate_product_boundary_map.py",
+      "release_proof_step": "product_boundary_map",
+      "claim_boundary": "Boundary changes classify existing evidence but do not themselves grant a license, transfer customer learning assets or expand release claims.",
+      "human_seal_policy": "hard_for_final_license_or_ownership_changes"
+    },
+    {
+      "id": "source_role_obligation_contract",
+      "extension_kind": "executable_source_role_and_integration_obligation",
+      "registry_or_manifest": "config/source_role_obligation_contract.json",
+      "central_owner_files": [
+        "tools/generate_source_layer_inventory.py"
+      ],
+      "canonical_location": "config/source_role_obligation_contract.json",
+      "required_validator": "tools/generate_source_layer_inventory.py",
+      "release_proof_step": "source_layer_inventory",
+      "claim_boundary": "Role discovery detects missing integration obligations but never auto-activates an engine, changes authority, or expands public claims.",
+      "human_seal_policy": "hard_if_role_inference_is_allowed_to_activate_or_expand_claims"
+    },
+    {
+      "id": "decision_ownership_contract",
+      "extension_kind": "canonical_decision_owner_pointer",
+      "registry_or_manifest": "config/decision_ownership_registry.json",
+      "central_owner_files": [
+        "tools/core/decision_ownership.py",
+        "tools/validate_central_decision_contracts.py"
+      ],
+      "canonical_location": "config/decision_ownership_registry.json and tools/core/decision_ownership.py",
+      "required_validator": "tools/validate_central_decision_contracts.py",
+      "release_proof_step": "central_decision_contracts",
+      "claim_boundary": "The registry protects SAGE self-development decision ownership; it must not impose SAGE-internal governance sets on customer repositories.",
+      "human_seal_policy": "hard_if_owner_pointer_or_enforcement_scope_changes"
+    },
+    {
+      "id": "agent_facing_surface",
+      "extension_kind": "contextos_mcp_directive_surface",
+      "registry_or_manifest": "config/mcp_tool_roles.json",
+      "canonical_location": "tools/core/contextos_mcp.py and tools/mcp/server.py",
+      "required_validator": "tools/validate_mcp_agent_surface.py",
+      "release_proof_step": "mcp_agent_surface",
+      "claim_boundary": "Agent-facing packets must expose target-repository facts, bounded source snippets, validation commands, rule explanations, and HITL gates without leaking internal debug noise.",
+      "human_seal_policy": "hard_for_mutating_or_claim_affecting_agent_surfaces"
+    },
+    {
+      "id": "plugin_manifest",
+      "extension_kind": "contract_only_plugin_declaration",
+      "registry_or_manifest": "config/plugin_manifests/",
+      "canonical_location": "config/plugin_manifests/",
+      "required_validator": "tools/validate_plugin_manifest_contract.py",
+      "release_proof_step": "plugin_manifest_contract",
+      "claim_boundary": "V1 accepts declarative plugin manifests only; executable third-party plugin loading remains forbidden.",
+      "human_seal_policy": "hard_before_activation_or_runtime_execution"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "confidence_risk_report.schema.json",
+  "title": "Confidence Risk Report",
+  "type": "object",
+  "required": [
+    "target",
+    "confidence_matrix",
+    "metrics",
+    "verdict"
+  ],
+  "properties": {
+    "target": {
+      "type": "string"
+    },
+    "verdict": {
+      "type": "string"
+    },
+    "confidence_matrix": {
+      "type": "object",
+      "required": [
+        "dead_code_confidence",
+        "merge_safety",
+        "architecture_drift_certainty",
+        "dynamic_magic_hazard"
+      ],
+      "properties": {
+        "dead_code_confidence": {
+          "type": "number"
+        },
+        "merge_safety": {
+          "type": "string"
+        },
+        "architecture_drift_certainty": {
+          "type": "number"
+        },
+        "dynamic_magic_hazard": {
+          "type": "number"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "loc",
+        "blast_radius_dependents",
+        "cyclic_member",
+        "reflection_indicators_found",
+        "risk_mitigation_reasons"
+      ],
+      "properties": {
+        "loc": {
+          "type": "integer"
+        },
+        "blast_radius_dependents": {
+          "type": "integer"
+        },
+        "cyclic_member": {
+          "type": "boolean"
+        },
+        "reflection_indicators_found": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_mitigation_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

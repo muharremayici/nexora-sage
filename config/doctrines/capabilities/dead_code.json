@@ -1,0 +1,1059 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "capabilities.dead_code",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "dead_code_heuristics": {
+    "confidence_formula": {
+      "HIGH": 1.0,
+      "MEDIUM": 0.6,
+      "LOW": 0.25
+    },
+    "global_ignored_symbols": [
+      "default",
+      "Props",
+      "State",
+      "Config",
+      "Options",
+      "Type",
+      "Data",
+      "React",
+      "useEffect",
+      "useState",
+      "useCallback",
+      "useMemo",
+      "useRef",
+      "Fragment",
+      "Suspense",
+      "Metadata",
+      "params",
+      "searchParams",
+      "metadata",
+      "clsx",
+      "twMerge",
+      "z",
+      "lucide",
+      "cn",
+      "any"
+    ],
+    "discovery_taxonomy": {
+      "semantic_tokens": {
+        "react": [
+          "useState",
+          "useEffect",
+          "useContext",
+          "useMemo",
+          "useCallback",
+          "useReducer",
+          "useRef",
+          "useTransition",
+          "useDeferredValue"
+        ],
+        "state_management": [
+          "create",
+          "useStore",
+          "Zustand",
+          "Redux",
+          "dispatch",
+          "reducer",
+          "action"
+        ],
+        "networking": [
+          "axios",
+          "fetch",
+          "QueryClient",
+          "useQuery",
+          "useMutation",
+          "ApiManager",
+          "Endpoint"
+        ],
+        "ui_styling": [
+          "styled",
+          "tailwind",
+          "clsx",
+          "cls",
+          "className",
+          "sx",
+          "css"
+        ],
+        "logic_orchestration": [
+          "Manager",
+          "Orchestrator",
+          "Controller",
+          "Service",
+          "Adapter",
+          "Repository",
+          "Handler",
+          "Flow"
+        ],
+        "type_safety": [
+          "zod",
+          "interface",
+          "type",
+          "enum",
+          "schema",
+          "z."
+        ]
+      },
+      "architectural_markers": {
+        "hexagonal": [
+          "infra",
+          "application",
+          "domain",
+          "api",
+          "ports",
+          "adapters"
+        ],
+        "fsd": [
+          "features",
+          "entities",
+          "widgets",
+          "pages",
+          "shared"
+        ],
+        "collaboration": [
+          "WebSocket",
+          "Yjs",
+          "CRDT",
+          "Presence",
+          "shared-state"
+        ]
+      }
+    },
+    "assembly_governance": {
+      "layer_overrides": [
+        {
+          "fragments": [
+            "/server/flows/",
+            "/server/lib/"
+          ],
+          "layer": "application"
+        },
+        {
+          "fragments": [
+            "/shared/model/"
+          ],
+          "layer": "shared/model"
+        },
+        {
+          "fragments": [
+            "/shared/ui/"
+          ],
+          "layer": "shared/ui"
+        },
+        {
+          "fragments": [
+            "/utils/",
+            "/lib/utils/",
+            "/shared/ui/utils/"
+          ],
+          "layer": "shared/utils"
+        },
+        {
+          "fragments": [
+            "/constants/templates/",
+            "/lib/constants/"
+          ],
+          "layer": "shared/constants"
+        },
+        {
+          "fragments": [
+            "/types/domain/"
+          ],
+          "layer": "shared/contracts"
+        },
+        {
+          "fragments": [
+            "/types/schemas/",
+            "/shared/types/schemas/"
+          ],
+          "layer": "shared/model"
+        },
+        {
+          "fragments": [
+            "/entities/",
+            "/lib/logic.ts"
+          ],
+          "layer": "domain/logic"
+        },
+        {
+          "fragments": [
+            "/types/",
+            "/shared/types/"
+          ],
+          "layer": "shared/contracts"
+        }
+      ],
+      "family_routing": [
+        {
+          "fragments": [
+            "/services/ai/",
+            "/workers/",
+            "service-worker"
+          ],
+          "target": "src/platform/ai/"
+        },
+        {
+          "fragments": [
+            "/services/export/"
+          ],
+          "target": "src/platform/export/"
+        },
+        {
+          "fragments": [
+            "/services/media/storage/"
+          ],
+          "target": "src/platform/storage/"
+        },
+        {
+          "fragments": [
+            "/services/media/",
+            "/services/graphics/",
+            "/services/drawing/"
+          ],
+          "target": "src/platform/assets/"
+        },
+        {
+          "fragments": [
+            "/services/inspiration/",
+            "/services/analysis/"
+          ],
+          "target": "src/platform/analysis/"
+        },
+        {
+          "fragments": [
+            "/services/auth/",
+            "/contexts/auth",
+            "/stores/auth/"
+          ],
+          "target": "src/platform/auth/"
+        },
+        {
+          "fragments": [
+            "/services/sync/",
+            "/stores/sync/"
+          ],
+          "target": "src/platform/sync/"
+        },
+        {
+          "fragments": [
+            "/services/network",
+            "/services/search",
+            "/services/io",
+            "/services/import"
+          ],
+          "target": "src/platform/networking/"
+        },
+        {
+          "fragments": [
+            "/services/security/"
+          ],
+          "target": "src/platform/auth/"
+        },
+        {
+          "fragments": [
+            "/services/system/",
+            "/services/diagnostics",
+            "/services/performance",
+            "/services/maintenance"
+          ],
+          "target": "src/platform/maintenance/"
+        }
+      ],
+      "decision_heuristics": {
+        "evo_upgrade_multiplier": 1.18,
+        "evo_upgrade_min_delta": 8.0,
+        "new_atom_min_score": 25.0,
+        "main_retention_score_gap": 20.0,
+        "main_retention_var_multiplier": 1.25,
+        "candidate_confidence_threshold": 0.7
+      },
+      "merge_readiness_policy": {
+        "risk_rank": {
+          "LOW": 0,
+          "MEDIUM": 1,
+          "HIGH": 2
+        },
+        "auto_merge_allowed_risks": [
+          "LOW",
+          "MEDIUM"
+        ],
+        "minimum_auto_merge_confidence": 0.5
+      },
+      "source_role_policy": {
+        "deny_companion_to_host_by_default": true,
+        "allow_companion_to_host_merge": false,
+        "allow_companion_donor_projects": [],
+        "allow_companion_target_hosts": []
+      }
+    },
+    "naming_doctrine": {
+      "pascal_tsx_standard": true,
+      "alias_prefix": "@/",
+      "strip_prefixes": [
+        "use",
+        "create",
+        "get",
+        "set",
+        "handle"
+      ],
+      "strip_suffixes": [
+        "Service",
+        "Manager",
+        "Adapter",
+        "Repository",
+        "Orchestrator",
+        "Provider",
+        "Controller",
+        "Delegate",
+        "Store",
+        "Slice",
+        "Hook",
+        "Logic",
+        "Utils"
+      ],
+      "path_sanitization_rules": [
+        {
+          "pattern": "^src/\\./",
+          "replacement": ""
+        },
+        {
+          "pattern": "^src/",
+          "replacement": ""
+        },
+        {
+          "pattern": "\\.(ts|tsx|js|jsx)$",
+          "replacement": ""
+        }
+      ]
+    },
+    "quality_defaults": {
+      "contract_requirements": {
+        "member_keys": [
+          "dependencies",
+          "dependency_imports",
+          "ui_dependencies",
+          "dynamic_imports",
+          "architectural_markers",
+          "side_effect_markers",
+          "side_effect_imports",
+          "side_effect_calls"
+        ],
+        "occurrence_keys": [
+          "member_dependencies",
+          "member_imported_contracts",
+          "member_ui_dependencies",
+          "member_dynamic_imports",
+          "member_architectural_markers",
+          "member_side_effect_markers",
+          "member_side_effect_imports",
+          "member_side_effect_calls"
+        ],
+        "member_detail_contract_applicability": {
+          "typescript_react_v1": "required",
+          "python_ast_v1": "not_applicable",
+          "python_regex_fallback_v1": "not_applicable",
+          "java_structural_v1": "not_applicable",
+          "go_structural_v1": "not_applicable",
+          "csharp_structural_v1": "not_applicable",
+          "regex_fallback_v1": "not_applicable"
+        }
+      },
+      "min_atlas_contract_file_ratio": 0.99,
+      "min_member_detail_contract_ratio": 0.99,
+      "min_genome_occurrence_contract_ratio": 0.99,
+      "min_atlas_current_version_ratio": 0.99,
+      "min_genome_current_version_ratio": 0.99,
+      "min_state_flow_detection_ratio": 0.95,
+      "min_blast_nonzero_ratio": 0.05,
+      "min_react_detected_present_ratio": 1.0,
+      "max_react_partial_capabilities": 0,
+      "max_unresolved_targets": 0,
+      "max_encoding_findings": 0
+    },
+    "framework_discovered_exports": [
+      {
+        "file_name": "route.ts",
+        "parent": "app",
+        "symbols": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "HEAD",
+          "OPTIONS"
+        ]
+      },
+      {
+        "file_name": [
+          "page.tsx",
+          "layout.tsx",
+          "template.tsx"
+        ],
+        "symbols": [
+          "metadata",
+          "generateMetadata",
+          "viewport",
+          "generateViewport"
+        ]
+      },
+      {
+        "file_suffix": [
+          ".stories.ts",
+          ".stories.tsx",
+          ".stories.js",
+          ".stories.jsx",
+          ".stories.mdx"
+        ],
+        "all_symbols": true
+      },
+      {
+        "path_contains": "/.storybook/",
+        "file_name": [
+          "preview.js",
+          "preview.ts",
+          "preview.jsx",
+          "preview.tsx"
+        ],
+        "symbols": [
+          "decorators",
+          "parameters",
+          "globalTypes",
+          "tags"
+        ]
+      },
+      {
+        "path_contains": "routes/",
+        "symbols": [
+          "loader",
+          "action",
+          "clientLoader",
+          "clientAction",
+          "meta",
+          "headers",
+          "links",
+          "handle",
+          "shouldRevalidate",
+          "serverComponent"
+        ]
+      },
+      {
+        "file_suffix": [
+          "route.ts",
+          "route.tsx",
+          "route.js",
+          "route.jsx"
+        ],
+        "symbols": [
+          "loader",
+          "action",
+          "clientLoader",
+          "clientAction",
+          "meta",
+          "headers",
+          "links",
+          "handle",
+          "shouldRevalidate",
+          "serverComponent"
+        ]
+      },
+      {
+        "file_name": [
+          "root.tsx",
+          "root.jsx",
+          "root.ts",
+          "root.js"
+        ],
+        "parent": "app",
+        "symbols": [
+          "links",
+          "meta",
+          "headers",
+          "handle",
+          "errorBoundary",
+          "layout"
+        ]
+      },
+      {
+        "path_contains": "pages/",
+        "symbols": [
+          "getServerSideProps",
+          "getStaticProps",
+          "getStaticPaths",
+          "config",
+          "reportWebVitals"
+        ]
+      },
+      {
+        "file_name": [
+          "page.tsx",
+          "page.ts",
+          "page.jsx",
+          "page.js",
+          "layout.tsx",
+          "layout.ts",
+          "layout.jsx",
+          "layout.js",
+          "template.tsx",
+          "template.ts",
+          "template.jsx",
+          "template.js",
+          "default.tsx",
+          "default.ts",
+          "default.jsx",
+          "default.js",
+          "loading.tsx",
+          "loading.ts",
+          "loading.jsx",
+          "loading.js",
+          "error.tsx",
+          "error.ts",
+          "error.jsx",
+          "error.js",
+          "not-found.tsx",
+          "not-found.ts",
+          "not-found.jsx",
+          "not-found.js",
+          "route.tsx",
+          "route.ts",
+          "route.jsx",
+          "route.js"
+        ],
+        "parent": "app",
+        "symbols": [
+          "metadata",
+          "generateMetadata",
+          "viewport",
+          "generateViewport",
+          "generateStaticParams",
+          "dynamic",
+          "dynamicParams",
+          "revalidate",
+          "fetchCache",
+          "runtime",
+          "preferredRegion",
+          "maxDuration",
+          "experimental_ppr"
+        ]
+      },
+      {
+        "file_name": [
+          "middleware.ts",
+          "middleware.js"
+        ],
+        "symbols": [
+          "middleware",
+          "config"
+        ]
+      },
+      {
+        "file_name": [
+          "instrumentation.ts",
+          "instrumentation.js",
+          "instrumentation-client.ts",
+          "instrumentation-client.js"
+        ],
+        "symbols": [
+          "register",
+          "onRequestError",
+          "onRouterTransitionStart"
+        ]
+      }
+    ],
+    "exclusion_markers": {
+      "path_tokens": [
+        "bridge",
+        "shim",
+        "legacy",
+        "compat",
+        "deprecated"
+      ],
+      "content_markers": [
+        "architecture bridge",
+        "legacy imports",
+        "redirects legacy imports",
+        "compatibility shim",
+        "deprecated provider stub",
+        "deprecated shim",
+        "legacy bridge",
+        "bridge file"
+      ]
+    },
+    "contract_surface_registry": [
+      {
+        "id": "graphql_fragment_contracts",
+        "enabled": true,
+        "label": "GraphQL fragment/doc contract surface",
+        "reason": "contract_registry_graphql_fragment_surface",
+        "path_tokens": [
+          "/graphql/",
+          "/fragments/"
+        ],
+        "file_globs": [
+          "*fragment*.ts",
+          "*fragment*.tsx",
+          "fragments.ts",
+          "fragments.tsx"
+        ],
+        "symbol_suffixes": [
+          "Fragment",
+          "Document",
+          "Query",
+          "Mutation",
+          "Subscription"
+        ],
+        "content_markers": [
+          "gql`",
+          "graphql`",
+          "documentnode",
+          "typeddocumentnode"
+        ]
+      },
+      {
+        "id": "storybook_meta_contracts",
+        "enabled": true,
+        "label": "Storybook meta/story exports",
+        "reason": "contract_registry_storybook_surface",
+        "file_globs": [
+          "*.stories.ts",
+          "*.stories.tsx",
+          "*.story.ts",
+          "*.story.tsx"
+        ],
+        "symbol_regex": "^(meta|default|.*Story|.*Stories)$"
+      },
+      {
+        "id": "router_manifest_contracts",
+        "enabled": true,
+        "label": "Route module manifest contracts",
+        "reason": "contract_registry_route_manifest_surface",
+        "path_tokens": [
+          "/routes/",
+          "/app/"
+        ],
+        "file_globs": [
+          "route.ts",
+          "route.tsx",
+          "page.tsx",
+          "layout.tsx",
+          "root.tsx"
+        ],
+        "symbol_regex": "^(loader|action|meta|links|headers|handle|ErrorBoundary|Layout|GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$"
+      },
+      {
+        "id": "i18n_resource_contracts",
+        "enabled": true,
+        "label": "i18n resources as runtime contract",
+        "path_tokens": [
+          "/i18n/",
+          "/locale/",
+          "/locales/",
+          "/translations/"
+        ],
+        "reason": "contract_registry_i18n_resource_surface",
+        "symbol_prefixes": [
+          "messages",
+          "dictionary",
+          "translations",
+          "locale"
+        ]
+      },
+      {
+        "id": "i18n_locale_code_contracts",
+        "enabled": true,
+        "label": "i18n locale-code exports as runtime contract",
+        "path_tokens": [
+          "/i18n/",
+          "/locale/",
+          "/locales/",
+          "/translations/"
+        ],
+        "reason": "contract_registry_i18n_locale_code_surface",
+        "symbol_regex": "^(?:[a-z]{2}[A-Z]{2,3}|[a-z]{2}-[A-Z]{2,3})$"
+      },
+      {
+        "id": "scaffold_template_contracts",
+        "enabled": true,
+        "label": "Scaffold/template exports consumed outside normal import graphs",
+        "reason": "contract_registry_scaffold_template_surface",
+        "path_tokens": [
+          "/templates/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ]
+      },
+      {
+        "id": "test_fixture_contracts",
+        "enabled": true,
+        "label": "Test fixture exports consumed by harness/runtime fixtures",
+        "reason": "contract_registry_test_fixture_surface",
+        "path_tokens": [
+          "/__fixtures__/",
+          "/fixtures/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ]
+      },
+      {
+        "id": "mcp_tool_contracts",
+        "enabled": true,
+        "label": "MCP tool server functions consumed by runtime registration",
+        "reason": "contract_registry_mcp_tool_surface",
+        "path_globs": [
+          "tools/mcp/server.py"
+        ],
+        "content_markers": [
+          "FastMCP",
+          "@mcp.tool"
+        ]
+      },
+      {
+        "id": "python_cli_script_contracts",
+        "enabled": true,
+        "label": "Python CLI, validation and generator script entrypoints",
+        "reason": "contract_registry_python_cli_script_surface",
+        "path_globs": [
+          "codemaps.py",
+          "sage.py",
+          "tools/validate_*.py",
+          "tools/generate_*.py",
+          "tools/run_*.py",
+          "tools/sync_*.py",
+          "tools/core/bootstrap_env.py"
+        ],
+        "content_markers": [
+          "if __name__",
+          "argparse",
+          "sys.exit",
+          "subprocess.run"
+        ]
+      },
+      {
+        "id": "python_maintenance_contracts",
+        "enabled": true,
+        "label": "Python maintenance and source-contract policy modules",
+        "reason": "contract_registry_python_maintenance_surface",
+        "path_globs": [
+          "tools/engines/large_engine_maintenance.py"
+        ],
+        "content_markers": [
+          "LARGE_ENGINE_REFACTOR_SEAMS",
+          "required_regression_gate"
+        ]
+      },
+      {
+        "id": "migration_contracts",
+        "enabled": true,
+        "label": "Database/framework migration exports discovered by runtime tooling",
+        "reason": "contract_registry_migration_surface",
+        "path_tokens": [
+          "/migrations/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ],
+        "symbol_regex": "^(?:Migration\\d+|Migration[A-Z0-9_].*|.*Migration)$"
+      },
+      {
+        "id": "workflow_step_contracts",
+        "enabled": true,
+        "label": "Workflow/step orchestration exports consumed by framework registries",
+        "reason": "contract_registry_workflow_step_surface",
+        "path_tokens": [
+          "/workflows/",
+          "/steps/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ],
+        "symbol_regex": ".*(?:Workflow|Step)$"
+      },
+      {
+        "id": "generated_api_client_contracts",
+        "enabled": true,
+        "label": "Generated API/client/schema exports consumed through generator/runtime contracts",
+        "reason": "contract_registry_generated_api_client_surface",
+        "path_tokens": [
+          "/generated/"
+        ],
+        "file_globs": [
+          "api.ts",
+          "api.tsx",
+          "client.ts",
+          "client.tsx",
+          "schema.ts",
+          "schema.tsx",
+          "types.ts",
+          "types.tsx",
+          "*.generated.ts",
+          "*.generated.tsx"
+        ]
+      },
+      {
+        "id": "typescript_declaration_contracts",
+        "enabled": true,
+        "label": "TypeScript ambient declaration and module augmentation surface",
+        "reason": "contract_registry_typescript_declaration_surface",
+        "file_globs": [
+          "*.d.ts"
+        ],
+        "content_markers": [
+          "declare module",
+          "declare global"
+        ]
+      },
+      {
+        "id": "typescript_augmentation_contracts",
+        "enabled": true,
+        "label": "TypeScript module augmentation and overridable API surface",
+        "reason": "contract_registry_typescript_augmentation_surface",
+        "path_tokens": [
+          "augmentation"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.d.ts"
+        ],
+        "content_markers": [
+          "declare module",
+          "declare global",
+          "overridablestringunion"
+        ]
+      },
+      {
+        "id": "sdk_public_surface_contracts",
+        "enabled": true,
+        "label": "SDK public boundary exports",
+        "path_tokens": [
+          "/sdk/",
+          "/client/",
+          "/api/"
+        ],
+        "file_globs": [
+          "index.ts",
+          "index.tsx",
+          "public.ts",
+          "exports.ts"
+        ],
+        "reason": "contract_registry_sdk_public_surface"
+      }
+    ],
+    "runtime_consumed_contracts": [
+      {
+        "id": "react_router_contract_exports",
+        "enabled": true,
+        "path_tokens": [
+          "/routes/",
+          "/app/"
+        ],
+        "file_globs": [
+          "route.ts",
+          "route.tsx",
+          "root.tsx",
+          "page.tsx",
+          "layout.tsx"
+        ],
+        "required_features": [
+          "RouterConfig",
+          "RouteLoader",
+          "RouteAction",
+          "RouteLazy"
+        ],
+        "symbol_regex": "^(loader|action|meta|links|headers|handle|ErrorBoundary|Layout|GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$"
+      },
+      {
+        "id": "storybook_runtime_exports",
+        "enabled": true,
+        "file_globs": [
+          "*.stories.ts",
+          "*.stories.tsx",
+          "*.story.ts",
+          "*.story.tsx"
+        ],
+        "symbols": [
+          "meta",
+          "default"
+        ],
+        "symbol_regex": "(Story|Stories)$"
+      },
+      {
+        "id": "next_runtime_exports",
+        "enabled": true,
+        "file_globs": [
+          "page.tsx",
+          "layout.tsx",
+          "template.tsx",
+          "middleware.ts",
+          "instrumentation.ts",
+          "instrumentation-client.ts"
+        ],
+        "path_tokens": [
+          "/app/",
+          "/pages/"
+        ],
+        "symbol_regex": "^(getServerSideProps|getStaticProps|getStaticPaths|config|reportWebVitals|metadata|generateMetadata|viewport|generateViewport|generateStaticParams|dynamic|dynamicParams|revalidate|fetchCache|runtime|preferredRegion|maxDuration|middleware|register|onRequestError|onRouterTransitionStart)$"
+      }
+    ],
+    "auto_tuning_thresholds": {
+      "collision_cluster": 8,
+      "prompt_type_cluster": 10
+    },
+    "dynamic_import_resolutions": {
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "index_files": [
+        "index.ts",
+        "index.tsx",
+        "index.js",
+        "index.jsx"
+      ]
+    },
+    "barrel_public_surfaces": {
+      "file_names": [
+        "index.ts",
+        "index.tsx",
+        "exports.ts",
+        "exports.tsx"
+      ],
+      "file_prefixes": [
+        "public."
+      ],
+      "file_suffixes": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx"
+      ]
+    },
+    "nest_runtime_decorators": [
+      "@Module(",
+      "@Injectable(",
+      "@Controller(",
+      "@Resolver(",
+      "@InputType(",
+      "@ObjectType(",
+      "@ArgsType(",
+      "@Schema(",
+      "@Processor(",
+      "@Gateway("
+    ],
+    "test_support_heuristics": {
+      "path_tokens": [
+        "/test/",
+        "/tests/",
+        "/__tests__/",
+        "/__mocks__/",
+        "/__mockdata__/",
+        "/mocks/",
+        "/playwright/",
+        "/cypress/",
+        "/fixtures/",
+        "/stories/",
+        "/storybook/",
+        ".test/",
+        ".spec/"
+      ],
+      "file_suffixes": [
+        "fixture.ts",
+        "fixture.tsx",
+        "fixtures.ts",
+        "fixtures.tsx",
+        ".test.js",
+        ".test.jsx",
+        ".test.ts",
+        ".test.tsx",
+        ".spec.js",
+        ".spec.jsx",
+        ".spec.ts",
+        ".spec.tsx",
+        ".mock.ts",
+        ".mock.tsx",
+        ".actual.js",
+        ".actual.jsx",
+        ".actual.ts",
+        ".actual.tsx",
+        ".expected.js",
+        ".expected.jsx",
+        ".expected.ts",
+        ".expected.tsx"
+      ]
+    },
+    "reference_example_heuristics": {
+      "path_tokens": [
+        "/examples/",
+        "/example/",
+        "/demo/",
+        "/demos/",
+        "/playground/",
+        "/sandbox/"
+      ]
+    },
+    "e2e_page_object_heuristics": {
+      "project_tokens": [
+        "/playwright",
+        "/cypress",
+        "/e2e",
+        "playwright",
+        "cypress",
+        "e2e"
+      ],
+      "path_tokens": [
+        "/pages/",
+        "/page-objects/",
+        "/dialogs/",
+        "/api/"
+      ],
+      "symbol_regex": "^[A-Z][A-Za-z0-9_]*(Page|Dialog|Service)$"
+    },
+    "generated_surfaces": {
+      "file_tokens": [
+        ".generated."
+      ],
+      "file_suffixes": [
+        ".gen.ts",
+        ".gen.tsx"
+      ]
+    },
+    "dynamic_registry_heuristics": {
+      "markers": [
+        "Record<",
+        "Map<",
+        "registry",
+        "Registry",
+        "components:",
+        "routes:",
+        "tools:",
+        "plugins:",
+        "loadable(",
+        "lazy(",
+        "dynamic(",
+        "import.meta.glob"
+      ]
+    }
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "$schema": "./schemas/react_edge_case_matrix.schema.json",
+  "meta": {
+    "kind": "react_edge_case_matrix",
+    "version": "v1",
+    "positioning": "React/TypeScript nanometric surgical analysis coverage matrix"
+  },
+  "coverage_policy": {
+    "p0_required_statuses": [
+      "detected",
+      "covered",
+      "needs_runtime_proof"
+    ],
+    "p1_required_statuses": [
+      "detected",
+      "covered",
+      "needs_runtime_proof"
+    ],
+    "required_edge_case_ids": [
+      "react_lazy_without_fallback_or_error",
+      "feature_flag_runtime_branch",
+      "provider_order_and_value_stability",
+      "next_rsc_server_action_boundary",
+      "next_cache_revalidation_semantics",
+      "tanstack_mutation_invalidation",
+      "form_schema_a11y_drift",
+      "portal_modal_focus_stack",
+      "hydration_sensitive_render",
+      "generated_client_boundary",
+      "package_exports_and_workspace_aliases"
+    ],
+    "claim_boundary": "Nanometric means evidence-backed, confidence-ranked surgical analysis, not a promise that every runtime-only edge case is statically decidable."
+  },
+  "fixture_contract": {
+    "claim_boundary": "Synthetic fixtures prove only the named static-detector signals against bounded source examples. Signals that require an external smoke or resolver context are declared separately and must not be counted as fixture coverage.",
+    "fixture_cases": [
+      {
+        "file": "runtime_edges.tsx",
+        "content": "\nimport React, { lazy } from 'react';\nconst LazyPanel = lazy(() => import('./Panel'));\nexport function RuntimeEdges() {\n  if (featureFlags.newDashboard) return <LazyPanel />;\n  return <section>{Date.now()}</section>;\n}\n",
+        "expected": [
+          "lazy_component_without_loading_or_error_boundary",
+          "feature_flag_or_env_branch_needs_runtime_probe",
+          "hydration_sensitive_render_value"
+        ]
+      },
+      {
+        "file": "provider_generated.tsx",
+        "content": "\nimport React from 'react';\nimport { GraphQLClient } from 'graphql-request';\nexport function ProviderGenerated({ children }) {\n  const client = new GraphQLClient('/graphql');\n  return <AuthProvider value={{ user: window.localStorage.getItem('u') }}>\n    <ThemeProvider><QueryClientProvider><I18nProvider>{children}</I18nProvider></QueryClientProvider></ThemeProvider>\n  </AuthProvider>;\n}\n",
+        "expected": [
+          "provider_topology_or_value_stability_risk",
+          "generated_client_without_boundary_policy"
+        ]
+      },
+      {
+        "file": "app/actions/page.tsx",
+        "content": "\n'use client';\nexport async function save(formData: FormData) { 'use server'; return { ok: true }; }\nexport default function Page() {\n  return <form action={save}><input name=\"title\" /><button>Save</button></form>;\n}\n",
+        "expected": [
+          "server_action_without_visible_error_contract",
+          "form_action_without_visible_pending_contract"
+        ],
+        "next": true
+      },
+      {
+        "file": "app/api/books/route.ts",
+        "content": "\nimport { NextRequest } from 'next/server';\nexport const revalidate = 60;\nexport async function POST(request: NextRequest) {\n  const body = await request.json();\n  await saveBook(body);\n  return Response.json({ ok: true });\n}\n",
+        "expected": [
+          "mutation_without_visible_revalidation_contract",
+          "route_input_without_visible_validation_contract"
+        ],
+        "next": true
+      },
+      {
+        "file": "data_surface.tsx",
+        "content": "\nimport { useMutation, useQuery } from '@tanstack/react-query';\nexport function DataSurface({ id }) {\n  useQuery({ queryKey: ['book', id], queryFn: () => fetch('/api/books/' + id).then(r => r.json()) });\n  const mutation = useMutation({ mutationFn: (title) => fetch('/api/books/' + id, { method: 'PATCH', body: title }) });\n  return <button onClick={() => mutation.mutate('x')}>Save</button>;\n}\n",
+        "expected": [
+          "tanstack_query_cache_contract_risk"
+        ]
+      },
+      {
+        "file": "apollo_surface.tsx",
+        "content": "\nimport { gql, useMutation, useQuery } from '@apollo/client';\nconst Book = gql`query Book($id: ID!) { book(id: $id) { id } }`;\nconst SaveBook = gql`mutation SaveBook($id: ID!) { saveBook(id: $id) { id } }`;\nexport function ApolloSurface({ id }) {\n  useQuery(Book, { variables: { id } });\n  const [saveBook] = useMutation(SaveBook);\n  return <button onClick={() => saveBook({ variables: { id } })}>Save</button>;\n}\n",
+        "expected": [
+          "apollo_query_cache_contract_risk"
+        ],
+        "not_expected": [
+          "tanstack_query_cache_contract_risk"
+        ]
+      },
+      {
+        "file": "trpc_surface.tsx",
+        "content": "\nimport { trpc } from '@acme/trpc/react';\nexport function TrpcSurface({ id }) {\n  trpc.book.byId.useQuery({ id });\n  const saveBook = trpc.book.save.useMutation();\n  return <button onClick={() => saveBook.mutate({ id })}>Save</button>;\n}\n",
+        "expected": [
+          "trpc_query_cache_contract_risk"
+        ],
+        "not_expected": [
+          "tanstack_query_cache_contract_risk"
+        ]
+      },
+      {
+        "file": "form_modal.tsx",
+        "content": "\nexport function FormModal({ action }) {\n  return <Modal open><form action={action}>\n    <input value=\"x\" />\n    <a href=\"/help\" />\n    <button><SaveIcon /></button>\n  </form></Modal>;\n}\n",
+        "expected": [
+          "form_schema_or_error_mapping_gap",
+          "dialog_without_visible_focus_contract",
+          "interactive_surface_without_aria_contract",
+          "icon_control_without_accessible_name"
+        ],
+        "a11y": true
+      }
+    ],
+    "non_fixture_signals": [
+      {
+        "signal": "external_react_support_detects_expected_capabilities",
+        "validation_path": "external_react_smoke",
+        "reason": "Workspace alias and package-export resolution requires an external project fixture rather than an in-memory source snippet."
+      }
+    ]
+  },
+  "edge_cases": [
+    {
+      "id": "react_lazy_without_fallback_or_error",
+      "priority": "P0",
+      "category": "runtime_only",
+      "status": "detected",
+      "static_detectors": [
+        "react_ecosystem.lazy_boundary_contract"
+      ],
+      "runtime_evidence": [
+        "ui_smoke_execution",
+        "local_telemetry"
+      ],
+      "required_fixture_signal": "lazy_component_without_loading_or_error_boundary"
+    },
+    {
+      "id": "feature_flag_runtime_branch",
+      "priority": "P0",
+      "category": "runtime_only",
+      "status": "needs_runtime_proof",
+      "static_detectors": [
+        "react_ecosystem.runtime_branch_contract"
+      ],
+      "runtime_evidence": [
+        "ContextOS",
+        "local_telemetry"
+      ],
+      "required_fixture_signal": "feature_flag_or_env_branch_needs_runtime_probe"
+    },
+    {
+      "id": "provider_order_and_value_stability",
+      "priority": "P0",
+      "category": "react_core",
+      "status": "detected",
+      "static_detectors": [
+        "react_ecosystem.context_value_contract",
+        "react_runtime.react_provider_topology"
+      ],
+      "runtime_evidence": [
+        "local_telemetry"
+      ],
+      "required_fixture_signal": "provider_topology_or_value_stability_risk"
+    },
+    {
+      "id": "next_rsc_server_action_boundary",
+      "priority": "P0",
+      "category": "nextjs",
+      "status": "detected",
+      "static_detectors": [
+        "next_boundary_analyzer"
+      ],
+      "runtime_evidence": [
+        "server_action_form_smoke"
+      ],
+      "required_fixture_signal": "server_action_without_visible_error_contract"
+    },
+    {
+      "id": "next_cache_revalidation_semantics",
+      "priority": "P0",
+      "category": "nextjs",
+      "status": "detected",
+      "static_detectors": [
+        "next_boundary_analyzer.static_cache_contract"
+      ],
+      "runtime_evidence": [
+        "route_handler_smoke"
+      ],
+      "required_fixture_signal": "mutation_without_visible_revalidation_contract"
+    },
+    {
+      "id": "tanstack_mutation_invalidation",
+      "priority": "P0",
+      "category": "state_data",
+      "status": "detected",
+      "static_detectors": [
+        "react_ecosystem.data_cache_flow",
+        "state_data_graph.mutation_coverage"
+      ],
+      "runtime_evidence": [
+        "test_impact_matcher"
+      ],
+      "required_fixture_signal": "tanstack_query_cache_contract_risk"
+    },
+    {
+      "id": "form_schema_a11y_drift",
+      "priority": "P0",
+      "category": "forms",
+      "status": "detected",
+      "static_detectors": [
+        "react_ecosystem.form_validation",
+        "a11y_i18n_contracts"
+      ],
+      "runtime_evidence": [
+        "browser_smoke"
+      ],
+      "required_fixture_signal": "form_schema_or_error_mapping_gap"
+    },
+    {
+      "id": "portal_modal_focus_stack",
+      "priority": "P0",
+      "category": "ui_a11y",
+      "status": "detected",
+      "static_detectors": [
+        "a11y_i18n_contracts.focus_trap_contract",
+        "react_runtime.accessibility_journey"
+      ],
+      "runtime_evidence": [
+        "playwright_focus_smoke"
+      ],
+      "required_fixture_signal": "dialog_without_visible_focus_contract"
+    },
+    {
+      "id": "hydration_sensitive_render",
+      "priority": "P1",
+      "category": "ssr_hydration",
+      "status": "detected",
+      "static_detectors": [
+        "react_ecosystem.hydration_consistency_contract"
+      ],
+      "runtime_evidence": [
+        "ssr_browser_smoke"
+      ],
+      "required_fixture_signal": "hydration_sensitive_render_value"
+    },
+    {
+      "id": "generated_client_boundary",
+      "priority": "P1",
+      "category": "generated_code",
+      "status": "detected",
+      "static_detectors": [
+        "react_ecosystem.generated_client_contract"
+      ],
+      "runtime_evidence": [
+        "artifact_contract_validator"
+      ],
+      "required_fixture_signal": "generated_client_without_boundary_policy"
+    },
+    {
+      "id": "package_exports_and_workspace_aliases",
+      "priority": "P1",
+      "category": "resolver",
+      "status": "covered",
+      "static_detectors": [
+        "polyglot_imports",
+        "path_engine",
+        "generate_atlas"
+      ],
+      "runtime_evidence": [
+        "external_react_smoke",
+        "external_polyglot_smoke"
+      ],
+      "required_fixture_signal": "external_react_support_detects_expected_capabilities"
+    }
+  ]
+}

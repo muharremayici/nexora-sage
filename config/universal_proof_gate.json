@@ -1,0 +1,6 @@
+{
+  "min_external_validation_artifacts": 1,
+  "external_validation_artifacts": [
+    "external_react_smoke_validation"
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "simulations"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "mode"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "merge_simulation"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "static_dry_run"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "simulations",
+        "decisions",
+        "required_actions"
+      ],
+      "properties": {
+        "simulations": {
+          "type": "integer"
+        },
+        "decisions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "required_actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "simulations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate",
+          "source",
+          "target_path",
+          "package_tier",
+          "decision",
+          "signals",
+          "required_actions",
+          "missing_source_files",
+          "target_conflicts",
+          "unresolved_internal_deps",
+          "external_deps",
+          "copy_plan"
+        ],
+        "properties": {
+          "candidate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "target_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "package_tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "SAFE_TO_IMPORT",
+              "ASSISTED_IMPORT",
+              "DO_NOT_IMPORT_YET"
+            ]
+          },
+          "import_recommendation": {
+            "type": "string",
+            "enum": [
+              "import-now",
+              "import-with-review",
+              "do-not-import-yet"
+            ]
+          },
+          "confidence_score": {
+            "type": "integer"
+          },
+          "confidence_components": {
+            "type": "object"
+          },
+          "signals": {
+            "type": "object",
+            "required": [
+              "missing_source_files",
+              "target_conflicts",
+              "unresolved_internal_deps",
+              "external_deps",
+              "closure_size"
+            ],
+            "properties": {
+              "missing_source_files": {
+                "type": "integer"
+              },
+              "target_conflicts": {
+                "type": "integer"
+              },
+              "unresolved_internal_deps": {
+                "type": "integer"
+              },
+              "external_deps": {
+                "type": "integer"
+              },
+              "closure_size": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": true
+          },
+          "required_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_source_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target_conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolved_internal_deps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "external_deps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "smoke_route": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "copy_plan": {
+            "type": "object",
+            "required": [
+              "source_root",
+              "target_root",
+              "copy_files",
+              "target_entry"
+            ],
+            "properties": {
+              "source_root": {
+                "type": "string"
+              },
+              "target_root": {
+                "type": "string"
+              },
+              "copy_files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "target_entry": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

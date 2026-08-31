@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "kind": "react_frontier_policy",
+    "version": "v1",
+    "purpose": "Config-backed policy for React Frontier runtime evidence artifact discovery and evidence gates."
+  },
+  "evidence_artifacts": {
+    "bundle_stats_names": [
+      "stats.json",
+      "bundle-stats.json",
+      "webpack-stats.json",
+      "vite-bundle-stats.json",
+      "rollup-stats.json",
+      "bundle-analyzer.json",
+      "stats-client.json",
+      "stats-server.json",
+      "analyze.json"
+    ],
+    "react_profiler_names": [
+      "react-profiler.json",
+      "profiler.json",
+      "react-profile.json",
+      "profile.json"
+    ],
+    "recommended_locations": [
+      ".next/analyze/",
+      ".next/",
+      "dist/",
+      "build/",
+      "coverage/",
+      "reports/"
+    ],
+    "json_scan_keys": [
+      "assets",
+      "chunks",
+      "children",
+      "modules",
+      "outputs"
+    ]
+  },
+  "evidence_gates": {
+    "runtime_or_browser_dimensions": [
+      "react_security",
+      "real_bundle_evidence",
+      "react_profiler_runtime",
+      "design_system_mining"
+    ],
+    "hydration_dimensions": [
+      "hydration_boundary"
+    ],
+    "runtime_gate": "browser_or_runtime_smoke",
+    "hydration_gate": "ssr_hydration_smoke"
+  },
+  "validation_contract": {
+    "required_policy_tokens": [
+      "stats.json",
+      "bundle-stats.json",
+      "webpack-stats.json",
+      "vite-bundle-stats.json",
+      "rollup-stats.json",
+      "bundle-analyzer.json",
+      "react-profiler.json",
+      "react-profile.json",
+      ".next/analyze/"
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "kind": "react_universal_analysis_doctrine",
+    "version": "v1",
+    "created_at": "2026-05-14",
+    "purpose": "Defines React ecosystem universality as a capability-driven analysis contract, not as coverage of a fixed external repository sample."
+  },
+  "universality_model": {
+    "primary_basis": "capability_policy_analysis",
+    "fixture_role": "regression_and_quality_control_sample",
+    "external_repo_role": "optional_real_world_quality_control_sample",
+    "non_goal": "Do not define universality by counting harvested repositories.",
+    "core_claim": "Nexora SAGE is universal when it can detect, classify, degrade, and report React ecosystem capabilities across known and unknown project shapes without requiring tool code to be copied into target repositories."
+  },
+  "required_capability_dimensions": [
+    {
+      "id": "project_shape_detection",
+      "required": true,
+      "must_prove": [
+        "single_app",
+        "multi_app_monorepo",
+        "package_library",
+        "framework_app",
+        "native_or_shell_hybrid"
+      ]
+    },
+    {
+      "id": "framework_signal_detection",
+      "required": true,
+      "must_prove": [
+        "next",
+        "vite",
+        "react_router",
+        "remix",
+        "gatsby",
+        "astro",
+        "expo_react_native",
+        "electron",
+        "tauri",
+        "custom_or_unknown"
+      ]
+    },
+    {
+      "id": "routing_and_boundary_model",
+      "required": true,
+      "must_prove": [
+        "file_routes",
+        "config_routes",
+        "data_routes",
+        "nested_routes",
+        "server_client_boundary",
+        "native_or_shell_boundary"
+      ]
+    },
+    {
+      "id": "module_resolution_model",
+      "required": true,
+      "must_prove": [
+        "tsconfig_paths",
+        "bundler_aliases",
+        "workspace_packages",
+        "package_manager_workspaces",
+        "fallback_unknown_alias_reporting"
+      ]
+    },
+    {
+      "id": "runtime_contract_model",
+      "required": true,
+      "must_prove": [
+        "browser_ui_surface",
+        "server_runtime_surface",
+        "native_runtime_surface",
+        "ipc_or_bridge_surface",
+        "unsupported_web_assumption_detection"
+      ]
+    },
+    {
+      "id": "evidence_and_confidence_model",
+      "required": true,
+      "must_prove": [
+        "evidence_ids",
+        "confidence_tiers",
+        "partial_support_reason_codes",
+        "unknown_project_graceful_degradation",
+        "no_overclaiming"
+      ]
+    }
+  ],
+  "gates": {
+    "must_not_require_external_fixture_pool": true,
+    "must_report_unknowns_as_unknown": true,
+    "must_distinguish_missing_support_from_absent_feature": true,
+    "must_keep_external_repos_out_of_product_runtime": true
+  }
+}

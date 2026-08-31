@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "dependencies": {
+    "@headlessui/react": "fixture",
+    "@tanstack/react-query": "fixture",
+    "@tanstack/react-router": "fixture",
+    "next": "fixture",
+    "react": "fixture",
+    "react-router": "fixture"
+  }
+}

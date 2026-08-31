@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "category_counts",
+    "severity_counts",
+    "claim_impact_counts",
+    "top_events",
+    "interpretation"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "unique_events",
+        "total_occurrences",
+        "error_or_critical_occurrences",
+        "operator_attention_occurrences",
+        "claim_affecting_occurrences",
+        "encoding_warning_events",
+        "runtime_honesty_status"
+      ]
+    },
+    "category_counts": {
+      "type": "object"
+    },
+    "severity_counts": {
+      "type": "object"
+    },
+    "claim_impact_counts": {
+      "type": "object"
+    },
+    "top_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "component",
+          "category",
+          "operation",
+          "subject",
+          "claim_impact",
+          "count"
+        ]
+      }
+    },
+    "interpretation": {
+      "type": "array"
+    }
+  }
+}

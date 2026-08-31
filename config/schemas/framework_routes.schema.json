@@ -1,0 +1,179 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "by_project",
+    "routes"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "framework_routes"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "projects",
+        "routes",
+        "framework_route_counts",
+        "route_kind_counts",
+        "hybrid_next_projects"
+      ],
+      "properties": {
+        "projects": {
+          "type": "integer"
+        },
+        "routes": {
+          "type": "integer"
+        },
+        "framework_route_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "route_kind_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "hybrid_next_projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "by_project": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "project",
+          "root",
+          "frameworks",
+          "route_counts",
+          "route_kind_counts",
+          "segment_kind_counts",
+          "hybrid_next_app_pages",
+          "routes"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "frameworks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "route_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "route_kind_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "segment_kind_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "hybrid_next_app_pages": {
+            "type": "boolean"
+          },
+          "routes": {
+            "type": "array"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "scoped_file",
+          "framework",
+          "route",
+          "smoke_path",
+          "source",
+          "route_kind",
+          "segment_kinds"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "scoped_file": {
+            "type": "string"
+          },
+          "framework": {
+            "type": "string",
+            "enum": [
+              "next_app_router",
+              "next_pages_router",
+              "react_router",
+              "tanstack_router"
+            ]
+          },
+          "route": {
+            "type": "string"
+          },
+          "smoke_path": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "route_kind": {
+            "type": "string"
+          },
+          "segment_kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

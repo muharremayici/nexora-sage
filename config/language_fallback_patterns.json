@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "kind": "language_fallback_patterns",
+    "version": "1.0",
+    "description": "Language-agnostic fallback regex patterns for NanometricParser in S.A.G.E."
+  },
+  "languages": {
+    "typescript": {
+      "patterns": {
+        "Class": "(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)(?:\\s+extends\\s+[\\w\\.]+)?(?:\\s+implements\\s+[\\w\\.,\\s]+)?",
+        "Function": "(?:export\\s+)?(?:async\\s+)?function\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*:\\s*([^/{\\s]+))?",
+        "Arrow/Hook": "(?:export\\s+)?const\\s+(\\w+)\\s*(?::[\\w<>\\[\\]\\s,{}]+)?=\\s*(?:async\\s+)?\\(([^)]*)\\)(?:\\s*:\\s*([^/{\\s=]+))?\\s*=>",
+        "Interface": "(?:export\\s+)?interface\\s+(\\w+)",
+        "Type": "(?:export\\s+)?type\\s+(\\w+)",
+        "Variable": "(?:export\\s+)?(?:const|let|var)\\s+(\\w+)\\b"
+      },
+      "method_pattern": "(?:public|private|protected|static|async)?\\s*(\\w+)\\s*\\(([^)]*)\\)(?:\\s*:\\s*([^/{\\s]+))?\\s*\\{",
+      "symbol_usage_pattern": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+      "import_pattern": "^(?:import|export)\\s+[\\s\\S]*?from\\s+[\\'\"](.+?)[\\'\"]",
+      "import_pattern_v1": "(?:import|export)\\s+(?:[\\w\\s{},*]+)\\s+from\\s+[\\'\"](.+)[\\'\"]"
+    },
+    "javascript": {
+      "patterns": {
+        "Class": "(?:export\\s+)?class\\s+(\\w+)(?:\\s+extends\\s+[\\w\\.]+)?",
+        "Function": "(?:export\\s+)?(?:async\\s+)?function\\s+(\\w+)\\s*\\(([^)]*)\\)",
+        "Arrow/Hook": "(?:export\\s+)?const\\s+(\\w+)\\s*=\\s*(?:async\\s+)?\\(([^)]*)\\)\\s*=>",
+        "Variable": "(?:export\\s+)?(?:const|let|var)\\s+(\\w+)\\b"
+      },
+      "method_pattern": "(?:static|async)?\\s*(\\w+)\\s*\\(([^)]*)\\)\\s*\\{",
+      "symbol_usage_pattern": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+      "import_pattern": "^(?:import|export)\\s+[\\s\\S]*?from\\s+[\\'\"](.+?)[\\'\"]",
+      "import_pattern_v1": "(?:import|export)\\s+(?:[\\w\\s{},*]+)\\s+from\\s+[\\'\"](.+)[\\'\"]"
+    },
+    "python": {
+      "patterns": {
+        "Class": "class\\s+(\\w+)(?:\\s*\\(([^)]*)\\))?:",
+        "Function": "def\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*->\\s*([^:]+))?:",
+        "Variable": "(?:^|\\n)\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*(?![=])"
+      },
+      "method_pattern": "def\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*->\\s*([^:]+))?:",
+      "symbol_usage_pattern": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+      "import_pattern": "^\\s*(?:import\\s+([\\w\\.,\\s]+)|from\\s+([\\w\\.]+)\\s+import\\s+([\\w\\.,\\*\\s]+))",
+      "import_pattern_v1": "^\\s*(?:import\\s+([\\w\\.,\\s]+)|from\\s+([\\w\\.]+)\\s+import\\s+([\\w\\.,\\*\\s]+))"
+    },
+    "go": {
+      "patterns": {
+        "Class": "type\\s+(\\w+)\\s+struct\\s*\\{",
+        "Interface": "type\\s+(\\w+)\\s+interface\\s*\\{",
+        "Function": "func\\s+(?:\\((?:[^)]+)\\)\\s+)?(\\w+)\\s*\\(([^)]*)\\)(?:\\s*([^/{\\s]+))?\\s*\\{"
+      },
+      "method_pattern": "func\\s+\\((?:[^)]+)\\)\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*([^/{\\s]+))?\\s*\\{",
+      "symbol_usage_pattern": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+      "import_pattern": "import\\s+[\\'\"](.+?)[\\'\"]|import\\s*\\(([^)]*)\\)",
+      "import_pattern_v1": "import\\s+[\\'\"](.+?)[\\'\"]|import\\s*\\(([^)]*)\\)"
+    },
+    "java": {
+      "patterns": {
+        "Class": "(?:public|protected|private)?\\s*(?:abstract|final\\s+)?class\\s+(\\w+)",
+        "Interface": "(?:public|protected|private)?\\s*interface\\s+(\\w+)",
+        "Function": "(?:public|protected|private|static|final|synchronized|\\s)+[\\w<>\\[\\]]+\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*throws\\s+[\\w\\s,]+)?\\s*\\{"
+      },
+      "method_pattern": "(?:public|protected|private|static|final|synchronized|\\s)+[\\w<>\\[\\]]+\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*throws\\s+[\\w\\s,]+)?\\s*\\{",
+      "symbol_usage_pattern": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+      "import_pattern": "import\\s+([\\w\\.\\*]+);",
+      "import_pattern_v1": "import\\s+([\\w\\.\\*]+);"
+    },
+    "csharp": {
+      "patterns": {
+        "Class": "(?:public|protected|private|internal)?\\s*(?:abstract|sealed|partial\\s+)?class\\s+(\\w+)",
+        "Interface": "(?:public|protected|private|internal)?\\s*interface\\s+(\\w+)",
+        "Function": "(?:public|protected|private|internal|static|virtual|override|async|\\s)+[\\w<>\\[\\]]+\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*\\{"
+      },
+      "method_pattern": "(?:public|protected|private|internal|static|virtual|override|async|\\s)+[\\w<>\\[\\]]+\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*\\{",
+      "symbol_usage_pattern": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+      "import_pattern": "using\\s+([\\w\\.]+);",
+      "import_pattern_v1": "using\\s+([\\w\\.]+);"
+    }
+  }
+}

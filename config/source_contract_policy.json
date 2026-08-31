@@ -1,0 +1,141 @@
+{
+  "_meta": {
+    "kind": "source_contract_policy",
+    "version": "v1",
+    "purpose": "Central policy for source governance validation: critical schema artifacts and intentional large source files."
+  },
+  "critical_schema_artifacts": [
+    "artifact_trust_validation",
+    "contextos_contract_validation",
+    "contextos_signal_validation",
+    "dead_code_groundtruth",
+    "entrypoint_failure_validation",
+    "external_polyglot_smoke_validation",
+    "external_react_smoke_validation",
+    "framework_capability_validation",
+    "l4_policy_validation",
+    "lifecycle_validation",
+    "language_agnostic_symbols",
+    "language_agnostic_symbol_validation",
+    "test_gap_report",
+    "ai_agent_readiness_report",
+    "product_reports_validation",
+    "performance_budget_validation",
+    "polyglot_capability_validation",
+    "react_fixture_matrix_validation",
+    "react_edge_case_matrix",
+    "react_edge_case_validation",
+    "react_support_validation",
+    "release_phase_status",
+    "release_readiness",
+    "signal_regression_validation",
+    "source_contract_validation",
+    "stale_remediation_validation",
+    "test_impact_profile_validation",
+    "watchdog_stress_validation"
+  ],
+  "source_inventory": {
+    "source_suffixes": [
+      ".py",
+      ".cjs",
+      ".js"
+    ],
+    "ignored_path_parts": [
+      "__pycache__",
+      "node_modules",
+      "output",
+      ".git",
+      ".vendor",
+      "codemaps_vendor",
+      "vendor_runtime"
+    ],
+    "large_source_line_threshold": 900
+  },
+  "central_contract_cache": {
+    "strict_loader_files": [
+      "tools/core/adapter_registry.py",
+      "tools/core/architecture_blueprints.py",
+      "tools/core/decision_ownership.py",
+      "tools/core/language_agnostic_symbols.py",
+      "tools/core/pipeline_policy.py",
+      "tools/core/proof_envelope_policy.py",
+      "tools/core/test_impact_profiles.py"
+    ],
+    "required_helper": "load_json_object_strict_cached",
+    "forbidden_process_lifetime_cache_token": "lru_cache"
+  },
+  "external_react_smoke_contract": {
+    "required_check_names": [
+      "external_react_atlas_detects_core_features",
+      "external_react_support_detects_expected_capabilities",
+      "external_react_mcp_surgical_surface_respects_analysis_preconditions",
+      "external_react_mcp_inspect_file_returns_react_target_brief"
+    ],
+    "required_environment_marker": "CODEMAPS_TARGET_ROOT"
+  },
+  "source_line_scan": {
+    "snippet_char_limit": 180,
+    "engine_direct_write_patterns": [
+      {
+        "label": "direct_write_text",
+        "regex": "\\.write_text\\s*\\("
+      },
+      {
+        "label": "direct_json_dump",
+        "regex": "\\bjson\\.dump\\s*\\("
+      }
+    ],
+    "forbidden_whole_file_line_count_patterns": [
+      {
+        "label": "whole_file_newline_count_plus_one",
+        "regex": "(?:content|existing_content|proposed_content)\\.count\\([\"']\\\\n[\"']\\)\\s*\\+\\s*1"
+      }
+    ]
+  },
+  "decision_domain_classification": {
+    "ambiguous_sample_limits": {
+      "file_limit": 40,
+      "sample_limit_per_file": 8
+    },
+    "reviewed_deferred_files": {
+      "tools/validate_performance_budget.py": {
+        "reason": "Manual family sweep moved repeated performance policy values into config/performance_budget.json. Remaining literals are path pointers, report labels, payload keys or fallback safety strings.",
+        "action": "keep_visible_reviewed_deferred_domain",
+        "reviewed_on": "2026-07-01"
+      }
+    }
+  },
+  "large_source_allowlist": {
+    "codemaps.py": "unified CLI surface; guarded by release-check/source-contract validators",
+    "tools/engines/ai_context_generator.py": "report assembler with many artifact readers",
+    "tools/engines/ast_sequencer.cjs": "AST sequence engine with parser/token fixtures",
+    "tools/engines/dead_code_detector.py": "multi-language static-analysis engine",
+    "tools/engines/fractal_mapper.py": "graph/semantic-map engine",
+    "tools/engines/generate_atlas.py": "primary atlas generator",
+    "tools/engines/merge_script_generator.py": "merge-plan and guarded script artifact generator",
+    "tools/engines/nuclear_processor.py": "symbol/genome extraction engine with legacy compatibility contracts",
+    "tools/engines/quality_gate.py": "central quality policy engine",
+    "tools/engines/react_ecosystem_analyzer.py": "React ecosystem surgical contract engine with calibrated render/lifecycle/UI-state analyzers",
+    "tools/engines/react_frontier_intelligence.py": "React frontier evidence engine with bundle/profiler/type diagnostics correlation and policy-backed artifact discovery",
+    "tools/engines/react_runtime_intelligence.py": "react runtime intelligence engine with telemetry/smoke correlation details",
+    "tools/engines/validation_oracle.py": "classification oracle table and heuristics",
+    "tools/generate_agent_surface_quality_review.py": "central source-grounded agent-facing surface review harness with token budget checks",
+    "tools/core/artifact_store.py": "SQLite-first artifact SSOT, shadow export, self-heal and fallback telemetry spine",
+    "tools/core/contextos_mcp.py": "central ContextOS packet and target-repository agent-brief projection surface; guarded by MCP/context validators",
+    "tools/inspect_target.py": "target inspection and agent-facing source-grounding projection surface; guarded by agent-surface/context validators",
+    "tools/mcp/server.py": "MCP tool surface with guarded ContextOS and HITL endpoints",
+    "tools/validate_agent_context_payloads.py": "central agent-facing ContextOS/MCP payload contract validator; intentionally guards target paths, spans, scope and stale-surface red lines",
+    "tools/validate_agent_semantic_contract_smoke.py": "agent-facing semantic smoke harness covering representative MCP task families and source-grounded directives",
+    "tools/validate_mcp_agent_surface.py": "central MCP role/profile, target-isolation and agent-surface contract validator; future split seams must preserve one declarative role registry consumer",
+    "tools/validate_pipeline_execution_contract.py": "central pipeline execution policy contract validator with scheduler, profile, operational-limit and report-surface-limit checks",
+    "tools/validate_react_support.py": "React support capability matrix, cache validation and progress-visible capability scan contract",
+    "tools/orchestrators/discovery.py": "workspace discovery and profile inference coordinator",
+    "tools/orchestrators/orchestrator.py": "pipeline scheduler and dependency planner",
+    "tools/orchestrators/watchdog.py": "live save-time governance loop with proof debt, pulse ledger, circuit breaker and target-repository agent guidance",
+    "tools/run_release_proof_bundle.py": "explicit release proof ledger, command matrix and artifact snapshot assembler",
+    "tools/tests/test_agent_artifact_query_contract.py": "cohesive agent artifact-query and MCP public-brief contract regression suite; split only when a semantic owner boundary improves local reasoning",
+    "tools/tests/test_engine_contracts.py": "large regression suite by design",
+    "tools/tests/test_pipeline_registry.py": "central pipeline registry, release DAG, freshness and execution-policy regression suite; split only with preserved cross-contract ownership evidence",
+    "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist"
+  }
+}

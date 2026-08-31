@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "decision_ownership_registry.schema.json",
+  "type": "object",
+  "required": [
+    "meta",
+    "guard_policy",
+    "domains",
+    "validation_contract"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "const": "nexora.decision_ownership_registry"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "guard_policy": {
+      "type": "object",
+      "required": [
+        "supported_source_suffixes",
+        "minimum_local_collection_size",
+        "minimum_overlap_values",
+        "relationships",
+        "excluded_path_parts",
+        "owner_files_are_exempt"
+      ],
+      "properties": {
+        "supported_source_suffixes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^\\."
+          }
+        },
+        "minimum_local_collection_size": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "minimum_overlap_values": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "relationships": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "exact_copy",
+              "owned_subset"
+            ]
+          }
+        },
+        "excluded_path_parts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "owner_files_are_exempt": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner_file",
+          "owner_pointers",
+          "value_mode",
+          "consumer_rule"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner_file": {
+            "type": "string",
+            "pattern": "^config/"
+          },
+          "owner_pointers": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "value_mode": {
+            "enum": [
+              "list_values",
+              "object_keys"
+            ]
+          },
+          "consumer_rule": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "validation_contract": {
+      "type": "object",
+      "required": [
+        "required_domain_fields",
+        "allowed_value_modes",
+        "required_domain_ids"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

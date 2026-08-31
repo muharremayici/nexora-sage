@@ -1,0 +1,368 @@
+{
+  "meta": {
+    "kind": "agent_surface_contract",
+    "version": "v1",
+    "description": "Machine-readable MCP and AI-agent surface contract. This owns required target-agent tools, allowed MCP tool roles, and AI-agent readiness operating sequences."
+  },
+  "allowed_tool_roles": [
+    "human_hitl",
+    "mutating",
+    "primary_agent",
+    "supporting_context"
+  ],
+  "required_agent_tools": [
+    "check_module_integrity",
+    "create_hitl_decision_request",
+    "dispatch_actor_request",
+    "external_target_preflight",
+    "find_clones",
+    "get_active_signals",
+    "get_agent_response_template",
+    "get_blast_radius",
+    "get_circular_dependencies",
+    "get_confidence_score",
+    "get_dead_code",
+    "get_health_metrics",
+    "get_hexagonal_bindings",
+    "get_hitl_decision_requests",
+    "get_human_approval_gates",
+    "get_impact_radius",
+    "get_merge_review_queue",
+    "get_operator_packet",
+    "get_state_flow",
+    "get_surgical_context",
+    "get_surgical_operation_packet",
+    "get_test_impact",
+    "get_ui_architecture",
+    "get_violation_work_queue",
+    "get_watchdog_session",
+    "inspect_file",
+    "inspect_folder",
+    "inspect_symbol",
+    "manage_target_write_lease",
+    "record_agent_response",
+    "search_symbols",
+    "trace_upstream_cause",
+    "validate_actor_proposal",
+    "validate_agent_response",
+    "validate_patch"
+  ],
+  "ai_agent_readiness": {
+    "default_tool_context_profile": "target_repository_default",
+    "tool_context_profiles": {
+      "target_repository_default": {
+        "system_scope": "SAGE_ON_REPOSITORY",
+        "purpose": "Default MCP tool window for an AI coding agent editing the analyzed repository.",
+        "roles": [
+          "primary_agent"
+        ],
+        "allowed_audiences": [
+          "target_repo_agent"
+        ],
+        "exclude_heavy": true,
+        "max_tools": 16,
+        "selection_rule": "Expose only primary, non-heavy tools by default; use supporting_context tools after a concrete file, symbol, rule, or issue exists."
+      },
+      "target_repository_followup": {
+        "system_scope": "SAGE_ON_REPOSITORY",
+        "purpose": "Secondary MCP tool window after a concrete target exists.",
+        "roles": [
+          "supporting_context",
+          "human_hitl"
+        ],
+        "allowed_audiences": [
+          "target_repo_agent",
+          "target_repo_agent_and_human"
+        ],
+        "include_tools": [
+          "create_hitl_decision_request",
+          "record_agent_response",
+          "manage_target_write_lease",
+          "get_watchdog_session",
+          "get_impact_radius"
+        ],
+        "exclude_heavy": true,
+        "max_tools": 22,
+        "selection_rule": "Add bounded supporting context or HITL tools only after the agent has a concrete target or approval need."
+      }
+    },
+    "recommended_first_calls": [
+      "get_surgical_operation_packet",
+      "validate_actor_proposal",
+      "get_violation_work_queue",
+      "get_active_signals",
+      "search_symbols",
+      "inspect_file",
+      "inspect_symbol",
+      "get_test_impact",
+      "validate_patch"
+    ],
+    "required_operation_tools": [
+      "create_hitl_decision_request",
+      "get_confidence_score",
+      "get_impact_radius",
+      "get_surgical_operation_packet",
+      "get_test_impact",
+      "record_hitl_decision",
+      "trace_upstream_cause",
+      "validate_actor_proposal",
+      "validate_agent_response",
+      "validate_patch"
+    ],
+    "agent_operating_contract": {
+      "safe_default": "Read ContextOS focus, validate patch in memory, request HITL approval for risky changes, then record the response.",
+      "minimal_context_sequence": [
+        "get_surgical_operation_packet",
+        "get_active_signals",
+        "inspect_file",
+        "get_test_impact",
+        "validate_patch"
+      ],
+      "optional_operator_review_sequence": [
+        "get_nexora_agent_contract",
+        "get_operator_packet",
+        "get_nexora_brief"
+      ],
+      "human_approval_sequence": [
+        "get_human_approval_gates",
+        "create_hitl_decision_request",
+        "record_hitl_decision",
+        "record_agent_response"
+      ]
+    }
+  },
+  "patch_validation_next_actions": {
+    "provide_valid_patch_before_validation": {
+      "instruction": "Stop patch validation and provide a parseable bounded unified diff or explicit replacement content before asking SAGE to validate again.",
+      "agent_rule": "Do not edit files from this result; the proposed patch is not valid input."
+    },
+    "provide_non_empty_patch_before_validation": {
+      "instruction": "Stop patch validation and provide the concrete patch content that should be checked; an empty patch is a no-op and is never permission to apply changes.",
+      "agent_rule": "Do not treat NO_OP as approval; create or request the actual patch first."
+    },
+    "request_human_approval_or_provide_bounded_unified_diff": {
+      "instruction": "Do not apply a full-file replacement automatically. Either convert the change to a bounded unified diff for this target file or request explicit human approval.",
+      "agent_rule": "Full-file replacement requires human approval even when SAGE can preview the change."
+    },
+    "apply_patch_only_if_requested_and_in_scope": {
+      "instruction": "The patch is governance-clean for this target, but apply it only if the current task explicitly asked for that edit and keep the change inside the listed target scope.",
+      "agent_rule": "SAGE validation is not a request to broaden scope or perform unrelated cleanup."
+    },
+    "revise_patch_before_apply": {
+      "instruction": "Do not apply this patch. Read the listed violations and revise only the proposed change for the same target file before validating again.",
+      "agent_rule": "Use the violation details as the repair boundary; do not guess or refactor unrelated code."
+    },
+    "refresh_target_analysis_or_request_create_file_approval": {
+      "instruction": "Do not apply or inspect this missing target as if it were an existing file. Refresh SAGE analysis for the exact repository, or use an explicit create-file workflow with human approval.",
+      "agent_rule": "A missing or unindexed target has no inspectable file boundary; do not guess its contents or silently reinterpret the patch as file creation."
+    },
+    "repair_exact_patch_payload_before_apply": {
+      "instruction": "Do not apply this patch. Preserve the exact target and intended change, repair the unified-diff payload so the configured non-mutating applicability oracle accepts it, then validate the repaired bytes again.",
+      "agent_rule": "Applicability failure is not mutation authority and does not prove the intended source change is semantically wrong."
+    },
+    "retry_bounded_applicability_or_request_review": {
+      "instruction": "Do not apply or rewrite this patch merely because the applicability oracle timed out. Retry the same bytes through a target-bounded applicability check within the declared latency budget, or request human review while preserving UNKNOWN applicability.",
+      "agent_rule": "A timeout is incomplete evidence, not proof that the patch bytes are invalid or that the intended source change is wrong."
+    },
+    "run_target_native_policy_and_validation_oracles_before_apply": {
+      "instruction": "Do not apply this patch yet. Run the repository-declared lint, compiler, test or policy checks required for this target and return their provenance-bound results to the validation flow.",
+      "agent_rule": "SAGE governance PASS does not substitute for target-native validation; keep safe_to_apply false while that evidence is unavailable."
+    }
+  },
+  "work_queue_brief_policy": {
+    "max_visible_items": 3,
+    "omission_field": "omitted_work_items",
+    "agent_rule": "Default work-queue briefs must show a small patch-sized queue, preserve total counts, and require follow-up pagination or filters for omitted items."
+  },
+  "symbol_search_policy": {
+    "max_candidate_rows_per_source": 500,
+    "ambiguity_preview_items": 12,
+    "agent_rule": "Bound symbol and file search independently, disclose truncation, and never present a bounded candidate count as the complete repository match count."
+  },
+  "test_impact_brief_policy": {
+    "command_contract_projection": "grouped_by_execution_scope",
+    "max_contract_groups": 4,
+    "example_commands_per_group": 1,
+    "agent_rule": "Test-impact briefs keep exact run commands in validation.commands and summarize command contracts by execution scope to avoid repeating the same proof boundary for every test."
+  },
+  "confidence_brief_policy": {
+    "recommended_actions": {
+      "target_not_grounded": "refresh_target_analysis_before_confidence_decision",
+      "dependency_evidence_unavailable": "refresh_dependency_evidence_before_confidence_decision",
+      "elevated_risk": "inspect_architecture_impact_and_tests_before_editing",
+      "bounded_patch": "inspect_file_and_run_required_validation_before_bounded_patch"
+    },
+    "missing_policy_action": "stop_and_restore_confidence_brief_policy",
+    "agent_rule": "Confidence briefs must derive their next action from this contract; missing action mappings are incomplete evidence and never authorize editing."
+  },
+  "target_repository_validation_policy": {
+    "mode": "mcp_target_repository_default_then_target_repository_commands",
+    "inactive_mode": "inactive_until_target_selected",
+    "inactive_tools": [],
+    "inactive_completion_rule": "Select a concrete target file and confirmed rule before requesting test impact or patch validation.",
+    "validation_tools": [
+      {
+        "tool": "get_test_impact",
+        "profile_id": "target_repository_default",
+        "call": "get_test_impact(target_file)",
+        "purpose": "Resolve target-repository tests and runnable validation commands for the concrete edited file."
+      },
+      {
+        "tool": "validate_patch",
+        "profile_id": "target_repository_default",
+        "call": "validate_patch(target_file, patch_content)",
+        "purpose": "Validate the bounded proposed patch against current SAGE governance before application."
+      },
+      {
+        "tool": "get_violation_work_queue",
+        "profile_id": "target_repository_default",
+        "call": "get_violation_work_queue(rule=rule, project=target_project)",
+        "purpose": "Re-check the same rule and project after target-repository validation."
+      }
+    ],
+    "completion_rule": "Run only target-repository commands returned by get_test_impact, validate the bounded patch with validate_patch, and re-check the same SAGE rule before claiming completion.",
+    "agent_rule": "Target-repository agent packets must not present SAGE self-development validators as commands that validate a customer-repository patch."
+  },
+  "merge_review_validation_policy": {
+    "mode": "review_only_until_human_approval",
+    "pre_approval_tools": [
+      {
+        "tool": "inspect_file",
+        "call": "inspect_file(file_path=source_ref)",
+        "purpose": "Inspect the variation source as read-only evidence."
+      },
+      {
+        "tool": "get_impact_radius",
+        "call": "get_impact_radius(target_node=source_ref, depth=2)",
+        "purpose": "Bound the source candidate impact before recommending an import."
+      },
+      {
+        "tool": "get_test_impact",
+        "call": "get_test_impact(target_file=source_ref)",
+        "purpose": "Resolve target-repository validation evidence for the source candidate."
+      }
+    ],
+    "post_approval_tools": [
+      {
+        "tool": "validate_patch",
+        "call": "validate_patch(target_file=proposed_target_path, patch_content=bounded_patch)",
+        "purpose": "Validate the exact human-approved MAIN patch before application."
+      }
+    ],
+    "completion_rule": "Do not run SAGE self-development validators from this target-agent packet. Review source evidence first; after explicit human approval, validate only the bounded proposed MAIN patch and run target-repository commands returned for that concrete target."
+  },
+  "state_flow_brief_policy": {
+    "sample_keys_limit": 3,
+    "sample_targets_limit": 3,
+    "max_items_semantics": "max_items limits returned top-level state-flow sections; sample_keys_limit and sample_targets_limit cap per-section examples.",
+    "agent_rule": "Use sample_targets as openable examples; sample_keys are graph references, not filesystem paths. Omitted counts mean more graph examples exist, not that files are missing."
+  },
+  "supporting_context_brief_policy": {
+    "default_title": "Target Repository Context Brief",
+    "default_actions": [
+      "Inspect the referenced target files before editing."
+    ],
+    "surface_titles": {
+      "surgical_context": "Surgical Context Brief",
+      "dead_code": "Dead Code Context Brief",
+      "clone_detector": "Clone Context Brief",
+      "health_metrics": "Target Repository Health Metrics Brief",
+      "circular_dependencies": "Circular Dependency Brief",
+      "blast_radius": "Blast Radius Brief",
+      "state_flow": "State Flow Brief",
+      "hexagonal_bindings": "Hexagonal Binding Brief",
+      "ui_architecture": "UI Architecture Brief"
+    },
+    "surface_actions": {
+      "state_flow": [
+        "Inspect the listed store and consumer targets before changing state shape, selectors, or mutation paths.",
+        "Use sample_targets as openable examples; sample_keys are graph references, not filesystem paths."
+      ],
+      "ui_architecture": [
+        "Inspect the listed target files before changing component boundaries, exports, or UI ownership.",
+        "Use risk_tier and risk_reasons as triage hints; confirm the actual code before editing."
+      ],
+      "dead_code": [
+        "Treat unusedness confidence and remediation intent as separate decisions; no dead-code item authorizes mutation by itself.",
+        "Inspect the listed target file and symbol, then choose among deletion, completing an unfinished integration, retaining an intentional contract, or leaving the outcome unknown.",
+        "Before choosing deletion, confirm there is no public export, package entry point, barrel export, type augmentation, fixture, runtime registration, or intended but incomplete wiring protecting the symbol."
+      ],
+      "circular_dependencies": [
+        "Open every listed chain_targets entry and identify the smallest dependency edge that can break the cycle.",
+        "Prefer moving a type/port/contract boundary over broad file moves or unrelated refactors."
+      ],
+      "blast_radius": [
+        "Inspect target_file first, then inspect direct dependents only if the code change can alter exported behavior.",
+        "Use impact counts for caution level; request get_impact_radius(target_node=target_ref, depth=2) for the concrete dependent file list before editing downstream files.",
+        "Do not treat direct/transitive dependent counts as a substitute for listed file paths."
+      ],
+      "hexagonal_bindings": [
+        "Inspect port_target first, then adapter_targets only when changing a port, adapter, or dependency boundary.",
+        "Use unbound_port items as review candidates; do not create adapters unless the target code confirms a real port contract."
+      ],
+      "health_metrics": [
+        "Use this as triage only; choose a concrete target with get_violation_work_queue, inspect_file, or get_impact_radius before editing.",
+        "If the item is overall/module-level, do not infer a file-level fix from the score alone."
+      ],
+      "clone_detector": [
+        "Compare the listed instance_targets before proposing deduplication or extraction.",
+        "Treat API barrels, generated surfaces, and public type contracts as protected until the target code proves the duplicate is safe to merge."
+      ]
+    },
+    "empty_result_actions": {
+      "blast_radius": [
+        "No concrete blast-radius target was returned for this filter.",
+        "Choose a concrete target_ref from a primary agent tool, then call get_impact_radius(target_node=target_ref, depth=2) for dependent file paths.",
+        "Do not infer downstream impact from an empty summary result."
+      ]
+    }
+  },
+  "semantic_smoke_telemetry_policy": {
+    "max_evidence_items": 4,
+    "max_unknown_items": 4,
+    "max_issue_items": 3,
+    "max_fallback_items": 3,
+    "reason_fields": [
+      "status",
+      "readiness",
+      "verdict",
+      "mode",
+      "queue_source",
+      "dependency_graph_source",
+      "target_grounding_status"
+    ],
+    "count_fields": [
+      "checked",
+      "items",
+      "issues",
+      "mismatches",
+      "failures",
+      "warnings",
+      "passed",
+      "failed",
+      "total_violations"
+    ],
+    "evidence_fields": [
+      "source",
+      "producer",
+      "generator",
+      "artifact",
+      "queue_source",
+      "dependency_graph_source"
+    ],
+    "fallback_fields": [
+      "fallback",
+      "fallbacks",
+      "fallback_reason",
+      "fail_closed_reason"
+    ],
+    "unknown_fields": [
+      "unknown",
+      "unknowns",
+      "missing",
+      "missing_required_tools",
+      "missing_required_tools_from_skill"
+    ],
+    "agent_rule": "Semantic smoke telemetry must explain each step from its own result shape without turning the log into a full payload dump."
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "meta": {
+    "kind": "target_repo_lineage_contract",
+    "version": "v1"
+  },
+  "purpose": "Machine-readable lineage contract for facts that originate in the analyzed target repository and must reach the agent-facing ContextOS/MCP packet without becoming stale, ambiguous, or SAGE-internal noise.",
+  "default_policy": {
+    "project_scope_policy_source": "config/pipeline_execution_policy.json:project_scope_policy",
+    "default_agent_edit_scope": "MAIN",
+    "default_agent_read_scope": "MAIN",
+    "target_repo_agent_default": "host_projects_only",
+    "target_truth_preference": "sqlite_source_snapshots_first",
+    "json_shadow_behavior": "fallback_only",
+    "missing_target_behavior": "fail_closed_agent_surface",
+    "drift_behavior": "block_edit_directive_when_mismatch",
+    "variation_visibility": "explicit_only",
+    "companion_visibility": "explicit_only",
+    "external_target_scope": "isolated_main"
+  },
+  "target_fact_lineage": [
+    {
+      "id": "target_repository_identity",
+      "required_agent_fields": [
+        "analysis_root",
+        "target_project",
+        "target_file",
+        "target_ref"
+      ],
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "analysis_root"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_ref"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "\"target_ref\""
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "impact_radius_brief_preserves_target_ref_without_debug_terms"
+        }
+      ]
+    },
+    {
+      "id": "target_source_snapshot_freshness",
+      "required_agent_fields": [
+        "source_snapshot_status",
+        "source_snapshot_hash_prefix",
+        "drift_check_status"
+      ],
+      "producer_markers": [
+        {
+          "file": "tools/core/artifact_store.py",
+          "contains": "source_snapshots"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "source_snapshot_hash_prefix"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "drift_check_status"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/validate_watchdog_snapshot_freshness.py",
+          "contains": "drift_check_status"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "source_snapshot_hash_prefix"
+        }
+      ]
+    },
+    {
+      "id": "target_span_and_snippet_grounding",
+      "required_agent_fields": [
+        "target_spans",
+        "target_source_snippets",
+        "start_line",
+        "end_line",
+        "snippet_status"
+      ],
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_source_snippets"
+        },
+        {
+          "file": "tools/inspect_target.py",
+          "contains": "target_source_snippets"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "target_source_snippets:"
+        },
+        {
+          "file": "tools/validate_watchdog_snapshot_freshness.py",
+          "contains": "target_source_snippets"
+        }
+      ]
+    },
+    {
+      "id": "target_finding_to_agent_work_queue",
+      "required_agent_fields": [
+        "rule",
+        "severity",
+        "evidence",
+        "target_file"
+      ],
+      "producer_markers": [
+        {
+          "file": "tools/engines/audit.py",
+          "contains": "_add_violation"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "get_violation_work_queue"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/validate_agent_packet_chain_integrity.py",
+          "contains": "work_queue_groups_raw_rows_into_agent_work_items"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "work_queue_brief"
+        }
+      ]
+    },
+    {
+      "id": "target_validation_flow",
+      "required_agent_fields": [
+        "validation.tools",
+        "validation.completion_rule"
+      ],
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "validation"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_repo_validation_tools"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/validate_agent_packet_chain_integrity.py",
+          "contains": "surgical_brief_exposes_validation_without_debug_refs"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "validation_tools"
+        }
+      ]
+    }
+  ],
+  "agent_surface_tools": [
+    "get_violation_work_queue",
+    "get_surgical_operation_packet",
+    "get_impact_radius",
+    "get_test_impact",
+    "trace_upstream_cause",
+    "validate_patch"
+  ],
+  "claim_boundary": {
+    "v1_scope": "target_repo_static_architecture_governance_and_agent_context_grounding",
+    "not_claimed": [
+      "full_security_sast",
+      "runtime_production_truth_without_runtime_adapter",
+      "automatic_safe_editing_without_human_or_agent_patch_review"
+    ]
+  }
+}

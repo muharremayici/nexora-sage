@@ -1,0 +1,867 @@
+{
+  "meta": {
+    "kind": "cli_command_contract",
+    "version": "v1",
+    "description": "Canonical command intent contract for Nexora SAGE. This prevents overlapping CLI surfaces from becoming ambiguous as profiles, release gates, and proof bundles evolve."
+  },
+  "principles": {
+    "product_entrypoint": "sage.py is the public product entrypoint. codemaps.py is an internal implementation module, not a documented user command.",
+    "installation_root_vs_target_root": "The SAGE source checkout is the product installation root, not implicit authority to analyze its parent directory. Public product projections require an explicit --target-root; internal legacy layouts may retain parent-root discovery only when no public distribution manifest is present.",
+    "run_vs_proof": "run commands produce or refresh analysis artifacts; release/proof commands validate and seal evidence.",
+    "run_scope_semantics": "run --scope is a directory-only report filter for Scoped Host Analyzer. It does not bound Atlas generation, source snapshots, AST parsing or the rest of the pipeline.",
+    "watch_path_semantics": "watch --once --path accepts one exact supported analysis source file, or an exact missing path only when the previous canonical Atlas proves that it is a deletion tombstone. A directory is a deterministic smoke sample whose acquisition compares previous indexed membership with the current filesystem, prioritizes tombstones, and discloses selected and omitted existing-file and tombstone counts. Omitted tombstones force UNKNOWN.",
+    "force_vs_release_deep": "force implies release-deep profile plus cache bypass/rebuild intent; release-deep alone is a heavyweight profile, not necessarily a forced rebuild.",
+    "release_check_vs_bundle": "release-check refreshes and validates the release gate envelope; run_release_proof_bundle assembles the complete proof bundle over validators and key artifacts."
+  },
+  "init_execution": {
+    "default_mode": "setup_only",
+    "duration_sample_limit": 10,
+    "installation_proof_init_modes": {
+      "daily": "setup_only",
+      "release": "setup_only"
+    },
+    "modes": {
+      "full": {
+        "public_flag": "--full",
+        "bootstrap_mode": "full",
+        "analysis_profile": "release-deep",
+        "force": true,
+        "cost_tier": "high",
+        "telemetry_identifier": "bootstrap_full_pipeline",
+        "generated_scope": "workspace configuration, SQLite truth, shadow artifacts, reports, and full analysis evidence",
+        "operator_guidance": "This is an explicitly requested heavyweight release-deep truth build. Ordinary onboarding defaults to setup-only, followed by a named bounded analysis profile."
+      },
+      "setup_only": {
+        "public_flag": "",
+        "bootstrap_mode": "setup",
+        "analysis_profile": "none",
+        "force": false,
+        "cost_tier": "low",
+        "telemetry_identifier": "bootstrap_setup_only",
+        "required_bootstrap_calls": [
+          "run_refresh",
+          "generate_mcp_snippet"
+        ],
+        "forbidden_bootstrap_calls": [
+          "run_pulse"
+        ],
+        "generated_scope": "dependencies when enabled, discovery, governance overrides, compiled configuration, and project-truth pruning; no analysis pipeline",
+        "operator_guidance": "Default onboarding mode. Run a named bounded analysis profile after setup when repository evidence is required. Setup-only does not prove analysis freshness."
+      }
+    }
+  },
+  "validation": {
+    "required_command_ids": [
+      "sage_cli",
+      "validate_profiles",
+      "init_full",
+      "init_setup_only",
+      "init_plan_only",
+      "run_daily",
+      "run_full",
+      "run_release_deep",
+      "run_full_force",
+      "run_list_steps",
+      "run_explicit_step",
+      "self_audit",
+      "work_package_governance",
+      "release_check_v1",
+      "release_check_all",
+      "release_proof_bundle",
+      "install_proof",
+      "ci_release_check"
+    ],
+    "allowed_pipeline_step_template_command_ids": [
+      "run_explicit_step"
+    ],
+    "valid_execution_modes": [
+      "operator_command",
+      "daily",
+      "normal_full",
+      "release_deep",
+      "explicit_step",
+      "self_governance_audit",
+      "self_development_governance",
+      "watchdog_save_pulse",
+      "external_corpus_validation",
+      "clean_install_onboarding_proof"
+    ],
+    "generated_smoke_probe_command": "npx playwright test output/scripts/ui_smoke_specs/candidate.spec.ts",
+    "help_surfaces": {
+      "development": {
+        "required_commands": [
+          "doctor",
+          "run",
+          "release-check",
+          "self-audit",
+          "work-package",
+          "ledger-update",
+          "fixture-import",
+          "fixture-seed",
+          "fixture-promote",
+          "universal-proof-run",
+          "phase-status",
+          "transcript-template",
+          "truth-sync",
+          "ci-check",
+          "setup",
+          "mapping"
+        ],
+        "required_phrases": [
+          "python sage.py doctor",
+          "python sage.py run --profile daily",
+          "python sage.py run --full",
+          "python sage.py release-check",
+          "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN"
+        ],
+        "forbidden_phrases": [
+          "`python sage.py purge --mode deep`"
+        ]
+      },
+      "public": {
+        "required_commands": [
+          "init",
+          "install-proof",
+          "run",
+          "watch",
+          "doctor",
+          "mcp",
+          "show-config",
+          "purge",
+          "external-targets",
+          "backup",
+          "restore"
+        ],
+        "forbidden_commands": [
+          "release-check",
+          "self-audit",
+          "work-package",
+          "ledger-update",
+          "fixture-import",
+          "fixture-seed",
+          "fixture-promote",
+          "universal-proof-run",
+          "phase-status",
+          "transcript-template",
+          "truth-sync",
+          "ci-check",
+          "setup",
+          "mapping"
+        ],
+        "required_phrases": [
+          "python sage.py init --target-root <repository>",
+          "python sage.py run --target-root <repository> --profile daily",
+          "python sage.py mcp --print-config",
+          "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN"
+        ],
+        "forbidden_phrases": [
+          "python sage.py release-check",
+          "`python sage.py purge --mode deep`"
+        ]
+      }
+    },
+    "top_level_command_visibility": {
+      "rule": "Every top-level CLI command belongs to exactly one visibility class. Public distributions expose exactly the commands in classes whose public_distribution value is true; missing and additional commands both fail closed.",
+      "classes": {
+        "public_target_repository": {
+          "public_distribution": true,
+          "commands": [
+            "init",
+            "install-proof",
+            "run",
+            "watch",
+            "doctor",
+            "mcp",
+            "purge",
+            "external-targets"
+          ]
+        },
+        "public_local_state_administration": {
+          "public_distribution": true,
+          "commands": [
+            "show-config",
+            "backup",
+            "restore"
+          ]
+        },
+        "private_unbound_or_legacy_product_surface": {
+          "public_distribution": false,
+          "commands": [
+            "demo",
+            "dashboard",
+            "refresh",
+            "inspect",
+            "brief",
+            "agent-contract",
+            "operator-packet",
+            "approval-ledger",
+            "decision-request",
+            "mcp-surface",
+            "hitl-governance",
+            "hitl-lifecycle",
+            "agent-response",
+            "response-ledger",
+            "agent-handoff",
+            "freshness",
+            "surface-inventory",
+            "interactive",
+            "diagnose"
+          ]
+        },
+        "private_development_support": {
+          "public_distribution": false,
+          "commands": [
+            "validate",
+            "setup",
+            "mapping"
+          ]
+        },
+        "private_sage_maintainer_governance": {
+          "public_distribution": false,
+          "commands": [
+            "release-check",
+            "self-audit",
+            "work-package",
+            "ledger-update",
+            "fixture-import",
+            "fixture-seed",
+            "fixture-promote",
+            "universal-proof-run",
+            "phase-status",
+            "transcript-template",
+            "truth-sync",
+            "ci-check"
+          ]
+        }
+      },
+      "public_authority_boundary": {
+        "included_actor_profiles": [
+          "target_repository_default",
+          "target_repository_followup"
+        ],
+        "excluded_actor_profiles": [
+          "sage_operator_debug"
+        ],
+        "excluded_reality_profiles": [
+          "sage_self"
+        ],
+        "source_modification_rule": "Public license grants may allow source modification without publishing private SAGE maintainer governance, institutional memory, release proof, or seal authority.",
+        "sage_source_as_target_rule": "A public user may analyze or modify the SAGE source tree through a target-repository profile; that remains SAGE_ON_REPOSITORY."
+      }
+    },
+    "required_init_help_phrases": [
+      "request the heavyweight release-deep bootstrap",
+      "--full",
+      "--setup-only",
+      "--plan-only",
+      "--target-root",
+      "Run a named daily analysis after setup"
+    ],
+    "init_target_boundary": {
+      "cli_required_tokens": [
+        "full_cmd.extend([\"--target-root\", str(target_root)])",
+        "PUBLIC_DISTRIBUTION_MANIFEST.is_file()",
+        "this public SAGE distribution requires an explicit"
+      ],
+      "bootstrap_required_tokens": [
+        "\"--target-root\"",
+        "isolated_python_subprocess_env(",
+        "this public SAGE distribution requires --target-root <repository>"
+      ],
+      "discovery_required_tokens": [
+        "CODEMAPS_TARGET_ROOT",
+        "PUBLIC_DISTRIBUTION_MANIFEST.json",
+        "requires an explicit target repository",
+        "\"workspace_root\": workspace_root_reference(ROOT_DIR)"
+      ]
+    }
+  },
+  "validation_execution": {
+    "default_profile_id": "live_refresh",
+    "required_profile_fields": [
+      "id",
+      "public_flag",
+      "runtime_truth_mode",
+      "artifact_refresh_mode",
+      "validator_set_id",
+      "cost_tier",
+      "claim_boundary",
+      "operator_guidance"
+    ],
+    "runtime_truth_modes": [
+      "refresh",
+      "require_existing",
+      "not_required"
+    ],
+    "artifact_refresh_modes": [
+      "refresh",
+      "existing_only",
+      "not_applicable"
+    ],
+    "profiles": [
+      {
+        "id": "live_refresh",
+        "public_flag": "",
+        "runtime_truth_mode": "refresh",
+        "artifact_refresh_mode": "refresh",
+        "validator_set_id": "full",
+        "cost_tier": "high",
+        "claim_boundary": "Refreshes validation-critical runtime artifacts before the declared full validator set. It is not a release proof or human seal.",
+        "operator_guidance": "Use after changes when current runtime-backed validation evidence is required."
+      },
+      {
+        "id": "snapshot_only",
+        "public_flag": "--snapshot-only",
+        "runtime_truth_mode": "require_existing",
+        "artifact_refresh_mode": "existing_only",
+        "validator_set_id": "full",
+        "cost_tier": "medium",
+        "claim_boundary": "Validates only existing runtime and artifact truth. It does not refresh evidence and cannot establish freshness beyond each validator's own checks.",
+        "operator_guidance": "Use for a bounded recheck when initialized runtime truth already exists; rerun live validation when freshness remediation is needed."
+      },
+      {
+        "id": "source_clean",
+        "public_flag": "--source-clean",
+        "runtime_truth_mode": "not_required",
+        "artifact_refresh_mode": "not_applicable",
+        "validator_set_id": "source_clean",
+        "cost_tier": "low",
+        "claim_boundary": "Checks only source-clean CLI-contract and source-contract surfaces. It intentionally does not run engine-exercising entrypoint checks and does not claim runtime-artifact, SQLite-state, analysis freshness or release proof. Validators may write bounded validation report artifacts; clean-distribution closeout owns their removal.",
+        "operator_guidance": "Use in a clean install or before initialization for bounded CLI/source-contract integrity. Use a runtime-backed profile before claiming engine or artifact behavior."
+      }
+    ],
+    "validator_sets": {
+      "full": [
+        "tools/validate_lifecycle.py",
+        "tools/validate_entrypoints_and_failures.py",
+        "tools/validate_artifact_trust.py",
+        "tools/validate_framework_capabilities.py",
+        "tools/validate_polyglot_capabilities.py",
+        "tools/validate_language_agnostic_symbols.py",
+        "tools/validate_test_impact_profiles.py",
+        "tools/validate_contextos_signals.py",
+        "tools/validate_contextos_contracts.py",
+        "tools/validate_external_react_smoke.py",
+        "tools/validate_external_polyglot_smoke.py",
+        "tools/validate_react_edge_cases.py",
+        "tools/validate_zustand_selector_contract.py",
+        "tools/validate_react_transitive_propagation.py",
+        "tools/validate_product_reports.py",
+        "tools/validate_architecture_oracle.py",
+        "tools/validate_source_contracts.py",
+        "tools/validate_l4_policy.py"
+      ],
+      "source_clean": [
+        "tools/validate_cli_command_contract.py",
+        "tools/validate_source_contracts.py"
+      ],
+      "doctor_repository_quick": [
+        "tools/validate_entrypoints_and_failures.py",
+        "tools/validate_framework_capabilities.py",
+        "tools/validate_polyglot_capabilities.py",
+        "tools/validate_language_agnostic_symbols.py",
+        "tools/validate_test_impact_profiles.py",
+        "tools/validate_contextos_signals.py",
+        "tools/validate_external_react_smoke.py",
+        "tools/validate_external_polyglot_smoke.py",
+        "tools/validate_zustand_selector_contract.py",
+        "tools/validate_react_transitive_propagation.py",
+        "tools/validate_architecture_oracle.py",
+        "tools/validate_l4_policy.py"
+      ],
+      "doctor_sage_quick": [
+        "tools/validate_entrypoints_and_failures.py",
+        "tools/validate_framework_capabilities.py",
+        "tools/validate_polyglot_capabilities.py",
+        "tools/validate_language_agnostic_symbols.py",
+        "tools/validate_test_impact_profiles.py",
+        "tools/validate_contextos_signals.py",
+        "tools/validate_contextos_contracts.py",
+        "tools/validate_external_react_smoke.py",
+        "tools/validate_external_polyglot_smoke.py",
+        "tools/validate_zustand_selector_contract.py",
+        "tools/validate_react_transitive_propagation.py",
+        "tools/validate_product_reports.py",
+        "tools/validate_architecture_oracle.py",
+        "tools/validate_source_contracts.py",
+        "tools/validate_l4_policy.py"
+      ]
+    },
+    "doctor": {
+      "required_profile_fields": [
+        "id",
+        "validator_set_id",
+        "claim_boundary"
+      ],
+      "profiles": {
+        "SAGE_ON_REPOSITORY": {
+          "id": "repository_quick",
+          "validator_set_id": "doctor_repository_quick",
+          "claim_boundary": "Validates the installed SAGE entrypoint and bundled public analyzer contracts for repository use. It does not require SAGE self-source or product-governance evidence and does not replace the target pipeline or quality-gate verdict."
+        },
+        "SAGE_ON_SAGE": {
+          "id": "sage_self_quick",
+          "validator_set_id": "doctor_sage_quick",
+          "claim_boundary": "Validates the SAGE product snapshot, including self-governance ContextOS and product-report contracts. It is not a release proof or human seal."
+        }
+      },
+      "repository_forbidden_validator_paths": [
+        "tools/validate_contextos_contracts.py",
+        "tools/validate_product_reports.py"
+      ]
+    },
+    "source_clean_forbidden_validator_paths": [
+      "tools/validate_entrypoints_and_failures.py"
+    ],
+    "refresh_commands": [
+      {
+        "kind": "pipeline_step",
+        "step": "qualitygates",
+        "timeout_class": "pipeline_refresh"
+      },
+      {
+        "kind": "pipeline_step",
+        "step": "aicontext",
+        "timeout_class": "pipeline_refresh"
+      },
+      {
+        "kind": "module",
+        "module": "tools.engines.decision_evidence",
+        "timeout_class": "command"
+      },
+      {
+        "kind": "module",
+        "module": "tools.engines.merge_script_generator",
+        "timeout_class": "command"
+      },
+      {
+        "kind": "module",
+        "module": "tools.engines.master_report_generator",
+        "timeout_class": "command"
+      },
+      {
+        "kind": "script",
+        "path": "tools/generate_test_gap_report.py",
+        "timeout_class": "command"
+      },
+      {
+        "kind": "script",
+        "path": "tools/generate_ai_agent_readiness_report.py",
+        "timeout_class": "command"
+      }
+    ],
+    "optional_validators": [
+      {
+        "id": "react",
+        "public_flag": "--react",
+        "help": "Also run React support validation.",
+        "path": "tools/validate_react_support.py"
+      },
+      {
+        "id": "react_fixtures",
+        "public_flag": "--react-fixtures",
+        "help": "Also run React fixture matrix validation.",
+        "path": "tools/validate_react_fixtures.py"
+      },
+      {
+        "id": "react_edge_cases",
+        "public_flag": "--react-edge-cases",
+        "help": "Also run React edge-case matrix and fixture validation.",
+        "path": "tools/validate_react_edge_cases.py"
+      },
+      {
+        "id": "performance_budget",
+        "public_flag": "--performance-budget",
+        "help": "Also run pipeline performance budget validation.",
+        "path": "tools/validate_performance_budget.py"
+      },
+      {
+        "id": "watchdog_stress",
+        "public_flag": "--watchdog-stress",
+        "help": "Also run watchdog burst/stress behavior validation.",
+        "path": "tools/validate_watchdog_stress.py"
+      },
+      {
+        "id": "distribution_hardening",
+        "public_flag": "--distribution-hardening",
+        "help": "Also run distribution hardening contract validation.",
+        "path": "tools/validate_distribution_hardening.py"
+      },
+      {
+        "id": "universal_proof",
+        "public_flag": "--universal-proof",
+        "help": "Also run universal proof gate validation (requires external required fixtures).",
+        "path": "tools/validate_universal_proof.py"
+      },
+      {
+        "id": "mcp_agent_surface",
+        "public_flag": "--mcp-agent-surface",
+        "help": "Also validate MCP parity for the AI worker / HITL surface.",
+        "path": "tools/validate_mcp_agent_surface.py"
+      },
+      {
+        "id": "stale_remediation",
+        "public_flag": "--stale-remediation",
+        "help": "Also run stale remediation contract validation.",
+        "path": "tools/validate_stale_remediation.py"
+      },
+      {
+        "id": "signal_regression",
+        "public_flag": "--signal-regression",
+        "help": "Also run signal regression validation against golden truth/baseline.",
+        "path": "tools/validate_signal_regression.py",
+        "supports_baseline_update": true
+      },
+      {
+        "id": "deadcode_groundtruth",
+        "public_flag": "--deadcode-groundtruth",
+        "help": "Also run dead-code groundtruth validator against project sources.",
+        "path": "tools/validate_dead_code_groundtruth.py"
+      }
+    ],
+    "remediation": {
+      "public_flag": "--auto-remediate-stale",
+      "help": "If validators fail after live refresh, refresh validation-critical artifacts and retry once.",
+      "snapshot_behavior": "report_failure_without_refresh",
+      "baseline_update_flag": "--update-signal-baseline",
+      "baseline_update_help": "Update signal regression baseline from current artifacts (used with --signal-regression)."
+    }
+  },
+  "agent_command_classifiers": [
+    {
+      "id": "sage_self_audit",
+      "pattern": "(^|\\s)self-audit(\\s|$)",
+      "execution_scope": "sage_self_governance_audit",
+      "proof_boundary": "contract_owned_selected_release_proof_closure_not_full_release_or_human_seal",
+      "agent_note": "SAGE developer/auditor self-check. It does not analyze the target repository or grant a human/public-release seal.",
+      "recommended_alternative": "python sage.py release-check for the release gate; target-repository MCP tools for repository work"
+    },
+    {
+      "id": "profile_daily",
+      "pattern": "--profile\\s+daily",
+      "execution_scope": "profile_daily",
+      "proof_boundary": "fast_context_refresh_not_release_proof",
+      "agent_note": "Daily profile is suitable for focused refresh, not final release proof.",
+      "recommended_alternative": ""
+    },
+    {
+      "id": "broad_or_release_style",
+      "pattern": "(--full|--force|release-proof|release_proof)",
+      "execution_scope": "broad_or_release_style",
+      "proof_boundary": "broad_validation_or_release_envelope",
+      "agent_note": "This is broad validation. Use it after focused edits, not as a surgical context query.",
+      "recommended_alternative": ""
+    },
+    {
+      "id": "focused_validator",
+      "pattern": "(tools[\\\\/]validate_|\\s-m\\s+tools\\.)",
+      "execution_scope": "focused_validator",
+      "proof_boundary": "validator_specific_evidence",
+      "agent_note": "Focused validator command. It proves only the named contract, not global repository freshness.",
+      "recommended_alternative": ""
+    },
+    {
+      "id": "ui_smoke_playwright",
+      "pattern": "^npx(\\.cmd)?\\s+playwright\\s+test\\s+output/scripts/ui_smoke_specs/",
+      "execution_scope": "ui_smoke_playwright",
+      "proof_boundary": "generated_ui_smoke_spec_evidence",
+      "agent_note": "Generated UI smoke spec. It proves only the listed route/candidate behavior and does not approve merge/import by itself.",
+      "recommended_alternative": ""
+    },
+    {
+      "id": "target_package_script",
+      "pattern": "(^|\\s)(npm|pnpm|yarn)\\s+",
+      "execution_scope": "target_package_script",
+      "proof_boundary": "target_repository_script_evidence",
+      "agent_note": "Target-repository package script. Run from the stated analysis root/package context.",
+      "recommended_alternative": ""
+    }
+  ],
+  "commands": [
+    {
+      "id": "sage_cli",
+      "surface": "python sage.py <command>",
+      "canonical": true,
+      "intent": "product_entrypoint",
+      "execution_mode": "operator_command",
+      "canonical_use": "Use for public docs, clean install instructions, and human-facing workflows.",
+      "not_for": [
+        "legacy compatibility examples"
+      ]
+    },
+    {
+      "id": "validate_profiles",
+      "surface": "python sage.py validate [--snapshot-only|--source-clean]",
+      "canonical": true,
+      "intent": "contract_owned_validation_profiles",
+      "execution_mode": "operator_command",
+      "canonical_use": "Select live refresh, existing-artifact snapshot, or source-clean validation according to the declared scope and proof boundary.",
+      "not_for": [
+        "release proof",
+        "human seal"
+      ],
+      "requires_contract": "cli_command_contract.validation_execution"
+    },
+    {
+      "id": "init_full",
+      "surface": "python sage.py init --full",
+      "canonical": true,
+      "intent": "explicit_heavyweight_workspace_truth_build",
+      "execution_mode": "release_deep",
+      "canonical_use": "Prepare dependencies and workspace configuration, then force the first complete analysis after an explicit execution preflight.",
+      "not_for": [
+        "ordinary onboarding",
+        "lightweight setup-only preparation",
+        "routine edit loop"
+      ],
+      "requires_contract": "cli_command_contract.init_execution.modes.full"
+    },
+    {
+      "id": "init_setup_only",
+      "surface": "python sage.py init",
+      "canonical": true,
+      "intent": "default_workspace_setup_without_analysis",
+      "execution_mode": "operator_command",
+      "canonical_use": "Default onboarding path. Prepare dependencies and workspace-local discovery/configuration without running the analysis pipeline. The legacy --setup-only spelling remains accepted; run a named analysis profile afterwards when evidence is needed.",
+      "not_for": [
+        "analysis freshness claims",
+        "release sealing"
+      ],
+      "requires_contract": "cli_command_contract.init_execution.modes.setup_only"
+    },
+    {
+      "id": "init_plan_only",
+      "surface": "python sage.py init --plan-only --target-root <repository>",
+      "canonical": true,
+      "intent": "read_only_target_aware_installation_plan",
+      "execution_mode": "operator_command",
+      "canonical_use": "Inspect the machine, canonical target preflight, default human-and-AI profile, and required SAGE-local dependency actions before setup. It does not install dependencies or run discovery/analysis.",
+      "not_for": [
+        "dependency installation",
+        "repository analysis",
+        "release proof"
+      ],
+      "requires_contract": "config/installation_preflight_contract.json"
+    },
+    {
+      "id": "run_daily",
+      "surface": "python sage.py run --profile daily",
+      "canonical": true,
+      "intent": "fast_development_loop",
+      "execution_mode": "daily",
+      "canonical_use": "Fast local development check with core truth, quality, and ContextOS surfaces.",
+      "not_for": [
+        "release sealing",
+        "clean install proof"
+      ]
+    },
+    {
+      "id": "run_full",
+      "surface": "python sage.py run --full",
+      "canonical": true,
+      "intent": "normal_complete_analysis",
+      "execution_mode": "normal_full",
+      "canonical_use": "Normal full workspace analysis that honors cache/smart profile semantics.",
+      "not_for": [
+        "sealed release proof",
+        "forced cache rebuild"
+      ]
+    },
+    {
+      "id": "run_release_deep",
+      "surface": "python sage.py run --profile release-deep",
+      "canonical": true,
+      "intent": "heavyweight_analysis_profile",
+      "execution_mode": "release_deep",
+      "canonical_use": "Run heavyweight pipeline profile when deep analysis artifacts need to be refreshed.",
+      "not_for": [
+        "complete proof bundle by itself"
+      ]
+    },
+    {
+      "id": "run_full_force",
+      "surface": "python sage.py run --full --force",
+      "canonical": true,
+      "intent": "forced_rebuild_analysis",
+      "execution_mode": "release_deep",
+      "canonical_use": "Force stale detection/cache bypass while using release-deep style heavyweight analysis.",
+      "not_for": [
+        "routine daily work"
+      ],
+      "distinct_from": {
+        "run_release_deep": "Both map to release-deep execution posture, but --force additionally declares rebuild/cache-bypass intent."
+      }
+    },
+    {
+      "id": "run_list_steps",
+      "surface": "python sage.py run --list-steps",
+      "canonical": true,
+      "intent": "registry_refresh_and_step_inventory",
+      "execution_mode": "explicit_step",
+      "canonical_use": "Refresh and print the pipeline step registry without running analysis engines or dependency closures.",
+      "not_for": [
+        "analysis artifact refresh",
+        "release proof",
+        "performance benchmarking"
+      ]
+    },
+    {
+      "id": "run_explicit_step",
+      "surface": "python sage.py run --step \"<Step Name>\"",
+      "canonical": true,
+      "intent": "operator_requested_step_closure",
+      "execution_mode": "explicit_step",
+      "canonical_use": "Run the requested pipeline step with its declared transitive dependency closure. Inspect pipeline_step_registry.invocation_contract.explicit_step_closure before assuming this is a narrow refresh.",
+      "not_for": [
+        "cheap surgical agent context unless the closure tier is standalone or narrow",
+        "global release freshness claims"
+      ],
+      "requires_contract": "pipeline_step_registry.invocation_contract.explicit_step_closure"
+    },
+    {
+      "id": "self_audit",
+      "surface": "python sage.py self-audit",
+      "canonical": true,
+      "intent": "sage_self_governance_synthesis",
+      "execution_mode": "self_governance_audit",
+      "canonical_use": "Refresh and validate SAGE's own central-decision, hardcoded-decision, connectivity, lineage, learning and residual-suspicion evidence through a contract-owned release-proof dependency closure.",
+      "not_for": [
+        "target-repository analysis",
+        "complete public release proof",
+        "human seal"
+      ],
+      "requires_contract": "config/sage_self_audit_contract.json"
+    },
+    {
+      "id": "work_package_governance",
+      "surface": "python sage.py work-package <preflight|close>",
+      "canonical": true,
+      "intent": "sage_self_development_package_governance",
+      "execution_mode": "self_development_governance",
+      "canonical_use": "Read the current SAGE-owned mutation preflight or compose a receipt-backed closeout proposal for authorized human/agent review.",
+      "not_for": [
+        "target-repository mutation",
+        "automatic package closure",
+        "approval",
+        "human seal"
+      ],
+      "requires_contract": "governance_trace_contract.work_package_receipts"
+    },
+    {
+      "id": "release_check_v1",
+      "surface": "python sage.py release-check --phase v1",
+      "canonical": true,
+      "intent": "focused_v1_gate",
+      "execution_mode": "release_deep",
+      "canonical_use": "Focused v1 gate for React/static-governance claim validation without implying the complete release proof bundle.",
+      "not_for": [
+        "full proof bundle",
+        "external clean-machine transcript"
+      ]
+    },
+    {
+      "id": "release_check_all",
+      "surface": "python sage.py release-check",
+      "canonical": true,
+      "intent": "release_gate_validation",
+      "execution_mode": "release_deep",
+      "canonical_use": "Refresh release readiness closure, run validator gate, update performance ledger, and rebuild release evidence envelope.",
+      "not_for": [
+        "regular edit loop"
+      ]
+    },
+    {
+      "id": "release_proof_bundle",
+      "surface": "python tools/run_release_proof_bundle.py",
+      "canonical": true,
+      "intent": "complete_release_proof_bundle",
+      "execution_mode": "release_deep",
+      "canonical_use": "Assemble the complete machine-readable release proof bundle with ordered proof steps and artifact snapshots.",
+      "not_for": [
+        "interactive development loop"
+      ]
+    },
+    {
+      "id": "install_proof",
+      "surface": "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN",
+      "canonical": true,
+      "intent": "clean_machine_onboarding_proof",
+      "execution_mode": "clean_install_onboarding_proof",
+      "canonical_use": "Generate a machine-local installation proof report after syncing or unpacking a clean source distribution, with explicit target and project scope for daily/release analysis.",
+      "not_for": [
+        "routine edit loop",
+        "release claim sealing without release-check"
+      ]
+    },
+    {
+      "id": "ci_release_check",
+      "surface": "python sage.py ci-check",
+      "canonical": true,
+      "intent": "ci_envelope",
+      "execution_mode": "release_deep",
+      "canonical_use": "CI wrapper around contract tests, release-check, and phase status.",
+      "not_for": [
+        "local surgical save pulse"
+      ]
+    }
+  ],
+  "ambiguity_guards": [
+    {
+      "id": "full_force_is_not_plain_release_deep",
+      "commands": [
+        "run_full_force",
+        "run_release_deep"
+      ],
+      "rule": "These may share the release_deep mode but must declare different intent: forced_rebuild_analysis vs heavyweight_analysis_profile."
+    },
+    {
+      "id": "release_check_is_not_release_proof_bundle",
+      "commands": [
+        "release_check_all",
+        "release_proof_bundle"
+      ],
+      "rule": "release-check validates/rebuilds release gate evidence; release_proof_bundle assembles the ordered proof bundle."
+    },
+    {
+      "id": "self_audit_is_not_release_or_target_audit",
+      "commands": [
+        "self_audit",
+        "release_check_all",
+        "release_proof_bundle"
+      ],
+      "rule": "self-audit runs the contract-owned SAGE development synthesis closure; it neither analyzes a target repository nor substitutes for the complete public release proof or human seal."
+    },
+    {
+      "id": "list_steps_is_not_analysis_run",
+      "commands": [
+        "run_list_steps",
+        "run_full"
+      ],
+      "rule": "run --list-steps refreshes the pipeline registry and exits; run --full performs analysis over the workspace."
+    },
+    {
+      "id": "explicit_step_requires_closure_awareness",
+      "commands": [
+        "run_explicit_step",
+        "run_list_steps"
+      ],
+      "rule": "run --step executes the requested step dependency closure; run --list-steps only refreshes and prints the registry. Agents must inspect explicit_step_closure before treating a step as narrow evidence."
+    },
+    {
+      "id": "sage_and_codemaps_are_not_peer_entrypoints",
+      "commands": [
+        "sage_cli"
+      ],
+      "rule": "sage.py is canonical for public product usage; codemaps.py is internal implementation detail, not a documented user command."
+    },
+    {
+      "id": "install_proof_is_not_init",
+      "commands": [
+        "install_proof",
+        "init_full",
+        "init_setup_only"
+      ],
+      "rule": "install-proof records machine-local onboarding evidence; its daily/release plans use setup-only initialization so analysis executes exactly once in the named proof flow."
+    }
+  ]
+}

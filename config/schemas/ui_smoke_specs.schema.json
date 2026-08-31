@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "specs"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ui_smoke_specs"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "generated",
+        "source_artifact",
+        "spec_dir"
+      ],
+      "properties": {
+        "generated": {
+          "type": "integer"
+        },
+        "source_artifact": {
+          "type": "string"
+        },
+        "spec_dir": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "specs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate",
+          "source",
+          "studio",
+          "risk_tier",
+          "suggested_route",
+          "spec_path"
+        ],
+        "properties": {
+          "candidate": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "studio": {
+            "type": "string"
+          },
+          "risk_tier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              null
+            ]
+          },
+          "target_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_contract_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suggested_route": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required_contracts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "spec_path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

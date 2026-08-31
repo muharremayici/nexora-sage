@@ -1,0 +1,137 @@
+{
+  "type": "object",
+  "required": [
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "required": [
+        "total",
+        "broken_live",
+        "duplicate_live",
+        "redundant_surface",
+        "manual_review",
+        "risk_tiers"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "broken_live": {
+          "type": "integer"
+        },
+        "duplicate_live": {
+          "type": "integer"
+        },
+        "redundant_surface": {
+          "type": "integer"
+        },
+        "manual_review": {
+          "type": "integer"
+        },
+        "risk_tiers": {
+          "type": "object",
+          "required": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
+          "properties": {
+            "critical": {
+              "type": "integer"
+            },
+            "high": {
+              "type": "integer"
+            },
+            "medium": {
+              "type": "integer"
+            },
+            "low": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "classification",
+          "confidence",
+          "risk_tier",
+          "why_not_dead",
+          "why_problematic",
+          "recommended_action",
+          "evidence",
+          "related_files"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "broken_live",
+              "duplicate_live",
+              "redundant_surface",
+              "manual_review"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "why_not_dead": {
+            "type": "string"
+          },
+          "why_problematic": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "related_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

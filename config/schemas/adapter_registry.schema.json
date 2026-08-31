@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "adapters"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "adapter_registry"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total",
+        "enabled",
+        "valid",
+        "ecosystems",
+        "capabilities"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "integer"
+        },
+        "valid": {
+          "type": "integer"
+        },
+        "ecosystems": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "adapters": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

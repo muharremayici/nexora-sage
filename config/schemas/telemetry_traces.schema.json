@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "telemetry_traces.schema.json",
+  "title": "Local Telemetry Traces",
+  "type": "object",
+  "required": [
+    "summary",
+    "traces",
+    "hot_paths"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "trace_origin_policy": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "status_reason",
+        "trace_count",
+        "hot_path_count"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "ATTENTION",
+            "UNKNOWN"
+          ]
+        },
+        "status_reason": {
+          "type": "string"
+        },
+        "trace_count": {
+          "type": "integer"
+        },
+        "hot_path_count": {
+          "type": "integer"
+        }
+      }
+    },
+    "traces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "type",
+          "identifier",
+          "execution_ms",
+          "trace_origin"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "identifier": {
+            "type": "string"
+          },
+          "execution_ms": {
+            "type": "integer"
+          },
+          "trace_origin": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "hot_paths": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "kind": "performance_n_plus_one_policy",
+    "version": "v1",
+    "purpose": "Policy-backed N+1-shaped async call detection for roadmap performance cage."
+  },
+  "source_file_extensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".py"
+  ],
+  "loop_start_patterns": [
+    "\\bfor\\s*\\(",
+    "\\bfor\\s+\\w+\\s+in\\s+",
+    "\\bfor\\s+\\w+\\s+of\\s+",
+    "\\bwhile\\s*\\(",
+    "\\.forEach\\s*\\(",
+    "\\.map\\s*\\(",
+    "\\.filter\\s*\\(",
+    "\\.reduce\\s*\\("
+  ],
+  "async_markers": [
+    "await "
+  ],
+  "call_markers": [
+    "fetch(",
+    "axios.",
+    "request(",
+    "db.",
+    "prisma.",
+    "supabase.",
+    "client.query(",
+    "connection.query(",
+    "cursor.execute(",
+    "session.get(",
+    "session.post(",
+    "requests.get(",
+    "requests.post("
+  ],
+  "safe_wrapper_patterns": [
+    "Promise.all",
+    "Promise.allSettled",
+    "pMap(",
+    "pLimit(",
+    "batch",
+    "bulk",
+    "findMany",
+    "in:",
+    "toArray("
+  ],
+  "max_loop_scan_lines": 80,
+  "risk_catalog": {
+    "loop_contained_async_call": {
+      "dimension": "performance_n_plus_one",
+      "risk": "loop_contained_async_database_or_network_call",
+      "score": 8,
+      "recommended_action": "Move database/network work out of the loop, batch the query, or use an explicit bounded concurrency wrapper."
+    },
+    "iterator_callback_async_call": {
+      "dimension": "performance_n_plus_one",
+      "risk": "iterator_callback_contains_async_database_or_network_call",
+      "score": 7,
+      "recommended_action": "Avoid per-item async I/O in iterator callbacks unless an explicit batching/concurrency contract is present."
+    }
+  },
+  "false_positive_policy": {
+    "do_not_flag_safe_batch_wrappers": true,
+    "do_not_flag_generic_pure_iteration": true,
+    "report_as_candidate_not_release_blocker": true
+  }
+}

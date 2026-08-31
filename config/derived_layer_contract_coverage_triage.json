@@ -1,0 +1,177 @@
+{
+  "meta": {
+    "kind": "derived_layer_contract_coverage_triage",
+    "version": "v1",
+    "purpose": "Record reviewed supporting-evidence decisions without silently expanding a layer claim or suppressing new ownership gaps."
+  },
+  "decisions": [
+    {
+      "id": "contributor_extension_contract",
+      "source": "config/contributor_extension_contract.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "contribution_trust_foundation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Contributor trust is covered by registry foundation and governance proofs; this validator is operational support evidence."
+    },
+    {
+      "id": "plugin_trust_policy",
+      "source": "config/plugin_trust_policy.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "contribution_trust_foundation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Plugin trust shares the contributor boundary and is supporting evidence, not a second layer claim."
+    },
+    {
+      "id": "governance_trace_contract",
+      "source": "config/governance_trace_contract.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "governance_trace_contract",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Trace validation supports governance observability; governance registry remains the selected direct proof."
+    },
+    {
+      "id": "source_layer_classification_policy",
+      "source": "config/source_layer_classification_policy.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "source_layer_classification_policy_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Classification validation supports source-contract and registry-foundation evidence without a separate layer claim."
+    },
+    {
+      "id": "artifact_validator_registry",
+      "source": "config/artifact_registry.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "artifact_registry_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Artifact registry validation is supporting infrastructure evidence for registry foundation."
+    },
+    {
+      "id": "audit_lesson_registry",
+      "source": "config/audit_lesson_registry.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "audit_lesson_registry_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Lesson registry validation supports governance operation; it does not independently expand the layer claim."
+    },
+    {
+      "id": "engine_source_content_boundaries",
+      "source": "config/engine_source_content_boundary_policy.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "engine_source_content_boundaries",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Source-content boundary validation supports source contracts and remains a bounded implementation proof."
+    },
+    {
+      "id": "manual_adversarial_audit_checklist",
+      "source": "config/manual_adversarial_audit_checklist.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "manual_adversarial_audit_checklist_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "The checklist is a review instrument; its validator supports but does not replace the selected governance proof basis."
+    },
+    {
+      "id": "manual_adversarial_audit_progress",
+      "source": "config/manual_adversarial_audit_progress.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "manual_adversarial_audit_progress_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Progress tracking is execution evidence, not an independent doctrine claim."
+    },
+    {
+      "id": "sage_active_work_package",
+      "source": "config/sage_active_work_package.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "sage_active_work_package_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Active work validation is operational continuity evidence under the development-loop contract."
+    },
+    {
+      "id": "sage_execution_wave_registry",
+      "source": "config/sage_execution_wave_registry.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "sage_work_item_registry_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Wave ordering is validated through the work-item registry and remains operational support evidence."
+    },
+    {
+      "id": "sage_self_audit_contract",
+      "source": "config/sage_self_audit_contract.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "sage_self_audit_contract",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Self-audit validation supports the governance proof basis without a separate claim."
+    },
+    {
+      "id": "sage_work_item_registry",
+      "source": "config/sage_work_item_registry.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "sage_work_item_registry_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Debt and work-item integrity are operational development-loop evidence, not a distinct configuration claim."
+    },
+    {
+      "id": "sage_work_package_closure",
+      "source": "config/sage_active_work_package.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "sage_work_package_closure_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Closure validation supports lifecycle integrity and does not expand the layer claim."
+    },
+    {
+      "id": "validator_policy_registry",
+      "source": "config/validator_policy_registry.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "validator_policy_registry_validation",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Validator-policy registry is supporting infrastructure; registry foundation remains direct proof."
+    },
+    {
+      "id": "hitl_approval_ledger",
+      "source": "tools/hitl_approval_ledger.py",
+      "source_layer": "hitl_agent_governance",
+      "proof_id": "hitl_approval_ledger",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Approval ledger is operational evidence under HITL governance and lifecycle proofs."
+    },
+    {
+      "id": "hitl_decision_requests",
+      "source": "tools/hitl_decision_requests.py",
+      "source_layer": "hitl_agent_governance",
+      "proof_id": "hitl_decision_requests",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Decision requests support Progressive HITL operation without expanding its claim boundary."
+    },
+    {
+      "id": "nexora_agent_contract",
+      "source": "tools/generate_nexora_agent_contract.py",
+      "source_layer": "hitl_agent_governance",
+      "proof_id": "nexora_agent_contract",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Agent-contract generation supports the agent-response and HITL proof basis."
+    },
+    {
+      "id": "nexora_agent_handoff",
+      "source": "tools/generate_nexora_agent_handoff.py",
+      "source_layer": "hitl_agent_governance",
+      "proof_id": "nexora_agent_handoff",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Handoff generation supports agent-governance workflow without a second layer claim."
+    },
+    {
+      "id": "nexora_agent_response_ledger",
+      "source": "tools/nexora_agent_response_ledger.py",
+      "source_layer": "hitl_agent_governance",
+      "proof_id": "nexora_agent_response_ledger",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Response ledger is supporting trace evidence beneath the selected agent-response proof."
+    },
+    {
+      "id": "installation_proof_smoke",
+      "source": "tools/generate_installation_proof.py",
+      "source_layer": "installation_onboarding",
+      "proof_id": "installation_proof_smoke",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "Generated installation smoke supports the selected installation-contract and distribution-hardening evidence."
+    }
+  ]
+}

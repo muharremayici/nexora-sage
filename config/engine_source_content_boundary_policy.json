@@ -1,0 +1,213 @@
+{
+  "meta": {
+    "kind": "engine_source_content_boundary_policy",
+    "version": "v1"
+  },
+  "principles": {
+    "artifact_truth": "Managed output/.raw artifacts are SQLite-first and must use ArtifactStore/json_io proxies.",
+    "source_truth": "Live target source text may be read from the filesystem at canonical ingestion boundaries; downstream analyzers should prefer hash-bearing SQLite source snapshots when available.",
+    "future_sqlite_first": "Engines that combine Atlas/artifact scope with source text are either source snapshot consumers or migration candidates, not silent filesystem readers."
+  },
+  "validation_contract": {
+    "scan_roots": [
+      "tools/engines"
+    ],
+    "source_snapshot_table_markers": [
+      "CREATE TABLE IF NOT EXISTS source_snapshots",
+      "content TEXT NOT NULL",
+      "content_hash TEXT NOT NULL"
+    ],
+    "required_source_snapshot_columns": [
+      "project_key",
+      "rel_path",
+      "content",
+      "content_hash",
+      "source_mtime",
+      "updated_at"
+    ]
+  },
+  "accepted_live_read_classes": {
+    "canonical_source_ingestion": {
+      "purpose": "Create first-order source truth, file hashes, symbols, and snapshots from the live repository.",
+      "allowed_scope": "Discovery, AST sequencers, and Atlas generation only.",
+      "sqlite_first_boundary": "Not applicable before source truth exists; downstream consumers must use generated Atlas/source_snapshots."
+    },
+    "execution_adapter": {
+      "purpose": "Materialize or inspect temporary execution/sanctuary files that must match the current filesystem.",
+      "allowed_scope": "Scoped validation and MCP governance smoke harnesses.",
+      "sqlite_first_boundary": "May read live scoped files; must not reinterpret managed analysis artifacts from shadow JSON."
+    },
+    "merge_materialization_adapter": {
+      "purpose": "Read current source and variation files to build bounded merge/review material.",
+      "allowed_scope": "Merge transfer packages and generated merge scripts.",
+      "sqlite_first_boundary": "May read live merge inputs because merge application must operate on current files; metadata and graph scope still come from managed artifacts."
+    },
+    "source_transformation_adapter": {
+      "purpose": "Perform explicit source transformation or repair work against current files.",
+      "allowed_scope": "Repair/transformation engines only.",
+      "sqlite_first_boundary": "Live read is permitted only for the transformation target; analysis truth should come from Atlas/source snapshots."
+    },
+    "project_manifest_reader": {
+      "purpose": "Read package/config manifests as project identity inputs.",
+      "allowed_scope": "Project DNA and discovery-adjacent manifest reads.",
+      "sqlite_first_boundary": "Manifests are declared inputs; resulting identity should be normalized into managed artifacts."
+    },
+    "quality_hygiene_adapter": {
+      "purpose": "Run lightweight encoding/UTF-8 hygiene checks over selected files.",
+      "allowed_scope": "Bounded quality gate hygiene checks only.",
+      "sqlite_first_boundary": "Should not perform semantic source analysis; semantic consumers must use source_snapshots."
+    },
+    "report_adapter": {
+      "purpose": "Assemble human-facing reports from generated report snippets.",
+      "allowed_scope": "Report composition only.",
+      "sqlite_first_boundary": "Must not create new source truth; should only render already generated evidence."
+    }
+  },
+  "engine_boundaries": {
+    "tools/engines/ast_sequencer_cs.py": {
+      "class": "canonical_source_ingestion",
+      "status": "accepted_live_source_read",
+      "reason": "Sequencers are the first source ingestion boundary and must parse live source files."
+    },
+    "tools/engines/ast_sequencer_go.py": {
+      "class": "canonical_source_ingestion",
+      "status": "accepted_live_source_read",
+      "reason": "Sequencers are the first source ingestion boundary and must parse live source files."
+    },
+    "tools/engines/ast_sequencer_java.py": {
+      "class": "canonical_source_ingestion",
+      "status": "accepted_live_source_read",
+      "reason": "Sequencers are the first source ingestion boundary and must parse live source files."
+    },
+    "tools/engines/ast_sequencer_python.py": {
+      "class": "canonical_source_ingestion",
+      "status": "accepted_live_source_read",
+      "reason": "Sequencers are the first source ingestion boundary and must parse live source files."
+    },
+    "tools/engines/generate_atlas.py": {
+      "class": "canonical_source_ingestion",
+      "status": "accepted_live_source_read",
+      "reason": "Atlas generation computes file fingerprints and content-derived source facts from live files."
+    },
+    "tools/engines/validation_oracle.py": {
+      "class": "execution_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "Validation Oracle materializes scoped files into a temporary sanctuary for compiler validation."
+    },
+    "tools/engines/mcp_governance_engine.py": {
+      "class": "execution_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "MCP governance smoke reads and writes temporary harness files, not managed analysis artifacts."
+    },
+    "tools/engines/quality_gate.py": {
+      "class": "quality_hygiene_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "Quality Gate performs lightweight UTF-8/encoding hygiene checks over selected source/report paths."
+    },
+    "tools/engines/master_report_generator.py": {
+      "class": "report_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "Master report assembly may read report/source snippets for human-facing summaries."
+    },
+    "tools/engines/a11y_i18n_contract_analyzer.py": {
+      "class": "atlas_bound_source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "A11y/i18n contract analysis uses the shared Atlas-bound adapter, which reads SQLite source snapshots first and preserves Atlas-validated live fallback."
+    },
+    "tools/engines/confidence_engine.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Confidence scoring consumes SQLite source snapshots after artifact-derived targeting."
+    },
+    "tools/engines/dead_code_detector.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Dead-code validation consumes SQLite source snapshots to protect public exports, declarations, and usage evidence."
+    },
+    "tools/engines/fractal_mapper.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Fractal mapping combines artifact scope with SQLite source snapshots and file content fingerprints."
+    },
+    "tools/engines/framework_route_analyzer.py": {
+      "class": "atlas_bound_source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Framework route source reads use the shared SQLite-first Atlas-bound adapter; package/config identity reads remain declared live inputs."
+    },
+    "tools/engines/hexagonal_binder.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Hexagonal binding analysis consumes SQLite source snapshots after Atlas/project scoping."
+    },
+    "tools/engines/keyword_scanner.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Keyword scanner uses Atlas/genome scope and SQLite source snapshots for semantic token coverage."
+    },
+    "tools/engines/live_surface_analyzer.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Live surface analysis consumes SQLite source snapshots to identify user-facing/runtime surfaces."
+    },
+    "tools/engines/merge_dependency_packager.py": {
+      "class": "merge_materialization_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "Merge dependency packs intentionally include bounded live source chunks for review context."
+    },
+    "tools/engines/merge_script_generator.py": {
+      "class": "merge_materialization_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "Merge script generation reads source and variation files to materialize proposed merge operations."
+    },
+    "tools/engines/next_boundary_analyzer.py": {
+      "class": "source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Next boundary analysis uses Atlas scope and SQLite source snapshots to evaluate route and RSC contracts."
+    },
+    "tools/engines/nuclear_processor.py": {
+      "class": "source_transformation_adapter",
+      "status": "accepted_live_source_read",
+      "reason": "Nuclear processor performs explicit source transformation/repair work and must read live files."
+    },
+    "tools/engines/performance_n_plus_one_cage.py": {
+      "class": "cage_source_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Performance cage uses Atlas scope and SQLite source snapshots to detect loop-contained async I/O signals."
+    },
+    "tools/engines/project_dna_profiler.py": {
+      "class": "project_manifest_reader",
+      "status": "accepted_live_source_read",
+      "reason": "Project DNA reads package/config manifests as declared project identity inputs."
+    },
+    "tools/engines/react_frontier_intelligence.py": {
+      "class": "react_source_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "React frontier analysis uses Atlas scope and SQLite source snapshots for advanced static signals."
+    },
+    "tools/engines/react_ecosystem_analyzer.py": {
+      "class": "atlas_bound_source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "React ecosystem evidence reads use the shared SQLite-first Atlas-bound adapter with the existing guarded live fallback."
+    },
+    "tools/engines/react_runtime_intelligence.py": {
+      "class": "atlas_bound_source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "React runtime evidence reads use the shared SQLite-first Atlas-bound adapter with the existing guarded live fallback."
+    },
+    "tools/engines/react_immutability_purity_cage.py": {
+      "class": "cage_source_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "React immutability cage uses SQLite-backed Atlas scope and SQLite source snapshots."
+    },
+    "tools/engines/ui_runtime_contract_analyzer.py": {
+      "class": "atlas_bound_source_semantic_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "UI runtime contract evidence uses the shared SQLite-first Atlas-bound adapter with the existing scoped live fallback."
+    },
+    "tools/engines/resilience_error_handling_cage.py": {
+      "class": "cage_source_analyzer",
+      "status": "sqlite_source_snapshot_consumer",
+      "reason": "Resilience cage uses Atlas scope and SQLite source snapshots to detect network/error-handling contracts."
+    }
+  }
+}

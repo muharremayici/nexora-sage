@@ -1,0 +1,124 @@
+{
+  "_meta": {
+    "kind": "workload_profile_policy",
+    "version": "v1",
+    "purpose": "Shared repository workload contract for timeouts, performance budgets, and bounded parallelism."
+  },
+  "bands": [
+    {
+      "id": "S",
+      "max_files": 1000,
+      "max_symbols": 3000,
+      "max_dependency_edges": 5000
+    },
+    {
+      "id": "M",
+      "max_files": 5000,
+      "max_symbols": 15000,
+      "max_dependency_edges": 30000
+    },
+    {
+      "id": "L"
+    }
+  ],
+  "adaptive_timeout": {
+    "max_seconds": 1800,
+    "per_file_seconds": 0.03,
+    "per_symbol_seconds": 0.005,
+    "per_dependency_edge_seconds": 0.002
+  },
+  "dead_code_budget": {
+    "base_seconds": 45.0,
+    "file_soft_cap": 1000,
+    "file_bucket": 500,
+    "per_file_bucket_seconds": 4.0,
+    "symbol_soft_cap": 3000,
+    "symbol_bucket": 2000,
+    "per_symbol_bucket_seconds": 5.0,
+    "dependency_edge_soft_cap": 5000,
+    "dependency_edge_bucket": 5000,
+    "per_dependency_edge_bucket_seconds": 5.0
+  },
+  "manual_review_budget": {
+    "applicable_project_roles": [
+      "variant",
+      "companion"
+    ],
+    "base_items": 20,
+    "per_indexed_project_items": 20,
+    "file_bucket": 250,
+    "per_file_bucket_items": 4,
+    "symbol_bucket": 1000,
+    "per_symbol_bucket_items": 5,
+    "dependency_edge_bucket": 2500,
+    "per_dependency_edge_bucket_items": 4,
+    "per_applicable_analyzer_family_items": 5,
+    "analyzer_families": {
+      "target_contract_weak": {
+        "meta_field": "manual_review_target_contract_weak",
+        "applicable_project_roles": [
+          "variant"
+        ]
+      },
+      "hitl_architecture_review": {
+        "meta_field": "manual_review_hitl_architecture_review",
+        "applicable_project_roles": [
+          "variant"
+        ]
+      },
+      "source_role_policy": {
+        "meta_field": "manual_review_source_role_policy",
+        "applicable_project_roles": [
+          "companion"
+        ]
+      }
+    },
+    "baseline_trend_headroom_ratio": 0.1,
+    "baseline_minimum_headroom_items": 20,
+    "hard_upper_bound_items": 600
+  },
+  "atlas": {
+    "project_workers": {
+      "enabled_by_default": false,
+      "min_projects_for_parallel": 3,
+      "files_per_worker": 2500,
+      "windows_max_workers": 2,
+      "default_max_workers": 3,
+      "cpu_reserve": 1
+    },
+    "ast_batch": {
+      "adaptive_by_default": false,
+      "safe_worker_cap": 4,
+      "cpu_reserve": 0,
+      "default_chunk_size": 24,
+      "large_file_threshold": 1200,
+      "large_chunk_size": 12,
+      "large_cpu_divisor": 2,
+      "medium_file_threshold": 800,
+      "medium_chunk_size": 14,
+      "medium_cpu_divisor": 2,
+      "small_file_threshold": 400,
+      "small_chunk_size": 18,
+      "small_cpu_divisor": 2,
+      "tiny_file_threshold": 160,
+      "tiny_chunk_size": 20,
+      "tiny_cpu_divisor": 2
+    }
+  },
+  "oracle": {
+    "profiles": [
+      "release-deep",
+      "deep"
+    ],
+    "windows_max_workers": 2,
+    "default_max_workers": 4,
+    "files_per_worker": 2500,
+    "allow_npx_fallback": false
+  },
+  "pipeline_workers": {
+    "min_workers": 2,
+    "windows_max_workers": 4,
+    "default_max_workers": 4,
+    "cpu_reserve": 0
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "language_agnostic_symbols.schema.json",
+  "title": "Nexora SAGE Language-Agnostic Symbol Schema",
+  "type": "object",
+  "required": [
+    "meta",
+    "validation_requirements",
+    "canonical_types",
+    "raw_type_map",
+    "framework_tags",
+    "default_profiles",
+    "normalization_profiles"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "claim_boundary"
+      ],
+      "properties": {
+        "kind": {
+          "const": "language_agnostic_symbols"
+        },
+        "version": {
+          "type": "string"
+        },
+        "claim_boundary": {
+          "type": "string"
+        }
+      }
+    },
+    "validation_requirements": {
+      "type": "object",
+      "required": [
+        "required_languages",
+        "core_type_expectations"
+      ],
+      "properties": {
+        "required_languages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "core_type_expectations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "raw_type",
+              "language",
+              "expected"
+            ],
+            "properties": {
+              "raw_type": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "expected": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "canonical_types": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "string"
+      }
+    },
+    "raw_type_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    },
+    "framework_tags": {
+      "type": "object",
+      "properties": {
+        "directives": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "wrappers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "exports": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "default_profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "normalization_profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

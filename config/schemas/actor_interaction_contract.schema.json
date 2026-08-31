@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "actor_interaction_contract.schema.json",
+  "title": "SAGE Actor Interaction Contract",
+  "type": "object",
+  "required": [
+    "meta",
+    "constitutional_hierarchy",
+    "ontology",
+    "sage_boundary",
+    "canonical_invariants",
+    "finding_authority",
+    "operation_profiles",
+    "request_contract",
+    "proposal_contract",
+    "freshness_contract",
+    "trace_contract",
+    "adapter_contract",
+    "conformance",
+    "documentation"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "purpose",
+        "claim_boundary"
+      ]
+    },
+    "constitutional_hierarchy": {
+      "type": "object",
+      "required": [
+        "supreme_human_readable_authority",
+        "canonical_authority_sources",
+        "precedence",
+        "conflict_rule"
+      ]
+    },
+    "ontology": {
+      "type": "object",
+      "required": [
+        "principal_types",
+        "actor_types",
+        "adapter_types",
+        "mutation_domains",
+        "separation_rules"
+      ]
+    },
+    "sage_boundary": {
+      "type": "object",
+      "required": [
+        "is",
+        "is_not",
+        "capability_honesty_rule"
+      ]
+    },
+    "canonical_invariants": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "level",
+          "rule"
+        ]
+      }
+    },
+    "finding_authority": {
+      "type": "object",
+      "required": [
+        "vocabulary_source",
+        "levels",
+        "no_authority_escalation"
+      ]
+    },
+    "operation_profiles": {
+      "type": "object",
+      "required": [
+        "inspect",
+        "advise",
+        "propose",
+        "mutate",
+        "validate",
+        "exception_request",
+        "decision_support"
+      ]
+    },
+    "request_contract": {
+      "type": "object",
+      "required": [
+        "required_common_fields",
+        "operation_required_fields",
+        "rules"
+      ]
+    },
+    "proposal_contract": {
+      "type": "object",
+      "required": [
+        "required_fields",
+        "nonempty_fields",
+        "list_fields",
+        "required_state",
+        "forbidden_authority_fields",
+        "forbidden_authority_key_fragments",
+        "scope_rule",
+        "identity_rule",
+        "claim_boundary"
+      ]
+    },
+    "freshness_contract": {
+      "type": "object",
+      "required": [
+        "invalidated_by",
+        "on_invalidation"
+      ]
+    },
+    "trace_contract": {
+      "type": "object",
+      "required": [
+        "sources",
+        "required_for",
+        "recommended_for",
+        "privacy_rule",
+        "narrative_is_not_trace"
+      ]
+    },
+    "adapter_contract": {
+      "type": "object",
+      "required": [
+        "semantic_requirements",
+        "privilege_upgrade",
+        "translation_failure",
+        "implementation_status",
+        "implementation_evidence",
+        "conformance_evidence",
+        "promotion_rule"
+      ]
+    },
+    "conformance": {
+      "type": "object",
+      "required": [
+        "minimum",
+        "full"
+      ]
+    },
+    "documentation": {
+      "type": "object",
+      "required": [
+        "generated_path",
+        "generator",
+        "source_of_truth"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

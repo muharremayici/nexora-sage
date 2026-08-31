@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "local.overrides",
+    "merge_strategy": "deep_merge_top_level"
+  }
+}

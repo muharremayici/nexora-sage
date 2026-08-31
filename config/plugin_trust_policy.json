@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "kind": "nexora.plugin_trust_policy",
+    "version": "1.0",
+    "description": "Trust boundary for current contract-only plugins and future executable plugins."
+  },
+  "current_mode": "contract_only",
+  "executable_third_party_plugins": false,
+  "trusted_surfaces": [
+    "repository_bundled_engines",
+    "validated_capability_registry",
+    "validated_doctrine_packs",
+    "registered_artifact_contracts"
+  ],
+  "required_controls": [
+    "stable_plugin_id",
+    "registered_capability_id",
+    "declared_artifact_reads",
+    "declared_artifact_writes",
+    "claim_boundary",
+    "validator_contract",
+    "human_approval_before_activation"
+  ],
+  "forbidden_in_v1": [
+    "arbitrary_external_code_execution",
+    "undeclared_artifact_writes",
+    "silent_claim_expansion",
+    "automatic_plugin_installation",
+    "unapproved_doctrine_mutation"
+  ],
+  "future_executable_runtime_requirements": [
+    "package_identity_and_version_pinning",
+    "signature_or_content_digest_verification",
+    "filesystem_and_network_isolation",
+    "resource_limits",
+    "command_allowlist",
+    "artifact_namespace_isolation",
+    "revocation_and_audit_log"
+  ],
+  "claim_boundary": "V1 is plugin-ready at the manifest and contract level; it does not load or execute untrusted third-party plugin code."
+}

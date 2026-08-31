@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "runs"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "performance_ledger"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "generated_at",
+          "repo_band"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "generated_at": {
+            "type": "string"
+          },
+          "repo_band": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

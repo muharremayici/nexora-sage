@@ -1,0 +1,318 @@
+{
+  "_meta": {
+    "kind": "nexora.system_spine_registry",
+    "version": "1.0.0",
+    "description": "Machine-readable coordination spine for SAGE's central-but-modular nervous system. It does not replace local registries; it verifies that brain, nerve, organ, circulation and immune contracts stay connected."
+  },
+  "default_rules": {
+    "architecture": "centralized_and_modular",
+    "coordination": "one_registry_per_truth_domain_cross_checked_by_spine",
+    "no_god_file": true,
+    "release_rule": "spine nodes that affect release claims or agent-facing behavior must have validator and release proof participation",
+    "human_authority": "machine verdicts may reach READY_FOR_HUMAN_SEAL but must not auto-create SEALED decisions"
+  },
+  "required_roles": [
+    "brain",
+    "spinal_cord",
+    "circulation",
+    "organ_registry",
+    "immune_system",
+    "agent_surface",
+    "working_memory",
+    "human_authority"
+  ],
+  "validation_contract": {
+    "required_node_ids": [
+      "release_proof_steps_contract",
+      "release_proof_scope_contract",
+      "artifact_validator_registry",
+      "validator_policy_registry",
+      "governance_registry",
+      "capability_registry",
+      "pipeline_execution_policy",
+      "agent_surface_contracts",
+      "actor_interaction_contract",
+      "system_health_check",
+      "sage_work_item_registry",
+      "sage_execution_wave_registry",
+      "audit_lesson_registry",
+      "sage_development_loop_contract",
+      "sage_active_work_package",
+      "sage_self_audit_contract",
+      "manual_adversarial_audit_checklist",
+      "manual_adversarial_audit_progress",
+      "seal_impact_policy",
+      "central_decision_contracts",
+      "engine_source_content_boundaries",
+      "system_spine_registry",
+      "system_connectivity_map",
+      "product_boundary_map",
+      "agent_surface_taxonomy",
+      "reality_target_profiles",
+      "source_role_obligation_contract"
+    ]
+  },
+  "spine_nodes": [
+    {
+      "id": "release_proof_steps_contract",
+      "role": "brain",
+      "source": "config/release_proof_steps_contract.json",
+      "validator": "tools/validate_pipeline_execution_contract.py",
+      "release_proof_step": "pipeline_execution_contract",
+      "raw_artifact": "output/.raw/pipeline_execution_contract_validation.json",
+      "contract_guarantee": "owns release proof step ids, dependencies, raw artifacts and execution policy participation"
+    },
+    {
+      "id": "release_proof_scope_contract",
+      "role": "brain",
+      "source": "config/release_proof_scope_contract.json",
+      "validator": "tools/validate_pipeline_execution_contract.py",
+      "release_proof_step": "pipeline_execution_contract",
+      "raw_artifact": "output/.raw/pipeline_execution_contract_validation.json",
+      "contract_guarantee": "classifies every proof step by authority, bounds live repository scope and separates external evidence plus human authority from SAGE product proof"
+    },
+    {
+      "id": "artifact_validator_registry",
+      "role": "circulation",
+      "source": "config/artifact_registry.json",
+      "validator": "tools/validate_artifact_registry.py",
+      "release_proof_step": "artifact_registry_validation",
+      "raw_artifact": "output/.raw/artifact_registry_validation.json",
+      "contract_guarantee": "owns declarative artifact schema, path, availability and storage classification; release alignment consumes the validated registry"
+    },
+    {
+      "id": "validator_policy_registry",
+      "role": "immune_system",
+      "source": "config/validator_policy_registry.json",
+      "validator": "tools/validate_validator_policy_registry.py",
+      "release_proof_step": "validator_policy_registry_validation",
+      "raw_artifact": "output/.raw/validator_policy_registry_validation.json",
+      "contract_guarantee": "owns validator scan scope, explicit allowlists and triage decisions without duplicating artifact-level SQLite policy ownership"
+    },
+    {
+      "id": "governance_registry",
+      "role": "human_authority",
+      "source": "config/governance_registry.json",
+      "validator": "tools/validate_governance_registry.py",
+      "release_proof_step": "governance_registry_validation",
+      "raw_artifact": "output/.raw/governance_registry_validation.json",
+      "contract_guarantee": "separates doctrine, policy, principle, cage, capability, HITL and agent-facing authority boundaries"
+    },
+    {
+      "id": "capability_registry",
+      "role": "organ_registry",
+      "source": "config/capability_registry.json",
+      "validator": "tools/validate_capability_registry.py",
+      "release_proof_step": "capability_registry_validation",
+      "raw_artifact": "output/.raw/capability_registry_validation.json",
+      "contract_guarantee": "defines active and roadmap capabilities without expanding current release claims"
+    },
+    {
+      "id": "pipeline_execution_policy",
+      "role": "spinal_cord",
+      "source": "config/pipeline_execution_policy.json",
+      "validator": "tools/validate_pipeline_execution_contract.py",
+      "release_proof_step": "pipeline_execution_contract",
+      "raw_artifact": "output/.raw/pipeline_execution_contract_validation.json",
+      "contract_guarantee": "binds scheduler classes, execution profiles, operational limits, report limits and subprocess policy"
+    },
+    {
+      "id": "agent_surface_contracts",
+      "role": "agent_surface",
+      "source": "config/mcp_tool_roles.json",
+      "validator": "tools/validate_mcp_agent_surface.py",
+      "release_proof_step": "mcp_agent_surface",
+      "raw_artifact": "output/.raw/mcp_agent_surface_validation.json",
+      "contract_guarantee": "keeps target-repository agent surfaces separate from debug and internal SAGE development surfaces"
+    },
+    {
+      "id": "actor_interaction_contract",
+      "role": "agent_surface",
+      "source": "config/actor_interaction_contract.json",
+      "validator": "tools/validate_actor_interaction_contract.py",
+      "release_proof_step": "actor_interaction_contract",
+      "raw_artifact": "output/.raw/actor_interaction_contract_validation.json",
+      "contract_guarantee": "projects constitutional authority, actor identity, scope, freshness and validation semantics consistently across external interaction channels without granting adapter authority"
+    },
+    {
+      "id": "agent_surface_taxonomy",
+      "role": "agent_surface",
+      "source": "config/agent_surface_taxonomy.json",
+      "validator": "tools/validate_mcp_agent_surface.py",
+      "release_proof_step": "mcp_agent_surface",
+      "raw_artifact": "output/.raw/mcp_agent_surface_validation.json",
+      "contract_guarantee": "owns SAGE_ON_SAGE, SAGE_ON_REPOSITORY and SHARED_PLATFORM scope vocabulary plus bidirectional transfer boundaries"
+    },
+    {
+      "id": "reality_target_profiles",
+      "role": "agent_surface",
+      "source": "config/reality_target_profiles.json",
+      "validator": "tools/validate_mcp_agent_surface.py",
+      "release_proof_step": "mcp_agent_surface",
+      "raw_artifact": "output/.raw/mcp_agent_surface_validation.json",
+      "contract_guarantee": "keeps explicit self-target and external-target workflows isolated instead of inferring proof subjects"
+    },
+    {
+      "id": "source_role_obligation_contract",
+      "role": "organ_registry",
+      "source": "config/source_role_obligation_contract.json",
+      "validator": "tools/generate_source_layer_inventory.py",
+      "release_proof_step": "source_layer_inventory",
+      "raw_artifact": "output/.raw/source_layer_inventory.json",
+      "contract_guarantee": "requires every executable SAGE source file to have a declared role and integration obligations without auto-activation"
+    },
+    {
+      "id": "system_health_check",
+      "role": "immune_system",
+      "source": "tools/generate_system_health_check.py",
+      "validator": "tools/validate_system_health_check.py",
+      "release_proof_step": "system_health_check_validation",
+      "raw_artifact": "output/.raw/system_health_check_validation.json",
+      "contract_guarantee": "summarizes release health while preserving the human seal boundary"
+    },
+    {
+      "id": "sage_work_item_registry",
+      "role": "immune_system",
+      "source": "config/sage_work_item_registry.json",
+      "validator": "tools/validate_sage_work_item_registry.py",
+      "release_proof_step": "sage_work_item_registry_validation",
+      "raw_artifact": "output/.raw/sage_work_item_registry_validation.json",
+      "contract_guarantee": "keeps deferred SAGE findings, technical debt and action items visible when they are not closed immediately"
+    },
+    {
+      "id": "sage_execution_wave_registry",
+      "role": "brain",
+      "source": "config/sage_execution_wave_registry.json",
+      "validator": "tools/validate_sage_work_item_registry.py",
+      "release_proof_step": "sage_work_item_registry_validation",
+      "raw_artifact": "output/.raw/sage_work_item_registry_validation.json",
+      "contract_guarantee": "orders every open debt item exactly once and prevents later waves from activating before upstream wave closure"
+    },
+    {
+      "id": "audit_lesson_registry",
+      "role": "immune_system",
+      "source": "config/audit_lesson_registry.json",
+      "validator": "tools/validate_audit_lesson_registry.py",
+      "release_proof_step": "audit_lesson_registry_validation",
+      "raw_artifact": "output/.raw/audit_lesson_registry_validation.json",
+      "contract_guarantee": "turns manual and adversarial audit lessons into validators, work items, roadmap references or closed guards"
+    },
+    {
+      "id": "sage_development_loop_contract",
+      "role": "brain",
+      "source": "config/sage_development_loop_contract.json",
+      "validator": "tools/validate_source_contracts.py",
+      "release_proof_step": "source_contracts",
+      "raw_artifact": "output/.raw/source_contract_validation.json",
+      "contract_guarantee": "owns session-independent fresh-agent bootstrap priority routing work-package cycle manual-review triggers and package closure"
+    },
+    {
+      "id": "sage_active_work_package",
+      "role": "working_memory",
+      "source": "config/sage_active_work_package.json",
+      "validator": "tools/validate_sage_active_work_package.py",
+      "release_proof_step": "sage_active_work_package_validation",
+      "raw_artifact": "output/.raw/sage_active_work_package_validation.json",
+      "contract_guarantee": "preserves one explicit resumable SAGE developer checkpoint without duplicating debt lessons approvals or chat context"
+    },
+    {
+      "id": "sage_work_package_closure",
+      "role": "working_memory",
+      "source": "config/sage_active_work_package.json",
+      "validator": "tools/validate_sage_work_package_closure.py",
+      "release_proof_step": "sage_work_package_closure_validation",
+      "raw_artifact": "output/.raw/sage_work_package_closure_validation.json",
+      "contract_guarantee": "keeps closure evidence and readiness distinct from the current package checkpoint, distribution claim and human seal"
+    },
+    {
+      "id": "sage_self_audit_contract",
+      "role": "immune_system",
+      "source": "config/sage_self_audit_contract.json",
+      "validator": "tools/validate_sage_self_audit_contract.py",
+      "release_proof_step": "sage_self_audit_contract",
+      "raw_artifact": "output/.raw/sage_self_audit_contract_validation.json",
+      "contract_guarantee": "owns the one-command SAGE self-audit roots and honesty boundary while delegating execution order to release proof"
+    },
+    {
+      "id": "manual_adversarial_audit_checklist",
+      "role": "immune_system",
+      "source": "config/manual_adversarial_audit_checklist.json",
+      "validator": "tools/validate_manual_adversarial_audit_checklist.py",
+      "release_proof_step": "manual_adversarial_audit_checklist_validation",
+      "raw_artifact": "output/.raw/manual_adversarial_audit_checklist_validation.json",
+      "contract_guarantee": "defines layer-by-layer skeptical manual audit invariants, lineage checks, adversarial cases and failure-family sweeps"
+    },
+    {
+      "id": "manual_adversarial_audit_progress",
+      "role": "immune_system",
+      "source": "config/manual_adversarial_audit_progress.json",
+      "validator": "tools/validate_manual_adversarial_audit_progress.py",
+      "release_proof_step": "manual_adversarial_audit_progress_validation",
+      "raw_artifact": "output/.raw/manual_adversarial_audit_progress_validation.json",
+      "contract_guarantee": "records current layer, return point and closed cross-layer excursions for the skeptical manual audit walkthrough"
+    },
+    {
+      "id": "seal_impact_policy",
+      "role": "human_authority",
+      "source": "config/seal_impact_policy.json",
+      "validator": "tools/validate_seal_impact.py",
+      "release_proof_step": "seal_impact_validation",
+      "raw_artifact": "output/.raw/seal_impact_validation.json",
+      "contract_guarantee": "classifies whether every active human seal still stands after committed or working-tree source changes"
+    },
+    {
+      "id": "hitl_governance_contract",
+      "role": "human_authority",
+      "source": "config/hitl_governance_contract.json",
+      "validator": "tools/validate_hitl_governance.py",
+      "release_proof_step": "hitl_governance",
+      "raw_artifact": "output/.raw/hitl_governance_validation.json",
+      "contract_guarantee": "keeps HITL ledger decision vocabulary and required approval-gate coverage contract-owned"
+    },
+    {
+      "id": "central_decision_contracts",
+      "role": "immune_system",
+      "source": "config/decision_ownership_registry.json",
+      "validator": "tools/validate_central_decision_contracts.py",
+      "release_proof_step": "central_decision_contracts",
+      "raw_artifact": "output/.raw/central_decision_contracts_validation.json",
+      "contract_guarantee": "detects drift from central registries back into hardcoded local decision sets"
+    },
+    {
+      "id": "engine_source_content_boundaries",
+      "role": "immune_system",
+      "source": "config/engine_source_content_boundary_policy.json",
+      "validator": "tools/validate_engine_source_content_boundaries.py",
+      "release_proof_step": "engine_source_content_boundaries",
+      "raw_artifact": "output/.raw/engine_source_content_boundary_inventory.json",
+      "contract_guarantee": "keeps live source reads, SQLite source snapshot consumers and migration candidates explicit instead of hidden in engine implementation details"
+    },
+    {
+      "id": "system_spine_registry",
+      "role": "spinal_cord",
+      "source": "config/system_spine_registry.json",
+      "validator": "tools/validate_system_spine_registry.py",
+      "release_proof_step": "system_spine_registry",
+      "raw_artifact": "output/.raw/system_spine_registry_validation.json",
+      "contract_guarantee": "keeps central-but-modular registry, artifact, release proof, agent surface and human seal links connected"
+    },
+    {
+      "id": "system_connectivity_map",
+      "role": "spinal_cord",
+      "source": "tools/generate_system_connectivity_map.py",
+      "validator": "tools/validate_system_connectivity_map.py",
+      "release_proof_step": "system_connectivity_map_validation",
+      "raw_artifact": "output/.raw/system_connectivity_map_validation.json",
+      "contract_guarantee": "connects existing layer, pipeline, artifact, release-proof and spine evidence without replacing local registries, then validates the generated map through an independent fail-closed evidence gate"
+    },
+    {
+      "id": "product_boundary_map",
+      "role": "brain",
+      "source": "config/product_boundary_contract.json",
+      "validator": "tools/generate_product_boundary_map.py",
+      "release_proof_step": "product_boundary_map",
+      "raw_artifact": "output/.raw/product_boundary_map.json",
+      "contract_guarantee": "separates value, ownership, data and candidate packaging boundaries while deriving coverage from canonical inventories"
+    }
+  ]
+}

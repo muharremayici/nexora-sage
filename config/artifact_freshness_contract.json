@@ -1,0 +1,342 @@
+{
+  "meta": {
+    "kind": "artifact_freshness_contract",
+    "version": "v1"
+  },
+  "purpose": "Central contract for deciding whether an artifact chain is fresh enough to expose to agents, release claims, or humans.",
+  "default_policy": {
+    "ssot_preference": "sqlite_state_payloads_first",
+    "json_role": "shadow_export_or_recovery_fallback",
+    "stale_behavior": "fail_closed_or_return_refresh_plan",
+    "consumer_rule": "Consumers must not silently mix stale validation snapshots with fresh SQLite truth.",
+    "timestamp_semantics": "Use source_mtime for authoritative content change and SQLite updated_at for validation/materialization order; neither timestamp may impersonate the other.",
+    "active_target_repository_rule": "Agent-facing action packets must come from one current target-repository evidence snapshot; if source changes during or after analysis, consumers must refresh or return a refresh plan instead of acting from stale artifacts.",
+    "auto_refresh_rule": "Automatic refresh is bounded to one attempt per consumer request and evidence snapshot; if the chain remains stale, consumers must fail closed and return the refresh plan instead of retrying recursively.",
+    "max_auto_refresh_attempts_per_request": 1,
+    "recursive_refresh_allowed": false,
+    "snapshot_signal_sources": [
+      "atlas_commit.snapshot_id",
+      "source_snapshots.content_hash",
+      "watchdog_session",
+      "artifact_trust",
+      "artifact_freshness_contract_validation"
+    ]
+  },
+  "chains": [
+    {
+      "id": "contextos_quant_input_chain",
+      "description": "Required upstream evidence before ContextOS Quant Engine may classify repository focus as low risk.",
+      "consumer_surfaces": [
+        "ContextOS Quant Engine",
+        "get_active_signals"
+      ],
+      "ordered_artifacts": [],
+      "required_artifacts": [
+        "circular_deps",
+        "blast_radius",
+        "audit_report"
+      ],
+      "required_checks": [
+        "all_inputs_available",
+        "all_inputs_shape_valid",
+        "partial_evidence_never_becomes_low_risk"
+      ],
+      "stale_behavior": "mark_partial_and_require_evidence_refresh",
+      "refresh_plan": [
+        "python sage.py run --step \"Circular Dependency Detection\"",
+        "python sage.py run --step \"Blast Radius Analysis\"",
+        "python sage.py run --step \"Audit\"",
+        "python sage.py run --step \"ContextOS Quant Engine\""
+      ],
+      "agent_message": "Refresh dependency, blast-radius and audit evidence before treating an active signal as localized or low risk."
+    },
+    {
+      "id": "contextos_quant_dependency_graph_chain",
+      "description": "Atlas must precede Circular Dependency evidence, which must precede Blast Radius evidence used by broad ContextOS Quant classification.",
+      "consumer_surfaces": [
+        "ContextOS Quant Engine broad mode",
+        "get_active_signals"
+      ],
+      "ordered_artifacts": [
+        "atlas",
+        "circular_deps",
+        "blast_radius"
+      ],
+      "required_artifacts": [
+        "atlas",
+        "circular_deps",
+        "blast_radius"
+      ],
+      "required_checks": [
+        "all_inputs_available",
+        "consumer_not_older_than_producer"
+      ],
+      "stale_behavior": "mark_partial_and_require_dependency_refresh",
+      "refresh_plan": [
+        "python sage.py run --step \"Circular Dependency Detection\"",
+        "python sage.py run --step \"Blast Radius Analysis\""
+      ],
+      "agent_message": "Dependency and blast evidence is stale against Atlas; do not publish localized or low-risk guidance."
+    },
+    {
+      "id": "contextos_quant_audit_chain",
+      "description": "Full Audit evidence used by broad ContextOS Quant classification must not predate Atlas.",
+      "consumer_surfaces": [
+        "ContextOS Quant Engine broad mode",
+        "get_active_signals"
+      ],
+      "ordered_artifacts": [
+        "atlas",
+        "audit_report"
+      ],
+      "required_artifacts": [
+        "atlas",
+        "audit_report"
+      ],
+      "required_checks": [
+        "all_inputs_available",
+        "consumer_not_older_than_producer"
+      ],
+      "stale_behavior": "mark_partial_and_require_audit_refresh",
+      "refresh_plan": [
+        "python sage.py run --step \"Audit\""
+      ],
+      "agent_message": "Audit evidence is stale against Atlas; do not infer absence of active governance violations."
+    },
+    {
+      "id": "contextos_quant_watchdog_input_chain",
+      "description": "Current-pulse Atlas and scoped Audit evidence required before ContextOS Quant may publish save-time dependency and active-violation context.",
+      "consumer_surfaces": [
+        "ContextOS Quant Engine watchdog mode",
+        "get_active_signals",
+        "get_watchdog_session"
+      ],
+      "ordered_artifacts": [
+        "atlas",
+        "watchdog_audit_report"
+      ],
+      "required_artifacts": [
+        "atlas",
+        "watchdog_audit_report"
+      ],
+      "required_checks": [
+        "all_inputs_available",
+        "consumer_not_older_than_producer",
+        "scoped_audit_matches_direct_pipeline_scope",
+        "deferred_broad_inputs_are_not_claimed"
+      ],
+      "currentness_requirement": "consumer_activation",
+      "stale_behavior": "fail_closed_unknown_scope",
+      "refresh_plan": [
+        "rerun the current watchdog pulse with the exact changed-file scope"
+      ],
+      "agent_message": "Live save-time localization is unavailable until current Atlas and exact-scope watchdog Audit agree; circular-cycle and blast-score proof remains explicitly deferred."
+    },
+    {
+      "id": "confidence_dependency_input_chain",
+      "description": "Required dependency evidence before Confidence Engine may publish merge safety or low-risk guidance.",
+      "consumer_surfaces": [
+        "Confidence Engine",
+        "get_confidence_score"
+      ],
+      "ordered_artifacts": [],
+      "required_artifacts": [
+        "circular_deps"
+      ],
+      "required_checks": [
+        "dependency_graph_available",
+        "dependency_graph_shape_valid",
+        "unknown_dependency_evidence_never_becomes_safe"
+      ],
+      "stale_behavior": "return_unknown_confidence_and_refresh_guidance",
+      "refresh_plan": [
+        "python sage.py run --step \"Circular Dependency Detection\""
+      ],
+      "agent_message": "Refresh dependency evidence before treating merge safety as SAFE or low risk."
+    },
+    {
+      "id": "health_score_input_chain",
+      "description": "Required evidence before Health Score may publish a numeric repository health claim.",
+      "consumer_surfaces": [
+        "Health Score",
+        "Quality Gates",
+        "Proof Obligations"
+      ],
+      "ordered_artifacts": [],
+      "required_artifacts": [
+        "genome",
+        "dead_code",
+        "circular_deps",
+        "surgical_discovery",
+        "audit_report",
+        "keyword_scanner_all"
+      ],
+      "required_checks": [
+        "all_score_inputs_available",
+        "all_score_inputs_shape_valid",
+        "missing_findings_never_become_perfect_scores"
+      ],
+      "stale_behavior": "publish_unknown_zero_score_and_block_health_claim",
+      "refresh_plan": [
+        "python sage.py run --step \"Health Score\""
+      ],
+      "agent_message": "Refresh the declared Health Score input chain before using a numeric health claim."
+    },
+    {
+      "id": "agent_surface_action_chain",
+      "description": "Minimum chain before target-repository coding-agent packets can expose audit/quality-derived work items.",
+      "consumer_surfaces": [
+        "get_surgical_operation_packet",
+        "get_violation_work_queue",
+        "get_operator_packet(projection=agent)",
+        "validate_patch"
+      ],
+      "ordered_artifacts": [
+        "atlas",
+        "audit_report",
+        "quality_gate"
+      ],
+      "required_artifacts": [
+        "mcp_agent_surface_validation"
+      ],
+      "scope_overrides": {
+        "SAGE_ON_REPOSITORY": {
+          "required_artifacts": [],
+          "refresh_plan": [
+            "python sage.py run --step \"Audit\"",
+            "python sage.py run --step \"Quality Gates\""
+          ],
+          "agent_message": "Refresh Atlas, Audit and Quality Gate evidence for this exact target repository before editing from agent-facing packets. SAGE product-surface validators are governed separately by SAGE_ON_SAGE."
+        }
+      },
+      "required_checks": [
+        "audit_scope_present",
+        "audit_projects_subset_of_atlas",
+        "quality_gate_not_older_than_audit"
+      ],
+      "stale_behavior": "fail_closed_for_agent_action",
+      "refresh_plan": [
+        "python sage.py run --step \"Audit\"",
+        "python sage.py run --step \"Quality Gates\"",
+        "python -B tools\\validate_mcp_agent_surface.py",
+        "python -B tools\\validate_agent_packet_chain_integrity.py"
+      ],
+      "agent_message": "Refresh SAGE evidence for this exact target repository before editing from agent-facing packets."
+    },
+    {
+      "id": "release_claim_chain",
+      "description": "Minimum chain before SAGE can repeat a production-ready or release claim.",
+      "consumer_surfaces": [
+        "get_release_proof",
+        "get_react_universal_readiness",
+        "get_nexora_brief",
+        "get_operator_packet(projection=full)"
+      ],
+      "ordered_artifacts": [
+        "quality_gate",
+        "entrypoint_failure_validation",
+        "release_readiness",
+        "claim_guard_validation"
+      ],
+      "required_artifacts": [
+        "entrypoint_failure_validation",
+        "release_readiness",
+        "claim_guard_validation"
+      ],
+      "required_checks": [
+        "release_readiness_production_ready",
+        "claim_guard_pass"
+      ],
+      "stale_behavior": "block_release_claim",
+      "refresh_plan": [
+        "python -B tools\\validate_entrypoints_and_failures.py",
+        "python -B -m tools.engines.release_readiness_report",
+        "python -B tools\\validate_claim_guard.py"
+      ],
+      "agent_message": "Do not repeat release-ready claims until release readiness and claim guard agree on fresh artifacts."
+    },
+    {
+      "id": "react_surgical_claim_chain",
+      "description": "Minimum chain before SAGE can repeat the scoped React/TypeScript static surgical governance claim.",
+      "consumer_surfaces": [
+        "get_react_universal_readiness",
+        "React V1 release claim",
+        "react_surgical_claim"
+      ],
+      "ordered_artifacts": [
+        "react_fixture_family_taxonomy_report",
+        "react_universal_readiness"
+      ],
+      "required_artifacts": [
+        "react_analysis_chain_integrity_validation",
+        "react_runtime_policy_core_validation",
+        "react_ecosystem_policy_core_validation",
+        "react_frontier_policy_core_validation",
+        "react_fixture_matrix_validation",
+        "react_fixture_family_taxonomy_report",
+        "react_universal_readiness"
+      ],
+      "required_checks": [
+        "react_taxonomy_config_hash_matches",
+        "react_universal_readiness_pass",
+        "runtime_only_claims_remain_needs_runtime_proof"
+      ],
+      "stale_behavior": "block_react_surgical_claim",
+      "refresh_plan": [
+        "python -B tools\\generate_react_fixture_family_taxonomy_report.py",
+        "python -B tools\\validate_react_universal_readiness.py",
+        "python -B tools\\validate_react_analysis_chain_integrity.py"
+      ],
+      "agent_message": "Do not repeat the React surgical governance claim until the taxonomy report and universal readiness agree on fresh evidence."
+    },
+    {
+      "id": "report_freshness_chain",
+      "description": "Human-facing report freshness should not be confused with artifact truth freshness.",
+      "consumer_surfaces": [
+        "get_report_freshness",
+        "human_report=true"
+      ],
+      "ordered_artifacts": [
+        "report_freshness_index"
+      ],
+      "required_artifacts": [
+        "report_freshness_index"
+      ],
+      "required_checks": [
+        "report_freshness_gate_pass_or_attention_visible"
+      ],
+      "stale_behavior": "show_attention_not_action_permission",
+      "refresh_plan": [
+        "python -B tools\\generate_report_freshness_index.py"
+      ],
+      "agent_message": "A stale human report is not proof that the underlying SQLite/raw artifact is stale; inspect artifact trust before acting."
+    },
+    {
+      "id": "clean_install_proof_chain",
+      "description": "Clean distribution proof must be generated from a source-commit- and fingerprint-bound clean delivery, not inferred from the development workspace.",
+      "consumer_surfaces": [
+        "clean install proof",
+        "friend machine proof",
+        "release packaging"
+      ],
+      "ordered_artifacts": [],
+      "required_artifacts": [
+        "distribution_hardening_validation",
+        "entrypoint_failure_validation",
+        "installation_contract_validation"
+      ],
+      "required_checks": [
+        "clean_distribution_pass",
+        "clean_delivery_identity_matches_source_projection",
+        "entrypoint_failure_drills_pass"
+      ],
+      "stale_behavior": "require_clean_mirror_validation",
+      "refresh_plan": [
+        "python -B tools\\sync_clean_distribution.py --destination \"<clean-install-path>\"",
+        "python -B tools\\close_clean_distribution.py",
+        "python -B tools\\validate_entrypoints_and_failures.py"
+      ],
+      "agent_message": "Do not infer clean-install readiness from the development workspace alone or from a human-readable folder marker; require CLEAN_INSTALL_DELIVERY.json and validate its complete projection fingerprint."
+    }
+  ]
+}

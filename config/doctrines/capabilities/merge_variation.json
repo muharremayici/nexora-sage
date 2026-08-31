@@ -1,0 +1,259 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "capabilities.merge_variation",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "host_merge_policy": {
+    "locked_patterns": [
+      "api/index.ts",
+      "api/ports.ts"
+    ],
+    "compose_preferred_patterns": [
+      "application/services/**/*.ts",
+      "application/**/*.ts",
+      "entities/**/*Store*.ts",
+      "entities/**/*.ts",
+      "shared/hooks/**/*.ts",
+      "shared/hooks/**/*.tsx",
+      "integration/**/*.ts",
+      "widgets/**/*.tsx"
+    ],
+    "manual_review_patterns": [
+      "pages/**/*.tsx",
+      "features/**/*.tsx",
+      "widgets/**/*.tsx",
+      "integration/**/*.tsx"
+    ],
+    "public_boundary_patterns": [
+      "api/index.ts",
+      "api/ports.ts"
+    ],
+    "integration_seam_patterns": [
+      "integration/**",
+      "application/services/*Dispatcher*.ts",
+      "application/**/Pipeline*.ts",
+      "application/**/eventBus.ts"
+    ],
+    "tagging_hints": [
+      {
+        "part": "application/",
+        "tag": "application_spine"
+      },
+      {
+        "part": "entities/",
+        "tag": "state_spine"
+      },
+      {
+        "part": "shared/hooks/",
+        "tag": "hook_surface"
+      },
+      {
+        "part": "features/",
+        "tag": "ui_surface"
+      },
+      {
+        "part": "widgets/",
+        "tag": "ui_surface"
+      },
+      {
+        "part": "pages/",
+        "tag": "ui_surface"
+      }
+    ]
+  },
+  "fractal_mapping_doctrine": {
+    "path_output": {
+      "default_extension": ".ts",
+      "ui_extension": ".tsx",
+      "index_file": "index.ts",
+      "component_layers": [
+        "pages",
+        "widgets",
+        "features"
+      ]
+    },
+    "layer_extensions": {
+      "pages": ".tsx",
+      "widgets": ".tsx",
+      "features": ".tsx",
+      "default": ".ts"
+    },
+    "platform_routing_rules": [
+      {
+        "source_contains": [
+          "/server/"
+        ],
+        "name_contains": [
+          "prompt"
+        ],
+        "homes": [
+          "src/platform/ai/prompts",
+          "src/platform/ai",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/server/"
+        ],
+        "name_contains": [
+          "response",
+          "model",
+          "context",
+          "usage"
+        ],
+        "homes": [
+          "src/platform/ai/types",
+          "src/shared/types",
+          "src/platform/ai"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/export/",
+          "/pdf",
+          "/font",
+          "extract-text"
+        ],
+        "homes": [
+          "src/platform/export",
+          "src/platform/assets",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/ai-",
+          "/ai/",
+          "llm",
+          "image",
+          "portrait"
+        ],
+        "homes": [
+          "src/platform/ai/utils",
+          "src/platform/ai",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/lib/logic",
+          "/model/factory",
+          "/domain/"
+        ],
+        "source_match_or_start": [
+          "/entities/",
+          "entities/"
+        ],
+        "homes": [
+          "src/platform/core/domain",
+          "src/platform/core/services",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      }
+    ],
+    "shared_routing_rules": [
+      {
+        "effective_layer": "shared/constants",
+        "conditions": [
+          {
+            "source_contains": "/templates/",
+            "homes": [
+              "src/shared/constants/templates",
+              "src/shared/constants",
+              "src/shared/ui/constants"
+            ],
+            "default_home": "src/shared/constants"
+          },
+          {
+            "homes": [
+              "src/shared/constants",
+              "src/shared/ui/constants"
+            ],
+            "default_home": "src/shared/constants"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/contracts",
+        "conditions": [
+          {
+            "homes": [
+              "src/shared/types",
+              "src/shared/kernel",
+              "src/shared/ports"
+            ],
+            "default_home": "src/shared/types"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/model",
+        "conditions": [
+          {
+            "contract_shape": "schema",
+            "homes": [
+              "src/shared/types/schemas",
+              "src/shared/kernel",
+              "src/shared/types"
+            ],
+            "default_home": "src/shared/types/schemas"
+          },
+          {
+            "source_contains_any": [
+              "/types/schemas/",
+              "types/schemas/"
+            ],
+            "homes": [
+              "src/shared/types/schemas",
+              "src/shared/kernel",
+              "src/shared/types"
+            ],
+            "default_home": "src/shared/types/schemas"
+          },
+          {
+            "homes": [
+              "src/shared/types",
+              "src/shared/kernel"
+            ],
+            "default_home": "src/shared/types"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/utils",
+        "conditions": [
+          {
+            "homes": [
+              "src/shared/utils",
+              "src/shared/ui/utils",
+              "src/platform/maintenance/utils"
+            ],
+            "default_home": "src/shared/utils"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/ui",
+        "conditions": [
+          {
+            "homes": [
+              "src/shared/ui/components",
+              "src/shared/ui",
+              "src/platform/ui"
+            ],
+            "default_home": "src/shared/ui"
+          }
+        ]
+      }
+    ]
+  }
+}

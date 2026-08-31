@@ -1,0 +1,860 @@
+{
+  "meta": {
+    "kind": "agent_surface_taxonomy",
+    "version": "v1",
+    "description": "Machine-readable vocabulary that separates target-repository agent surfaces, SAGE maintainer surfaces, target scopes, and validation corpus evidence."
+  },
+  "canonical_cef_flow": [
+    "Shared Reality",
+    "Purpose",
+    "Observation",
+    "Representation",
+    "Meaning",
+    "Knowledge",
+    "Intent",
+    "Reason",
+    "Decision",
+    "Action",
+    "Result",
+    "Feedback",
+    "Learning",
+    "Capability",
+    "System",
+    "Shared Reality"
+  ],
+  "validation_contract": {
+    "required_actor_surface_ids": [
+      "target_repository_agent",
+      "sage_maintainer_agent"
+    ],
+    "required_system_scope_ids": [
+      "SAGE_ON_SAGE",
+      "SAGE_ON_REPOSITORY",
+      "SHARED_PLATFORM"
+    ],
+    "required_target_scope_ids": [
+      "internal_target_repo",
+      "external_target_repo",
+      "sage_self_target",
+      "corpus_validation_pool"
+    ],
+    "required_surface_rule_ids": [
+      "no_internal_noise_in_target_packets",
+      "target_root_isolation",
+      "corpus_is_evidence_not_default_context",
+      "sage_on_sage_is_explicit"
+    ],
+    "required_transfer_family_ids": [
+      "repository_identity_and_discovery",
+      "structural_code_truth",
+      "source_snapshot_and_drift",
+      "dependency_and_change_impact",
+      "doctrine_policy_cage_authority",
+      "surgical_agent_context",
+      "live_watchdog_loop",
+      "patch_and_test_validation",
+      "health_and_readiness_verdict",
+      "proof_envelope",
+      "learning_and_lesson_memory",
+      "debt_and_action_memory",
+      "roadmap_and_capability_memory",
+      "system_connectivity_and_lineage",
+      "manual_adversarial_audit",
+      "central_decision_and_config_hygiene",
+      "documentation_claim_freshness",
+      "telemetry_and_performance",
+      "merge_variation_intelligence",
+      "external_target_and_corpus",
+      "distribution_and_clean_install",
+      "extension_and_contributor_governance",
+      "private_eval_and_outcome_learning",
+      "multi_agent_coordination"
+    ],
+    "required_transfer_fields": [
+      "id",
+      "cef_role_mapping",
+      "sage_on_sage",
+      "sage_on_repository",
+      "decision",
+      "transfer_direction",
+      "priority",
+      "boundary"
+    ],
+    "allowed_transfer_directions": [
+      "SAGE_ON_SAGE_TO_SAGE_ON_REPOSITORY",
+      "SAGE_ON_REPOSITORY_TO_SAGE_ON_SAGE",
+      "SHARED_PLATFORM",
+      "SAGE_ON_SAGE_ONLY",
+      "SAGE_ON_REPOSITORY_ONLY"
+    ],
+    "allowed_transfer_priorities": [
+      "active",
+      "P0",
+      "P0.5",
+      "P1",
+      "P2"
+    ],
+    "target_repository_agent_required_forbidden_default_roles": [
+      "debug_provenance",
+      "heavy_validation"
+    ]
+  },
+  "actor_surfaces": [
+    {
+      "id": "target_repository_agent",
+      "label": "Target Repository Coding Agent",
+      "purpose": "Use SAGE evidence to edit the analyzed repository with the smallest safe patch.",
+      "default_surface": true,
+      "allowed_default_roles": [
+        "primary_agent",
+        "supporting_context",
+        "human_hitl"
+      ],
+      "forbidden_default_roles": [
+        "debug_provenance",
+        "heavy_validation"
+      ],
+      "must_not_receive": [
+        "SAGE platform release/debug posture by default",
+        "external corpus calibration logs by default",
+        "raw output/.raw artifact paths as edit instructions"
+      ],
+      "path_contract": "Open files with analysis_root plus target_file, target_files, related_files, inspect_first, or listed file/path fields."
+    },
+    {
+      "id": "sage_maintainer_agent",
+      "label": "SAGE Maintainer Agent",
+      "purpose": "Develop or debug SAGE itself, including release proof, capability registry, and internal provenance.",
+      "default_surface": false,
+      "allowed_default_roles": [
+        "debug_provenance",
+        "heavy_validation",
+        "supporting_context",
+        "human_hitl"
+      ],
+      "forbidden_default_roles": [],
+      "must_not_receive": [
+        "permission to mutate customer target repositories without an explicit target-repository packet"
+      ],
+      "path_contract": "Use SAGE workspace paths and SAGE maintainer documentation; do not conflate these with target-repository edit paths."
+    }
+  ],
+  "system_scopes": [
+    {
+      "id": "SAGE_ON_SAGE",
+      "subject": "SAGE product source, release, development governance and internal evidence",
+      "default_audience": "sage_maintainer_agent",
+      "must_not_include": [
+        "customer runtime findings as SAGE debt unless they prove a product defect or generalized lesson"
+      ]
+    },
+    {
+      "id": "SAGE_ON_REPOSITORY",
+      "subject": "The analyzed customer or internal target repository",
+      "default_audience": "target_repository_agent",
+      "must_not_include": [
+        "SAGE release proof",
+        "SAGE development debt",
+        "SAGE internal audit progress",
+        "corpus calibration noise"
+      ]
+    },
+    {
+      "id": "SHARED_PLATFORM",
+      "subject": "Reusable platform contracts whose implementation serves both realities with scoped evidence",
+      "default_audience": "scope_filtered",
+      "must_not_include": [
+        "an unscoped verdict or authority transfer between SAGE and a target repository"
+      ]
+    }
+  ],
+  "execution_identity_contract": {
+    "axes": {
+      "system_scope": {
+        "allowed": [
+          "SAGE_ON_SAGE",
+          "SAGE_ON_REPOSITORY"
+        ],
+        "meaning": "Whose engineering reality, authority, debt, lessons and proof are being evaluated."
+      },
+      "acquisition_mode": {
+        "allowed": [
+          "DEFAULT_WORKSPACE",
+          "EXPLICIT_TARGET"
+        ],
+        "meaning": "How the repository root is selected; this must not redefine repository semantics."
+      }
+    },
+    "repository_semantics": "CANONICAL_REPOSITORY_ONTOLOGY",
+    "repository_modes": {
+      "default_repository": {
+        "system_scope": "SAGE_ON_REPOSITORY",
+        "acquisition_mode": "DEFAULT_WORKSPACE"
+      },
+      "external_repository": {
+        "system_scope": "SAGE_ON_REPOSITORY",
+        "acquisition_mode": "EXPLICIT_TARGET"
+      }
+    },
+    "sage_self_modes": {
+      "release_and_governance": {
+        "system_scope": "SAGE_ON_SAGE",
+        "acquisition_mode": "DEFAULT_WORKSPACE"
+      },
+      "isolated_self_target": {
+        "system_scope": "SAGE_ON_SAGE",
+        "acquisition_mode": "EXPLICIT_TARGET",
+        "requires": "explicit_authorized_sage_self_profile"
+      }
+    },
+    "authority_rules": {
+      "target_repository_actor_profiles": [
+        "target_repository_default",
+        "target_repository_followup"
+      ],
+      "sage_on_sage_actor_profile": "sage_operator_debug",
+      "sage_on_sage_reality_profile": "sage_self",
+      "sage_on_sage_requires_explicit_profile_pair": true,
+      "public_distribution_actor_profiles": [
+        "target_repository_default",
+        "target_repository_followup"
+      ],
+      "private_maintainer_actor_profiles": [
+        "sage_operator_debug"
+      ],
+      "private_maintainer_reality_profiles": [
+        "sage_self"
+      ],
+      "public_distribution_allowed_system_scopes": [
+        "SAGE_ON_REPOSITORY"
+      ],
+      "source_tree_as_ordinary_target": "SAGE_ON_REPOSITORY",
+      "public_source_development_rule": "Public users may inspect, modify and test the SAGE source under the applicable license through target-repository profiles. This does not publish or grant private SAGE maintainer governance, institutional memory, release-proof, seal or publication authority."
+    },
+    "parity_invariants": [
+      "Default and explicit target repository modes use the same topology producer.",
+      "Default and explicit target repository modes use the same engine semantics, applicability rules and claim boundaries.",
+      "Acquisition mode may change artifact namespace, cache lifecycle, permissions and target-root routing only.",
+      "A default repository result and explicit target result for the same root, snapshot, config projection, project scope and pipeline profile must be semantically equivalent."
+    ],
+    "forbidden_inferences": [
+      "target_root presence alone determines SAGE_ON_REPOSITORY",
+      "absence of target_root alone determines SAGE_ON_SAGE",
+      "external acquisition defines a second repository ontology",
+      "artifact namespace changes finding meaning",
+      "installation-root equality grants SAGE_ON_SAGE authority",
+      "folder names or source markers grant SAGE_ON_SAGE authority",
+      "analyzing SAGE source as a repository inherits private lessons debt roadmap release proof or seal authority"
+    ]
+  },
+  "canonical_registry_projection_policy": {
+    "sage_developer": {
+      "system_scope": "SAGE_ON_SAGE",
+      "include_registries": [
+        "audit_lesson_registry",
+        "sage_work_item_registry",
+        "sage_execution_wave_registry",
+        "roadmap_phase_registry",
+        "capability_registry"
+      ],
+      "include_transfer_matrix": true,
+      "capability_scopes": [
+        "SAGE_ON_SAGE",
+        "SAGE_ON_REPOSITORY",
+        "SHARED_PLATFORM"
+      ],
+      "runtime_finding_source": "SAGE release and self-audit evidence"
+    },
+    "target_repository": {
+      "system_scope": "SAGE_ON_REPOSITORY",
+      "include_registries": [
+        "capability_registry"
+      ],
+      "exclude_registries": [
+        "audit_lesson_registry",
+        "sage_work_item_registry",
+        "sage_execution_wave_registry",
+        "roadmap_phase_registry"
+      ],
+      "include_transfer_matrix": false,
+      "capability_scopes": [
+        "SAGE_ON_REPOSITORY",
+        "SHARED_PLATFORM"
+      ],
+      "runtime_finding_source": "target-repository work queue, watchdog pulse ledger, quality gates and target proof artifacts"
+    }
+  },
+  "capability_scope_assignments": {
+    "SAGE_ON_SAGE": [
+      "plugin_extension_foundation",
+      "scoped_governance_reality_projections",
+      "third_party_plugin_runtime",
+      "release_proof"
+    ],
+    "SAGE_ON_REPOSITORY": [
+      "repository_discovery",
+      "atlas_sequencing",
+      "target_repository_action_memory",
+      "target_repository_lesson_memory",
+      "architecture_governance",
+      "react_surgical_intelligence",
+      "dead_code_public_contracts",
+      "dependency_health",
+      "test_impact",
+      "merge_variation_intelligence",
+      "contextos",
+      "agent_surface",
+      "security_boundary",
+      "data_privacy_cage",
+      "performance_n_plus_one_cage",
+      "resilience_error_handling_cage",
+      "immutability_purity_cage",
+      "cognitive_load_cage",
+      "config_hygiene_cage",
+      "provider_topology_engine",
+      "ci_cd_gate_surface",
+      "shadow_variation_lab",
+      "auth_permission_graph",
+      "cache_revalidation_graph",
+      "route_data_mutation_graph",
+      "state_topology_engine",
+      "server_state_graph",
+      "bundle_intelligence",
+      "documentation_knowledge_governance",
+      "distributed_service_governance",
+      "structured_export_serialization_integrity",
+      "native_build_diagnostic_ingestion",
+      "target_runtime_schema_and_mutation_invariants",
+      "target_repository_proof_bundle",
+      "principle_pack_expansion"
+    ],
+    "SHARED_PLATFORM": [
+      "sqlite_artifact_store",
+      "capability_activation_planner",
+      "runtime_trace_bridge",
+      "ast_daemon_service",
+      "tree_sitter_polyglot_driver",
+      "ide_lsp_surface",
+      "external_evidence_fabric",
+      "agent_execution_sandbox",
+      "historical_cognition_memory",
+      "organizational_memory_adapters",
+      "multi_agent_coordination",
+      "engine_signal_evidence_contract",
+      "private_eval_learning_loop",
+      "local_governance_telemetry"
+    ]
+  },
+  "target_scopes": [
+    {
+      "id": "sage_self_target",
+      "label": "SAGE Self Target",
+      "description": "The SAGE product source analyzed explicitly through the shared external-target isolation path for maintainer surgery.",
+      "artifact_scope": "output/external_targets/<sage_source_slug> with a separate SAGE_ON_SAGE proof subject",
+      "agent_usage": "SAGE maintainer agents only. Resolve through config/reality_target_profiles.json; never infer this scope for a target-repository agent."
+    },
+    {
+      "id": "internal_target_repo",
+      "label": "Internal Target Repository",
+      "description": "The analyzed repository tree adjacent to or containing SAGE; in this workspace it can include MAIN plus variations and companion projects.",
+      "artifact_scope": "output/.raw under the SAGE workspace",
+      "agent_usage": "Target-repository coding agent may use these packets when analysis_root points at the analyzed repository root."
+    },
+    {
+      "id": "external_target_repo",
+      "label": "External Target Repository",
+      "description": "A repository analyzed from outside its tree through target_root and isolated output/external_targets artifacts.",
+      "artifact_scope": "output/external_targets/<target_slug>/.raw",
+      "agent_usage": "Target-repository coding agent may use these packets when analysis_root points at the external target root."
+    },
+    {
+      "id": "corpus_validation_pool",
+      "label": "Corpus Validation Pool",
+      "description": "Representative external repositories and fixtures used to calibrate and prove SAGE behavior-family coverage.",
+      "artifact_scope": "corpus docs, fixtures, validation reports, and output/external_targets evidence",
+      "agent_usage": "SAGE maintainer agents may use this evidence for product hardening; it must not be injected into normal target-repository coding packets by default."
+    }
+  ],
+  "surface_rules": [
+    {
+      "id": "no_internal_noise_in_target_packets",
+      "applies_to": "target_repository_agent",
+      "rule": "Default target-repository packets must prefer operation directives over SAGE platform status, debug provenance, release posture, or corpus calibration history."
+    },
+    {
+      "id": "main_first_default_edit_scope",
+      "applies_to": "target_repository_agent",
+      "rule": "Default coding packets for internal target repositories are MAIN/host-first. Variation and companion projects may be shown only for explicit merge, diff, proof, corpus, or all-project inspection tasks."
+    },
+    {
+      "id": "target_root_isolation",
+      "applies_to": "external_target_repo",
+      "rule": "External target packets must read isolated artifacts for the requested target_root and fail closed when required artifacts are missing."
+    },
+    {
+      "id": "corpus_is_evidence_not_default_context",
+      "applies_to": "corpus_validation_pool",
+      "rule": "Corpus evidence may support SAGE release claims and regression tests, but it is not ordinary coding context for a customer target repository."
+    },
+    {
+      "id": "sage_on_sage_is_explicit",
+      "applies_to": "sage_maintainer_agent",
+      "rule": "SAGE self-analysis must be requested explicitly as a target scope; it must not be inferred from ordinary MAIN or external target packets."
+    }
+  ],
+  "bidirectional_capability_transfer_matrix": [
+    {
+      "id": "repository_identity_and_discovery",
+      "cef_role_mapping": {
+        "realizes": [
+          "Observation",
+          "Representation"
+        ],
+        "contributes_to": [
+          "Shared Reality"
+        ]
+      },
+      "sage_on_sage": "Self-map and source-layer inventory identify the SAGE workspace and product layers.",
+      "sage_on_repository": "Discovery and project registry identify MAIN, variations, companions and isolated external targets.",
+      "decision": "shared_semantics_keep_separate_artifacts",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "active",
+      "boundary": "Never infer SAGE self-target scope from an ordinary customer target root."
+    },
+    {
+      "id": "structural_code_truth",
+      "cef_role_mapping": {
+        "realizes": [
+          "Representation"
+        ],
+        "contributes_to": [
+          "Observation",
+          "Meaning"
+        ]
+      },
+      "sage_on_sage": "SAGE self-map, source-layer inventory and Python/JavaScript source inspection describe the product codebase.",
+      "sage_on_repository": "Atlas, Genome, Fractal Map and source snapshots describe the analyzed repository.",
+      "decision": "reuse_target_analysis_only_under_explicit_self_target",
+      "transfer_direction": "SAGE_ON_REPOSITORY_TO_SAGE_ON_SAGE",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Reuse canonical analyzers; do not copy a second self-analysis engine or mix customer artifacts with SAGE self artifacts."
+    },
+    {
+      "id": "source_snapshot_and_drift",
+      "cef_role_mapping": {
+        "realizes": [
+          "Observation",
+          "Feedback"
+        ],
+        "contributes_to": [
+          "Shared Reality"
+        ]
+      },
+      "sage_on_sage": "Seal impact, git/mtime evidence and release freshness detect protected SAGE changes.",
+      "sage_on_repository": "SQLite source_snapshots, hashes and watchdog freshness detect target source drift.",
+      "decision": "share_drift_primitives_preserve_authority_scope",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "A source hash match is not a human seal; SAGE release seal and target doctrine/patch authority remain separate."
+    },
+    {
+      "id": "dependency_and_change_impact",
+      "cef_role_mapping": {
+        "realizes": [
+          "Meaning",
+          "Reason"
+        ],
+        "contributes_to": [
+          "Knowledge"
+        ]
+      },
+      "sage_on_sage": "Self-map revalidation scopes and connectivity map describe likely product impact.",
+      "sage_on_repository": "Blast radius, upstream trace, test impact and dependency health provide surgical change impact.",
+      "decision": "reuse_surgical_impact_for_explicit_self_target",
+      "transfer_direction": "SAGE_ON_REPOSITORY_TO_SAGE_ON_SAGE",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Self-target impact augments release-proof ownership; it does not replace SAGE contract and release validators."
+    },
+    {
+      "id": "doctrine_policy_cage_authority",
+      "cef_role_mapping": {
+        "realizes": [
+          "Purpose",
+          "Intent",
+          "Decision"
+        ],
+        "contributes_to": []
+      },
+      "sage_on_sage": "Self-development constitution, governance registry, release claims and central decision contracts constrain SAGE changes.",
+      "sage_on_repository": "Project doctrine, policy, principle packs, cages and Architecture Oracle proposals constrain target changes.",
+      "decision": "shared_authority_model_separate_governance_subjects",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "active",
+      "boundary": "SAGE product doctrine cannot silently govern a customer repository, and customer doctrine cannot change SAGE release claims."
+    },
+    {
+      "id": "surgical_agent_context",
+      "cef_role_mapping": {
+        "realizes": [
+          "Representation",
+          "Intent"
+        ],
+        "contributes_to": [
+          "Knowledge"
+        ]
+      },
+      "sage_on_sage": "Developer skill and self-map guide maintainers, but no explicit self-target surgical packet workflow is active.",
+      "sage_on_repository": "ContextOS, inspect tools and surgical operation packets provide bounded source-grounded context.",
+      "decision": "add_explicit_self_target_projection",
+      "transfer_direction": "SAGE_ON_REPOSITORY_TO_SAGE_ON_SAGE",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "The maintainer projection may expose SAGE internals; the target-repository projection must not."
+    },
+    {
+      "id": "live_watchdog_loop",
+      "cef_role_mapping": {
+        "realizes": [
+          "Observation",
+          "Feedback"
+        ],
+        "contributes_to": [
+          "Action",
+          "Result",
+          "Learning"
+        ]
+      },
+      "sage_on_sage": "The development loop requires targeted validation and release-proof refresh but is not driven by a dedicated self-target watchdog session.",
+      "sage_on_repository": "Watchdog refreshes changed truth, preserves unread findings and records deep-proof debt.",
+      "decision": "reuse_watchdog_as_opt_in_self_development_loop",
+      "transfer_direction": "SAGE_ON_REPOSITORY_TO_SAGE_ON_SAGE",
+      "priority": "P1",
+      "target_release": "1.2.0",
+      "boundary": "Self watchdog remains advisory and must not recursively trigger full release proof or mutate SAGE without human approval."
+    },
+    {
+      "id": "patch_and_test_validation",
+      "cef_role_mapping": {
+        "realizes": [
+          "Result",
+          "Feedback"
+        ],
+        "contributes_to": [
+          "Decision",
+          "Action"
+        ]
+      },
+      "sage_on_sage": "Targeted validators, unit tests and release slices validate SAGE patches.",
+      "sage_on_repository": "validate_patch, get_test_impact and command contracts validate bounded target patches.",
+      "decision": "share_prewrite_and_test_impact_contracts",
+      "transfer_direction": "SAGE_ON_REPOSITORY_TO_SAGE_ON_SAGE",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "A clean patch check does not satisfy SAGE release proof or customer runtime proof."
+    },
+    {
+      "id": "health_and_readiness_verdict",
+      "cef_role_mapping": {
+        "realizes": [
+          "Meaning",
+          "Decision"
+        ],
+        "contributes_to": [
+          "Knowledge"
+        ]
+      },
+      "sage_on_sage": "System health, release readiness, final suspicion and claim guard evaluate SAGE product readiness.",
+      "sage_on_repository": "Audit, quality gates, confidence, ecosystem readiness and merge readiness evaluate the target repository.",
+      "decision": "semantic_equivalents_keep_verdict_subjects_separate",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "active",
+      "boundary": "Neither health surface may be presented as the other subject's verdict."
+    },
+    {
+      "id": "proof_envelope",
+      "cef_role_mapping": {
+        "realizes": [
+          "Result",
+          "Shared Reality"
+        ],
+        "contributes_to": [
+          "Feedback"
+        ]
+      },
+      "sage_on_sage": "Release proof bundle proves only the scoped SAGE product release claim.",
+      "sage_on_repository": "Underlying proof artifacts exist, but one target repository proof envelope is roadmap work.",
+      "decision": "aggregate_existing_target_evidence_without_copying_self_proof",
+      "transfer_direction": "SAGE_ON_SAGE_TO_SAGE_ON_REPOSITORY",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Target proof must state its own claim boundary and cannot inherit PASS from SAGE release proof."
+    },
+    {
+      "id": "learning_and_lesson_memory",
+      "cef_role_mapping": {
+        "realizes": [
+          "Learning"
+        ],
+        "contributes_to": [
+          "Feedback",
+          "Knowledge",
+          "Capability"
+        ]
+      },
+      "sage_on_sage": "Audit lesson registry converts product-development findings into guards, debt or roadmap evidence.",
+      "sage_on_repository": "A read-only target lesson projection preserves recurrence candidates and explicitly target-bound human confirmations without reading SAGE product lessons.",
+      "decision": "derive_target_owned_projection_without_product_registry",
+      "transfer_direction": "SAGE_ON_SAGE_TO_SAGE_ON_REPOSITORY",
+      "priority": "P1",
+      "target_release": "1.2.0",
+      "boundary": "Customer lessons belong to that target and must enter SAGE product memory only when they prove a generalized product defect or reusable lesson."
+    },
+    {
+      "id": "debt_and_action_memory",
+      "cef_role_mapping": {
+        "realizes": [
+          "Decision",
+          "Capability"
+        ],
+        "contributes_to": [
+          "Feedback"
+        ]
+      },
+      "sage_on_sage": "Central work-item registry preserves deferred SAGE product debt.",
+      "sage_on_repository": "Violation queues, proof debt and merge queues preserve target actions, but they are not SAGE product debt.",
+      "decision": "generate_scope_filtered_action_projections",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Do not copy runtime target findings into the SAGE work-item registry unless they identify a SAGE defect or generalized platform debt."
+    },
+    {
+      "id": "roadmap_and_capability_memory",
+      "cef_role_mapping": {
+        "realizes": [
+          "Purpose",
+          "Intent",
+          "Capability"
+        ],
+        "contributes_to": [
+          "System"
+        ]
+      },
+      "sage_on_sage": "Capability and roadmap registries govern product evolution and release claims.",
+      "sage_on_repository": "A customer repository may have product plans, but SAGE does not replace its issue tracker or roadmap source of record.",
+      "decision": "internal_only_with_future_external_memory_adapters",
+      "transfer_direction": "SAGE_ON_SAGE_ONLY",
+      "priority": "P2",
+      "target_release": "2.5.0",
+      "boundary": "Future adapters may bind ADR/issue/roadmap evidence without making SAGE the customer's planning system."
+    },
+    {
+      "id": "system_connectivity_and_lineage",
+      "cef_role_mapping": {
+        "realizes": [
+          "Representation",
+          "System"
+        ],
+        "contributes_to": [
+          "Meaning"
+        ]
+      },
+      "sage_on_sage": "System spine and connectivity map connect layers, steps, artifacts, validators and proof surfaces.",
+      "sage_on_repository": "Atlas graphs and target lineage connect source truth, findings, packets and validation flow.",
+      "decision": "shared_pattern_keep_domain_specific_graphs",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "active",
+      "boundary": "Do not merge the SAGE product nervous-system graph with a customer's repository dependency graph."
+    },
+    {
+      "id": "manual_adversarial_audit",
+      "cef_role_mapping": {
+        "realizes": [
+          "Observation",
+          "Reason",
+          "Feedback"
+        ],
+        "contributes_to": [
+          "Learning"
+        ]
+      },
+      "sage_on_sage": "Layered checklist, progress ledger and release micro-walkthrough audit SAGE itself.",
+      "sage_on_repository": "Agent packet manual evidence and corpus/fixture reviews sample target behavior, but no customer-wide clone of the SAGE self-audit is needed.",
+      "decision": "transfer_review_principles_into_target_proof_sampling",
+      "transfer_direction": "SAGE_ON_SAGE_TO_SAGE_ON_REPOSITORY",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Use representative source-grounded target review; do not expose SAGE internal layer audit or release micro-step noise to target agents."
+    },
+    {
+      "id": "central_decision_and_config_hygiene",
+      "cef_role_mapping": {
+        "realizes": [
+          "Decision",
+          "System"
+        ],
+        "contributes_to": [
+          "Knowledge"
+        ]
+      },
+      "sage_on_sage": "Hardcoded decision inventory and central decision validators guard SAGE configuration drift.",
+      "sage_on_repository": "Project-calibrated magic literal and config hygiene cage is roadmap work.",
+      "decision": "transfer_as_configurable_cage",
+      "transfer_direction": "SAGE_ON_SAGE_TO_SAGE_ON_REPOSITORY",
+      "priority": "P1",
+      "target_release": "1.2.0",
+      "boundary": "Target literals require doctrine/policy calibration; SAGE internal centralization rules cannot become universal blocking rules."
+    },
+    {
+      "id": "documentation_claim_freshness",
+      "cef_role_mapping": {
+        "realizes": [
+          "Representation",
+          "Knowledge"
+        ],
+        "contributes_to": [
+          "Shared Reality"
+        ]
+      },
+      "sage_on_sage": "Claim guard and final consistency align product docs, capabilities and release identity.",
+      "sage_on_repository": "Code-to-README/API/ADR freshness is roadmap work.",
+      "decision": "transfer_as_target_knowledge_governance",
+      "transfer_direction": "SAGE_ON_SAGE_TO_SAGE_ON_REPOSITORY",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Documentation evidence must remain scoped and cannot prove runtime behavior by text alone."
+    },
+    {
+      "id": "telemetry_and_performance",
+      "cef_role_mapping": {
+        "realizes": [
+          "Observation",
+          "Result",
+          "Feedback"
+        ],
+        "contributes_to": []
+      },
+      "sage_on_sage": "Step timings, heartbeats, performance budgets and release telemetry describe SAGE execution.",
+      "sage_on_repository": "Watchdog timings and proof debt exist, while normalized local governance outcome telemetry is roadmap work.",
+      "decision": "share_event_contract_preserve_privacy_and_subject",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "P1",
+      "target_release": "1.1.0",
+      "boundary": "Local-first, opt-in telemetry must separate SAGE runtime performance from customer repository engineering outcomes."
+    },
+    {
+      "id": "merge_variation_intelligence",
+      "cef_role_mapping": {
+        "realizes": [
+          "Reason",
+          "Decision",
+          "Action"
+        ],
+        "contributes_to": [
+          "Result"
+        ]
+      },
+      "sage_on_sage": "No general SAGE self-development equivalent is required unless SAGE itself adopts explicit variation projects.",
+      "sage_on_repository": "Variation review, merge waves, simulations and human-gated MAIN candidates are active target capabilities.",
+      "decision": "target_repository_only",
+      "transfer_direction": "SAGE_ON_REPOSITORY_ONLY",
+      "priority": "active",
+      "boundary": "Do not preload variation evidence into normal MAIN editing or SAGE maintainer context."
+    },
+    {
+      "id": "external_target_and_corpus",
+      "cef_role_mapping": {
+        "realizes": [
+          "Observation",
+          "Representation"
+        ],
+        "contributes_to": [
+          "Shared Reality"
+        ]
+      },
+      "sage_on_sage": "Maintainers use external targets and corpus evidence to calibrate SAGE behavior.",
+      "sage_on_repository": "Customers may analyze independently located repositories through isolated external-target artifacts.",
+      "decision": "shared_runtime_separate_purpose_and_storage",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "active",
+      "boundary": "Corpus calibration evidence is never ordinary customer coding context."
+    },
+    {
+      "id": "distribution_and_clean_install",
+      "cef_role_mapping": {
+        "realizes": [
+          "Action",
+          "Result"
+        ],
+        "contributes_to": [
+          "System"
+        ]
+      },
+      "sage_on_sage": "Clean mirror, installation smoke and distribution cleanup prove SAGE packaging.",
+      "sage_on_repository": "Not a target-repository governance responsibility.",
+      "decision": "sage_internal_only",
+      "transfer_direction": "SAGE_ON_SAGE_ONLY",
+      "priority": "active",
+      "boundary": "Never run SAGE distribution cleanup against a customer repository or active SAGE source workspace."
+    },
+    {
+      "id": "extension_and_contributor_governance",
+      "cef_role_mapping": {
+        "realizes": [
+          "Capability",
+          "System"
+        ],
+        "contributes_to": []
+      },
+      "sage_on_sage": "Plugin manifests, contribution trust and extension contracts govern SAGE evolution.",
+      "sage_on_repository": "Target repositories may expose their own extension boundaries, but SAGE V1 does not install or execute third-party target plugins.",
+      "decision": "sage_internal_foundation_with_future_bounded_adapters",
+      "transfer_direction": "SAGE_ON_SAGE_ONLY",
+      "priority": "P1",
+      "target_release": "1.5.0",
+      "boundary": "Do not execute untrusted extension code before sandbox, permission and revocation contracts exist."
+    },
+    {
+      "id": "private_eval_and_outcome_learning",
+      "cef_role_mapping": {
+        "realizes": [
+          "Feedback",
+          "Learning"
+        ],
+        "contributes_to": [
+          "Result"
+        ]
+      },
+      "sage_on_sage": "Release validators and manual audits exist, but controlled SAGE-on/off outcome evals are roadmap work.",
+      "sage_on_repository": "Agent correction outcomes can supply future local private-eval evidence.",
+      "decision": "future_bidirectional_learning_loop",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "P2",
+      "target_release": "3.0.0",
+      "boundary": "Do not claim causal agent improvement before fixed-task controlled evaluations exist."
+    },
+    {
+      "id": "multi_agent_coordination",
+      "cef_role_mapping": {
+        "realizes": [
+          "Intent",
+          "Decision",
+          "Action"
+        ],
+        "contributes_to": [
+          "System"
+        ]
+      },
+      "sage_on_sage": "Human-controlled multi-agent development occurs operationally, but explicit coordination contracts are not active.",
+      "sage_on_repository": "MCP and deterministic artifacts are multi-agent compatible, not a lock/ownership coordinator.",
+      "decision": "future_shared_coordination_layer",
+      "transfer_direction": "SHARED_PLATFORM",
+      "priority": "P2",
+      "target_release": "3.0.0",
+      "boundary": "SQLite compatibility and shared packets do not prove safe concurrent multi-agent writes."
+    }
+  ]
+}

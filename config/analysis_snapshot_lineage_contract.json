@@ -1,0 +1,152 @@
+{
+  "meta": {
+    "kind": "analysis_snapshot_lineage_contract",
+    "version": "v1"
+  },
+  "receipt": {
+    "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+    "storage": "artifact_registry_sqlite_first_with_json_shadow",
+    "complete_status": "COMPLETE",
+    "blocked_status": "BLOCKED"
+  },
+  "authority": {
+    "rule": "Only the producer that writes an analysis artifact may bind that exact artifact content to the validated Atlas payload it consumed.",
+    "forbidden_bases": [
+      "latest_atlas_timestamp",
+      "caller_snapshot",
+      "shared_directory",
+      "artifact_mtime"
+    ],
+    "content_binding": "The receipt artifact_sha256 must match the canonical JSON hash of the evidence payload consumed by proof.",
+    "dependency_rule": "Every declared lineage dependency must have a COMPLETE content-matching receipt for the same Atlas snapshot; otherwise the new receipt is BLOCKED."
+  },
+  "artifacts": {
+    "genome": {
+      "producer": "tools.engines.nuclear_processor",
+      "receipt_artifact_id": "genome_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "audit_report": {
+      "producer": "tools.engines.audit",
+      "receipt_artifact_id": "audit_report_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "quality_gate": {
+      "producer": "tools.engines.quality_gate",
+      "receipt_artifact_id": "quality_gate_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "genome",
+        "audit_report"
+      ]
+    },
+    "dead_code": {
+      "producer": "tools.engines.dead_code_detector",
+      "receipt_artifact_id": "dead_code_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "circular_deps": {
+      "producer": "tools.engines.circular_dependency_finder",
+      "receipt_artifact_id": "circular_deps_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "test_impact_report": {
+      "producer": "tools.engines.test_impact_matcher",
+      "receipt_artifact_id": "test_impact_report_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "circular_deps"
+      ]
+    },
+    "signals": {
+      "producer": "tools.engines.quant_engine",
+      "receipt_artifact_id": "signals_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "clone_detector": {
+      "producer": "tools.engines.clone_detector",
+      "receipt_artifact_id": "clone_detector_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "genome"
+      ]
+    },
+    "live_surface_priority_pack": {
+      "producer": "tools.engines.live_surface_analyzer",
+      "receipt_artifact_id": "live_surface_priority_pack_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "dead_code",
+        "clone_detector"
+      ]
+    },
+    "surgical_discovery": {
+      "producer": "tools.engines.nuclear_processor",
+      "receipt_artifact_id": "surgical_discovery_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "fractal_map": {
+      "producer": "tools.engines.fractal_mapper",
+      "receipt_artifact_id": "fractal_map_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "genome",
+        "surgical_discovery"
+      ]
+    },
+    "framework_routes": {
+      "producer": "tools.engines.framework_route_analyzer",
+      "receipt_artifact_id": "framework_routes_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
+    "host_merge_intelligence": {
+      "producer": "tools.engines.host_merge_intelligence",
+      "receipt_artifact_id": "host_merge_intelligence_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "fractal_map"
+      ]
+    },
+    "ui_runtime_contracts": {
+      "producer": "tools.engines.ui_runtime_contract_analyzer",
+      "receipt_artifact_id": "ui_runtime_contracts_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "framework_routes",
+        "host_merge_intelligence"
+      ]
+    },
+    "ui_smoke_specs": {
+      "producer": "tools.engines.ui_smoke_spec_generator",
+      "receipt_artifact_id": "ui_smoke_specs_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "ui_runtime_contracts"
+      ]
+    },
+    "ui_smoke_execution": {
+      "producer": "tools.engines.ui_smoke_execution_report",
+      "receipt_artifact_id": "ui_smoke_execution_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "ui_smoke_specs"
+      ]
+    },
+    "merge_dependency_packages": {
+      "producer": "tools.engines.merge_dependency_packager",
+      "receipt_artifact_id": "merge_dependency_packages_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "ui_runtime_contracts"
+      ]
+    },
+    "merge_simulation": {
+      "producer": "tools.engines.merge_simulation_engine",
+      "receipt_artifact_id": "merge_simulation_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "merge_dependency_packages",
+        "ui_smoke_execution"
+      ]
+    },
+    "merge_decision_cockpit": {
+      "producer": "tools.engines.merge_decision_cockpit",
+      "receipt_artifact_id": "merge_decision_cockpit_analysis_snapshot_lineage",
+      "lineage_dependencies": [
+        "merge_simulation",
+        "ui_runtime_contracts",
+        "merge_dependency_packages",
+        "ui_smoke_specs"
+      ]
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "policy",
+    "external_fixture_summary",
+    "summary",
+    "checks"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "policy": {
+      "type": "object"
+    },
+    "external_fixture_summary": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_checks",
+        "passed_checks",
+        "failed_checks"
+      ],
+      "properties": {
+        "total_checks": {
+          "type": "integer"
+        },
+        "passed_checks": {
+          "type": "integer"
+        },
+        "failed_checks": {
+          "type": "integer"
+        }
+      }
+    },
+    "checks": {
+      "type": "array"
+    }
+  }
+}

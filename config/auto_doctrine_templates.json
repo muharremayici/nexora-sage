@@ -1,0 +1,193 @@
+{
+  "_meta": {
+    "kind": "auto_doctrine_templates",
+    "version": "v1",
+    "description": "Machine-readable architecture doctrine templates used when bootstrapping a blank workspace."
+  },
+  "templates": {
+    "SOVEREIGN_ELITE": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Minimal Sovereign Elite doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [
+          "api/index.ts",
+          "api/ports.ts"
+        ],
+        "public_boundary_patterns": [
+          "api/index.ts",
+          "api/ports.ts"
+        ],
+        "compose_preferred_patterns": [
+          "application/**/*.ts",
+          "entities/**/*.ts",
+          "shared/hooks/**/*.ts"
+        ]
+      }
+    },
+    "MODULAR_FLAT": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Modular Flat doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [],
+        "public_boundary_patterns": [
+          "index.ts"
+        ],
+        "compose_preferred_patterns": [
+          "services/**/*.ts",
+          "hooks/**/*.ts"
+        ]
+      }
+    },
+    "MONOREPO_TURBOREPO": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Nexora SAGE monorepo/turborepo doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [
+          "packages/*/src/index.ts",
+          "packages/*/src/api/**/*.ts"
+        ],
+        "public_boundary_patterns": [
+          "packages/*/src/index.ts",
+          "apps/*/app/**/page.tsx"
+        ],
+        "compose_preferred_patterns": [
+          "apps/*/features/**/*.tsx",
+          "packages/*/src/**/*.ts"
+        ]
+      },
+      "workspace_policy": {
+        "package_roots": [
+          "apps/*",
+          "packages/*"
+        ],
+        "prefer_workspace_protocol": true,
+        "forbid_cross_package_deep_imports": true
+      }
+    },
+    "NEXTJS_APP_ROUTER": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Nexora SAGE Next.js App Router doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [
+          "app/**/layout.tsx",
+          "app/**/route.ts",
+          "middleware.ts"
+        ],
+        "public_boundary_patterns": [
+          "app/**/page.tsx",
+          "app/**/layout.tsx",
+          "app/**/route.ts"
+        ],
+        "compose_preferred_patterns": [
+          "components/**/*.tsx",
+          "features/**/*.tsx",
+          "lib/**/*.ts"
+        ]
+      },
+      "next_boundary_policy": {
+        "track_server_client_boundary": true,
+        "require_route_handler_validation": true,
+        "require_server_action_pending_error_contract": true
+      }
+    },
+    "FSD_STRICT": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Nexora SAGE strict Feature-Sliced Design doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [
+          "app/**",
+          "shared/api/**"
+        ],
+        "public_boundary_patterns": [
+          "features/*/index.ts",
+          "entities/*/index.ts",
+          "shared/*/index.ts"
+        ],
+        "compose_preferred_patterns": [
+          "features/**/*.tsx",
+          "entities/**/*.ts",
+          "shared/**/*.ts"
+        ]
+      },
+      "fsd_policy": {
+        "layers": [
+          "app",
+          "pages",
+          "widgets",
+          "features",
+          "entities",
+          "shared"
+        ],
+        "forbid_upward_imports": true,
+        "prefer_public_api_imports": true
+      }
+    },
+    "CLEAN_ARCHITECTURE": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Nexora SAGE Clean Architecture doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [
+          "domain/**/*.ts",
+          "application/**/*.ts"
+        ],
+        "public_boundary_patterns": [
+          "application/**/ports.ts",
+          "domain/**/index.ts"
+        ],
+        "compose_preferred_patterns": [
+          "application/**/*.ts",
+          "infra/**/*.ts",
+          "ui/**/*.tsx"
+        ]
+      },
+      "clean_architecture_policy": {
+        "layers": [
+          "domain",
+          "application",
+          "infra",
+          "ui"
+        ],
+        "domain_must_not_import_infra": true,
+        "ui_must_enter_through_application": true
+      }
+    },
+    "MINIMAL": {
+      "_meta": {
+        "kind": "architecture_doctrine",
+        "version": "1.0",
+        "description": "Auto-bootstrapped Nexora SAGE minimal doctrine"
+      },
+      "host_merge_policy": {
+        "locked_patterns": [],
+        "public_boundary_patterns": [],
+        "compose_preferred_patterns": []
+      },
+      "minimal_policy": {
+        "enabled_engines": [
+          "dead_code",
+          "circular_deps",
+          "health_score"
+        ],
+        "skip_merge_intelligence_by_default": true
+      }
+    }
+  }
+}

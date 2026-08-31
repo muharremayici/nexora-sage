@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "kind": "ssot_optimization_policy",
+    "version": "v1",
+    "owner": "SAGE",
+    "purpose": "Machine-readable policy for SQLite-first optimization planning, large artifact classification, and source snapshot migration priority."
+  },
+  "profile_fields": [
+    "artifact_reference_scans",
+    "files_scanned"
+  ],
+  "priority_hints": {
+    "tools/engines/dead_code_detector.py": {
+      "priority": "P0",
+      "why": "High-cost semantic engine; repeated live source reads directly affect full/release-deep latency.",
+      "recommended_action": "Route source text lookup through hash-validated source_snapshots when Atlas file hash matches."
+    },
+    "tools/engines/fractal_mapper.py": {
+      "priority": "P0",
+      "why": "Broad graph/merge engine; combines Atlas scope with source fingerprints and can become expensive on multi-project workspaces.",
+      "recommended_action": "Prefer SQLite source_snapshots for stable files, falling back to live source only on hash/mtime mismatch."
+    },
+    "tools/engines/keyword_scanner.py": {
+      "priority": "P1",
+      "why": "Repeated semantic/token scans are cacheable and should not rescan stable files unnecessarily.",
+      "recommended_action": "Use Atlas file hashes plus source_snapshots/cache metadata before reading live files."
+    },
+    "tools/engines/hexagonal_binder.py": {
+      "priority": "P1",
+      "why": "Boundary binding reads source after Atlas scoping and should share the same source snapshot contract.",
+      "recommended_action": "Replace direct file opens with a source snapshot helper once snapshot freshness is proven."
+    }
+  },
+  "default_priorities": {
+    "source_semantic_analyzer": "P1",
+    "react_source_analyzer": "P1",
+    "cage_source_analyzer": "P2"
+  },
+  "default_candidate_hint": {
+    "why": "Declared SQLite snapshot candidate; live source reads should be reduced after source snapshot freshness is proven.",
+    "recommended_action": "Adopt the shared source snapshot helper rather than bespoke filesystem reads."
+  },
+  "large_artifact_min_bytes": 1000000,
+  "runtime_reference_roots": [
+    "codemaps.py",
+    "sage.py",
+    "tools"
+  ],
+  "v1_critical_artifacts": [
+    "atlas.json",
+    "genome.json",
+    "audit_report.json",
+    "quality_gate.json",
+    "state_flow.json",
+    "dead_code.json",
+    "circular_deps.json",
+    "blast_radius.json"
+  ],
+  "profile_gated_heavy_artifacts": [
+    "fractal_map.json",
+    "landscape_map.json",
+    "keyword_scanner_all.json",
+    "nanometric_diff.json",
+    "source_layer_inventory.json",
+    "ui_architecture_map.json",
+    "ui_runtime_contracts.json",
+    "variation_analysis.json"
+  ],
+  "dedicated_sqlite_first_validators": {
+    "audit_report.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "atlas.json": "tools/validate_atlas_sqlite_first_access.py",
+    "blast_radius.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "a11y_i18n_contracts.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "a11y_i18n_contracts_full.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "clone_detector.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "circular_deps.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "dead_code.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "genome.json": "tools/validate_genome_sqlite_first_access.py",
+    "fractal_map.json": "tools/validate_fractal_sqlite_first_access.py",
+    "keyword_scanner_all.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "keyword_scanner_keywords.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "keyword_scanner_stats.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "lifecycle_validation.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "landscape_map.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "live_surface_findings.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "live_surface_priority_pack.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "nanometric_diff.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "react_ecosystem_analysis.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "react_ecosystem_findings_full.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "react_frontier_intelligence.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "react_frontier_intelligence_full.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "react_runtime_intelligence.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "react_runtime_intelligence_full.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "source_layer_inventory.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "state_flow.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "surgical_discovery.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "ui_architecture_map.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "ui_runtime_contracts.json": "tools/validate_large_artifact_sqlite_first_access.py",
+    "variation_analysis.json": "tools/validate_large_artifact_sqlite_first_access.py"
+  },
+  "dedicated_validator_summaries": {
+    "atlas.json": {
+      "strategy": "atlas_sqlite_first_access_validation",
+      "artifact": "atlas_sqlite_first_access_validation.json",
+      "metric": "atlas_path_references"
+    },
+    "genome.json": {
+      "strategy": "genome_sqlite_first_access_validation",
+      "artifact": "genome_sqlite_first_access_validation.json",
+      "metric": "genome_path_references"
+    },
+    "fractal_map.json": {
+      "strategy": "fractal_sqlite_first_access_validation",
+      "artifact": "fractal_sqlite_first_access_validation.json",
+      "metric": "fractal_references"
+    }
+  }
+}

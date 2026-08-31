@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "kind": "nexora.installation_preflight_contract",
+    "version": "v2",
+    "purpose": "Target-aware, non-mutating machine readiness, dependency-installation planning and authority-scoped installation validation."
+  },
+  "profile": {
+    "id": "human_and_ai_full",
+    "default": true,
+    "description": "Install the human CLI, live Watchdog and AI-facing MCP runtime together; target language evidence controls only language-toolchain requirements."
+  },
+  "validation_profiles": {
+    "selection": {
+      "public_target_repository": "PUBLIC_DISTRIBUTION_MANIFEST.json is present at the installation root.",
+      "private_maintainer": "No public distribution manifest is present at the canonical source root."
+    },
+    "public_target_repository": {
+      "purpose": "Validate only installation and target-repository surfaces shipped in the public projection.",
+      "omit_checks": [
+        "clean_mirror_sync_is_declared",
+        "clean_mirror_closeout_is_declared",
+        "clean_mirror_excludes_workspace_truth_and_secrets",
+        "release_proof_runs_installation_smoke"
+      ],
+      "installation_proof_omit_steps": [
+        "final_consistency"
+      ],
+      "claim_boundary": "A public installation PASS does not validate private projection machinery, SAGE self-release governance or the target repository's engineering verdict."
+    },
+    "private_maintainer": {
+      "purpose": "Validate public installation surfaces plus private projection and SAGE release-maintainer controls.",
+      "omit_checks": [],
+      "installation_proof_omit_steps": []
+    }
+  },
+  "python": {
+    "requirement_source": "pyproject.toml#project.requires-python",
+    "tested_versions_source": "pyproject.toml#tool.nexora_sage.distribution.tested_python_versions",
+    "package_install_command": [
+      "{python}",
+      "-m",
+      "pip",
+      "install",
+      "-e",
+      "{sage_root}"
+    ],
+    "system_runtime_install_policy": "never_automatic"
+  },
+  "python_features": {
+    "mcp-runtime": {
+      "module": "mcp.server.fastmcp",
+      "attribute": "FastMCP",
+      "package": "mcp",
+      "required_by_default_profile": true
+    },
+    "watch-live": {
+      "module": "watchdog.events",
+      "attribute": "FileSystemEventHandler",
+      "package": "watchdog",
+      "required_by_default_profile": true
+    },
+    "terminal-ui": {
+      "module": "rich",
+      "attribute": null,
+      "package": "rich",
+      "required_by_default_profile": true
+    },
+    "json-repair": {
+      "module": "json_repair",
+      "attribute": null,
+      "package": "json-repair",
+      "required_by_default_profile": true
+    }
+  },
+  "node": {
+    "required_for_languages": [
+      "javascript",
+      "typescript"
+    ],
+    "required_when_react_signal": true,
+    "release_reference_major": 20,
+    "system_runtime_install_policy": "never_automatic",
+    "bundled_typescript_marker": "tools/engines/node_modules/typescript/package.json",
+    "package_manifest": "tools/engines/package.json",
+    "package_install_command": [
+      "{npm}",
+      "ci",
+      "--ignore-scripts"
+    ]
+  },
+  "git": {
+    "role": "source_acquisition_only",
+    "required_after_source_and_target_are_present": false,
+    "system_runtime_install_policy": "never_automatic"
+  },
+  "status_policy": {
+    "ready": "READY",
+    "install_actions_available": "READY_WITH_INSTALL_ACTIONS",
+    "attention": "ATTENTION",
+    "blocked": "BLOCKED"
+  },
+  "mutation_policy": {
+    "plan_is_read_only": true,
+    "python_package_install_requires_init_without_skip_deps": true,
+    "node_package_install_requires_init_without_skip_deps": true,
+    "system_runtime_install_requires_explicit_external_action": true,
+    "target_repository_mutation_allowed": false
+  },
+  "claim_boundary": "The plan observes one machine and one target snapshot. It may authorize declared SAGE-local package installation, but it never installs system runtimes, mutates the target repository, proves full analysis correctness or replaces clean-machine installation proof."
+}

@@ -1,0 +1,90 @@
+{
+  "type": "object",
+  "required": [
+    "overall",
+    "grade",
+    "breakdown",
+    "weights",
+    "evidence_status",
+    "unavailable_inputs",
+    "input_evidence"
+  ],
+  "properties": {
+    "overall": {
+      "type": "number"
+    },
+    "grade": {
+      "type": "string"
+    },
+    "evidence_status": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PARTIAL"
+      ]
+    },
+    "unavailable_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "input_evidence": {
+      "type": "object"
+    },
+    "breakdown": {
+      "type": "object",
+      "required": [
+        "architecture_purity",
+        "dead_code_ratio",
+        "circular_deps",
+        "coupling_health",
+        "keyword_coverage"
+      ],
+      "properties": {
+        "architecture_purity": {
+          "type": "number"
+        },
+        "dead_code_ratio": {
+          "type": "number"
+        },
+        "circular_deps": {
+          "type": "number"
+        },
+        "coupling_health": {
+          "type": "number"
+        },
+        "keyword_coverage": {
+          "type": "number"
+        }
+      }
+    },
+    "weights": {
+      "type": "object",
+      "required": [
+        "architecture_purity",
+        "dead_code_ratio",
+        "circular_deps",
+        "coupling_health",
+        "keyword_coverage"
+      ],
+      "properties": {
+        "architecture_purity": {
+          "type": "number"
+        },
+        "dead_code_ratio": {
+          "type": "number"
+        },
+        "circular_deps": {
+          "type": "number"
+        },
+        "coupling_health": {
+          "type": "number"
+        },
+        "keyword_coverage": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

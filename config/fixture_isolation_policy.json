@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "kind": "fixture_isolation_policy",
+    "version": "v1"
+  },
+  "principles": [
+    "Golden truth and fixture data may validate SAGE claims, but runtime engines must not depend on fixture internals to produce normal repository analysis.",
+    "Release/readiness surfaces may consume fixture validation artifacts as evidence summaries.",
+    "Operator remediation text may mention golden truth paths, but it must not read them as live engine input."
+  ],
+  "protected_paths": [
+    "tools/engines",
+    "tools/core",
+    "tools/orchestrators",
+    "tools/mcp"
+  ],
+  "fixture_markers": [
+    "config/golden",
+    "output/.fixtures",
+    "tools/tests/fixtures",
+    "react_fixture_matrix.json",
+    "react_fixture_family_taxonomy.json",
+    "react_fixture_matrix_validation",
+    "react_fixture_family_taxonomy_report"
+  ],
+  "allowed_references": {
+    "tools/core/artifact_validator.py": [
+      "react_fixture_matrix_validation",
+      "react_fixture_family_taxonomy_report"
+    ],
+    "tools/core/pipeline_registry.py": [
+      "react_fixture_matrix_validation"
+    ],
+    "tools/engines/release_readiness_report.py": [
+      "react_fixture_matrix_validation"
+    ],
+    "tools/engines/dead_code_detector.py": [
+      "config/golden/projects"
+    ]
+  }
+}

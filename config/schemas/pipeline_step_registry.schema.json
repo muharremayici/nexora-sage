@@ -1,0 +1,151 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "steps"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "steps",
+        "heavy",
+        "full_only",
+        "dependency_bound"
+      ],
+      "properties": {
+        "steps": {
+          "type": "integer"
+        },
+        "heavy": {
+          "type": "integer"
+        },
+        "full_only": {
+          "type": "integer"
+        },
+        "dependency_bound": {
+          "type": "integer"
+        },
+        "artifact_writers": {
+          "type": "integer"
+        },
+        "artifact_write_conflicts": {
+          "type": "integer"
+        }
+      }
+    },
+    "artifact_ownership": {
+      "type": "object",
+      "properties": {
+        "writers": {
+          "type": "object"
+        },
+        "write_conflicts": {
+          "type": "object"
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "name",
+          "slug",
+          "category",
+          "depends_on",
+          "heavy",
+          "full_only"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "heavy": {
+            "type": "boolean"
+          },
+          "full_only": {
+            "type": "boolean"
+          },
+          "has_skip_condition": {
+            "type": "boolean"
+          },
+          "has_include_condition": {
+            "type": "boolean"
+          },
+          "reads_artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "writes_artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "execution_contract": {
+            "type": "object",
+            "required": [
+              "scheduler_class",
+              "parallel_safe_after_dependencies",
+              "sqlite_writer"
+            ],
+            "properties": {
+              "scheduler_class": {
+                "type": "string",
+                "enum": [
+                  "dag_parallel_safe",
+                  "sequential_required",
+                  "full_run_only"
+                ]
+              },
+              "parallel_safe_after_dependencies": {
+                "type": "boolean"
+              },
+              "sqlite_writer": {
+                "type": "boolean"
+              },
+              "requires_shadow_flush_before_release_validation": {
+                "type": "boolean"
+              },
+              "release_style_sequential_recommended": {
+                "type": "boolean"
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

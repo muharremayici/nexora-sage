@@ -1,0 +1,240 @@
+{
+  "meta": {
+    "kind": "agent_harness_contract",
+    "version": "v1",
+    "description": "Machine-readable harness conformance contract. It owns harness layers, support boundaries, evidence requirements, MCP tool classification hints, ContextOS value artifacts, and positioning statements."
+  },
+  "framework": "execution_tooling_context_lifecycle_observability_verification_governance_security",
+  "validation": {
+    "allowed_support_levels": [
+      "native",
+      "partial",
+      "external_dependency"
+    ],
+    "required_evidence_policy": "validated",
+    "unknown_evidence_rule": "UNKNOWN evidence never satisfies a validated layer requirement.",
+    "overall_status_rule": "ATTENTION when evidence fails; PASS_WITH_BOUNDARIES when every required evidence artifact passes but one or more layers are partial or external; PASS only when every layer is native and validated."
+  },
+  "layers": [
+    {
+      "id": "execution",
+      "purpose": "Run SAGE analysis, validation and release workflows deterministically while delegating untrusted agent execution to a bounded host runtime.",
+      "support_level": "external_dependency",
+      "evidence_policy": "validated",
+      "claim_boundary": "SAGE validates its own execution pipeline but does not provide a general untrusted-agent sandbox in V1.",
+      "evidence": [
+        "pipeline_execution_contract_validation.json",
+        "pipeline_layer_chain_integrity_validation.json",
+        "performance_profile_integrity_validation.json"
+      ],
+      "status_basis": [
+        "pipeline execution contract",
+        "pipeline chain",
+        "profile integrity"
+      ]
+    },
+    {
+      "id": "tooling",
+      "purpose": "Expose safe CLI/MCP actions with clear mutation boundaries.",
+      "support_level": "native",
+      "evidence_policy": "validated",
+      "claim_boundary": "SAGE provides governed repository-intelligence tools; it is not a universal tool runtime or package-security authority.",
+      "evidence": [
+        "mcp_agent_surface_validation.json",
+        "mcp_surface_command_matrix_validation.json",
+        "agent_surface_quality_review.json"
+      ],
+      "status_basis": [
+        "required MCP tools",
+        "role-aware command matrix",
+        "agent-surface quality review"
+      ]
+    },
+    {
+      "id": "context",
+      "purpose": "Distill repository reality into small, current, agent-usable context.",
+      "support_level": "native",
+      "evidence_policy": "validated",
+      "claim_boundary": "ContextOS provides repository-grounded operational context; it is not general long-term agent memory in V1.",
+      "evidence": [
+        "contextos_contract_validation.json",
+        "contextos_signal_validation.json",
+        "agent_context_payload_validation.json"
+      ],
+      "status_basis": [
+        "ContextOS contracts",
+        "signal validation",
+        "agent payload validation"
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "purpose": "Carry agent work from discovery to validation, handoff and release proof.",
+      "support_level": "partial",
+      "evidence_policy": "validated",
+      "claim_boundary": "SAGE governs repository-analysis, watchdog, handoff and proof lifecycles; it is not a complete autonomous issue-to-PR agent orchestrator.",
+      "evidence": [
+        "installation_contract_validation.json",
+        "agent_packet_chain_integrity_validation.json",
+        "artifact_freshness_contract_validation.json"
+      ],
+      "status_basis": [
+        "installation contract",
+        "agent packet chain",
+        "artifact freshness"
+      ]
+    },
+    {
+      "id": "observability",
+      "purpose": "Make generated artifacts, provenance and performance observable.",
+      "support_level": "partial",
+      "evidence_policy": "validated",
+      "claim_boundary": "SAGE exposes local proof, freshness, exception and performance telemetry; full model/tool trajectory tracing and production OpenTelemetry export are roadmap capabilities.",
+      "evidence": [
+        "runtime_honesty_validation.json",
+        "exception_honesty_validation.json",
+        "performance_budget_validation.json"
+      ],
+      "status_basis": [
+        "runtime honesty",
+        "exception honesty",
+        "performance budget"
+      ]
+    },
+    {
+      "id": "verification",
+      "purpose": "Verify claims with private evals, fixtures, artifact contracts and gates.",
+      "support_level": "native",
+      "evidence_policy": "validated",
+      "claim_boundary": "SAGE verifies bounded static-governance and self-release claims; full agent-rollout outcome evaluation and target-repository release proof remain separate roadmap scopes.",
+      "evidence": [
+        "release_readiness.json",
+        "react_fixture_matrix_validation.json",
+        "claim_guard_validation.json"
+      ],
+      "status_basis": [
+        "release readiness",
+        "fixtures",
+        "claim guard"
+      ]
+    },
+    {
+      "id": "governance_security",
+      "purpose": "Keep humans in authority and prevent unsafe autonomous mutation.",
+      "support_level": "partial",
+      "evidence_policy": "validated",
+      "claim_boundary": "SAGE provides repository governance, HITL and bounded security checks; it is not a complete agent-security, information-flow-control or SAST platform.",
+      "evidence": [
+        "hitl_governance_validation.json",
+        "security_boundary_validation.json",
+        "nexora_agent_response_validation.json"
+      ],
+      "status_basis": [
+        "HITL",
+        "security boundary",
+        "response contract"
+      ]
+    }
+  ],
+  "mcp_tool_classification": {
+    "role_category_map": {
+      "primary_agent": "context",
+      "supporting_context": "context",
+      "debug_provenance": "verification",
+      "human_hitl": "governance_security",
+      "mutating": "execution",
+      "heavy_validation": "verification"
+    },
+    "mutation_hints": [
+      "record_",
+      "create_",
+      "update_",
+      "validate_patch",
+      "run_",
+      "apply",
+      "execute"
+    ],
+    "hitl_hints": [
+      "hitl",
+      "approval",
+      "decision"
+    ],
+    "context_hints": [
+      "context",
+      "signal",
+      "brief",
+      "packet",
+      "handoff",
+      "watchdog"
+    ],
+    "readiness_hints": [
+      "release",
+      "readiness",
+      "proof",
+      "freshness",
+      "provenance",
+      "surface"
+    ]
+  },
+  "context_value": {
+    "measurement_boundary": "Artifact byte-size projection using a deterministic four-characters-per-token estimate; not an exact tokenizer result, per-request packet size, cost saving, latency result or task-success measurement.",
+    "raw_artifacts": [
+      "atlas.json",
+      "genome.json",
+      "surgical_discovery.json",
+      "react_ecosystem_findings_full.json",
+      "react_runtime_intelligence_full.json",
+      "react_frontier_intelligence_full.json"
+    ],
+    "distilled_artifacts": [
+      "signals.json",
+      "nexora_operator_packet.json",
+      "nexora_brief.json",
+      "nexora_agent_contract.json"
+    ]
+  },
+  "evaluation_boundary": {
+    "model_agnostic_control_plane": true,
+    "private_eval_learning_loop": false,
+    "claim_boundary": "SAGE preserves model-independent repository evidence, governance and portable memory. Controlled task-outcome evaluation across model and harness variants remains a roadmap capability and must not be inferred from harness readiness."
+  },
+  "evaluation_baseline": {
+    "status": "design_ready_not_executing",
+    "opt_in": true,
+    "local_first": true,
+    "remote_egress": "not_performed_by_baseline_contract",
+    "required_snapshot_fields": [
+      "model_identity",
+      "repository_snapshot",
+      "task_fingerprint"
+    ],
+    "required_variants": [
+      "without_sage",
+      "sage_context_only",
+      "sage_governance_enabled"
+    ],
+    "required_metrics": [
+      "task_success",
+      "decision_accuracy",
+      "scope_precision",
+      "scope_recall",
+      "first_pass",
+      "correction_loop_count",
+      "tool_call_count",
+      "input_tokens",
+      "output_tokens",
+      "latency_ms",
+      "policy_violation_count",
+      "unsafe_edit_count"
+    ],
+    "unknown_value": "not_available",
+    "claim_boundary": "This contract defines a future reproducible evaluation manifest. It does not execute a model, collect task outcomes, calculate savings, or prove causal benefit until an opt-in run records all required snapshots, variants and metrics."
+  },
+  "positioning": {
+    "product_category": "Deterministic repository-intelligence, verification and governance control plane for coding-agent harnesses.",
+    "not_claimed": "SAGE is not a complete agent runtime, general execution sandbox or end-to-end autonomous agent platform in V1.",
+    "meaning": "SAGE preserves repository and architectural memory across AI agents, models, and time.",
+    "model_swap_rule": "Switch the model, keep the veteran.",
+    "human_capital_rule": "Human judgment remains authority; SAGE turns approved architectural knowledge into reusable token capital."
+  }
+}

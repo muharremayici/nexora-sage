@@ -1,0 +1,1712 @@
+{
+  "version": "1.0.0",
+  "summary": {
+    "purpose": "React fixture family taxonomy for product evidence and future fixture planning.",
+    "status_values": [
+      "proven",
+      "partial",
+      "smoke",
+      "roadmap",
+      "unsupported"
+    ],
+    "variant_values": [
+      "normal",
+      "broken",
+      "legacy",
+      "migration",
+      "monorepo",
+      "ai_spaghetti"
+    ],
+    "target_release_values": [
+      "1.0.0",
+      "1.5.0",
+      "2.0.0"
+    ]
+  },
+  "release_policy": {
+    "allowed_claim": "evidence_backed_universal_react_web_static_governance",
+    "runtime_boundary": "Runtime-only behavior remains explicitly marked needs_runtime_proof and is not claimed as statically proven.",
+    "required_validation_artifacts": [
+      "react_fixture_matrix_validation",
+      "react_v11_contract_validation",
+      "react_fixture_family_taxonomy_report"
+    ],
+    "included_releases": [
+      "1.0.0"
+    ]
+  },
+  "validation_contract": {
+    "react_v11_contract_validation": {
+      "required_family_ids": [
+        "next_pages_router",
+        "next_hybrid_app_pages",
+        "react_router_v7_framework",
+        "tanstack_router_file_based",
+        "tanstack_router_code_based",
+        "catch_all_routes",
+        "route_groups",
+        "not_found_fallback_route",
+        "headless_component_pattern",
+        "context_api",
+        "optimistic_update_mutation_queue",
+        "stale_closure_dependency_contract"
+      ]
+    }
+  },
+  "families": [
+    {
+      "id": "next_app_router",
+      "category": "framework_runtime",
+      "label": "Next.js App Router",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "external_fixture_next",
+        "rsc_client_server_boundaries"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "next_pages_router",
+      "category": "framework_runtime",
+      "label": "Next.js Pages Router",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal",
+        "legacy"
+      ],
+      "missing_variants": [
+        "broken",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "next_hybrid_app_pages",
+      "category": "framework_runtime",
+      "label": "Next.js hybrid App and Pages Router",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "migration",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "next_rsc_client_boundary",
+      "category": "framework_runtime",
+      "label": "Next.js RSC and Client Component boundaries",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "rsc_client_server_boundaries",
+        "NextBoundaryAnalyzerTests"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "next_server_actions_route_handlers",
+      "category": "framework_runtime",
+      "label": "Next.js Server Actions and Route Handlers",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "server_actions",
+        "next_route_handlers"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "react_router_v7_framework",
+      "category": "framework_runtime",
+      "label": "React Router v7 Framework Mode",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "external_fixture_router",
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "react_router_v7_data",
+      "category": "framework_runtime",
+      "label": "React Router v7 Data Mode",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "external_fixture_router",
+        "routing_graph"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "tanstack_router_file_based",
+      "category": "framework_runtime",
+      "label": "TanStack Router file-based routes",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "tanstack_router_code_based",
+      "category": "framework_runtime",
+      "label": "TanStack Router code-based routes",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "vite_react_spa",
+      "category": "framework_runtime",
+      "label": "Vite React SPA",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "external_fixture_vite"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "astro_react_islands",
+      "category": "framework_runtime",
+      "label": "Astro + React islands",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "expo_react_native_web",
+      "category": "framework_runtime",
+      "label": "Expo / React Native web-parallel fixture",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "nested_layouts",
+      "category": "routing_layout_boundary",
+      "label": "Nested layouts",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "next_app_router",
+        "routing_graph"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "dynamic_routes",
+      "category": "routing_layout_boundary",
+      "label": "Dynamic routes",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "next_route_handlers",
+        "routing_graph"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "catch_all_routes",
+      "category": "routing_layout_boundary",
+      "label": "Catch-all and optional catch-all routes",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "route_groups",
+      "category": "routing_layout_boundary",
+      "label": "Route groups",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "next_app_router",
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "parallel_intercepted_routes",
+      "category": "routing_layout_boundary",
+      "label": "Parallel/intercepted route structures",
+      "support_level": "roadmap",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "error_boundary",
+      "category": "routing_layout_boundary",
+      "label": "Error boundary",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "error_suspense_boundaries",
+        "ErrorBoundary"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "loading_suspense_boundary",
+      "category": "routing_layout_boundary",
+      "label": "Loading and Suspense boundary",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "error_suspense_boundaries",
+        "SuspenseBoundary"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "not_found_fallback_route",
+      "category": "routing_layout_boundary",
+      "label": "Not-found and fallback route",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "atomic_design",
+      "category": "component_architecture",
+      "label": "Atomic design",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "feature_sliced_design",
+      "category": "component_architecture",
+      "label": "Feature-sliced design",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "current_workspace",
+        "realworld-react-fsd"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "container_presenter",
+      "category": "component_architecture",
+      "label": "Container/presenter split",
+      "support_level": "partial",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "compound_components",
+      "category": "component_architecture",
+      "label": "Compound components",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "material-ui-master"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "render_props",
+      "category": "component_architecture",
+      "label": "Render props",
+      "support_level": "partial",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "legacy"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "higher_order_components",
+      "category": "component_architecture",
+      "label": "Higher-order components",
+      "support_level": "partial",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "legacy"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "custom_hooks_dense",
+      "category": "component_architecture",
+      "label": "Custom-hooks dense architecture",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "state_flow",
+        "react_analysis_chain"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "headless_component_pattern",
+      "category": "component_architecture",
+      "label": "Headless component pattern",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "a11y_i18n_design_tokens",
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "react_local_state",
+      "category": "state_management",
+      "label": "React local state",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "state_flow"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "context_api",
+      "category": "state_management",
+      "label": "Context API",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "context_provider_graph",
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "redux_toolkit",
+      "category": "state_management",
+      "label": "Redux Toolkit",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "redux_and_alternate_state"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "zustand",
+      "category": "state_management",
+      "label": "Zustand",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "zustand_state",
+        "validate_zustand_selector_contract.py"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken",
+        "legacy"
+      ],
+      "missing_variants": [
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "jotai",
+      "category": "state_management",
+      "label": "Jotai",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "recoil_atom_graph",
+      "category": "state_management",
+      "label": "Recoil / atom graph",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "xstate_state_machine",
+      "category": "state_management",
+      "label": "XState / state machine",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "url_search_param_state",
+      "category": "state_management",
+      "label": "URL/search-param state",
+      "support_level": "partial",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "tanstack_query",
+      "category": "server_state_data",
+      "label": "TanStack Query",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "tanstack_query"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "swr",
+      "category": "server_state_data",
+      "label": "SWR",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "apollo_graphql",
+      "category": "server_state_data",
+      "label": "Apollo GraphQL",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "relay_graphql",
+      "category": "server_state_data",
+      "label": "Relay GraphQL",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "trpc",
+      "category": "server_state_data",
+      "label": "tRPC",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "documenso-main"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "rest_client_service_layer",
+      "category": "server_state_data",
+      "label": "REST client service layer",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "generated_clients"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "loader_action_data",
+      "category": "server_state_data",
+      "label": "Loader/action based data",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "routing_graph",
+        "external_fixture_router"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "optimistic_update_mutation_queue",
+      "category": "server_state_data",
+      "label": "Optimistic update / mutation queue",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "tanstack_query",
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "normal",
+        "broken"
+      ],
+      "missing_variants": [
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "stale_closure_dependency_contract",
+      "category": "state_effect_lifecycle",
+      "label": "Stale closure dependency contract",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "react_v11_contract_validation"
+      ],
+      "covered_variants": [
+        "broken"
+      ],
+      "missing_variants": [
+        "normal",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "css_modules",
+      "category": "styling_ui",
+      "label": "CSS Modules",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "tailwind_css",
+      "category": "styling_ui",
+      "label": "Tailwind CSS",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "a11y_i18n_design_tokens"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "styled_components",
+      "category": "styling_ui",
+      "label": "styled-components",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "emotion",
+      "category": "styling_ui",
+      "label": "Emotion",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "vanilla_extract",
+      "category": "styling_ui",
+      "label": "Vanilla Extract",
+      "support_level": "unsupported",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "sass_scss",
+      "category": "styling_ui",
+      "label": "Sass / SCSS",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "shadcn_radix",
+      "category": "styling_ui",
+      "label": "shadcn/ui + Radix",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "headless_component_pattern"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "ui_kits_mui_chakra_antd",
+      "category": "styling_ui",
+      "label": "MUI / Chakra / Ant Design UI kits",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "material-ui-master",
+        "public_exports",
+        "docs_demo_test_surfaces"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "vite_tooling",
+      "category": "build_tooling",
+      "label": "Vite",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "external_fixture_vite",
+        "vite_react_spa"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "webpack_legacy",
+      "category": "build_tooling",
+      "label": "Webpack legacy",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "legacy"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "turbopack",
+      "category": "build_tooling",
+      "label": "Turbopack",
+      "support_level": "roadmap",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "rsbuild_rspack",
+      "category": "build_tooling",
+      "label": "Rsbuild / Rspack",
+      "support_level": "roadmap",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "babel_transform",
+      "category": "build_tooling",
+      "label": "Babel transform-heavy projects",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "legacy"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "swc_transform",
+      "category": "build_tooling",
+      "label": "SWC transform-heavy projects",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "next_app_router"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "typescript_project_references",
+      "category": "build_tooling",
+      "label": "TypeScript project references",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "monorepo_workspace_boundaries"
+      ],
+      "covered_variants": [
+        "monorepo"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "turborepo",
+      "category": "monorepo_package",
+      "label": "Turborepo",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "monorepo_workspace_boundaries"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "nx",
+      "category": "monorepo_package",
+      "label": "Nx",
+      "support_level": "roadmap",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "pnpm_workspace",
+      "category": "monorepo_package",
+      "label": "pnpm workspace",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "monorepo_workspace_boundaries"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "yarn_workspace",
+      "category": "monorepo_package",
+      "label": "Yarn workspace",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "monorepo_workspace_boundaries"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "internal_ui_package",
+      "category": "monorepo_package",
+      "label": "Internal UI package",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "public_exports",
+        "ui_kits_mui_chakra_antd"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "shared_config_package",
+      "category": "monorepo_package",
+      "label": "Shared config package",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "monorepo_workspace_boundaries"
+      ],
+      "covered_variants": [
+        "monorepo"
+      ],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "circular_workspace_dependency",
+      "category": "monorepo_package",
+      "label": "Circular workspace dependency",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "circular dependency",
+        "monorepo_workspace_boundaries"
+      ],
+      "covered_variants": [
+        "broken",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "normal",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "vitest",
+      "category": "test_quality",
+      "label": "Vitest",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "test_impact_change_integrity"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "jest",
+      "category": "test_quality",
+      "label": "Jest",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "test_impact_change_integrity"
+      ],
+      "covered_variants": [
+        "normal",
+        "legacy"
+      ],
+      "missing_variants": [
+        "broken",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "react_testing_library",
+      "category": "test_quality",
+      "label": "React Testing Library",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "test_impact_change_integrity"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "playwright",
+      "category": "test_quality",
+      "label": "Playwright",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "cypress",
+      "category": "test_quality",
+      "label": "Cypress",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    },
+    {
+      "id": "storybook_visual_stories",
+      "category": "test_quality",
+      "label": "Storybook / visual stories",
+      "support_level": "proven",
+      "linked_existing_fixtures": [
+        "storybook-next",
+        "docs_demo_test_surfaces"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.0.0",
+      "required_for_release": true
+    },
+    {
+      "id": "nextauth_authjs",
+      "category": "auth_security_runtime_config",
+      "label": "NextAuth/Auth.js",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "auth_permission_boundaries"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "clerk_supabase_auth",
+      "category": "auth_security_runtime_config",
+      "label": "Clerk / Supabase Auth",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "auth_permission_boundaries"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "role_based_access_control",
+      "category": "auth_security_runtime_config",
+      "label": "Role-based access control",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "auth_permission_boundaries"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "env_config_leakage",
+      "category": "auth_security_runtime_config",
+      "label": "Env/config leakage fixture",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "security_boundary"
+      ],
+      "covered_variants": [
+        "broken"
+      ],
+      "missing_variants": [
+        "normal",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "next_intl_react_i18next",
+      "category": "i18n_content_cms",
+      "label": "next-intl / react-i18next",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "a11y_i18n_design_tokens"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "mdx_content",
+      "category": "i18n_content_cms",
+      "label": "MDX content",
+      "support_level": "smoke",
+      "linked_existing_fixtures": [
+        "docs_demo_test_surfaces"
+      ],
+      "covered_variants": [
+        "normal"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "cms_driven_pages",
+      "category": "i18n_content_cms",
+      "label": "CMS-driven pages",
+      "support_level": "partial",
+      "linked_existing_fixtures": [
+        "payload-main"
+      ],
+      "covered_variants": [
+        "normal",
+        "monorepo"
+      ],
+      "missing_variants": [
+        "broken",
+        "legacy",
+        "migration",
+        "ai_spaghetti"
+      ],
+      "target_release": "1.5.0",
+      "required_for_release": false
+    },
+    {
+      "id": "rich_text_portable_text",
+      "category": "i18n_content_cms",
+      "label": "Rich-text renderer / portable text",
+      "support_level": "roadmap",
+      "linked_existing_fixtures": [],
+      "covered_variants": [],
+      "missing_variants": [
+        "normal",
+        "broken",
+        "legacy",
+        "migration",
+        "monorepo",
+        "ai_spaghetti"
+      ],
+      "target_release": "2.0.0",
+      "required_for_release": false
+    }
+  ]
+}

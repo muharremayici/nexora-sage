@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "kind": "target_repository_lesson_projection_contract",
+    "version": "v1",
+    "purpose": "Define a target-owned, read-only lesson projection without exposing or copying SAGE product lessons."
+  },
+  "authority": {
+    "system_scope": "SAGE_ON_REPOSITORY",
+    "projection_kind": "derived_read_only_snapshot",
+    "forbidden_inputs": [
+      "audit_lesson_registry",
+      "sage_work_item_registry",
+      "sage_roadmap",
+      "sage_execution_waves"
+    ],
+    "claim_boundary": "Repeated target findings are lesson candidates, not proven causal rules. Only a chain-valid human approval explicitly bound to this target and lesson-admission gate can confirm a target lesson. Neither path promotes a lesson into SAGE product memory.",
+    "missing_source_status": "PARTIAL",
+    "no_eligible_evidence_status": "EMPTY"
+  },
+  "target_binding": {
+    "target_id_required": true,
+    "target_id_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+    "proof_artifact_id": "target_repository_proof_bundle",
+    "required_proof_scope": "target_repository",
+    "required_root_binding": "BOUND",
+    "human_scope_template": "target_repository:{target_id}:lesson",
+    "human_gate": "target_lesson_admission",
+    "accepted_human_decisions": [
+      "approved"
+    ],
+    "require_human_rationale": true,
+    "require_human_evidence": true,
+    "require_signed_chain_status": "PASS"
+  },
+  "recurrence_admission": {
+    "source_artifact_id": "watchdog_pulse_ledger",
+    "minimum_observations": 2,
+    "minimum_distinct_pulses": 2,
+    "identity_fields": [
+      "violation_hash",
+      "rule",
+      "repo_relative_path"
+    ],
+    "authority_status": "CANDIDATE_RECURRENCE",
+    "validity": "UNCONFIRMED",
+    "enforcement": "NONE",
+    "rule": "Two observations across two distinct pulses establish recurrence only. They do not establish cause, correctness, generality or permission to mutate."
+  },
+  "human_admission": {
+    "source_artifact_id": "hitl_approval_ledger",
+    "authority_status": "HUMAN_CONFIRMED",
+    "validity": "CONFIRMED_FOR_TARGET",
+    "enforcement": "ADVISORY_UNLESS_SEPARATE_POLICY_EXISTS"
+  },
+  "deduplication": {
+    "mode": "exact_source_identity_only",
+    "cross_authority_deduplication": false
+  }
+}

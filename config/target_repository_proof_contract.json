@@ -1,0 +1,165 @@
+{
+  "meta": {
+    "kind": "target_repository_proof_contract",
+    "version": "v1"
+  },
+  "authority": {
+    "subject_scope": "target_repository",
+    "allowed_verdicts": [
+      "PASS",
+      "REVIEW_REQUIRED",
+      "BLOCKED",
+      "UNKNOWN"
+    ],
+    "forbidden_authority_sources": [
+      "release_proof_bundle",
+      "release_readiness",
+      "system_health_check"
+    ],
+    "claim_boundary": "The bundle reports bounded static evidence for one target repository snapshot. It does not certify SAGE product readiness, runtime production behavior, legal compliance or autonomous mutation safety.",
+    "human_decision_rule": "A human decision may accept bounded risk but cannot convert missing, stale or target-unbound evidence into PASS.",
+    "subject_identity_rule": "The analyzed subject identity must come from a validated Atlas commit and Atlas project roots. A caller-provided repository reference is descriptive only and cannot bind evidence or authorize PASS."
+  },
+  "snapshot_binding": {
+    "allowed_modes": [
+      "atlas_commit_payload",
+      "atlas_commit_identity",
+      "producer_lineage_receipt",
+      "payload_pointer"
+    ],
+    "producer_lineage_contract": "config/analysis_snapshot_lineage_contract.json",
+    "transitional_payload_pointer_artifacts": [],
+    "rule": "Claim-relevant producer output uses content-hash-bound producer lineage receipts. Payload pointers remain a transitional mode only for explicitly unmigrated evidence producers."
+  },
+  "modes": {
+    "baseline": {
+      "required_evidence": [
+        "atlas",
+        "atlas_commit",
+        "genome",
+        "audit_report",
+        "quality_gate"
+      ],
+      "optional_evidence": [
+        "dead_code",
+        "circular_deps"
+      ]
+    },
+    "change": {
+      "required_evidence": [
+        "atlas",
+        "atlas_commit",
+        "genome",
+        "audit_report",
+        "quality_gate",
+        "test_impact_report"
+      ],
+      "optional_evidence": [
+        "dead_code",
+        "circular_deps"
+      ]
+    },
+    "merge": {
+      "required_evidence": [
+        "atlas",
+        "atlas_commit",
+        "genome",
+        "audit_report",
+        "quality_gate",
+        "merge_decision_cockpit"
+      ],
+      "optional_evidence": [
+        "dead_code",
+        "circular_deps",
+        "test_impact_report"
+      ]
+    }
+  },
+  "evidence_contracts": {
+    "atlas": {
+      "verdict_pointer": null,
+      "snapshot_binding": "atlas_commit_payload",
+      "human_decision": false
+    },
+    "atlas_commit": {
+      "verdict_pointer": "/state",
+      "pass_values": [
+        "complete"
+      ],
+      "block_values": [],
+      "snapshot_binding": "atlas_commit_identity",
+      "human_decision": false
+    },
+    "genome": {
+      "verdict_pointer": null,
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": false
+    },
+    "audit_report": {
+      "verdict_pointer": null,
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": false
+    },
+    "quality_gate": {
+      "verdict_pointer": "/passed",
+      "pass_values": [
+        true
+      ],
+      "block_values": [
+        false
+      ],
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": false
+    },
+    "dead_code": {
+      "verdict_pointer": null,
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": false
+    },
+    "circular_deps": {
+      "verdict_pointer": null,
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": false
+    },
+    "test_impact_report": {
+      "verdict_pointer": null,
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": false
+    },
+    "merge_decision_cockpit": {
+      "verdict_pointer": null,
+      "snapshot_binding": "producer_lineage_receipt",
+      "human_decision": true
+    }
+  },
+  "freshness": {
+    "required_basis": "validated_atlas_commit_generated_at",
+    "caller_basis_role": "optional_stricter_lower_bound",
+    "missing_basis_status": "UNKNOWN",
+    "older_required_evidence_status": "BLOCKED",
+    "older_optional_evidence_status": "UNKNOWN"
+  },
+  "statistics": {
+    "admission_rule": "Include only bounded source values with a declared decision use. Counts are observations, not quality or economic-value claims.",
+    "definitions": [
+      {
+        "id": "audit_finding_count",
+        "artifact_id": "audit_report",
+        "pointer": "/summary/total",
+        "decision_use": "target_remediation_triage"
+      },
+      {
+        "id": "dead_code_actionable_count",
+        "artifact_id": "dead_code",
+        "pointer": "/summary/actionability/actionable",
+        "decision_use": "target_remediation_triage"
+      },
+      {
+        "id": "merge_candidate_count",
+        "artifact_id": "merge_decision_cockpit",
+        "pointer": "/summary/candidates",
+        "decision_use": "target_merge_review_budget"
+      }
+    ]
+  }
+}

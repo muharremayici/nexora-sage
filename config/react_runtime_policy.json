@@ -1,0 +1,152 @@
+{
+  "meta": {
+    "kind": "react_runtime_policy",
+    "version": "v1",
+    "purpose": "Calibration policy for React Runtime Intelligence confidence, action lanes and false-positive risk."
+  },
+  "calibration_lanes": {
+    "act_now": {
+      "min_score": 8,
+      "min_confidence": "likely"
+    },
+    "review_next": {
+      "min_score": 4,
+      "min_confidence": "probable"
+    },
+    "needs_runtime_probe": {
+      "confidence": "needs_runtime_proof"
+    }
+  },
+  "actionable_dimensions": [
+    "auth_permission_boundary",
+    "bundle_boundary",
+    "data_mutation_blast_radius",
+    "error_recovery_map",
+    "react_compiler_readiness"
+  ],
+  "class_composition_functions": [
+    "cn",
+    "clsx",
+    "classNames",
+    "classnames",
+    "twMerge",
+    "cva",
+    "tv"
+  ],
+  "runtime_import_surfaces": {
+    "heavy_client_imports": [
+      "@react-three/fiber",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "date-fns",
+      "framer-motion",
+      "lodash",
+      "monaco-editor",
+      "pdfjs-dist",
+      "react-pdf",
+      "recharts",
+      "three"
+    ],
+    "server_only_imports": [
+      "child_process",
+      "crypto",
+      "fs",
+      "next/cookies",
+      "next/headers",
+      "path",
+      "server-only"
+    ]
+  },
+  "reference_surfaces": {
+    "path_markers": [
+      "docs/data",
+      "docs/examples",
+      "examples",
+      "demo",
+      "demos",
+      "playground",
+      "sandbox"
+    ],
+    "fixture_path_markers": [
+      "__tests__",
+      "fixture",
+      "fixtures",
+      "test/fixtures",
+      "tests/fixtures",
+      "stories"
+    ],
+    "fixture_file_suffixes": [
+      ".test.tsx",
+      ".test.jsx",
+      ".test.ts",
+      ".test.js",
+      ".spec.tsx",
+      ".spec.jsx",
+      ".spec.ts",
+      ".spec.js",
+      ".stories.tsx",
+      ".stories.jsx",
+      ".stories.ts",
+      ".stories.js"
+    ]
+  },
+  "false_positive_policy": {
+    "corroborated_risk": {
+      "probable": "medium",
+      "likely": "low",
+      "confirmed": "low"
+    },
+    "dimension_overrides": {
+      "auth_permission_boundary": {
+        "probable": "medium",
+        "likely": "low",
+        "confirmed": "low"
+      },
+      "bundle_boundary": {
+        "probable": "medium",
+        "likely": "low",
+        "confirmed": "low"
+      },
+      "css_token_intelligence": {
+        "needs_runtime_proof": "high",
+        "probable": "high",
+        "likely": "medium",
+        "confirmed": "low"
+      },
+      "test_coverage_intent": {
+        "needs_runtime_proof": "high",
+        "probable": "high",
+        "likely": "medium",
+        "confirmed": "low"
+      }
+    },
+    "default_by_confidence": {
+      "needs_runtime_proof": "high",
+      "probable": "medium",
+      "likely": "medium",
+      "confirmed": "low"
+    }
+  },
+  "validation_contract": {
+    "required_policy_tokens": [
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "monaco-editor",
+      "pdfjs-dist",
+      "react-pdf",
+      "recharts",
+      "framer-motion",
+      "lodash",
+      "date-fns",
+      "three",
+      "@react-three/fiber",
+      "child_process",
+      "server-only",
+      "next/headers",
+      "next/cookies",
+      "docs/examples",
+      "playground",
+      "sandbox"
+    ]
+  }
+}

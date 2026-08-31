@@ -1,0 +1,219 @@
+{
+  "meta": {
+    "kind": "nexora_surface_inventory_contract",
+    "version": "v1",
+    "description": "Machine-readable surface inventory contract. It owns tracked artifact pairs and capability groups for CLI/MCP/operator visibility."
+  },
+  "core_artifacts": [
+    {
+      "id": "release_proof",
+      "raw": "output/.raw/release_proof_bundle.json",
+      "report": "output/reports/release_proof_bundle.md",
+      "required": false
+    },
+    {
+      "id": "react_universal_readiness",
+      "raw": "output/.raw/react_universal_readiness.json",
+      "report": "output/reports/react_universal_readiness.md",
+      "required": true
+    },
+    {
+      "id": "mcp_agent_surface",
+      "raw": "output/.raw/mcp_agent_surface_validation.json",
+      "report": "output/reports/mcp_agent_surface_validation.md",
+      "required": true
+    },
+    {
+      "id": "report_freshness",
+      "raw": "output/.raw/report_freshness_index.json",
+      "report": "output/reports/report_freshness_index.md",
+      "required": true
+    },
+    {
+      "id": "artifact_provenance",
+      "raw": "output/.raw/artifact_provenance_index.json",
+      "report": "output/reports/artifact_provenance_index.md",
+      "required": true
+    },
+    {
+      "id": "nexora_brief",
+      "raw": "output/.raw/nexora_brief.json",
+      "report": "output/reports/nexora_brief.md",
+      "required": true
+    },
+    {
+      "id": "agent_contract",
+      "raw": "output/.raw/nexora_agent_contract.json",
+      "report": "output/reports/nexora_agent_contract.md",
+      "required": true
+    },
+    {
+      "id": "operator_packet",
+      "raw": "output/.raw/nexora_operator_packet.json",
+      "report": "output/reports/nexora_operator_packet.md",
+      "required": true
+    },
+    {
+      "id": "agent_handoff",
+      "raw": "output/.raw/nexora_agent_handoff.json",
+      "report": "output/reports/nexora_agent_handoff.md",
+      "required": true
+    },
+    {
+      "id": "approval_ledger",
+      "raw": "output/.raw/hitl_approval_ledger.json",
+      "report": "output/reports/hitl_approval_ledger.md",
+      "required": true
+    },
+    {
+      "id": "decision_requests",
+      "raw": "output/.raw/hitl_decision_requests.json",
+      "report": "output/reports/hitl_decision_requests.md",
+      "required": true
+    },
+    {
+      "id": "hitl_governance",
+      "raw": "output/.raw/hitl_governance_validation.json",
+      "report": "output/reports/hitl_governance_validation.md",
+      "required": true
+    },
+    {
+      "id": "hitl_lifecycle",
+      "raw": "output/.raw/hitl_lifecycle_smoke.json",
+      "report": "output/reports/hitl_lifecycle_smoke.md",
+      "required": true
+    },
+    {
+      "id": "agent_response_contract",
+      "raw": "output/.raw/nexora_agent_response_validation.json",
+      "report": "output/reports/nexora_agent_response_validation.md",
+      "required": true
+    },
+    {
+      "id": "agent_response_ledger",
+      "raw": "output/.raw/nexora_agent_response_ledger.json",
+      "report": "output/reports/nexora_agent_response_ledger.md",
+      "required": true
+    },
+    {
+      "id": "watchdog_session",
+      "raw": "output/.raw/watchdog_session.json",
+      "report": "output/reports/watchdog_session.md",
+      "required": false
+    }
+  ],
+  "capability_groups": [
+    {
+      "id": "agent_first_read",
+      "purpose": "Give an AI worker the current mission, contract, proof posture, and handoff without reading every report.",
+      "cli": [
+        "brief",
+        "agent-contract",
+        "operator-packet",
+        "agent-handoff"
+      ],
+      "mcp": [
+        "get_nexora_brief",
+        "get_nexora_agent_contract",
+        "get_operator_packet",
+        "get_agent_handoff"
+      ],
+      "artifacts": [
+        "nexora_brief",
+        "agent_contract",
+        "operator_packet",
+        "agent_handoff"
+      ]
+    },
+    {
+      "id": "hitl_governance",
+      "purpose": "Keep human approval gates, AI decision requests, and audit ledgers explicit.",
+      "cli": [
+        "approval-ledger",
+        "decision-request",
+        "hitl-governance",
+        "hitl-lifecycle"
+      ],
+      "mcp": [
+        "get_human_approval_gates",
+        "get_hitl_approval_ledger",
+        "record_hitl_decision",
+        "get_hitl_decision_requests",
+        "create_hitl_decision_request",
+        "update_hitl_decision_request",
+        "validate_hitl_governance",
+        "validate_hitl_lifecycle_smoke"
+      ],
+      "artifacts": [
+        "approval_ledger",
+        "decision_requests",
+        "hitl_governance",
+        "hitl_lifecycle"
+      ]
+    },
+    {
+      "id": "agent_response_audit",
+      "purpose": "Constrain and record AI answers so a human can audit decisions later.",
+      "cli": [
+        "agent-response",
+        "response-ledger"
+      ],
+      "mcp": [
+        "get_agent_response_template",
+        "validate_agent_response",
+        "validate_agent_response_template",
+        "get_agent_response_ledger",
+        "record_agent_response"
+      ],
+      "artifacts": [
+        "agent_response_contract",
+        "agent_response_ledger"
+      ]
+    },
+    {
+      "id": "targeted_code_inspection",
+      "purpose": "Inspect a whole repo, external repo, folder, file, or symbol without moving SAGE into that repo.",
+      "cli": [
+        "run",
+        "external-targets",
+        "inspect",
+        "watch"
+      ],
+      "mcp": [
+        "external_target_preflight",
+        "run_external_target_analysis",
+        "inspect_file",
+        "inspect_folder",
+        "inspect_symbol",
+        "get_watchdog_session",
+        "run_watchdog_once"
+      ],
+      "artifacts": [
+        "watchdog_session"
+      ]
+    },
+    {
+      "id": "release_and_truth_proof",
+      "purpose": "Prove production claims with freshness, provenance, release readiness, and React ecosystem readiness.",
+      "cli": [
+        "release-check",
+        "freshness",
+        "mcp-surface",
+        "ci-check"
+      ],
+      "mcp": [
+        "get_release_proof",
+        "get_react_universal_readiness",
+        "get_report_freshness",
+        "get_artifact_provenance"
+      ],
+      "artifacts": [
+        "release_proof",
+        "react_universal_readiness",
+        "mcp_agent_surface",
+        "report_freshness",
+        "artifact_provenance"
+      ]
+    }
+  ]
+}

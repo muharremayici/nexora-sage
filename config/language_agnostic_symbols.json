@@ -1,0 +1,227 @@
+{
+  "$schema": "./schemas/language_agnostic_symbols.schema.json",
+  "meta": {
+    "kind": "language_agnostic_symbols",
+    "version": "v2",
+    "claim_boundary": "Canonical symbol types normalize parser outputs across languages; they do not imply compiler-grade semantic equivalence."
+  },
+  "validation_requirements": {
+    "required_languages": [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "go",
+      "csharp"
+    ],
+    "core_type_expectations": [
+      {
+        "raw_type": "Function",
+        "language": "typescript",
+        "expected": "function"
+      },
+      {
+        "raw_type": "Hook",
+        "language": "typescript",
+        "expected": "hook"
+      },
+      {
+        "raw_type": "Class",
+        "language": "python",
+        "expected": "class"
+      },
+      {
+        "raw_type": "Method",
+        "language": "java",
+        "expected": "method"
+      },
+      {
+        "raw_type": "Struct",
+        "language": "go",
+        "expected": "struct"
+      },
+      {
+        "raw_type": "Property",
+        "language": "csharp",
+        "expected": "variable"
+      }
+    ]
+  },
+  "canonical_types": [
+    "module",
+    "class",
+    "function",
+    "method",
+    "component",
+    "hook",
+    "interface",
+    "type",
+    "struct",
+    "enum",
+    "constant",
+    "variable",
+    "route",
+    "controller",
+    "service",
+    "repository",
+    "decorator",
+    "annotation",
+    "directive",
+    "namespace",
+    "metadata"
+  ],
+  "raw_type_map": {
+    "typescript": {
+      "Variable": "variable",
+      "Hook": "hook",
+      "Arrow": "function",
+      "Class": "class",
+      "Function": "function",
+      "DefaultExport": "metadata",
+      "Interface": "interface",
+      "TypeDefinition": "type",
+      "ReExportedSymbol": "module",
+      "ProxyExport": "module",
+      "LocalReExport": "module",
+      "Meta": "metadata"
+    },
+    "javascript": {
+      "Variable": "variable",
+      "Hook": "hook",
+      "Arrow": "function",
+      "Class": "class",
+      "Function": "function",
+      "DefaultExport": "metadata",
+      "ReExportedSymbol": "module",
+      "ProxyExport": "module",
+      "LocalReExport": "module",
+      "Meta": "metadata"
+    },
+    "python": {
+      "Function": "function",
+      "Method": "method",
+      "Class": "class",
+      "Variable": "variable",
+      "Import": "module",
+      "Meta": "metadata"
+    },
+    "java": {
+      "Class": "class",
+      "Interface": "interface",
+      "Enum": "enum",
+      "Method": "method",
+      "Annotation": "annotation",
+      "Field": "variable",
+      "Package": "module",
+      "Meta": "metadata"
+    },
+    "go": {
+      "Func": "function",
+      "Function": "function",
+      "Method": "method",
+      "Struct": "struct",
+      "Interface": "interface",
+      "Type": "type",
+      "Const": "constant",
+      "Var": "variable",
+      "Package": "module",
+      "Meta": "metadata"
+    },
+    "csharp": {
+      "Class": "class",
+      "Interface": "interface",
+      "Struct": "struct",
+      "Enum": "enum",
+      "Method": "method",
+      "Property": "variable",
+      "Namespace": "namespace",
+      "Attribute": "annotation",
+      "Meta": "metadata"
+    }
+  },
+  "framework_tags": {
+    "directives": {
+      "use client": "react_client_boundary",
+      "use server": "next_server_boundary"
+    },
+    "wrappers": {
+      "useCallback": "react_callback_wrapper",
+      "useMemo": "react_memo_wrapper",
+      "memo": "react_memo_component",
+      "forwardRef": "react_forward_ref",
+      "lazy": "react_lazy_boundary"
+    },
+    "exports": {
+      "GET": "route_handler",
+      "POST": "route_handler",
+      "PUT": "route_handler",
+      "PATCH": "route_handler",
+      "DELETE": "route_handler",
+      "generateMetadata": "next_metadata_contract",
+      "generateStaticParams": "next_static_generation_contract"
+    }
+  },
+  "default_profiles": {
+    "typescript": "typescript_react_v1",
+    "javascript": "typescript_react_v1",
+    "python": "python_ast_v1",
+    "java": "java_structural_v1",
+    "go": "go_structural_v1",
+    "csharp": "csharp_structural_v1"
+  },
+  "normalization_profiles": {
+    "typescript_react_v1": {
+      "strip_comments": true,
+      "strip_whitespace": true,
+      "strip_framework_directives": true,
+      "unwrap_known_wrappers": true,
+      "preserve_raw_dna": true,
+      "semantic_depth": "logic_normalized",
+      "logic_dna_kind": "normalized_body",
+      "normalization_confidence": "high",
+      "parser_kind": "typescript_compiler_api",
+      "parser_version": "runtime"
+    },
+    "python_ast_v1": {
+      "strip_source_locations": true,
+      "preserve_raw_dna": true,
+      "semantic_depth": "ast_normalized",
+      "logic_dna_kind": "normalized_ast_body",
+      "normalization_confidence": "high",
+      "parser_kind": "python_ast",
+      "parser_version": "runtime"
+    },
+    "python_regex_fallback_v1": {
+      "preserve_raw_dna": true,
+      "semantic_depth": "unavailable",
+      "logic_dna_kind": "unavailable",
+      "normalization_confidence": "none",
+      "parser_kind": "regex_fallback",
+      "parser_version": "v1"
+    },
+    "java_structural_v1": {
+      "preserve_raw_dna": true,
+      "semantic_depth": "signature_only",
+      "logic_dna_kind": "structural_signature",
+      "normalization_confidence": "low",
+      "parser_kind": "regex_structural",
+      "parser_version": "v1"
+    },
+    "go_structural_v1": {
+      "preserve_raw_dna": true,
+      "semantic_depth": "signature_only",
+      "logic_dna_kind": "structural_signature",
+      "normalization_confidence": "low",
+      "parser_kind": "regex_structural",
+      "parser_version": "v1"
+    },
+    "csharp_structural_v1": {
+      "preserve_raw_dna": true,
+      "semantic_depth": "signature_only",
+      "logic_dna_kind": "structural_signature",
+      "normalization_confidence": "low",
+      "parser_kind": "regex_structural",
+      "parser_version": "v1"
+    }
+  }
+}

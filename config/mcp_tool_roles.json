@@ -1,0 +1,437 @@
+{
+  "meta": {
+    "kind": "mcp_tool_roles",
+    "version": "v1",
+    "purpose": "Classify MCP tools by the agent role they serve so target-repository coding agents do not default to SAGE-internal/debug surfaces."
+  },
+  "role_policy": {
+    "primary_agent": "Default tools for an AI coding agent editing the analyzed repository.",
+    "supporting_context": "Useful context tools after a concrete task exists.",
+    "debug_provenance": "Internal/provenance tools for SAGE developers, audits, or false-positive investigations.",
+    "human_hitl": "Human approval, ledger, and decision surfaces.",
+    "mutating": "Tools that write state, create requests, record ledgers, run watchers, or modify generated artifacts.",
+    "heavy_validation": "Expensive or broad validation/setup tools; run intentionally, not as default context."
+  },
+  "tools": {
+    "check_module_integrity": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "check audit health for a module",
+      "mutates": false,
+      "heavy": false
+    },
+    "create_hitl_decision_request": {
+      "role": "mutating",
+      "audience": "target_repo_agent",
+      "default_use": "request human approval without granting it or mutating repository state",
+      "mutates": true,
+      "mutation_domains": [
+        "governance_record"
+      ],
+      "heavy": false,
+      "actor_contract": {
+        "operations": [
+          "exception_request"
+        ],
+        "required_scope_keys": [
+          "repository",
+          "approval_gates",
+          "decision_scopes"
+        ],
+        "scope_bindings": {
+          "gate": {
+            "scope_key": "approval_gates"
+          },
+          "scope": {
+            "scope_key": "decision_scopes"
+          }
+        },
+        "request_bindings": {
+          "requested_by": "actor_id"
+        },
+        "fixed_arguments": {},
+        "result_encoding": "json",
+        "result_status_map": {
+          "open": "APPROVAL_REQUIRED"
+        },
+        "unknown_result_state": "INCOMPLETE_EVIDENCE"
+      }
+    },
+    "dispatch_actor_request": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "dispatch one explicitly scoped, structured Actor Interaction Contract request to an eligible visible MCP tool",
+      "mutates": false,
+      "heavy": false
+    },
+    "external_target_preflight": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "check an explicit isolated target; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": false,
+      "heavy": false
+    },
+    "find_clones": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read clone candidates for a symbol",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_active_signals": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "read current live surgical focus",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_agent_response_template": {
+      "role": "human_hitl",
+      "audience": "target_repo_agent_and_human",
+      "default_use": "read required answer-governance shape; not target-repository evidence",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_blast_radius": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read existing blast-radius artifact",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_circular_dependencies": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read bounded cycle candidates",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_confidence_score": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "read confidence/risk assessment for a target file",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_dead_code": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read bounded dead-code candidates",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_health_metrics": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read project/module health summary",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_hexagonal_bindings": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read port/adapter bindings",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_hitl_decision_requests": {
+      "role": "human_hitl",
+      "audience": "target_repo_agent_and_human",
+      "default_use": "read pending decision requests",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_human_approval_gates": {
+      "role": "human_hitl",
+      "audience": "target_repo_agent_and_human",
+      "default_use": "learn which actions need human approval",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_impact_radius": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "compute standardized impact radius; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_merge_review_queue": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "review human-approval-gated merge candidates without applying mutations",
+      "mutates": false,
+      "heavy": false,
+      "requires_approval": true,
+      "actor_contract": {
+        "operations": [
+          "decision_support"
+        ],
+        "required_scope_keys": [
+          "repository"
+        ],
+        "scope_bindings": {
+          "target_root": {
+            "scope_key": "repository",
+            "default": "analyzed_repository"
+          }
+        },
+        "fixed_arguments": {
+          "format": "json"
+        },
+        "result_status_map": {
+          "ACCEPTED": "ACCEPTED",
+          "APPROVAL_REQUIRED": "APPROVAL_REQUIRED",
+          "INCOMPLETE_EVIDENCE": "INCOMPLETE_EVIDENCE"
+        },
+        "unknown_result_state": "INCOMPLETE_EVIDENCE"
+      }
+    },
+    "get_operator_packet": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read target-repository agent projection; use projection=full only for operator/platform review",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_state_flow": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read bounded state-flow summary",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_surgical_context": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read concise symbol mission briefing",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_surgical_operation_packet": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "read a scoped surgical brief; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": false,
+      "heavy": false,
+      "actor_contract": {
+        "operations": [
+          "advise"
+        ],
+        "required_scope_keys": [
+          "repository",
+          "projects"
+        ],
+        "scope_bindings": {
+          "target_root": {
+            "scope_key": "repository",
+            "default": "analyzed_repository"
+          },
+          "project_scope": {
+            "scope_key": "projects",
+            "default": "MAIN"
+          }
+        },
+        "fixed_arguments": {
+          "format": "json"
+        },
+        "result_status_map": {
+          "ACCEPTED": "ACCEPTED",
+          "INCOMPLETE_EVIDENCE": "INCOMPLETE_EVIDENCE",
+          "INVALID_CONTEXT": "INVALID_CONTEXT"
+        },
+        "unknown_result_state": "INCOMPLETE_EVIDENCE"
+      }
+    },
+    "get_test_impact": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "find affected tests; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_ui_architecture": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read bounded UI architecture summary",
+      "mutates": false,
+      "heavy": false
+    },
+    "get_violation_work_queue": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "read paginated technical-debt queue from audit violations",
+      "mutates": false,
+      "heavy": false,
+      "actor_contract": {
+        "operations": [
+          "inspect"
+        ],
+        "required_scope_keys": [
+          "repository",
+          "projects"
+        ],
+        "scope_bindings": {
+          "target_root": {
+            "scope_key": "repository",
+            "default": "analyzed_repository"
+          },
+          "project": {
+            "scope_key": "projects",
+            "default": "MAIN"
+          }
+        },
+        "fixed_arguments": {
+          "format": "json"
+        },
+        "result_status_map": {
+          "clean": "ACCEPTED",
+          "debt_present": "ACCEPTED",
+          "INVALID_CONTEXT": "INVALID_CONTEXT"
+        },
+        "unknown_result_state": "INCOMPLETE_EVIDENCE"
+      }
+    },
+    "get_watchdog_session": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "read latest primary target-repository watchdog pulse; isolated SAGE self-target is not supported",
+      "mutates": false,
+      "heavy": false
+    },
+    "inspect_file": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "inspect one target file; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": true,
+      "safe_generated_artifact_write": true,
+      "mutates_repository": false,
+      "heavy": false
+    },
+    "inspect_folder": {
+      "role": "supporting_context",
+      "audience": "target_repo_agent",
+      "default_use": "inspect bounded folder summary",
+      "mutates": true,
+      "safe_generated_artifact_write": true,
+      "mutates_repository": false,
+      "heavy": false
+    },
+    "inspect_symbol": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "inspect one symbol or component in MAIN by default; SAGE maintainers reuse it only through the sage_self profile; use project=all only for explicit merge/variation review",
+      "mutates": true,
+      "safe_generated_artifact_write": true,
+      "mutates_repository": false,
+      "heavy": false
+    },
+    "manage_target_write_lease": {
+      "role": "mutating",
+      "audience": "target_repo_agent",
+      "default_use": "acquire or release a grounded short-lived lease around a cooperating agent's external target-repository patch",
+      "mutates": true,
+      "mutates_repository": false,
+      "heavy": false
+    },
+    "record_agent_response": {
+      "role": "mutating",
+      "audience": "target_repo_agent",
+      "default_use": "record validated AI response",
+      "mutates": true,
+      "heavy": false
+    },
+    "search_symbols": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "find symbol/file candidates under the selected explicit target scope; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": false,
+      "heavy": false
+    },
+    "trace_upstream_cause": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "trace likely upstream cause; SAGE maintainers reuse it only through the sage_self profile",
+      "mutates": false,
+      "heavy": false
+    },
+    "validate_actor_proposal": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "validate actor proposal identity, snapshot reference and bounded scope without authorizing execution or claiming technical correctness",
+      "mutates": false,
+      "heavy": false,
+      "actor_contract": {
+        "operations": [
+          "propose"
+        ],
+        "required_scope_keys": [
+          "repository"
+        ],
+        "scope_bindings": {
+          "target_root": {
+            "scope_key": "repository",
+            "default": "analyzed_repository"
+          }
+        },
+        "request_bindings": {
+          "request_id": "request_id",
+          "request_actor_id": "actor_id",
+          "request_purpose": "purpose",
+          "repository_snapshot": "repository_snapshot",
+          "declared_scope": "target_scope"
+        },
+        "fixed_arguments": {},
+        "result_encoding": "json",
+        "result_status_map": {
+          "PROPOSAL_CONFORMANT": "PROPOSAL_CONFORMANT",
+          "INVALID_CONTEXT": "INVALID_CONTEXT",
+          "INCOMPLETE_EVIDENCE": "INCOMPLETE_EVIDENCE",
+          "BLOCKED": "BLOCKED"
+        },
+        "unknown_result_state": "INCOMPLETE_EVIDENCE"
+      }
+    },
+    "validate_agent_response": {
+      "role": "human_hitl",
+      "audience": "target_repo_agent_and_human",
+      "default_use": "validate a proposed response after target-repository evidence has been gathered",
+      "mutates": false,
+      "heavy": false
+    },
+    "validate_patch": {
+      "role": "primary_agent",
+      "audience": "target_repo_agent",
+      "default_use": "validate a proposed target patch; SAGE maintainers reuse it only through the sage_self profile and still need release proof",
+      "mutates": false,
+      "heavy": false,
+      "actor_contract": {
+        "operations": [
+          "validate"
+        ],
+        "required_scope_keys": [
+          "repository",
+          "files"
+        ],
+        "scope_bindings": {
+          "target_file": {
+            "scope_key": "files"
+          },
+          "target_root": {
+            "scope_key": "repository",
+            "default": "analyzed_repository"
+          }
+        },
+        "fixed_arguments": {
+          "format": "json"
+        },
+        "result_status_map": {
+          "PASS": "PASS",
+          "FAIL": "BLOCKED",
+          "NO_OP": "ADVISE",
+          "INVALID_CONTEXT": "INVALID_CONTEXT"
+        },
+        "unknown_result_state": "INCOMPLETE_EVIDENCE"
+      }
+    }
+  }
+}

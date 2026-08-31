@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "kind": "react_ecosystem_policy",
+    "version": "v1",
+    "purpose": "Config-backed policy for React Ecosystem Analyzer provider signals and reference surface calibration."
+  },
+  "reference_surfaces": {
+    "docs_demo_path_markers": [
+      "docs",
+      "examples",
+      "example",
+      "demo",
+      "demos",
+      "playground",
+      "sandbox",
+      "templates",
+      "template",
+      "stories",
+      "storybook"
+    ],
+    "test_fixture_path_markers": [
+      "__tests__",
+      "__testfixtures__",
+      "__fixtures__",
+      "fixture",
+      "fixtures",
+      "test",
+      "tests",
+      "spec",
+      "mocks",
+      "__mockdata__"
+    ],
+    "test_fixture_file_suffixes": [
+      ".test.tsx",
+      ".test.jsx",
+      ".test.ts",
+      ".test.js",
+      ".spec.tsx",
+      ".spec.jsx",
+      ".spec.ts",
+      ".spec.js",
+      ".stories.tsx",
+      ".stories.jsx",
+      ".stories.ts",
+      ".stories.js"
+    ]
+  },
+  "data_cache_providers": {
+    "tanstack": {
+      "risk": "tanstack_query_cache_contract_risk",
+      "patterns": [
+        "@tanstack/react-query",
+        "\\bqueryKey\\s*:",
+        "\\bmutationKey\\s*:",
+        "\\bQueryClient\\b",
+        "\\binvalidateQueries\\s*\\("
+      ],
+      "action": "Normalize query keys and mutation invalidation before moving this surface across project boundaries."
+    },
+    "trpc": {
+      "risk": "trpc_query_cache_contract_risk",
+      "patterns": [
+        "@[^'\\\"]*/trpc/react",
+        "\\btrpc\\.[A-Za-z0-9_.]+\\.(?:useQuery|useMutation)\\s*\\("
+      ],
+      "action": "Map tRPC procedure calls to cache invalidation, optimistic state, and user feedback before moving this surface."
+    },
+    "apollo": {
+      "risk": "apollo_query_cache_contract_risk",
+      "patterns": [
+        "@apollo/client",
+        "\\bApolloClient\\b",
+        "\\buseApolloClient\\s*\\(",
+        "\\bgql\\s*(?:`|\\()"
+      ],
+      "action": "Map Apollo operations to cache updates/refetch policies and user feedback before moving this surface."
+    }
+  },
+  "default_data_cache": {
+    "risk": "async_data_cache_contract_risk",
+    "action": "Map async data reads and writes to cache ownership, invalidation, rollback, and user feedback before moving this surface."
+  },
+  "validation_contract": {
+    "required_data_cache_providers": [
+      "tanstack",
+      "trpc",
+      "apollo"
+    ],
+    "required_policy_tokens": [
+      "@tanstack/react-query",
+      "@apollo/client",
+      "/trpc/react",
+      "playground",
+      "storybook",
+      "__mockdata__"
+    ]
+  }
+}

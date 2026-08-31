@@ -1,0 +1,237 @@
+{
+  "_meta": {
+    "kind": "performance_budget",
+    "profile": "react_expert_polyglot_substrate",
+    "calibrated_on": "2026-05-18",
+    "basis": "Fresh 7-project variation runs: Atlas rolling samples 198.23s, 264.63s, 232.93s, 257.64s, 268.74s. Budget keeps cached/watchdog checks strict while allowing variation-heavy React release proof runs; Atlas budget is calibrated to 7-project/4855-file rolling evidence, not single-project watchdog paths."
+  },
+  "validation_contract": {
+    "required_log_parsing_fields": [
+      "session_start_marker",
+      "completion_seconds_pattern",
+      "mode_pattern",
+      "timestamp_pattern",
+      "forced_marker",
+      "watchdog_markers",
+      "atlas_context_pattern",
+      "atlas_total_seconds_pattern",
+      "atlas_phase_pattern",
+      "atlas_persistence_pattern",
+      "fractal_total_seconds_pattern",
+      "dead_code_step_seconds_pattern"
+    ],
+    "required_session_policy_fields": [
+      "ignored_budget_modes",
+      "fallback_watchdog_mode",
+      "fallback_normal_mode",
+      "no_completed_budget_session",
+      "release_deep_mode",
+      "forced_profile_label",
+      "non_release_skip_policy",
+      "optional_metric_missing_policy",
+      "evidence_statuses"
+    ],
+    "required_decision_policy_fields": [
+      "missing_metric",
+      "latest_within_budget",
+      "hard_fail_multiplier",
+      "rolling_median_grace",
+      "latest_over_budget"
+    ],
+    "required_bottleneck_report_fields": [
+      "step_recommendations",
+      "aggregate_recommendations",
+      "benchmark_advisories",
+      "profile_integrity_recommendation"
+    ],
+    "required_bottleneck_recommendation_fields": [
+      "priority",
+      "area",
+      "recommendation",
+      "why"
+    ]
+  },
+  "budgets": {
+    "full_pipeline_total_seconds": 760.0,
+    "forced_full_pipeline_total_seconds": 1000.0,
+    "cached_pipeline_total_seconds": 30.0,
+    "atlas_total_seconds": 130.0,
+    "fractal_total_seconds": 120.0,
+    "dead_code_step_seconds": 110.0
+  },
+  "scaling": {
+    "pipeline": {
+      "profile_policy": "forced cold/release-deep samples are evaluated separately from normal full and cached samples",
+      "heavy_run_min_seconds": 30.0,
+      "per_project_seconds": 8.0,
+      "file_soft_cap": 1000,
+      "file_bucket": 200,
+      "per_file_bucket_seconds": 1.5
+    },
+    "atlas": {
+      "per_project_seconds": 4.0,
+      "file_soft_cap": 1000,
+      "file_bucket": 200,
+      "per_file_bucket_seconds": 6.1
+    },
+    "fractal": {
+      "per_project_seconds": 2.0,
+      "file_soft_cap": 1000,
+      "file_bucket": 200,
+      "per_file_bucket_seconds": 0.0
+    }
+  },
+  "rolling_policy": {
+    "window": 5,
+    "min_samples": 3,
+    "hard_fail_multiplier": 1.2,
+    "percentile": 95,
+    "decision_policy_values": {
+      "missing_metric": "missing_metric",
+      "latest_within_budget": "latest_within_budget",
+      "hard_fail_multiplier": "hard_fail_multiplier",
+      "rolling_median_grace": "rolling_median_grace",
+      "latest_over_budget": "latest_over_budget"
+    },
+    "metric_overrides": {
+      "atlas_total_budget": {
+        "hard_fail_multiplier": 1.35
+      }
+    }
+  },
+  "log_parsing": {
+    "session_start_marker": "PIPELINE ANALYSIS SESSION STARTED",
+    "completion_seconds_pattern": "PIPELINE ANALYSIS COMPLETED in ([0-9.]+)s",
+    "mode_pattern": "\\[MODE\\] ([a-zA-Z0-9_-]+) active",
+    "timestamp_pattern": "^(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) ",
+    "forced_marker": "[PIPELINE] Force mode active",
+    "watchdog_markers": [
+      "[FAST] [SURGERY]",
+      "[WATCHDOG]"
+    ],
+    "atlas_context_pattern": "Atlas total \\| projects=(\\d+) files=(\\d+) total=([0-9.]+)s",
+    "atlas_total_seconds_pattern": "Atlas total \\| projects=\\d+ files=\\d+ total=([0-9.]+)s",
+    "atlas_phase_pattern": "Atlas phases \\| pre_build=([0-9.]+)s build=([0-9.]+)s bridge=([0-9.]+)s validate=([0-9.]+)s persist=([0-9.]+)s commit=([0-9.]+)s workload=([0-9.]+)s ram_cache=([0-9.]+)s",
+    "atlas_persistence_pattern": "Atlas persistence \\| chars=(\\d+) bytes=(\\d+) serialize=([0-9.]+)s encode=([0-9.]+)s hash=([0-9.]+)s sqlite=([0-9.]+)s relational=([0-9.]+)s total=([0-9.]+)s",
+    "fractal_total_seconds_pattern": "Fractal total \\| .* total=([0-9.]+)s",
+    "dead_code_step_seconds_pattern": "STEP COMPLETED: Dead Code Detector \\(Time: ([0-9.]+)s\\)"
+  },
+  "session_policy": {
+    "ignored_budget_modes": [
+      "explicit_step",
+      "watchdog_save_pulse"
+    ],
+    "fallback_watchdog_mode": "watchdog_save_pulse",
+    "fallback_normal_mode": "normal_full",
+    "no_completed_budget_session": "no_completed_budget_session",
+    "release_deep_mode": "release_deep",
+    "forced_profile_label": "forced_full",
+    "non_release_skip_policy": "non_release_session_skipped",
+    "optional_metric_missing_policy": "step_not_in_latest_session",
+    "evidence_statuses": [
+      "non_release_session_only",
+      "stale_after_non_release_activity",
+      "current_for_selected_budget_session"
+    ]
+  },
+  "bottleneck_report": {
+    "step_recommendations": [
+      {
+        "step": "Variation Engine",
+        "threshold_seconds": 120.0,
+        "priority": "P0",
+        "area": "Variation Engine",
+        "recommendation": "Keep variation reconciliation out of daily/watchdog profiles and refresh it only for full/release proof or explicit variation work until it gains scoped DNA filtering.",
+        "why": "The latest release-deep evidence shows variation analysis as the top wall-clock step; it is valuable merge intelligence, not a live-save requirement."
+      },
+      {
+        "step": "Host Merge Intelligence",
+        "threshold_seconds": 120.0,
+        "priority": "P0",
+        "area": "Host Merge Intelligence",
+        "recommendation": "Keep broad host-merge synthesis out of daily/watchdog profiles and consume existing merge evidence in daily agent packets.",
+        "why": "Host merge intelligence reads broad merge/fractal state and was the second-largest cost in the selected budget session."
+      },
+      {
+        "step": "Nuclear Sequencing",
+        "threshold_seconds": 120.0,
+        "priority": "P1",
+        "area": "Nuclear Sequencing",
+        "recommendation": "Prioritize incremental Genome/Atlas scope before adding more parallel workers; verify changed-project filtering in daily and watchdog pulses.",
+        "why": "Nuclear remains a truth-layer producer, so skipping it blindly would weaken downstream evidence."
+      },
+      {
+        "step": "React Support Matrix",
+        "threshold_seconds": 90.0,
+        "priority": "P1",
+        "area": "React Support Matrix",
+        "recommendation": "Cache taxonomy/fixture evidence by React capability snapshot and refresh only when Atlas, fixture taxonomy, or support docs change.",
+        "why": "The matrix is v1-claim critical, but most inputs are highly cacheable between normal code edits."
+      },
+      {
+        "step": "Health Score",
+        "threshold_seconds": 90.0,
+        "priority": "P1",
+        "area": "Health Score",
+        "recommendation": "Compute health deltas from changed artifacts where possible and reserve full recomputation for full/release profiles.",
+        "why": "Health is useful in daily summaries but should not repeatedly rescan broad evidence when the SSOT snapshot is unchanged."
+      },
+      {
+        "step": "Oracle Validation Gate",
+        "threshold_seconds": 180.0,
+        "priority": "P0",
+        "area": "Oracle Validation Gate",
+        "recommendation": "Add/use a release profile that runs deep TSC Oracle only for changed/variant projects or on explicit deep-release runs.",
+        "why": "This run spent more time in Oracle than Atlas; it is validation-heavy and not needed for every daily/full analysis profile."
+      },
+      {
+        "step": "Merge Dependency Packager",
+        "threshold_seconds": 90.0,
+        "priority": "P1",
+        "area": "Merge Dependency Packager",
+        "recommendation": "Cache hydrated closure packages by atlas/genome hash and skip unchanged package bodies.",
+        "why": "Merge packaging is expensive but strongly hashable after Atlas/Genome generation."
+      },
+      {
+        "step": "Next Boundary Analyzer",
+        "threshold_seconds": 90.0,
+        "priority": "P1",
+        "area": "Next Boundary Analyzer",
+        "recommendation": "Restrict analysis to projects with Next/App Router signals and cache project-level boundary summaries.",
+        "why": "Boundary checks are React-specialist valuable, but broad non-Next scanning costs too much in variation-heavy workspaces."
+      }
+    ],
+    "aggregate_recommendations": [
+      {
+        "id": "keyword_intelligence_total",
+        "steps": [
+          "Gem Scorer",
+          "Keyword Scanner",
+          "Keyword Stats"
+        ],
+        "threshold_seconds": 180.0,
+        "priority": "P1",
+        "area": "Keyword Intelligence",
+        "recommendation": "Cache keyword/gem outputs by Atlas snapshot and project DNA; keep broad rescoring in full/release profiles.",
+        "why": "Keyword Stats, Keyword Scanner, and Gem Scorer together represent a large parallelizable but non-surgical cost family."
+      }
+    ],
+    "benchmark_advisories": [
+      {
+        "id": "atlas_project_workers_parallelism",
+        "trigger": "atlas_projects_present",
+        "priority": "P1",
+        "area": "Atlas",
+        "recommendation": "Benchmark CODEMAPS_ATLAS_PROJECT_WORKERS=2 separately before changing defaults; project-level parallelism trades off against per-project AST workers.",
+        "why": "Atlas already used per-project AST workers and stayed within budget; changing defaults blindly may oversubscribe Node subprocesses.",
+        "classification": "benchmark_required_before_default_change"
+      }
+    ],
+    "profile_integrity_recommendation": {
+      "priority": "P0",
+      "area": "Profiles",
+      "recommendation": "Separate daily/full/release-deep performance profiles so v1 release proof does not pay every enterprise validation cost by default.",
+      "why": "Profile integrity evidence is missing or failing; without it, heavy release work can leak into live/daily loops."
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "kind": "cage_mvp_contracts",
+    "version": "1.0.0",
+    "description": "MVP claim boundaries for policy-backed AI safety cages. These cages inform agents and reports, but they do not widen the V1 release claim unless explicitly promoted by this contract and release proof."
+  },
+  "release_policy": {
+    "promotion_requires": [
+      "policy-backed engine",
+      "fixture validation",
+      "artifact contract registration",
+      "capability registry claim boundary",
+      "manual corpus calibration before release-blocking enforcement"
+    ],
+    "included_releases": [
+      "1.0.0"
+    ],
+    "release_blocking_cages": [],
+    "current_release_allowed_role": "advisory_candidate_signals"
+  },
+  "cages": [
+    {
+      "id": "immutability_purity_cage",
+      "title": "React Immutability And Purity Cage",
+      "capability_id": "immutability_purity_cage",
+      "engine": "tools.engines.react_immutability_purity_cage",
+      "policy": "config/react_immutability_policy.json",
+      "artifact": "react_immutability_purity_cage",
+      "validator": "tools/validate_react_immutability_purity_cage.py",
+      "minimum_evidence": [
+        "static_policy",
+        "react_state_signal"
+      ],
+      "must_remain_policy_backed": true,
+      "promotion_note": "Can become stronger after corpus calibration proves low false-positive React state/props mutation precision.",
+      "target_release": "1.0.0",
+      "current_release_role": "advisory_candidate_signal",
+      "release_blocking": false
+    },
+    {
+      "id": "performance_n_plus_one_cage",
+      "title": "Performance And N+1 Cage",
+      "capability_id": "performance_n_plus_one_cage",
+      "engine": "tools.engines.performance_n_plus_one_cage",
+      "policy": "config/performance_n_plus_one_policy.json",
+      "artifact": "performance_n_plus_one_cage",
+      "validator": "tools/validate_performance_n_plus_one_cage.py",
+      "minimum_evidence": [
+        "static_policy",
+        "loop_scope"
+      ],
+      "must_have_runtime_proof_status": "needs_runtime_proof",
+      "must_remain_policy_backed": true,
+      "promotion_note": "Should stay candidate-level until batching wrappers, data clients and intentional bounded concurrency are calibrated on the corpus.",
+      "target_release": "1.2.0",
+      "current_release_role": "advisory_candidate_signal",
+      "release_blocking": false
+    },
+    {
+      "id": "resilience_error_handling_cage",
+      "title": "Resilience And Error Handling Cage",
+      "capability_id": "resilience_error_handling_cage",
+      "engine": "tools.engines.resilience_error_handling_cage",
+      "policy": "config/resilience_error_handling_policy.json",
+      "artifact": "resilience_error_handling_cage",
+      "validator": "tools/validate_resilience_error_handling_cage.py",
+      "minimum_evidence": [
+        "static_policy",
+        "local_context_window"
+      ],
+      "must_have_runtime_proof_status": "needs_runtime_proof",
+      "must_remain_policy_backed": true,
+      "promotion_note": "Should stay candidate-level until project-specific HTTP clients, retry wrappers and framework loaders are calibrated on the corpus.",
+      "target_release": "1.2.0",
+      "current_release_role": "advisory_candidate_signal",
+      "release_blocking": false
+    }
+  ]
+}

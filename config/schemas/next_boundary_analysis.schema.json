@@ -1,0 +1,93 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "files"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "files_analyzed",
+        "signal_counts",
+        "risk_counts",
+        "high_risk",
+        "medium_risk",
+        "by_project"
+      ],
+      "properties": {
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "signal_counts": {
+          "type": "object"
+        },
+        "risk_counts": {
+          "type": "object"
+        },
+        "boundary_contract_counts": {
+          "type": "object"
+        },
+        "high_risk": {
+          "type": "integer"
+        },
+        "medium_risk": {
+          "type": "integer"
+        },
+        "by_project": {
+          "type": "object"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "signals",
+          "risks",
+          "risk_tier"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "boundary_contract": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

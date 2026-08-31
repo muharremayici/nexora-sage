@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "kind": "codemaps_adapters",
+    "version": "v1"
+  },
+  "adapters": [
+    {
+      "id": "react-universal",
+      "enabled": true,
+      "ecosystem": "react",
+      "frameworks": [
+        "react",
+        "next_app_router",
+        "next_pages_router",
+        "react_router"
+      ],
+      "capabilities": [
+        "route_discovery",
+        "ui_runtime_contracts",
+        "browser_smoke_templates",
+        "dependency_packaging",
+        "merge_simulation",
+        "decision_cockpit",
+        "ai_task_packs",
+        "react_ecosystem_surgical_analysis",
+        "react_runtime_intelligence",
+        "react_frontier_intelligence",
+        "regression_gate"
+      ],
+      "engines": [
+        "Framework Route Analyzer",
+        "UI Runtime Contract Analyzer",
+        "UI Smoke Spec Generator",
+        "Merge Dependency Packager",
+        "Merge Simulation Engine",
+        "Merge Decision Cockpit",
+        "AI Task Pack Generator",
+        "React Ecosystem Analyzer",
+        "React Runtime Intelligence",
+        "React Frontier Intelligence",
+        "Merge Intelligence Regression"
+      ],
+      "maturity": "production_candidate"
+    }
+  ]
+}

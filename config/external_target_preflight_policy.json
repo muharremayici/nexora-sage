@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "kind": "nexora.external_target_preflight_policy",
+    "version": "v1",
+    "purpose": "Bounded, language-aware readiness semantics for isolated external repository analysis."
+  },
+  "file_count_limit": 10000,
+  "installation_root_exclusion": {
+    "mode": "resolved_runtime_installation_root",
+    "directory_name_matching": false,
+    "self_target_behavior": "include"
+  },
+  "root_only_skip_dirs": [
+    "build",
+    "coverage",
+    "dist",
+    "output",
+    "venv"
+  ],
+  "framework_source_evidence": {
+    "react": {
+      "package_names": [
+        "react",
+        "react-dom",
+        "@types/react"
+      ],
+      "source_extensions": [
+        ".tsx",
+        ".jsx"
+      ],
+      "excluded_path_segments": [
+        "test",
+        "tests",
+        "__tests__",
+        "fixture",
+        "fixtures"
+      ],
+      "effective_claim_level": "deep_specialist"
+    },
+    "solid": {
+      "package_names": [
+        "solid-js"
+      ],
+      "effective_claim_level": "not_available"
+    },
+    "vue": {
+      "package_names": [
+        "vue"
+      ],
+      "effective_claim_level": "not_available"
+    },
+    "svelte": {
+      "package_names": [
+        "svelte"
+      ],
+      "effective_claim_level": "not_available"
+    },
+    "fastify": {
+      "package_names": [
+        "fastify"
+      ],
+      "effective_claim_level": "not_available"
+    }
+  },
+  "validation_contract": {
+    "allowed_framework_claim_levels": [
+      "deep_specialist",
+      "not_available"
+    ],
+    "specialist_framework_family": "react",
+    "specialist_framework_claim_level": "deep_specialist",
+    "unsupported_framework_claim_level": "not_available"
+  },
+  "analysis_authority": {
+    "depth_labels_by_effective_claim_level": {
+      "structural": "structural_polyglot",
+      "ast_strong": "ast_strong_polyglot",
+      "deep_specialist": "deep_specialist_polyglot"
+    },
+    "react_typescript_depth_label": "react_typescript_deep",
+    "deep_specialist_requires_react_signal_languages": [
+      "typescript",
+      "javascript"
+    ],
+    "fallback_claim_level_without_react_signal": "ast_strong",
+    "react_effective_scope_label": "react_typescript_static_only",
+    "language_family_effective_scope_label": "language_family_static_only",
+    "unresolved_depth_label": "recognized_language_claim_not_available"
+  },
+  "node_dependency_sections": {
+    "runtime": "dependencies",
+    "development": "devDependencies",
+    "peer": "peerDependencies",
+    "optional": "optionalDependencies"
+  },
+  "status_policy": {
+    "invalid_target": "FAIL",
+    "recognized_language_or_react_signal": "PASS",
+    "recognized_with_unsupported_families": "ATTENTION",
+    "readable_but_no_recognized_signal": "ATTENTION"
+  },
+  "claim_boundary": "React/TypeScript remains deep in V1. Non-React language readiness is resolved from the central polyglot capability ceiling and active target evidence; a ceiling is never treated as automatic entitlement."
+}

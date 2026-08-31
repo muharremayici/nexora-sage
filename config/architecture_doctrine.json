@@ -1,0 +1,3935 @@
+{
+  "_meta": {
+    "kind": "architecture_doctrine",
+    "version": "1.1",
+    "description": "Compiled Nexora SAGE architecture doctrine from modular doctrine packs",
+    "compiled": true,
+    "compiled_at": "2026-08-30T15:11:51+00:00",
+    "compiled_by": "tools/doctrine_compiler.py",
+    "compiled_from_manifest": "config/doctrines/manifest.json",
+    "compiled_pack_count": 13,
+    "compiled_pack_ids": [
+      "core.base",
+      "governance.audit_rules",
+      "quality.scoring",
+      "languages.universal",
+      "ecosystems.react_frontend",
+      "capabilities.dead_code",
+      "capabilities.impact_and_risk",
+      "capabilities.merge_variation",
+      "capabilities.fractal_mapping",
+      "discovery.defaults",
+      "oracle.architecture_oracle",
+      "oracle.decision_evidence",
+      "reports.master_reports"
+    ],
+    "source_fingerprint": "af7346f749dc7e8a7476b2593f3f18438cd42fc213708b1eaffef60b8e667ad1"
+  },
+  "low_signal_tokens": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "i",
+    "j",
+    "k",
+    "n",
+    "p",
+    "r",
+    "t",
+    "as",
+    "of",
+    "ui",
+    "wb",
+    "fn",
+    "el",
+    "id",
+    "ix",
+    "it",
+    "is",
+    "to",
+    "the",
+    "now",
+    "row",
+    "map",
+    "raw",
+    "ref",
+    "def",
+    "opt",
+    "cmd",
+    "but",
+    "ai",
+    "num",
+    "key",
+    "val",
+    "nav",
+    "mod",
+    "idx",
+    "end",
+    "url",
+    "__file_meta__"
+  ],
+  "clone_detection": {
+    "min_lines": 5
+  },
+  "circular_deps": {
+    "classification": {
+      "massive_cycle_threshold": 10
+    }
+  },
+  "platform_structural_families": [
+    "services/",
+    "workers/",
+    "hooks/",
+    "contexts/",
+    "components/",
+    "infra/",
+    "application/",
+    "domain/",
+    "api/"
+  ],
+  "required_artifacts": [
+    "atlas.json",
+    "circular_deps.json",
+    "dead_code.json",
+    "dead_code_tuning.json",
+    "health_score.json",
+    "quality_gate.json",
+    "merge_plan_summary.json",
+    "react_support_matrix.json",
+    "state_flow.json",
+    "decision_evidence.json",
+    "host_merge_intelligence.json"
+  ],
+  "validation_oracle_settings": {
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx"
+    ],
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "src/**/*.js",
+      "src/**/*.jsx"
+    ],
+    "exclude": [
+      "node_modules",
+      ".next",
+      "dist",
+      "build"
+    ]
+  },
+  "audit_feature_tags": {
+    "banned_i18n": "Banned:i18n",
+    "impure_stores": "Banned:ImpureStore",
+    "zustand_no_selector": "Zustand:NoSelector",
+    "zustand_broad_selector": "Zustand:BroadSelector"
+  },
+  "audit_rule_profiles": {
+    "relative_imports_no_alias": {
+      "label": "Canonical Alias Boundary Bypass",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "path_alias",
+          "value": true
+        }
+      ],
+      "rationale": "When a JavaScript or TypeScript workspace exposes a canonical path alias, local path imports that cross its safe within-module relative boundary must use that alias; package imports, alias-free workspaces, safe within-module relatives and declared asset side effects remain outside this rule.",
+      "scope_contract": {
+        "identity": "canonical_alias_boundary_bypass",
+        "languages": [
+          "javascript",
+          "typescript"
+        ],
+        "requires_workspace_path_alias": true,
+        "allow_within_module_relative_imports": true,
+        "exempt_import_extensions": [
+          ".css",
+          ".scss",
+          ".sass",
+          ".less"
+        ]
+      }
+    },
+    "loc_limits_hook": {
+      "label": "LOC Hook > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized hooks are a broadly applicable maintainability smell."
+    },
+    "loc_limits_component": {
+      "label": "LOC Oversized Component > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized components are maintainability review signals; bounded source evidence must determine the correction strategy."
+    },
+    "loc_limits_symbol": {
+      "label": "LOC Oversized Non-Component Symbol > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized non-component symbols are maintainability review signals; the exact symbol kind and bounded source evidence determine whether decomposition is warranted."
+    },
+    "loc_limits_service": {
+      "label": "LOC Service > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized service surfaces usually indicate poor decomposition regardless of repo style."
+    },
+    "deep_imports": {
+      "label": "Cross-Module Deep Imports",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "This is most meaningful when the workspace follows module-rooted FSD-style boundaries."
+    },
+    "own_api_imports": {
+      "label": "Own API Imports",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "API-surface import discipline depends on a module/public-API architecture."
+    },
+    "relative_module_escapes": {
+      "label": "Relative Module Escapes (../)",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "Module escape semantics only become strong signals when bounded module roots exist."
+    },
+    "fsd_shared_features": {
+      "label": "FSD Shared->Features Leaks",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "This rule is specific to Feature-Sliced Design style layering."
+    },
+    "domain_ui_leaks": {
+      "label": "Domain UI Leaks",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Domain-to-UI purity is meaningful when domain/application layering exists."
+    },
+    "domain_platform_leaks": {
+      "label": "Domain Platform Leaks",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Domain/platform purity is architecture-sensitive rather than universally applicable."
+    },
+    "impure_stores": {
+      "label": "Impure Stores",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "path_pattern",
+          "value": "/entities/"
+        }
+      ],
+      "rationale": "Entity-store purity matters when entities/stores are first-class architectural concepts."
+    },
+    "zustand_no_selector": {
+      "label": "Zustand Store Missing Selector/Shallow",
+      "layer": "doctrine",
+      "default_mode": "disabled",
+      "requires": [
+        {
+          "kind": "plugin",
+          "value": "zustand"
+        }
+      ],
+      "rationale": "This rule is only meaningful in repositories that actually use Zustand."
+    },
+    "banned_i18n": {
+      "label": "Banned i18n Usage",
+      "layer": "doctrine",
+      "default_mode": "disabled",
+      "requires": [
+        {
+          "kind": "rule_enabled",
+          "value": "banned_i18n"
+        }
+      ],
+      "rationale": "i18n policy is typically a repo-specific governance choice."
+    },
+    "hexagonal_layer_violation": {
+      "label": "Hexagonal Layer Violation",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Enforces strict layering (e.g., infra must not depend on application directly)."
+    },
+    "impure_entities": {
+      "label": "Impure Entities/Store (React Leak)",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Entities and stores should remain pure and headless, free from UI library dependencies."
+    }
+  },
+  "audit_rule_profile_contract": {
+    "required_fields": [
+      "label",
+      "layer",
+      "default_mode",
+      "requires",
+      "rationale"
+    ],
+    "allowed_layers": [
+      "universal",
+      "architectural",
+      "doctrine"
+    ],
+    "allowed_default_modes": [
+      "enforced",
+      "advisory",
+      "disabled"
+    ],
+    "allowed_requirement_kinds": [
+      "architecture_type",
+      "profile",
+      "plugin",
+      "path_alias",
+      "rule_enabled",
+      "path_pattern",
+      "multi_project"
+    ]
+  },
+  "architectural_integrity_rules": {
+    "global_rules": [
+      {
+        "source": "domain",
+        "targets": [
+          "infra",
+          "api"
+        ],
+        "reason": "Domain must be pure (Language Agnostic)",
+        "scope": [
+          "typescript",
+          "python",
+          "java",
+          "go",
+          "csharp"
+        ]
+      }
+    ],
+    "language_specific_rules": {
+      "typescript": [
+        {
+          "source": "domain/logic",
+          "targets": [
+            "infra",
+            "pages",
+            "widgets",
+            "api"
+          ],
+          "reason": "TS Domain must be pure"
+        },
+        {
+          "source": "infra",
+          "targets": [
+            "application"
+          ],
+          "reason": "TS Adapters must not depend on orchestration"
+        }
+      ],
+      "python": [
+        {
+          "source": "domain",
+          "targets": [
+            "infra",
+            "api"
+          ],
+          "reason": "Python Domain logic must be framework-free"
+        },
+        {
+          "source": "infra",
+          "targets": [
+            "domain"
+          ],
+          "reason": "Python Adapters must not pollute domain models"
+        }
+      ],
+      "java": [
+        {
+          "source": "domain",
+          "targets": [
+            "infra"
+          ],
+          "reason": "Java Domain must remain decoupled from DB adapters"
+        }
+      ]
+    },
+    "forbidden_mappings": [
+      {
+        "source": "domain/logic",
+        "targets": [
+          "infra",
+          "pages",
+          "widgets",
+          "api"
+        ],
+        "reason": "Domain must be pure"
+      },
+      {
+        "source": "infra",
+        "targets": [
+          "application"
+        ],
+        "reason": "Adapters must not depend on orchestration"
+      },
+      {
+        "source": "entities",
+        "targets": [
+          "pages",
+          "widgets"
+        ],
+        "reason": "State entities must be dumb"
+      }
+    ],
+    "layer_identification_hints": [
+      {
+        "fragment": "infra",
+        "layer": "infra"
+      },
+      {
+        "fragment": "application",
+        "layer": "application"
+      },
+      {
+        "fragment": "domain",
+        "layer": "domain/logic"
+      },
+      {
+        "fragment": "entities",
+        "layer": "entities"
+      },
+      {
+        "fragment": "stores",
+        "layer": "entities"
+      },
+      {
+        "fragment": "shared/hooks",
+        "layer": "shared/hooks"
+      },
+      {
+        "fragment": "pages",
+        "layer": "pages"
+      },
+      {
+        "fragment": "widgets",
+        "layer": "widgets"
+      },
+      {
+        "fragment": "api",
+        "layer": "api"
+      }
+    ],
+    "api_entry_filenames": [
+      "index.ts",
+      "index.tsx",
+      "__init__.py",
+      "mod.go",
+      "main.go"
+    ],
+    "feature_tag_audit_rules": [
+      {
+        "tag": "Banned:i18n",
+        "rule_key": "banned_i18n"
+      },
+      {
+        "tag": "Banned:ImpureStore",
+        "rule_key": "impure_stores"
+      },
+      {
+        "tag": "Zustand:NoSelector",
+        "rule_key": "zustand_no_selector"
+      },
+      {
+        "tag": "Zustand:BroadSelector",
+        "rule_key": "zustand_no_selector"
+      }
+    ],
+    "layer_import_restrictions": [
+      {
+        "layer": "entities",
+        "language": "typescript",
+        "forbidden_substrings": [
+          "react",
+          "next/"
+        ],
+        "rule_key": "impure_entities"
+      },
+      {
+        "layer": "domain/logic",
+        "forbidden_substrings": [
+          "infra",
+          "ui",
+          "widgets",
+          "pages",
+          "platform"
+        ],
+        "allowed_source_globs": [
+          "*/domain/schemas/platformPorts.ts"
+        ],
+        "rule_key": "domain_ui_leaks"
+      }
+    ]
+  },
+  "audit_remediation_policy": {
+    "waves": {
+      "relative_imports_no_alias": {
+        "wave": "wave_1_alias_hygiene",
+        "priority": "P1",
+        "action": "Replace the local path import with the workspace canonical alias when it crosses the safe within-module relative boundary."
+      },
+      "loc_limits_hook": {
+        "wave": "wave_2_hook_decomposition",
+        "priority": "P1",
+        "action": "Split oversized hooks into orchestrator + focused sub-hooks."
+      },
+      "loc_limits_component": {
+        "wave": "wave_3_component_partition",
+        "priority": "P2",
+        "action": "Split oversized implementations along existing responsibilities; keep public contracts stable and avoid creating shallow helper files."
+      },
+      "loc_limits_symbol": {
+        "wave": "wave_3_symbol_decomposition",
+        "priority": "P2",
+        "action": "Review the reported symbol kind and bounded source evidence, then split only along demonstrated responsibilities while preserving the public contract."
+      },
+      "loc_limits_service": {
+        "wave": "wave_3_service_partition",
+        "priority": "P2",
+        "action": "Decompose services into smaller units."
+      },
+      "default": {
+        "wave": "wave_4_structural_cleanup",
+        "priority": "P3",
+        "action": "Remediate via AST-backed boundary refactors."
+      }
+    }
+  },
+  "violation_labels": {
+    "impure_stores": "Impure Stores",
+    "banned_i18n": "Banned i18n Usage",
+    "deep_imports": "Cross-Module Deep Imports",
+    "own_api_imports": "Own API Imports",
+    "relative_module_escapes": "Relative Module Escapes (../)",
+    "domain_ui_leaks": "Domain UI Leaks",
+    "domain_platform_leaks": "Domain Platform Leaks",
+    "fsd_shared_features": "FSD Shared->Features Leaks",
+    "loc_limits_hook": "LOC Hook > limit",
+    "loc_limits_component": "LOC Oversized Component > limit",
+    "loc_limits_symbol": "LOC Oversized Non-Component Symbol > limit",
+    "loc_limits_service": "LOC Service > limit",
+    "relative_imports_no_alias": "Canonical Alias Boundary Bypass",
+    "zustand_no_selector": "Zustand Store Missing Selector/Shallow",
+    "hexagonal_layer_violation": "Hexagonal Layer Violation",
+    "impure_entities": "Impure Entities/Store (React Leak)"
+  },
+  "governance_policy": {
+    "blocking_rules": [
+      "RELATIVE_PARENT_ESCAPE",
+      "Banned:ImpureStore"
+    ],
+    "healing_rules": [
+      "relative_imports_no_alias",
+      "banned_i18n",
+      "hexagonal_layer_violation",
+      "impure_entities",
+      "Banned:ImpureStore",
+      "loc_limits_hook"
+    ],
+    "auto_heal_script_policy": {
+      "mode": "filtered_manifest",
+      "default_action": "manual_review",
+      "allowed_projects": [
+        "MAIN"
+      ],
+      "max_total_operations": 200,
+      "max_operations_per_file": 5,
+      "max_skipped_samples": 50,
+      "allowed_rules": {
+        "relative_imports_no_alias": {
+          "script_action": "relative_import_rewrite",
+          "requires_parsed_import": true,
+          "requires_target_ref": true,
+          "manual_review_when_severity_missing": true
+        }
+      },
+      "manual_review_rules": [
+        "banned_i18n",
+        "hexagonal_layer_violation",
+        "impure_entities",
+        "Banned:ImpureStore",
+        "loc_limits_hook"
+      ]
+    },
+    "advisory_rules": [
+      "loc_limits_component",
+      "loc_limits_symbol"
+    ],
+    "max_side_effect_intensity": 35,
+    "i18n_remediation": {
+      "useSettings": "useTranslation"
+    },
+    "platform_modules": [
+      "platform",
+      "shared",
+      "layouts",
+      "contexts",
+      "hooks",
+      "components",
+      "features"
+    ],
+    "governance_gates": {
+      "component_identifiers": [
+        "features",
+        "widgets",
+        "pages"
+      ],
+      "component_extensions": [
+        ".tsx"
+      ],
+      "ui_layers": [
+        "features",
+        "pages",
+        "widgets"
+      ],
+      "api_layers": [
+        "api"
+      ],
+      "domain_purification": {
+        "protected_layers": [
+          "domain",
+          "entities"
+        ],
+        "forbidden_leak_tokens": [
+          "SIDE_EFFECT_FETCH",
+          "SIDE_EFFECT_AXIOS"
+        ]
+      }
+    }
+  },
+  "safety_gate_policy": {
+    "penalties": {
+      "member_dynamic_high": {
+        "threshold": 5,
+        "penalty": 3.0
+      },
+      "member_dynamic_med": {
+        "threshold": 2,
+        "penalty": 1.5
+      },
+      "side_effect_high": {
+        "threshold": 12,
+        "penalty": 5.0
+      },
+      "side_effect_med": {
+        "threshold": 4,
+        "penalty": 2.5
+      },
+      "provider_high": {
+        "threshold": 5,
+        "penalty": 4.0
+      },
+      "provider_med": {
+        "threshold": 2,
+        "penalty": 2.0
+      }
+    }
+  },
+  "quality_gate_heuristics": {
+    "validation_contract": {
+      "dead_code_ratio_scaling_min_rule_counts": {
+        "high": 3,
+        "medium": 5
+      }
+    },
+    "atlas_symbol_scaling": [
+      {
+        "max_files": 5,
+        "min_ratio": 0.6
+      },
+      {
+        "max_files": 10,
+        "min_ratio": 0.75
+      }
+    ],
+    "dead_code_ratio_scaling": {
+      "high": [
+        {
+          "max_export_universe": 10,
+          "min_ratio": 0.25
+        },
+        {
+          "max_export_universe": 25,
+          "min_ratio": 0.12
+        },
+        {
+          "max_export_universe": 50,
+          "min_ratio": 0.08
+        }
+      ],
+      "medium": [
+        {
+          "min_export_universe": 10000,
+          "min_ratio": 0.055
+        },
+        {
+          "min_export_universe": 5000,
+          "min_ratio": 0.05
+        },
+        {
+          "max_export_universe": 10,
+          "min_ratio": 0.3
+        },
+        {
+          "max_export_universe": 25,
+          "min_ratio": 0.2
+        },
+        {
+          "max_export_universe": 50,
+          "min_ratio": 0.12
+        }
+      ]
+    }
+  },
+  "health_scoring_policy": {
+    "fallback": 50,
+    "weights": {
+      "architecture_purity": 0.3,
+      "dead_code_ratio": 0.2,
+      "circular_deps": 0.15,
+      "coupling_health": 0.25,
+      "keyword_coverage": 0.1
+    },
+    "penalties": {
+      "per_architecture_violation": 2.0,
+      "per_circular_dep": 15.0,
+      "per_module_violation": 5.0
+    },
+    "mode_penalty_multipliers": {
+      "enforced": 1.0,
+      "heal": 0.12,
+      "advisory": 0.04,
+      "disabled": 0.0,
+      "unknown": 0.2
+    },
+    "rule_weights": {
+      "hexagonal_layer_violation": 2.5,
+      "deep_imports": 5.0,
+      "impure_entities": 8.0,
+      "domain_ui_leaks": 6.0,
+      "domain_platform_leaks": 6.0,
+      "relative_imports_no_alias": 0.1,
+      "loc_limits_hook": 1.0,
+      "loc_limits_component": 1.0,
+      "loc_limits_symbol": 1.0,
+      "loc_limits_service": 2.0
+    },
+    "rule_caps": {
+      "relative_imports_no_alias": 8.0,
+      "loc_limits_hook": 8.0,
+      "loc_limits_component": 10.0,
+      "loc_limits_symbol": 10.0,
+      "loc_limits_service": 10.0,
+      "domain_ui_leaks": 25.0,
+      "domain_platform_leaks": 25.0,
+      "impure_entities": 25.0
+    },
+    "default_rule_cap": 30.0,
+    "grading_bounds": [
+      {
+        "min": 90,
+        "grade": "A+"
+      },
+      {
+        "min": 80,
+        "grade": "A"
+      },
+      {
+        "min": 70,
+        "grade": "B"
+      },
+      {
+        "min": 60,
+        "grade": "C"
+      },
+      {
+        "min": 50,
+        "grade": "D"
+      }
+    ],
+    "fallback_grade": "F"
+  },
+  "dashboard_risk_policy": {
+    "quarantine_threshold": 400.0,
+    "readiness_bounds": [
+      {
+        "min": 70,
+        "risk": "LOW",
+        "recommendation": "AUTO_READY"
+      }
+    ],
+    "fallback_risk": "MEDIUM",
+    "fallback_recommendation": "MANUAL_ORCHESTRATION",
+    "penalty_coefficients": {
+      "decoupling": 1.0,
+      "leaks": 12.0,
+      "coupling": 2.0,
+      "confidence": 30.0
+    }
+  },
+  "scoring_config": {
+    "coupling_penalties": {
+      "domain/logic": 1.25,
+      "shared": 1.25,
+      "entities": 1.25,
+      "default": 0.15
+    },
+    "test_bonus": 20.0,
+    "leaks_penalty_weight": 4.0,
+    "density_weight": 1.8,
+    "decoupling_weight": 0.7,
+    "semantic_weight": 0.35
+  },
+  "confidence_policy": {
+    "base_dead_confidence": 0.97,
+    "magic_factor_degrade": 0.15,
+    "critical_dep_threshold": 10,
+    "low_dep_threshold": 5,
+    "loc_complexity_threshold": 400,
+    "drift_base": 0.1,
+    "drift_relative_factor": 0.15
+  },
+  "semantic_rules": {
+    "strict_aliasing": true,
+    "domain_restricted_imports": [
+      "react",
+      "axios",
+      "zustand"
+    ],
+    "entities_restricted_imports": [
+      "react"
+    ],
+    "entities_forbids_async_side_effects": true,
+    "api_restricted_imports": [
+      "react"
+    ]
+  },
+  "semantic_taxonomy": {
+    "state_zustand": [
+      "createStore",
+      "useStore",
+      "subscribe",
+      "shallow",
+      "persist",
+      "middleware",
+      "devtools",
+      "getState",
+      "setState",
+      "zustand"
+    ],
+    "react_18": [
+      "useTransition",
+      "useDeferredValue",
+      "Suspense",
+      "lazy",
+      "startTransition",
+      "useId",
+      "useSyncExternalStore",
+      "memo",
+      "useMemo",
+      "useCallback",
+      "forwardRef",
+      "useRef",
+      "useEffect",
+      "useState",
+      "useContext"
+    ],
+    "data_tanstack": [
+      "useQuery",
+      "useMutation",
+      "QueryClient",
+      "invalidateQueries",
+      "setQueryData",
+      "optimistic",
+      "staleTime",
+      "fetchQuery",
+      "prefetchQuery",
+      "queryKey",
+      "QueryClientProvider"
+    ],
+    "pwa_storage": [
+      "indexeddb",
+      "dexie",
+      "serviceworker",
+      "workbox",
+      "stale-while-revalidate",
+      "offline",
+      "syncManager",
+      "cacheFirst",
+      "networkFirst"
+    ],
+    "realtime_crdt": [
+      "yjs",
+      "crdt",
+      "websocket",
+      "presence",
+      "awareness",
+      "sync",
+      "conflict",
+      "Y.Doc",
+      "applyUpdate",
+      "webrtc"
+    ],
+    "multitenant_plugin": [
+      "tenant",
+      "subdomain",
+      "plugin",
+      "extension",
+      "registry",
+      "activate",
+      "deactivate",
+      "feature_flag",
+      "featureGate"
+    ],
+    "performance": [
+      "virtualiz",
+      "worker",
+      "debounce",
+      "throttle",
+      "memoiz",
+      "fps",
+      "latency",
+      "profiler",
+      "requestIdleCallback",
+      "IntersectionObserver"
+    ],
+    "security": [
+      "zod",
+      "dompurify",
+      "sanitize",
+      "csp",
+      "xss",
+      "helmet",
+      "rbac",
+      "encrypt",
+      "jwt",
+      "auth",
+      "bcrypt",
+      "csrf"
+    ],
+    "a11y_i18n": [
+      "aria",
+      "role",
+      "tabindex",
+      "i18next",
+      "useTranslation",
+      "intl",
+      "rtl",
+      "screenreader",
+      "focusTrap",
+      "liveRegion"
+    ],
+    "domain_hexagonal": [
+      "entity",
+      "valueobject",
+      "aggregate",
+      "usecase",
+      "port",
+      "adapter",
+      "service",
+      "repository",
+      "domainEvent"
+    ],
+    "ai_engine": [
+      "agent",
+      "inference",
+      "embedding",
+      "semantic",
+      "genai",
+      "prompt",
+      "completion",
+      "context",
+      "temperature",
+      "chain",
+      "vector"
+    ],
+    "testing": [
+      "describe",
+      "it",
+      "expect",
+      "mock",
+      "spy",
+      "stub",
+      "fixture",
+      "beforeEach",
+      "afterEach",
+      "vitest",
+      "jest",
+      "renderHook"
+    ],
+    "error_observability": [
+      "ErrorBoundary",
+      "Sentry",
+      "captureException",
+      "fallback",
+      "retry",
+      "timeout",
+      "circuitBreaker",
+      "webVitals",
+      "LCP",
+      "CLS",
+      "INP"
+    ],
+    "routing": [
+      "useNavigate",
+      "useParams",
+      "useSearchParams",
+      "Route",
+      "Link",
+      "Navigate",
+      "Outlet",
+      "createBrowserRouter",
+      "useLocation",
+      "createMemoryRouter",
+      "createHashRouter"
+    ],
+    "form_validation": [
+      "useForm",
+      "register",
+      "handleSubmit",
+      "validate",
+      "schema",
+      "zodResolver",
+      "Controller",
+      "formState",
+      "FieldValues"
+    ],
+    "animation": [
+      "framer-motion",
+      "animate",
+      "transition",
+      "spring",
+      "keyframe",
+      "gsap",
+      "motion",
+      "AnimatePresence",
+      "useSpring"
+    ],
+    "theming": [
+      "ThemeProvider",
+      "useTheme",
+      "css-variable",
+      "darkMode",
+      "lightMode",
+      "colorScheme",
+      "cssVar",
+      "brandColor"
+    ],
+    "ui_ux": [
+      "Lucide",
+      "clsx",
+      "tailwind",
+      "shadcn",
+      "Radix",
+      "LucideIcon"
+    ],
+    "editors": [
+      "Canvas",
+      "Dnd",
+      "Prosemirror",
+      "Lexical"
+    ],
+    "infrastructure_tech": [
+      "Prisma",
+      "Postgres",
+      "Redis",
+      "S3",
+      "Supabase",
+      "Vercel",
+      "AWS"
+    ]
+  },
+  "semantic_weights": {
+    "domain_hexagonal": 3.0,
+    "editors": 3.0,
+    "realtime_crdt": 2.5,
+    "ai_engine": 2.5,
+    "infrastructure_tech": 2.0,
+    "security": 2.0,
+    "performance": 2.0,
+    "error_observability": 1.8,
+    "state_zustand": 1.5,
+    "data_tanstack": 1.5,
+    "multitenant_plugin": 1.5,
+    "pwa_storage": 1.5,
+    "ui_ux": 1.2,
+    "animation": 1.2,
+    "form_validation": 1.2,
+    "routing": 1.0,
+    "theming": 1.0,
+    "a11y_i18n": 1.0,
+    "testing": 0.8,
+    "react_18": 0.8
+  },
+  "leak_detection": {
+    "Browser": [
+      "localStorage",
+      "sessionStorage",
+      "window.",
+      "document.",
+      "navigator."
+    ],
+    "Runtime": [
+      "process.env",
+      "console.log",
+      "setTimeout",
+      "setInterval",
+      "Date.now"
+    ],
+    "Architecture": [
+      "../../..",
+      "dist/",
+      "build/",
+      ".js'",
+      ".jsx'",
+      "eslint-disable"
+    ]
+  },
+  "architectural_markers": [
+    "Manager",
+    "Engine",
+    "Builder",
+    "Strategy",
+    "Factory",
+    "Provider",
+    "Service",
+    "Repository",
+    "Controller",
+    "Adapter",
+    "Port",
+    "Facade",
+    "Orchestrator",
+    "Observer",
+    "Command",
+    "Gateway",
+    "Mediator",
+    "Dispatcher",
+    "Registry",
+    "Resolver"
+  ],
+  "side_effect_governance": {
+    "identifiers": {
+      "NetworkIO": [
+        "fetch",
+        "axios"
+      ],
+      "StorageIO": [
+        "localStorage",
+        "sessionStorage",
+        "indexedDB"
+      ],
+      "EventBus": [
+        "eventBus"
+      ],
+      "Timer": [
+        "setTimeout",
+        "setInterval"
+      ],
+      "DOMGlobal": [
+        "window",
+        "document"
+      ],
+      "Navigation": [
+        "router",
+        "navigate",
+        "history",
+        "location"
+      ]
+    },
+    "property_patterns": [
+      [
+        "EnvAccess",
+        [
+          "process.env",
+          "import.meta.env"
+        ]
+      ],
+      [
+        "StorageIO",
+        [
+          "localStorage.",
+          "sessionStorage.",
+          "indexedDB."
+        ]
+      ],
+      [
+        "EventBus",
+        [
+          "eventBus.",
+          ".emit(",
+          ".dispatchEvent(",
+          ".addEventListener("
+        ]
+      ]
+    ]
+  },
+  "discovery_taxonomy": {
+    "semantic_tokens": {
+      "UI/UX": [
+        "Lucide",
+        "framer-motion",
+        "clsx",
+        "tailwind",
+        "shadcn",
+        "Radix",
+        "LucideIcon"
+      ],
+      "State": [
+        "Zustand",
+        "ReactQuery",
+        "useQuery",
+        "useMutation",
+        "QueryClient",
+        "persist",
+        "createStore",
+        "createSlice",
+        "createAsyncThunk",
+        "configureStore"
+      ],
+      "Logic": [
+        "Zod",
+        "Schema",
+        "Validation",
+        "Logic",
+        "Service",
+        "Adapter",
+        "Port"
+      ],
+      "Auth/Security": [
+        "Auth",
+        "Session",
+        "JWT",
+        "Encryption",
+        "Hash",
+        "Secret",
+        "Credential"
+      ],
+      "Editors": [
+        "Canvas",
+        "Dnd",
+        "Draggable",
+        "Sortable",
+        "Prosemirror",
+        "Tiptap",
+        "Lexical"
+      ],
+      "Infrastructure": [
+        "Prisma",
+        "Postgres",
+        "Redis",
+        "S3",
+        "Supabase",
+        "Vercel",
+        "AWS"
+      ],
+      "Routing": [
+        "RouterProvider",
+        "createBrowserRouter",
+        "createMemoryRouter",
+        "createHashRouter",
+        "redirect",
+        "useRouteError"
+      ]
+    },
+    "complexity_weights": {
+      "Editors": 3.0,
+      "UI/UX": 1.2,
+      "State": 1.5,
+      "Infrastructure": 2.0
+    },
+    "architectural_markers": [
+      "Manager",
+      "Engine",
+      "Builder",
+      "Strategy",
+      "Factory",
+      "Provider",
+      "Service",
+      "Repository",
+      "Controller",
+      "Adapter",
+      "Port",
+      "Facade",
+      "Orchestrator",
+      "Registry",
+      "Resolver"
+    ],
+    "side_effect_taxonomy": {
+      "identifiers": {
+        "NetworkIO": [
+          "fetch",
+          "axios"
+        ],
+        "StorageIO": [
+          "localStorage",
+          "sessionStorage",
+          "indexedDB"
+        ],
+        "EventBus": [
+          "eventBus"
+        ],
+        "Timer": [
+          "setTimeout",
+          "setInterval"
+        ],
+        "DOMGlobal": [
+          "window",
+          "document"
+        ],
+        "Navigation": [
+          "router",
+          "navigate",
+          "history",
+          "location"
+        ]
+      },
+      "property_patterns": [
+        {
+          "marker": "EnvAccess",
+          "patterns": [
+            "process.env",
+            "import.meta.env"
+          ]
+        },
+        {
+          "marker": "StorageIO",
+          "patterns": [
+            "localStorage.",
+            "sessionStorage.",
+            "indexedDB."
+          ]
+        },
+        {
+          "marker": "EventBus",
+          "patterns": [
+            "eventBus.",
+            ".emit(",
+            ".dispatchEvent(",
+            ".addEventListener("
+          ]
+        }
+      ]
+    },
+    "framework_patterns": {
+      "redux_toolkit": [
+        "createSlice",
+        "configureStore",
+        "combineSlices",
+        "createAsyncThunk"
+      ],
+      "react_query": [
+        "useQuery",
+        "useInfiniteQuery",
+        "useSuspenseQuery",
+        "fetchQuery",
+        "prefetchQuery",
+        "ensureQueryData",
+        "useMutation",
+        "executeMutation"
+      ],
+      "query_client_actions": [
+        "invalidateQueries",
+        "prefetchQuery",
+        "fetchQuery",
+        "ensureQueryData",
+        "setQueryData",
+        "getQueryData",
+        "cancelQueries"
+      ],
+      "react_router": [
+        "createBrowserRouter",
+        "createMemoryRouter",
+        "createHashRouter",
+        "RouterProvider",
+        "redirect"
+      ]
+    }
+  },
+  "ui_discovery": {
+    "extensions": [
+      ".tsx",
+      ".jsx"
+    ],
+    "dirs": [
+      "components",
+      "features",
+      "pages",
+      "widgets",
+      "tabs",
+      "layout",
+      "hooks/ui",
+      "hooks/editor"
+    ],
+    "structural_categories": {
+      "pages": "Pages",
+      "hooks": "Hooks",
+      "features": "Feature Slices",
+      "widgets": "Widgets"
+    },
+    "default_structural": "Components"
+  },
+  "framework_monitoring_keys": {
+    "state_keys": [
+      "zustand_stores",
+      "zustand_consumers",
+      "tanstack_queries",
+      "tanstack_mutations"
+    ],
+    "check_fields": [
+      "has_zustand_store",
+      "zustand_consumers",
+      "zustand_no_selector_calls",
+      "zustand_broad_selector_calls",
+      "query_keys",
+      "mutation_keys",
+      "client_actions"
+    ]
+  },
+  "dead_code_heuristics": {
+    "confidence_formula": {
+      "HIGH": 1.0,
+      "MEDIUM": 0.6,
+      "LOW": 0.25
+    },
+    "global_ignored_symbols": [
+      "default",
+      "Props",
+      "State",
+      "Config",
+      "Options",
+      "Type",
+      "Data",
+      "React",
+      "useEffect",
+      "useState",
+      "useCallback",
+      "useMemo",
+      "useRef",
+      "Fragment",
+      "Suspense",
+      "Metadata",
+      "params",
+      "searchParams",
+      "metadata",
+      "clsx",
+      "twMerge",
+      "z",
+      "lucide",
+      "cn",
+      "any"
+    ],
+    "discovery_taxonomy": {
+      "semantic_tokens": {
+        "react": [
+          "useState",
+          "useEffect",
+          "useContext",
+          "useMemo",
+          "useCallback",
+          "useReducer",
+          "useRef",
+          "useTransition",
+          "useDeferredValue"
+        ],
+        "state_management": [
+          "create",
+          "useStore",
+          "Zustand",
+          "Redux",
+          "dispatch",
+          "reducer",
+          "action"
+        ],
+        "networking": [
+          "axios",
+          "fetch",
+          "QueryClient",
+          "useQuery",
+          "useMutation",
+          "ApiManager",
+          "Endpoint"
+        ],
+        "ui_styling": [
+          "styled",
+          "tailwind",
+          "clsx",
+          "cls",
+          "className",
+          "sx",
+          "css"
+        ],
+        "logic_orchestration": [
+          "Manager",
+          "Orchestrator",
+          "Controller",
+          "Service",
+          "Adapter",
+          "Repository",
+          "Handler",
+          "Flow"
+        ],
+        "type_safety": [
+          "zod",
+          "interface",
+          "type",
+          "enum",
+          "schema",
+          "z."
+        ]
+      },
+      "architectural_markers": {
+        "hexagonal": [
+          "infra",
+          "application",
+          "domain",
+          "api",
+          "ports",
+          "adapters"
+        ],
+        "fsd": [
+          "features",
+          "entities",
+          "widgets",
+          "pages",
+          "shared"
+        ],
+        "collaboration": [
+          "WebSocket",
+          "Yjs",
+          "CRDT",
+          "Presence",
+          "shared-state"
+        ]
+      }
+    },
+    "assembly_governance": {
+      "layer_overrides": [
+        {
+          "fragments": [
+            "/server/flows/",
+            "/server/lib/"
+          ],
+          "layer": "application"
+        },
+        {
+          "fragments": [
+            "/shared/model/"
+          ],
+          "layer": "shared/model"
+        },
+        {
+          "fragments": [
+            "/shared/ui/"
+          ],
+          "layer": "shared/ui"
+        },
+        {
+          "fragments": [
+            "/utils/",
+            "/lib/utils/",
+            "/shared/ui/utils/"
+          ],
+          "layer": "shared/utils"
+        },
+        {
+          "fragments": [
+            "/constants/templates/",
+            "/lib/constants/"
+          ],
+          "layer": "shared/constants"
+        },
+        {
+          "fragments": [
+            "/types/domain/"
+          ],
+          "layer": "shared/contracts"
+        },
+        {
+          "fragments": [
+            "/types/schemas/",
+            "/shared/types/schemas/"
+          ],
+          "layer": "shared/model"
+        },
+        {
+          "fragments": [
+            "/entities/",
+            "/lib/logic.ts"
+          ],
+          "layer": "domain/logic"
+        },
+        {
+          "fragments": [
+            "/types/",
+            "/shared/types/"
+          ],
+          "layer": "shared/contracts"
+        }
+      ],
+      "family_routing": [
+        {
+          "fragments": [
+            "/services/ai/",
+            "/workers/",
+            "service-worker"
+          ],
+          "target": "src/platform/ai/"
+        },
+        {
+          "fragments": [
+            "/services/export/"
+          ],
+          "target": "src/platform/export/"
+        },
+        {
+          "fragments": [
+            "/services/media/storage/"
+          ],
+          "target": "src/platform/storage/"
+        },
+        {
+          "fragments": [
+            "/services/media/",
+            "/services/graphics/",
+            "/services/drawing/"
+          ],
+          "target": "src/platform/assets/"
+        },
+        {
+          "fragments": [
+            "/services/inspiration/",
+            "/services/analysis/"
+          ],
+          "target": "src/platform/analysis/"
+        },
+        {
+          "fragments": [
+            "/services/auth/",
+            "/contexts/auth",
+            "/stores/auth/"
+          ],
+          "target": "src/platform/auth/"
+        },
+        {
+          "fragments": [
+            "/services/sync/",
+            "/stores/sync/"
+          ],
+          "target": "src/platform/sync/"
+        },
+        {
+          "fragments": [
+            "/services/network",
+            "/services/search",
+            "/services/io",
+            "/services/import"
+          ],
+          "target": "src/platform/networking/"
+        },
+        {
+          "fragments": [
+            "/services/security/"
+          ],
+          "target": "src/platform/auth/"
+        },
+        {
+          "fragments": [
+            "/services/system/",
+            "/services/diagnostics",
+            "/services/performance",
+            "/services/maintenance"
+          ],
+          "target": "src/platform/maintenance/"
+        }
+      ],
+      "decision_heuristics": {
+        "evo_upgrade_multiplier": 1.18,
+        "evo_upgrade_min_delta": 8.0,
+        "new_atom_min_score": 25.0,
+        "main_retention_score_gap": 20.0,
+        "main_retention_var_multiplier": 1.25,
+        "candidate_confidence_threshold": 0.7
+      },
+      "merge_readiness_policy": {
+        "risk_rank": {
+          "LOW": 0,
+          "MEDIUM": 1,
+          "HIGH": 2
+        },
+        "auto_merge_allowed_risks": [
+          "LOW",
+          "MEDIUM"
+        ],
+        "minimum_auto_merge_confidence": 0.5
+      },
+      "source_role_policy": {
+        "deny_companion_to_host_by_default": true,
+        "allow_companion_to_host_merge": false,
+        "allow_companion_donor_projects": [],
+        "allow_companion_target_hosts": []
+      }
+    },
+    "naming_doctrine": {
+      "pascal_tsx_standard": true,
+      "alias_prefix": "@/",
+      "strip_prefixes": [
+        "use",
+        "create",
+        "get",
+        "set",
+        "handle"
+      ],
+      "strip_suffixes": [
+        "Service",
+        "Manager",
+        "Adapter",
+        "Repository",
+        "Orchestrator",
+        "Provider",
+        "Controller",
+        "Delegate",
+        "Store",
+        "Slice",
+        "Hook",
+        "Logic",
+        "Utils"
+      ],
+      "path_sanitization_rules": [
+        {
+          "pattern": "^src/\\./",
+          "replacement": ""
+        },
+        {
+          "pattern": "^src/",
+          "replacement": ""
+        },
+        {
+          "pattern": "\\.(ts|tsx|js|jsx)$",
+          "replacement": ""
+        }
+      ]
+    },
+    "quality_defaults": {
+      "contract_requirements": {
+        "member_keys": [
+          "dependencies",
+          "dependency_imports",
+          "ui_dependencies",
+          "dynamic_imports",
+          "architectural_markers",
+          "side_effect_markers",
+          "side_effect_imports",
+          "side_effect_calls"
+        ],
+        "occurrence_keys": [
+          "member_dependencies",
+          "member_imported_contracts",
+          "member_ui_dependencies",
+          "member_dynamic_imports",
+          "member_architectural_markers",
+          "member_side_effect_markers",
+          "member_side_effect_imports",
+          "member_side_effect_calls"
+        ],
+        "member_detail_contract_applicability": {
+          "typescript_react_v1": "required",
+          "python_ast_v1": "not_applicable",
+          "python_regex_fallback_v1": "not_applicable",
+          "java_structural_v1": "not_applicable",
+          "go_structural_v1": "not_applicable",
+          "csharp_structural_v1": "not_applicable",
+          "regex_fallback_v1": "not_applicable"
+        }
+      },
+      "min_atlas_contract_file_ratio": 0.99,
+      "min_member_detail_contract_ratio": 0.99,
+      "min_genome_occurrence_contract_ratio": 0.99,
+      "min_atlas_current_version_ratio": 0.99,
+      "min_genome_current_version_ratio": 0.99,
+      "min_state_flow_detection_ratio": 0.95,
+      "min_blast_nonzero_ratio": 0.05,
+      "min_react_detected_present_ratio": 1.0,
+      "max_react_partial_capabilities": 0,
+      "max_unresolved_targets": 0,
+      "max_encoding_findings": 0
+    },
+    "framework_discovered_exports": [
+      {
+        "file_name": "route.ts",
+        "parent": "app",
+        "symbols": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "HEAD",
+          "OPTIONS"
+        ]
+      },
+      {
+        "file_name": [
+          "page.tsx",
+          "layout.tsx",
+          "template.tsx"
+        ],
+        "symbols": [
+          "metadata",
+          "generateMetadata",
+          "viewport",
+          "generateViewport"
+        ]
+      },
+      {
+        "file_suffix": [
+          ".stories.ts",
+          ".stories.tsx",
+          ".stories.js",
+          ".stories.jsx",
+          ".stories.mdx"
+        ],
+        "all_symbols": true
+      },
+      {
+        "path_contains": "/.storybook/",
+        "file_name": [
+          "preview.js",
+          "preview.ts",
+          "preview.jsx",
+          "preview.tsx"
+        ],
+        "symbols": [
+          "decorators",
+          "parameters",
+          "globalTypes",
+          "tags"
+        ]
+      },
+      {
+        "path_contains": "routes/",
+        "symbols": [
+          "loader",
+          "action",
+          "clientLoader",
+          "clientAction",
+          "meta",
+          "headers",
+          "links",
+          "handle",
+          "shouldRevalidate",
+          "serverComponent"
+        ]
+      },
+      {
+        "file_suffix": [
+          "route.ts",
+          "route.tsx",
+          "route.js",
+          "route.jsx"
+        ],
+        "symbols": [
+          "loader",
+          "action",
+          "clientLoader",
+          "clientAction",
+          "meta",
+          "headers",
+          "links",
+          "handle",
+          "shouldRevalidate",
+          "serverComponent"
+        ]
+      },
+      {
+        "file_name": [
+          "root.tsx",
+          "root.jsx",
+          "root.ts",
+          "root.js"
+        ],
+        "parent": "app",
+        "symbols": [
+          "links",
+          "meta",
+          "headers",
+          "handle",
+          "errorBoundary",
+          "layout"
+        ]
+      },
+      {
+        "path_contains": "pages/",
+        "symbols": [
+          "getServerSideProps",
+          "getStaticProps",
+          "getStaticPaths",
+          "config",
+          "reportWebVitals"
+        ]
+      },
+      {
+        "file_name": [
+          "page.tsx",
+          "page.ts",
+          "page.jsx",
+          "page.js",
+          "layout.tsx",
+          "layout.ts",
+          "layout.jsx",
+          "layout.js",
+          "template.tsx",
+          "template.ts",
+          "template.jsx",
+          "template.js",
+          "default.tsx",
+          "default.ts",
+          "default.jsx",
+          "default.js",
+          "loading.tsx",
+          "loading.ts",
+          "loading.jsx",
+          "loading.js",
+          "error.tsx",
+          "error.ts",
+          "error.jsx",
+          "error.js",
+          "not-found.tsx",
+          "not-found.ts",
+          "not-found.jsx",
+          "not-found.js",
+          "route.tsx",
+          "route.ts",
+          "route.jsx",
+          "route.js"
+        ],
+        "parent": "app",
+        "symbols": [
+          "metadata",
+          "generateMetadata",
+          "viewport",
+          "generateViewport",
+          "generateStaticParams",
+          "dynamic",
+          "dynamicParams",
+          "revalidate",
+          "fetchCache",
+          "runtime",
+          "preferredRegion",
+          "maxDuration",
+          "experimental_ppr"
+        ]
+      },
+      {
+        "file_name": [
+          "middleware.ts",
+          "middleware.js"
+        ],
+        "symbols": [
+          "middleware",
+          "config"
+        ]
+      },
+      {
+        "file_name": [
+          "instrumentation.ts",
+          "instrumentation.js",
+          "instrumentation-client.ts",
+          "instrumentation-client.js"
+        ],
+        "symbols": [
+          "register",
+          "onRequestError",
+          "onRouterTransitionStart"
+        ]
+      }
+    ],
+    "exclusion_markers": {
+      "path_tokens": [
+        "bridge",
+        "shim",
+        "legacy",
+        "compat",
+        "deprecated"
+      ],
+      "content_markers": [
+        "architecture bridge",
+        "legacy imports",
+        "redirects legacy imports",
+        "compatibility shim",
+        "deprecated provider stub",
+        "deprecated shim",
+        "legacy bridge",
+        "bridge file"
+      ]
+    },
+    "contract_surface_registry": [
+      {
+        "id": "graphql_fragment_contracts",
+        "enabled": true,
+        "label": "GraphQL fragment/doc contract surface",
+        "reason": "contract_registry_graphql_fragment_surface",
+        "path_tokens": [
+          "/graphql/",
+          "/fragments/"
+        ],
+        "file_globs": [
+          "*fragment*.ts",
+          "*fragment*.tsx",
+          "fragments.ts",
+          "fragments.tsx"
+        ],
+        "symbol_suffixes": [
+          "Fragment",
+          "Document",
+          "Query",
+          "Mutation",
+          "Subscription"
+        ],
+        "content_markers": [
+          "gql`",
+          "graphql`",
+          "documentnode",
+          "typeddocumentnode"
+        ]
+      },
+      {
+        "id": "storybook_meta_contracts",
+        "enabled": true,
+        "label": "Storybook meta/story exports",
+        "reason": "contract_registry_storybook_surface",
+        "file_globs": [
+          "*.stories.ts",
+          "*.stories.tsx",
+          "*.story.ts",
+          "*.story.tsx"
+        ],
+        "symbol_regex": "^(meta|default|.*Story|.*Stories)$"
+      },
+      {
+        "id": "router_manifest_contracts",
+        "enabled": true,
+        "label": "Route module manifest contracts",
+        "reason": "contract_registry_route_manifest_surface",
+        "path_tokens": [
+          "/routes/",
+          "/app/"
+        ],
+        "file_globs": [
+          "route.ts",
+          "route.tsx",
+          "page.tsx",
+          "layout.tsx",
+          "root.tsx"
+        ],
+        "symbol_regex": "^(loader|action|meta|links|headers|handle|ErrorBoundary|Layout|GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$"
+      },
+      {
+        "id": "i18n_resource_contracts",
+        "enabled": true,
+        "label": "i18n resources as runtime contract",
+        "path_tokens": [
+          "/i18n/",
+          "/locale/",
+          "/locales/",
+          "/translations/"
+        ],
+        "reason": "contract_registry_i18n_resource_surface",
+        "symbol_prefixes": [
+          "messages",
+          "dictionary",
+          "translations",
+          "locale"
+        ]
+      },
+      {
+        "id": "i18n_locale_code_contracts",
+        "enabled": true,
+        "label": "i18n locale-code exports as runtime contract",
+        "path_tokens": [
+          "/i18n/",
+          "/locale/",
+          "/locales/",
+          "/translations/"
+        ],
+        "reason": "contract_registry_i18n_locale_code_surface",
+        "symbol_regex": "^(?:[a-z]{2}[A-Z]{2,3}|[a-z]{2}-[A-Z]{2,3})$"
+      },
+      {
+        "id": "scaffold_template_contracts",
+        "enabled": true,
+        "label": "Scaffold/template exports consumed outside normal import graphs",
+        "reason": "contract_registry_scaffold_template_surface",
+        "path_tokens": [
+          "/templates/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ]
+      },
+      {
+        "id": "test_fixture_contracts",
+        "enabled": true,
+        "label": "Test fixture exports consumed by harness/runtime fixtures",
+        "reason": "contract_registry_test_fixture_surface",
+        "path_tokens": [
+          "/__fixtures__/",
+          "/fixtures/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ]
+      },
+      {
+        "id": "mcp_tool_contracts",
+        "enabled": true,
+        "label": "MCP tool server functions consumed by runtime registration",
+        "reason": "contract_registry_mcp_tool_surface",
+        "path_globs": [
+          "tools/mcp/server.py"
+        ],
+        "content_markers": [
+          "FastMCP",
+          "@mcp.tool"
+        ]
+      },
+      {
+        "id": "python_cli_script_contracts",
+        "enabled": true,
+        "label": "Python CLI, validation and generator script entrypoints",
+        "reason": "contract_registry_python_cli_script_surface",
+        "path_globs": [
+          "codemaps.py",
+          "sage.py",
+          "tools/validate_*.py",
+          "tools/generate_*.py",
+          "tools/run_*.py",
+          "tools/sync_*.py",
+          "tools/core/bootstrap_env.py"
+        ],
+        "content_markers": [
+          "if __name__",
+          "argparse",
+          "sys.exit",
+          "subprocess.run"
+        ]
+      },
+      {
+        "id": "python_maintenance_contracts",
+        "enabled": true,
+        "label": "Python maintenance and source-contract policy modules",
+        "reason": "contract_registry_python_maintenance_surface",
+        "path_globs": [
+          "tools/engines/large_engine_maintenance.py"
+        ],
+        "content_markers": [
+          "LARGE_ENGINE_REFACTOR_SEAMS",
+          "required_regression_gate"
+        ]
+      },
+      {
+        "id": "migration_contracts",
+        "enabled": true,
+        "label": "Database/framework migration exports discovered by runtime tooling",
+        "reason": "contract_registry_migration_surface",
+        "path_tokens": [
+          "/migrations/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ],
+        "symbol_regex": "^(?:Migration\\d+|Migration[A-Z0-9_].*|.*Migration)$"
+      },
+      {
+        "id": "workflow_step_contracts",
+        "enabled": true,
+        "label": "Workflow/step orchestration exports consumed by framework registries",
+        "reason": "contract_registry_workflow_step_surface",
+        "path_tokens": [
+          "/workflows/",
+          "/steps/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx"
+        ],
+        "symbol_regex": ".*(?:Workflow|Step)$"
+      },
+      {
+        "id": "generated_api_client_contracts",
+        "enabled": true,
+        "label": "Generated API/client/schema exports consumed through generator/runtime contracts",
+        "reason": "contract_registry_generated_api_client_surface",
+        "path_tokens": [
+          "/generated/"
+        ],
+        "file_globs": [
+          "api.ts",
+          "api.tsx",
+          "client.ts",
+          "client.tsx",
+          "schema.ts",
+          "schema.tsx",
+          "types.ts",
+          "types.tsx",
+          "*.generated.ts",
+          "*.generated.tsx"
+        ]
+      },
+      {
+        "id": "typescript_declaration_contracts",
+        "enabled": true,
+        "label": "TypeScript ambient declaration and module augmentation surface",
+        "reason": "contract_registry_typescript_declaration_surface",
+        "file_globs": [
+          "*.d.ts"
+        ],
+        "content_markers": [
+          "declare module",
+          "declare global"
+        ]
+      },
+      {
+        "id": "typescript_augmentation_contracts",
+        "enabled": true,
+        "label": "TypeScript module augmentation and overridable API surface",
+        "reason": "contract_registry_typescript_augmentation_surface",
+        "path_tokens": [
+          "augmentation"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.d.ts"
+        ],
+        "content_markers": [
+          "declare module",
+          "declare global",
+          "overridablestringunion"
+        ]
+      },
+      {
+        "id": "sdk_public_surface_contracts",
+        "enabled": true,
+        "label": "SDK public boundary exports",
+        "path_tokens": [
+          "/sdk/",
+          "/client/",
+          "/api/"
+        ],
+        "file_globs": [
+          "index.ts",
+          "index.tsx",
+          "public.ts",
+          "exports.ts"
+        ],
+        "reason": "contract_registry_sdk_public_surface"
+      }
+    ],
+    "runtime_consumed_contracts": [
+      {
+        "id": "react_router_contract_exports",
+        "enabled": true,
+        "path_tokens": [
+          "/routes/",
+          "/app/"
+        ],
+        "file_globs": [
+          "route.ts",
+          "route.tsx",
+          "root.tsx",
+          "page.tsx",
+          "layout.tsx"
+        ],
+        "required_features": [
+          "RouterConfig",
+          "RouteLoader",
+          "RouteAction",
+          "RouteLazy"
+        ],
+        "symbol_regex": "^(loader|action|meta|links|headers|handle|ErrorBoundary|Layout|GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$"
+      },
+      {
+        "id": "storybook_runtime_exports",
+        "enabled": true,
+        "file_globs": [
+          "*.stories.ts",
+          "*.stories.tsx",
+          "*.story.ts",
+          "*.story.tsx"
+        ],
+        "symbols": [
+          "meta",
+          "default"
+        ],
+        "symbol_regex": "(Story|Stories)$"
+      },
+      {
+        "id": "next_runtime_exports",
+        "enabled": true,
+        "file_globs": [
+          "page.tsx",
+          "layout.tsx",
+          "template.tsx",
+          "middleware.ts",
+          "instrumentation.ts",
+          "instrumentation-client.ts"
+        ],
+        "path_tokens": [
+          "/app/",
+          "/pages/"
+        ],
+        "symbol_regex": "^(getServerSideProps|getStaticProps|getStaticPaths|config|reportWebVitals|metadata|generateMetadata|viewport|generateViewport|generateStaticParams|dynamic|dynamicParams|revalidate|fetchCache|runtime|preferredRegion|maxDuration|middleware|register|onRequestError|onRouterTransitionStart)$"
+      }
+    ],
+    "auto_tuning_thresholds": {
+      "collision_cluster": 8,
+      "prompt_type_cluster": 10
+    },
+    "dynamic_import_resolutions": {
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "index_files": [
+        "index.ts",
+        "index.tsx",
+        "index.js",
+        "index.jsx"
+      ]
+    },
+    "barrel_public_surfaces": {
+      "file_names": [
+        "index.ts",
+        "index.tsx",
+        "exports.ts",
+        "exports.tsx"
+      ],
+      "file_prefixes": [
+        "public."
+      ],
+      "file_suffixes": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx"
+      ]
+    },
+    "nest_runtime_decorators": [
+      "@Module(",
+      "@Injectable(",
+      "@Controller(",
+      "@Resolver(",
+      "@InputType(",
+      "@ObjectType(",
+      "@ArgsType(",
+      "@Schema(",
+      "@Processor(",
+      "@Gateway("
+    ],
+    "test_support_heuristics": {
+      "path_tokens": [
+        "/test/",
+        "/tests/",
+        "/__tests__/",
+        "/__mocks__/",
+        "/__mockdata__/",
+        "/mocks/",
+        "/playwright/",
+        "/cypress/",
+        "/fixtures/",
+        "/stories/",
+        "/storybook/",
+        ".test/",
+        ".spec/"
+      ],
+      "file_suffixes": [
+        "fixture.ts",
+        "fixture.tsx",
+        "fixtures.ts",
+        "fixtures.tsx",
+        ".test.js",
+        ".test.jsx",
+        ".test.ts",
+        ".test.tsx",
+        ".spec.js",
+        ".spec.jsx",
+        ".spec.ts",
+        ".spec.tsx",
+        ".mock.ts",
+        ".mock.tsx",
+        ".actual.js",
+        ".actual.jsx",
+        ".actual.ts",
+        ".actual.tsx",
+        ".expected.js",
+        ".expected.jsx",
+        ".expected.ts",
+        ".expected.tsx"
+      ]
+    },
+    "reference_example_heuristics": {
+      "path_tokens": [
+        "/examples/",
+        "/example/",
+        "/demo/",
+        "/demos/",
+        "/playground/",
+        "/sandbox/"
+      ]
+    },
+    "e2e_page_object_heuristics": {
+      "project_tokens": [
+        "/playwright",
+        "/cypress",
+        "/e2e",
+        "playwright",
+        "cypress",
+        "e2e"
+      ],
+      "path_tokens": [
+        "/pages/",
+        "/page-objects/",
+        "/dialogs/",
+        "/api/"
+      ],
+      "symbol_regex": "^[A-Z][A-Za-z0-9_]*(Page|Dialog|Service)$"
+    },
+    "generated_surfaces": {
+      "file_tokens": [
+        ".generated."
+      ],
+      "file_suffixes": [
+        ".gen.ts",
+        ".gen.tsx"
+      ]
+    },
+    "dynamic_registry_heuristics": {
+      "markers": [
+        "Record<",
+        "Map<",
+        "registry",
+        "Registry",
+        "components:",
+        "routes:",
+        "tools:",
+        "plugins:",
+        "loadable(",
+        "lazy(",
+        "dynamic(",
+        "import.meta.glob"
+      ]
+    }
+  },
+  "impact_analysis_tuning": {
+    "formula_weights": {
+      "direct_dependent": 1.0,
+      "transitive_dependent": 0.5
+    },
+    "boundary_bonuses": [
+      {
+        "source": "ui_dependencies",
+        "multiplier": 0.2,
+        "limit": 3.0
+      },
+      {
+        "source": "dynamic_imports",
+        "multiplier": 0.5,
+        "limit": 3.0
+      },
+      {
+        "source": "architectural_markers",
+        "multiplier": 0.1,
+        "limit": 2.0
+      },
+      {
+        "source": "member_imported_contracts",
+        "multiplier": 0.25,
+        "limit": 2.5
+      },
+      {
+        "source": "member_side_effect_markers",
+        "multiplier": 0.4,
+        "limit": 3.0
+      }
+    ],
+    "proximity_weights": {
+      "same_studio": 50,
+      "same_layer": 30,
+      "same_folder": 20,
+      "name_perfect_match": 100
+    },
+    "symbol_significance": {
+      "min_name_length": 3,
+      "ignored_prefixes": [
+        "use",
+        "create",
+        "handle"
+      ],
+      "canonical_prefixes": [
+        "type",
+        "interface",
+        "enum",
+        "class",
+        "function",
+        "const",
+        "let",
+        "var"
+      ]
+    }
+  },
+  "merge_safety_rules": {
+    "banned_source_fragments": [
+      "config",
+      "prompts",
+      "prompt",
+      "scripts",
+      "temp",
+      "tests"
+    ],
+    "incompatible_mappings": [
+      {
+        "source_has": [
+          "types",
+          "schemas",
+          "schema"
+        ],
+        "target_is_component": true,
+        "action": "BLOCK"
+      },
+      {
+        "source_ext": ".ts",
+        "target_ext": ".tsx",
+        "action": "BLOCK"
+      },
+      {
+        "source_has": [
+          "server",
+          "flows"
+        ],
+        "target_is_component": true,
+        "action": "BLOCK"
+      }
+    ],
+    "interface_requirements": {
+      "features": {
+        "source_must_have": [
+          "features",
+          "components",
+          "widgets",
+          "tabs",
+          "ui",
+          "modals"
+        ],
+        "or_source_ext": ".tsx"
+      },
+      "application": {
+        "source_must_have": [
+          "application",
+          "services",
+          "service",
+          "domain",
+          "orchestrators",
+          "manager"
+        ],
+        "or_source_contains": [
+          "service",
+          "manager",
+          "orchestrator"
+        ]
+      }
+    },
+    "ast_boundary_gates": {
+      "domain_purity": {
+        "forbidden_markers": [
+          "Provider",
+          "Controller",
+          "UI",
+          "React"
+        ],
+        "forbidden_side_effects": [
+          "NetworkIO",
+          "StorageIO",
+          "DOMGlobal"
+        ]
+      },
+      "entities_sanctity": {
+        "forbidden_markers": [
+          "Hook",
+          "DynamicImport"
+        ],
+        "forbidden_side_effects": [
+          "NetworkIO",
+          "StorageIO",
+          "DOMGlobal",
+          "EventBus"
+        ]
+      },
+      "api_restraints": {
+        "forbidden_markers": [
+          "UI",
+          "Context"
+        ],
+        "forbidden_side_effects": [
+          "StorageIO",
+          "DOMGlobal"
+        ]
+      }
+    }
+  },
+  "layer_heuristics": {
+    "fsd": [
+      [
+        "features",
+        "Features"
+      ],
+      [
+        "entities",
+        "Entities"
+      ],
+      [
+        "widgets",
+        "Widgets"
+      ],
+      [
+        "pages",
+        "Pages"
+      ]
+    ],
+    "hexagonal": [
+      [
+        "domain",
+        "Domain (Pure)"
+      ],
+      [
+        "application",
+        "Application (Use Case)"
+      ],
+      [
+        "services",
+        "Application (Use Case)"
+      ],
+      [
+        "infra",
+        "Infrastructure (Adapter)"
+      ],
+      [
+        "adapter",
+        "Infrastructure (Adapter)"
+      ]
+    ],
+    "defaults": {
+      "fsd": "Global",
+      "hexagonal": "Cross-Cutting"
+    }
+  },
+  "analysis_heuristics": {
+    "symbol_significance": {
+      "min_name_length": 3,
+      "ignored_prefixes": [
+        "use"
+      ],
+      "canonical_prefixes": [
+        "type",
+        "interface",
+        "enum",
+        "class",
+        "function",
+        "const",
+        "let",
+        "var"
+      ],
+      "low_signal_tokens": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "i",
+        "j",
+        "k",
+        "n",
+        "r",
+        "t",
+        "as",
+        "of",
+        "ui",
+        "wb",
+        "fn",
+        "el",
+        "id",
+        "ix"
+      ]
+    },
+    "path_prediction_rules": [
+      {
+        "trigger": [
+          "hook",
+          "use"
+        ],
+        "subfolder": "hooks/"
+      }
+    ],
+    "complexity_scoring": {
+      "keywords": [
+        "if",
+        "else",
+        "await",
+        "async",
+        "Promise",
+        "map",
+        "filter",
+        "Manager",
+        "Orchestrator"
+      ],
+      "leak_penalty_multiplier": 5.0,
+      "ast_scan_char_limit": 1000,
+      "coupling_penalties": {
+        "default": 0.15
+      },
+      "test_bonus": 20.0,
+      "leaks_penalty_weight": 4.0,
+      "density_weight": 1.8,
+      "decoupling_weight": 0.7,
+      "semantic_weight": 0.35
+    }
+  },
+  "symbol_bucketing": {
+    "Class": "classes",
+    "Function": "functions",
+    "Arrow": "functions",
+    "Variable": "functions",
+    "DefaultExport": "functions",
+    "ProxyExport": "functions",
+    "Hook": "hooks",
+    "Arrow/Hook": "hooks",
+    "Interface": "interfaces",
+    "Type": "types",
+    "TypeDefinition": "types"
+  },
+  "intelligence_tuning": {
+    "merge_confidence_weights": {
+      "trusted_ratio": 0.45,
+      "auto_ratio": 0.3,
+      "low_risk_ratio": 0.25,
+      "high_risk_penalty": 0.15
+    },
+    "confidence_tiers": {
+      "high": 0.8,
+      "medium": 0.6
+    }
+  },
+  "host_merge_policy": {
+    "locked_patterns": [
+      "api/index.ts",
+      "api/ports.ts"
+    ],
+    "compose_preferred_patterns": [
+      "application/services/**/*.ts",
+      "application/**/*.ts",
+      "entities/**/*Store*.ts",
+      "entities/**/*.ts",
+      "shared/hooks/**/*.ts",
+      "shared/hooks/**/*.tsx",
+      "integration/**/*.ts",
+      "widgets/**/*.tsx"
+    ],
+    "manual_review_patterns": [
+      "pages/**/*.tsx",
+      "features/**/*.tsx",
+      "widgets/**/*.tsx",
+      "integration/**/*.tsx"
+    ],
+    "public_boundary_patterns": [
+      "api/index.ts",
+      "api/ports.ts"
+    ],
+    "integration_seam_patterns": [
+      "integration/**",
+      "application/services/*Dispatcher*.ts",
+      "application/**/Pipeline*.ts",
+      "application/**/eventBus.ts"
+    ],
+    "tagging_hints": [
+      {
+        "part": "application/",
+        "tag": "application_spine"
+      },
+      {
+        "part": "entities/",
+        "tag": "state_spine"
+      },
+      {
+        "part": "shared/hooks/",
+        "tag": "hook_surface"
+      },
+      {
+        "part": "features/",
+        "tag": "ui_surface"
+      },
+      {
+        "part": "widgets/",
+        "tag": "ui_surface"
+      },
+      {
+        "part": "pages/",
+        "tag": "ui_surface"
+      }
+    ]
+  },
+  "fractal_mapping_doctrine": {
+    "path_output": {
+      "default_extension": ".ts",
+      "ui_extension": ".tsx",
+      "index_file": "index.ts",
+      "component_layers": [
+        "pages",
+        "widgets",
+        "features"
+      ]
+    },
+    "layer_extensions": {
+      "pages": ".tsx",
+      "widgets": ".tsx",
+      "features": ".tsx",
+      "default": ".ts"
+    },
+    "platform_routing_rules": [
+      {
+        "source_contains": [
+          "/server/"
+        ],
+        "name_contains": [
+          "prompt"
+        ],
+        "homes": [
+          "src/platform/ai/prompts",
+          "src/platform/ai",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/server/"
+        ],
+        "name_contains": [
+          "response",
+          "model",
+          "context",
+          "usage"
+        ],
+        "homes": [
+          "src/platform/ai/types",
+          "src/shared/types",
+          "src/platform/ai"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/export/",
+          "/pdf",
+          "/font",
+          "extract-text"
+        ],
+        "homes": [
+          "src/platform/export",
+          "src/platform/assets",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/ai-",
+          "/ai/",
+          "llm",
+          "image",
+          "portrait"
+        ],
+        "homes": [
+          "src/platform/ai/utils",
+          "src/platform/ai",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      },
+      {
+        "source_contains": [
+          "/lib/logic",
+          "/model/factory",
+          "/domain/"
+        ],
+        "source_match_or_start": [
+          "/entities/",
+          "entities/"
+        ],
+        "homes": [
+          "src/platform/core/domain",
+          "src/platform/core/services",
+          "src/platform/core"
+        ],
+        "default_home": "src/platform/core"
+      }
+    ],
+    "shared_routing_rules": [
+      {
+        "effective_layer": "shared/constants",
+        "conditions": [
+          {
+            "source_contains": "/templates/",
+            "homes": [
+              "src/shared/constants/templates",
+              "src/shared/constants",
+              "src/shared/ui/constants"
+            ],
+            "default_home": "src/shared/constants"
+          },
+          {
+            "homes": [
+              "src/shared/constants",
+              "src/shared/ui/constants"
+            ],
+            "default_home": "src/shared/constants"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/contracts",
+        "conditions": [
+          {
+            "homes": [
+              "src/shared/types",
+              "src/shared/kernel",
+              "src/shared/ports"
+            ],
+            "default_home": "src/shared/types"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/model",
+        "conditions": [
+          {
+            "contract_shape": "schema",
+            "homes": [
+              "src/shared/types/schemas",
+              "src/shared/kernel",
+              "src/shared/types"
+            ],
+            "default_home": "src/shared/types/schemas"
+          },
+          {
+            "source_contains_any": [
+              "/types/schemas/",
+              "types/schemas/"
+            ],
+            "homes": [
+              "src/shared/types/schemas",
+              "src/shared/kernel",
+              "src/shared/types"
+            ],
+            "default_home": "src/shared/types/schemas"
+          },
+          {
+            "homes": [
+              "src/shared/types",
+              "src/shared/kernel"
+            ],
+            "default_home": "src/shared/types"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/utils",
+        "conditions": [
+          {
+            "homes": [
+              "src/shared/utils",
+              "src/shared/ui/utils",
+              "src/platform/maintenance/utils"
+            ],
+            "default_home": "src/shared/utils"
+          }
+        ]
+      },
+      {
+        "effective_layer": "shared/ui",
+        "conditions": [
+          {
+            "homes": [
+              "src/shared/ui/components",
+              "src/shared/ui",
+              "src/platform/ui"
+            ],
+            "default_home": "src/shared/ui"
+          }
+        ]
+      }
+    ]
+  },
+  "studio_definitions": {
+    "presentation": [
+      "presentation",
+      "ui",
+      "view",
+      "page",
+      "screen",
+      "component",
+      "widget"
+    ],
+    "application": [
+      "application",
+      "usecase",
+      "use-case",
+      "workflow",
+      "orchestrator",
+      "service"
+    ],
+    "domain": [
+      "domain",
+      "entity",
+      "aggregate",
+      "valueobject",
+      "value-object",
+      "business"
+    ],
+    "infrastructure": [
+      "infrastructure",
+      "infra",
+      "adapter",
+      "repository",
+      "persistence",
+      "database",
+      "network"
+    ],
+    "shared": [
+      "shared",
+      "common",
+      "lib",
+      "utils",
+      "hooks",
+      "types"
+    ],
+    "platform_core": [
+      "platform",
+      "lifecycle",
+      "sync",
+      "auth",
+      "telemetry",
+      "worker",
+      "servicecontainer",
+      "migration",
+      "pipeline"
+    ]
+  },
+  "studio_to_module_map": {
+    "presentation": "presentation",
+    "application": "application",
+    "domain": "domain",
+    "infrastructure": "infrastructure",
+    "shared": "shared"
+  },
+  "capability_to_studio_map": {
+    "user_interface": "presentation",
+    "business_logic": "domain",
+    "persistence": "infrastructure",
+    "shared_utility": "shared",
+    "platform_core": "platform_core"
+  },
+  "capability_discovery": {
+    "user_interface": [
+      "component",
+      "page",
+      "view",
+      "screen",
+      "widget",
+      "route"
+    ],
+    "business_logic": [
+      "domain",
+      "entity",
+      "aggregate",
+      "usecase",
+      "workflow"
+    ],
+    "persistence": [
+      "repository",
+      "database",
+      "storage",
+      "adapter",
+      "migration"
+    ],
+    "shared_utility": [
+      "shared",
+      "common",
+      "utility",
+      "helper",
+      "hook"
+    ],
+    "collaboration": [
+      "crdt",
+      "yjs",
+      "sync",
+      "presence",
+      "awareness"
+    ],
+    "state_management": [
+      "zustand",
+      "store",
+      "persist",
+      "subscribe",
+      "shallow"
+    ],
+    "pwa": [
+      "indexeddb",
+      "dexie",
+      "worker",
+      "offline",
+      "serviceWorker"
+    ],
+    "ai": [
+      "agent",
+      "prompt",
+      "inference",
+      "embedding",
+      "genai"
+    ],
+    "routing": [
+      "useNavigate",
+      "Route",
+      "useParams",
+      "Outlet"
+    ]
+  },
+  "main_first_domain_overrides": {
+    "agent_orchestration": [
+      "agent orchestrator",
+      "workflow orchestrator",
+      "pipeline orchestrator",
+      "service container"
+    ],
+    "project_lifecycle": [
+      "migration",
+      "bootstrap",
+      "initializer",
+      "lifecycle"
+    ]
+  },
+  "generic_path_hints": [
+    [
+      "(^|[/\\\\])(presentation|ui|views?|pages?|screens?|components?|widgets?)([/\\\\]|$)",
+      "presentation"
+    ],
+    [
+      "(^|[/\\\\])(application|use-?cases?|workflows?|orchestrators?|services?)([/\\\\]|$)",
+      "application"
+    ],
+    [
+      "(^|[/\\\\])(domain|entities|aggregates|value-?objects?)([/\\\\]|$)",
+      "domain"
+    ],
+    [
+      "(^|[/\\\\])(infrastructure|infra|adapters?|repositories|persistence|database|storage|network)([/\\\\]|$)",
+      "infrastructure"
+    ],
+    [
+      "(^|[/\\\\])(shared|common|lib|utils?|hooks?|types?)([/\\\\]|$)",
+      "shared"
+    ],
+    [
+      "(^|[/\\\\])(platform|runtime|core)[/\\\\](auth|sync|telemetry|migration|lifecycle|worker|pipeline|bootstrap)",
+      "platform_core"
+    ],
+    [
+      "(^|[/\\\\])src[/\\\\](platform|runtime|core)([/\\\\]|$)",
+      "platform_core"
+    ]
+  ],
+  "project_path_hints": {},
+  "layer_rules": [
+    {
+      "layer": "shared/hooks",
+      "conditions": {
+        "name_prefix": "use",
+        "path_fragments": [
+          "/hooks/"
+        ]
+      }
+    },
+    {
+      "layer": "entities",
+      "conditions": {
+        "name_suffix": [
+          "store",
+          "slice"
+        ],
+        "path_fragments": [
+          "/stores/",
+          "/entities/"
+        ]
+      }
+    },
+    {
+      "layer": "domain/logic",
+      "conditions": {
+        "path_fragments": [
+          "domain"
+        ],
+        "hexagonal_meta": [
+          "Domain"
+        ]
+      }
+    },
+    {
+      "layer": "infra",
+      "conditions": {
+        "hexagonal_meta": [
+          "Infrastructure"
+        ],
+        "path_fragments": [
+          "/infra/"
+        ],
+        "name_suffix": [
+          "adapter",
+          "repository"
+        ]
+      }
+    },
+    {
+      "layer": "application",
+      "conditions": {
+        "type_match": "Service",
+        "name_suffix": [
+          "service",
+          "manager"
+        ],
+        "hexagonal_meta": [
+          "Application"
+        ]
+      }
+    },
+    {
+      "layer": "pages",
+      "conditions": {
+        "path_fragments": [
+          "/pages/"
+        ]
+      }
+    },
+    {
+      "layer": "widgets",
+      "conditions": {
+        "path_fragments": [
+          "/widgets/"
+        ],
+        "name_suffix": [
+          "widget"
+        ]
+      }
+    },
+    {
+      "layer": "api",
+      "conditions": {
+        "name_suffix": [
+          "route"
+        ]
+      }
+    }
+  ],
+  "platform_mapping": [
+    {
+      "keyword": "auth",
+      "path": "src/platform/auth/"
+    },
+    {
+      "keyword": "sync",
+      "path": "src/platform/sync/"
+    },
+    {
+      "keyword": "telemetry",
+      "path": "src/platform/analysis/"
+    },
+    {
+      "keyword": "analytics",
+      "path": "src/platform/analysis/"
+    },
+    {
+      "keyword": "worker",
+      "path": "src/platform/workers/"
+    },
+    {
+      "keyword": "storage",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "db",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "repository",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "persistence",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "adapter",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "network",
+      "path": "src/platform/networking/"
+    },
+    {
+      "keyword": "export",
+      "path": "src/platform/export/"
+    },
+    {
+      "keyword": "lifecycle",
+      "path": "src/platform/lifecycle/"
+    },
+    {
+      "keyword": "bootstrap",
+      "path": "src/platform/lifecycle/"
+    },
+    {
+      "keyword": "initializer",
+      "path": "src/platform/lifecycle/"
+    }
+  ],
+  "platform_default_path": "src/platform/core/",
+  "discovery_host_intelligence_defaults": {
+    "host_locked_patterns": [
+      "**/api/index.*",
+      "**/api/ports.*",
+      "**/ports.*"
+    ],
+    "compose_preferred_patterns": [
+      "**/application/**/*",
+      "**/services/**/*",
+      "**/entities/**/*Store*",
+      "**/shared/hooks/**/*",
+      "**/widgets/**/*"
+    ],
+    "manual_review_patterns": [
+      "**/pages/**/*",
+      "**/features/**/*",
+      "**/widgets/**/*",
+      "**/components/**/*"
+    ],
+    "public_boundary_patterns": [
+      "**/api/index.*",
+      "**/exports.*",
+      "**/index.*"
+    ],
+    "integration_seam_patterns": [
+      "**/Dispatcher*",
+      "**/eventBus.*",
+      "**/Pipeline*"
+    ]
+  },
+  "discovery_project_role_markers": {
+    "host_aliases": [
+      "MAIN",
+      "HOST",
+      "CORE",
+      "BASE"
+    ],
+    "variant_containers": [
+      "variations",
+      "variation",
+      "variants",
+      "forks",
+      "donors"
+    ],
+    "variant_leaf_tokens": [
+      "legacy",
+      "fork",
+      "variant"
+    ],
+    "companion_containers": [
+      "apps",
+      "packages",
+      "modules",
+      "extensions",
+      "extension",
+      "plugins",
+      "plugin",
+      "browser",
+      "examples"
+    ],
+    "companion_path_tokens": [
+      "lifecycle-modules"
+    ]
+  },
+  "architecture_oracle_policy": {
+    "blueprint_markers": {
+      "fsd_ranks": {
+        "app": 0,
+        "pages": 1,
+        "widgets": 2,
+        "features": 3,
+        "entities": 4,
+        "shared": 5
+      },
+      "clean_layers": [
+        "domain",
+        "application",
+        "usecases",
+        "use-cases",
+        "infrastructure",
+        "infra",
+        "adapters",
+        "presentation",
+        "ui"
+      ],
+      "package_library_markers": [
+        "packages",
+        "libs",
+        "library",
+        "libraries"
+      ],
+      "plugin_markers": [
+        "plugins",
+        "plugin",
+        "extensions",
+        "extension",
+        "adapters",
+        "providers",
+        "integrations"
+      ],
+      "module_anchors": [
+        "features",
+        "entities",
+        "widgets",
+        "pages",
+        "apps",
+        "packages",
+        "modules"
+      ],
+      "public_api_filenames": [
+        "index.ts",
+        "index.tsx",
+        "index.js",
+        "index.jsx"
+      ],
+      "public_api_prefixes": [
+        "public."
+      ],
+      "next_app_route_filenames": [
+        "page.tsx",
+        "layout.tsx",
+        "route.ts",
+        "loading.tsx",
+        "error.tsx",
+        "template.tsx"
+      ]
+    },
+    "fsd_weights": {
+      "layer_coverage": 0.35,
+      "direction_ratio": 0.45,
+      "encapsulation_ratio": 0.2
+    },
+    "fsd_caps": {
+      "app_pages_only": 0.65,
+      "few_layers": 0.7,
+      "very_low_coverage": 0.4,
+      "low_coverage": 0.62
+    },
+    "fsd_thresholds": {
+      "very_low_coverage": 0.05,
+      "low_coverage": 0.2,
+      "few_layers_count": 3
+    },
+    "nextjs_weights": {
+      "route_handlers": 0.7,
+      "server_client_markers": 0.2,
+      "app_router_files": 0.1
+    },
+    "nextjs_caps": {
+      "route_handler_cap": 3,
+      "server_client_marker_cap": 10,
+      "app_router_file_cap": 60,
+      "strong_app_router_score": 0.82
+    },
+    "nextjs_thresholds": {
+      "strong_route_handlers": 2,
+      "strong_app_router_files": 3
+    },
+    "clean_hex_weights": {
+      "clean_coverage": 0.55,
+      "purity": 0.45,
+      "hex_signal_multiplier": 2.5,
+      "hex_signal": 0.65,
+      "hex_purity": 0.35
+    },
+    "sovereign_hybrid_weights": {
+      "fsd_direction": 0.25,
+      "fsd_coverage": 0.18,
+      "clean_score": 0.22,
+      "purity": 0.2,
+      "profile_prior": 0.15
+    },
+    "sovereign_hybrid_caps": {
+      "missing_clean_spine_multiplier": 0.75
+    },
+    "classification": {
+      "fsd_profile_name": "FSD_STRICT",
+      "nextjs_profile_name": "NEXTJS_APP_ROUTER",
+      "clean_profile_name": "CLEAN_ARCHITECTURE",
+      "sovereign_profile_name": "SOVEREIGN_ELITE",
+      "modular_profile_name": "MODULAR_FLAT",
+      "minimal_profile_name": "MINIMAL",
+      "package_library_profile_name": "MONOREPO_PACKAGE_LIBRARY",
+      "turborepo_saas_profile_name": "TURBOREPO_SAAS",
+      "plugin_platform_profile_name": "PLUGIN_PLATFORM",
+      "mixed_profile_name": "MIXED_ARCHITECTURE",
+      "sovereign_specificity_threshold": 0.68,
+      "turborepo_specificity_threshold": 0.55,
+      "mixed_specificity_threshold": 0.7,
+      "mixed_min_close_families": 2,
+      "specificity_override_delta": 0.2,
+      "modular_flat_cap": 0.68,
+      "minimal_confidence_threshold": 0.45,
+      "minimal_confidence_floor": 0.2,
+      "seal_confidence_threshold": 0.72,
+      "seal_min_file_count": 20,
+      "non_sealable_profiles": [
+        "MODULAR_FLAT"
+      ]
+    }
+  },
+  "decision_evidence_doctrine": {
+    "focus_studio": "platform_core",
+    "fallback_capability_tag": "other",
+    "target_studios": [
+      "platform_core",
+      "presentation",
+      "application",
+      "domain",
+      "infrastructure",
+      "shared"
+    ],
+    "capability_tags": [
+      {
+        "tag": "persistence",
+        "keys": [
+          "save",
+          "persist",
+          "storage",
+          "repository",
+          "database",
+          "migrat"
+        ]
+      },
+      {
+        "tag": "generation",
+        "keys": [
+          "generate",
+          "generator",
+          "prompt",
+          "ai",
+          "infill"
+        ]
+      },
+      {
+        "tag": "domain_flow",
+        "keys": [
+          "domain",
+          "entity",
+          "aggregate",
+          "usecase",
+          "workflow"
+        ]
+      },
+      {
+        "tag": "dispatch_orch",
+        "keys": [
+          "dispatcher",
+          "orchestr",
+          "strategy",
+          "service"
+        ]
+      },
+      {
+        "tag": "interface",
+        "keys": [
+          "editor",
+          "toolbar",
+          "panel",
+          "context",
+          "view",
+          "workspace"
+        ]
+      },
+      {
+        "tag": "sync_runtime",
+        "keys": [
+          "sync",
+          "queue",
+          "event",
+          "telemetry",
+          "resolver"
+        ]
+      }
+    ]
+  },
+  "master_report_sections": [
+    {
+      "title": "1. Architecture Audit (Doctrine v13.0)",
+      "file": "audit_report.txt"
+    },
+    {
+      "title": "2. Architecture Decision Evidence",
+      "file": "decision_evidence.md"
+    },
+    {
+      "title": "3. Fractal Capability Map",
+      "file": "fractal_map.md"
+    },
+    {
+      "title": "4. System Landscape",
+      "file": "landscape_map.md"
+    },
+    {
+      "title": "5. UI Component Map",
+      "file": "ui_architecture_map.md"
+    },
+    {
+      "title": "6. Dead Code Analysis",
+      "file": "dead_code_report.md"
+    },
+    {
+      "title": "7. Circular Dependencies & Import Graph",
+      "file": "circular_deps_report.md"
+    },
+    {
+      "title": "8. Health Score",
+      "file": "health_score.md"
+    },
+    {
+      "title": "9. Module Risk Matrix",
+      "file": "module_risk_matrix.md"
+    },
+    {
+      "title": "10. Temporal Diff",
+      "file": "temporal_diff.md"
+    },
+    {
+      "title": "11. Hexagonal Port-Adapter Bindings",
+      "file": "hexagonal_bindings.md"
+    },
+    {
+      "title": "12. State Flow & Data Mapping",
+      "file": "state_flow.md"
+    },
+    {
+      "title": "13. Semantic Code Clones",
+      "file": "clone_detector.md"
+    },
+    {
+      "title": "14. Blast Radius (Impact Analysis)",
+      "file": "blast_radius.md"
+    },
+    {
+      "title": "15. Pipeline Quality Gates",
+      "file": "quality_gate.md"
+    },
+    {
+      "title": "16. Host Merge Intelligence",
+      "file": "host_merge_intelligence.md"
+    }
+  ],
+  "master_report_evidence_default": {
+    "type": "heuristic",
+    "trust": "medium"
+  },
+  "master_report_evidence_profiles": {
+    "audit_report.txt": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "decision_evidence.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "fractal_map.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "landscape_map.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "ui_architecture_map.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "dead_code_report.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "circular_deps_report.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "health_score.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "module_risk_matrix.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "temporal_diff.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "hexagonal_bindings.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "state_flow.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "clone_detector.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "blast_radius.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "quality_gate.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "host_merge_intelligence.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "framework_routes.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "merge_dependency_packages.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "merge_simulation.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "merge_decision_cockpit.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "ai_task_packs.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "adapter_registry.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "merge_intelligence_regression.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "release_readiness.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "distribution_hardening_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "entrypoint_failure_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "operational_parity_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "performance_budget_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "performance_ledger.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "ui_runtime_contracts.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "ui_smoke_specs.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "ui_smoke_execution.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "optional_feature_smokes.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "next_boundary_analysis.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "state_data_graph.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "a11y_i18n_contracts.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_ecosystem_analysis.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_runtime_intelligence.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_compiler_readiness.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_frontier_intelligence.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "live_surface_findings.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "live_surface_priority_pack.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    }
+  },
+  "visualization_policy": {
+    "circular_dep_mermaid": {
+      "max_edges_per_node": 10,
+      "directory_bucket_depth": 2
+    },
+    "cycle_classification": {
+      "mutual_len": 2,
+      "long_cycle_min_len": 3
+    }
+  }
+}

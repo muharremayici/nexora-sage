@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "language_registry.schema.json",
+  "title": "Nexora SAGE Language Registry",
+  "type": "object",
+  "required": [
+    "_meta",
+    "languages",
+    "observation_only_languages",
+    "config_file_markers",
+    "manifest_file_markers"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object"
+    },
+    "languages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "index_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "structure_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "non_source_template_extensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "non_source_compound_suffixes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "watch_extra_extensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skip_dirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "root_level_app_markers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "monorepo_root_markers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "monorepo_root_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "config_file_markers": {
+      "type": "object"
+    },
+    "manifest_file_markers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uniqueItems": true
+      }
+    },
+    "observation_only_languages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "extensions",
+          "reason"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^\\."
+            },
+            "uniqueItems": true
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "plugin_library_map": {
+      "type": "object"
+    },
+    "legacy_path_shims": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

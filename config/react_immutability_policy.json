@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "kind": "react_immutability_policy",
+    "version": "v1",
+    "purpose": "Policy-backed advisory React state immutability and purity signals included in product release 1.0.0."
+  },
+  "source_file_extensions": [
+    ".tsx",
+    ".jsx",
+    ".ts",
+    ".js"
+  ],
+  "state_hook_names": [
+    "useState",
+    "useReducer"
+  ],
+  "mutating_methods": [
+    "copyWithin",
+    "fill",
+    "pop",
+    "push",
+    "reverse",
+    "shift",
+    "sort",
+    "splice",
+    "unshift"
+  ],
+  "protected_roots": [
+    "props"
+  ],
+  "risk_catalog": {
+    "state_variable_mutating_method": {
+      "dimension": "immutability_purity",
+      "risk": "react_state_mutated_with_mutating_method",
+      "score": 8,
+      "recommended_action": "Replace direct mutation with a setter callback that returns a new array/object value."
+    },
+    "state_variable_direct_assignment": {
+      "dimension": "immutability_purity",
+      "risk": "react_state_mutated_by_direct_assignment",
+      "score": 8,
+      "recommended_action": "Do not assign into React state directly; derive a new value and pass it through the setter."
+    },
+    "props_direct_assignment": {
+      "dimension": "immutability_purity",
+      "risk": "props_mutated_by_direct_assignment",
+      "score": 7,
+      "recommended_action": "Treat props as immutable input; copy into local state or derive a new object instead."
+    },
+    "render_time_mutable_assignment": {
+      "dimension": "immutability_purity",
+      "risk": "render_time_mutable_assignment",
+      "score": 6,
+      "recommended_action": "Move mutable work into controlled state transitions, refs with explicit intent, or effects."
+    }
+  },
+  "false_positive_policy": {
+    "only_track_detected_react_state_variables": true,
+    "do_not_flag_generic_local_arrays": true,
+    "do_not_flag_immer_draft_parameters_without_state_hook_evidence": true
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "generic_object.schema.json",
+  "title": "Generic Object Artifact",
+  "type": "object"
+}

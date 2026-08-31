@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Discovery Proposal",
+  "type": "object",
+  "required": [
+    "_meta",
+    "workspace_root",
+    "source_extensions",
+    "skip_dirs",
+    "variations",
+    "environment",
+    "plugins",
+    "architecture"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_by",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "codemaps.discovery"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        }
+      }
+    },
+    "workspace_root": {
+      "type": "string"
+    },
+    "source_extensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skip_dirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "_repository_topology": {
+      "type": "object"
+    },
+    "project_roles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "bundler": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path_aliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "required": [
+        "type",
+        "module_root"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "module_root": {
+          "type": "string"
+        },
+        "module_container": {
+          "type": "string"
+        },
+        "hexagonal_ports": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hexagonal_adapters": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "host_intelligence": {
+      "type": "object",
+      "properties": {
+        "host_locked_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compose_preferred_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "manual_review_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "public_boundary_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "integration_seam_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "audit_seed": {
+      "type": "object"
+    },
+    "quality_gate_seed": {
+      "type": "object"
+    },
+    "proposal_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "_discovery_metadata": {
+      "type": "object",
+      "properties": {
+        "projects": {
+          "type": "object"
+        },
+        "discovered_project_count": {
+          "type": "integer"
+        },
+        "raw_variation_keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workspace_signals": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "kind": "nexora.hitl_governance_contract",
+    "version": "v1",
+    "purpose": "Machine-readable contract for HITL ledger decisions and core approval-gate coverage."
+  },
+  "validation_contract": {
+    "valid_ledger_decisions": [
+      "approved",
+      "rejected",
+      "deferred",
+      "revoked"
+    ],
+    "required_agent_contract_approval_gates": [
+      "watchdog_auto_restore",
+      "mutation_scripts",
+      "ui_runtime_manual_validation",
+      "merge_import_review",
+      "refactor_or_large_file_split",
+      "external_target_analysis",
+      "architecture_doctrine_seal"
+    ]
+  }
+}

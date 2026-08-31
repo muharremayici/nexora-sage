@@ -1,0 +1,308 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "capabilities.impact_and_risk",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "impact_analysis_tuning": {
+    "formula_weights": {
+      "direct_dependent": 1.0,
+      "transitive_dependent": 0.5
+    },
+    "boundary_bonuses": [
+      {
+        "source": "ui_dependencies",
+        "multiplier": 0.2,
+        "limit": 3.0
+      },
+      {
+        "source": "dynamic_imports",
+        "multiplier": 0.5,
+        "limit": 3.0
+      },
+      {
+        "source": "architectural_markers",
+        "multiplier": 0.1,
+        "limit": 2.0
+      },
+      {
+        "source": "member_imported_contracts",
+        "multiplier": 0.25,
+        "limit": 2.5
+      },
+      {
+        "source": "member_side_effect_markers",
+        "multiplier": 0.4,
+        "limit": 3.0
+      }
+    ],
+    "proximity_weights": {
+      "same_studio": 50,
+      "same_layer": 30,
+      "same_folder": 20,
+      "name_perfect_match": 100
+    },
+    "symbol_significance": {
+      "min_name_length": 3,
+      "ignored_prefixes": [
+        "use",
+        "create",
+        "handle"
+      ],
+      "canonical_prefixes": [
+        "type",
+        "interface",
+        "enum",
+        "class",
+        "function",
+        "const",
+        "let",
+        "var"
+      ]
+    }
+  },
+  "merge_safety_rules": {
+    "banned_source_fragments": [
+      "config",
+      "prompts",
+      "prompt",
+      "scripts",
+      "temp",
+      "tests"
+    ],
+    "incompatible_mappings": [
+      {
+        "source_has": [
+          "types",
+          "schemas",
+          "schema"
+        ],
+        "target_is_component": true,
+        "action": "BLOCK"
+      },
+      {
+        "source_ext": ".ts",
+        "target_ext": ".tsx",
+        "action": "BLOCK"
+      },
+      {
+        "source_has": [
+          "server",
+          "flows"
+        ],
+        "target_is_component": true,
+        "action": "BLOCK"
+      }
+    ],
+    "interface_requirements": {
+      "features": {
+        "source_must_have": [
+          "features",
+          "components",
+          "widgets",
+          "tabs",
+          "ui",
+          "modals"
+        ],
+        "or_source_ext": ".tsx"
+      },
+      "application": {
+        "source_must_have": [
+          "application",
+          "services",
+          "service",
+          "domain",
+          "orchestrators",
+          "manager"
+        ],
+        "or_source_contains": [
+          "service",
+          "manager",
+          "orchestrator"
+        ]
+      }
+    },
+    "ast_boundary_gates": {
+      "domain_purity": {
+        "forbidden_markers": [
+          "Provider",
+          "Controller",
+          "UI",
+          "React"
+        ],
+        "forbidden_side_effects": [
+          "NetworkIO",
+          "StorageIO",
+          "DOMGlobal"
+        ]
+      },
+      "entities_sanctity": {
+        "forbidden_markers": [
+          "Hook",
+          "DynamicImport"
+        ],
+        "forbidden_side_effects": [
+          "NetworkIO",
+          "StorageIO",
+          "DOMGlobal",
+          "EventBus"
+        ]
+      },
+      "api_restraints": {
+        "forbidden_markers": [
+          "UI",
+          "Context"
+        ],
+        "forbidden_side_effects": [
+          "StorageIO",
+          "DOMGlobal"
+        ]
+      }
+    }
+  },
+  "layer_heuristics": {
+    "fsd": [
+      [
+        "features",
+        "Features"
+      ],
+      [
+        "entities",
+        "Entities"
+      ],
+      [
+        "widgets",
+        "Widgets"
+      ],
+      [
+        "pages",
+        "Pages"
+      ]
+    ],
+    "hexagonal": [
+      [
+        "domain",
+        "Domain (Pure)"
+      ],
+      [
+        "application",
+        "Application (Use Case)"
+      ],
+      [
+        "services",
+        "Application (Use Case)"
+      ],
+      [
+        "infra",
+        "Infrastructure (Adapter)"
+      ],
+      [
+        "adapter",
+        "Infrastructure (Adapter)"
+      ]
+    ],
+    "defaults": {
+      "fsd": "Global",
+      "hexagonal": "Cross-Cutting"
+    }
+  },
+  "analysis_heuristics": {
+    "symbol_significance": {
+      "min_name_length": 3,
+      "ignored_prefixes": [
+        "use"
+      ],
+      "canonical_prefixes": [
+        "type",
+        "interface",
+        "enum",
+        "class",
+        "function",
+        "const",
+        "let",
+        "var"
+      ],
+      "low_signal_tokens": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "i",
+        "j",
+        "k",
+        "n",
+        "r",
+        "t",
+        "as",
+        "of",
+        "ui",
+        "wb",
+        "fn",
+        "el",
+        "id",
+        "ix"
+      ]
+    },
+    "path_prediction_rules": [
+      {
+        "trigger": [
+          "hook",
+          "use"
+        ],
+        "subfolder": "hooks/"
+      }
+    ],
+    "complexity_scoring": {
+      "keywords": [
+        "if",
+        "else",
+        "await",
+        "async",
+        "Promise",
+        "map",
+        "filter",
+        "Manager",
+        "Orchestrator"
+      ],
+      "leak_penalty_multiplier": 5.0,
+      "ast_scan_char_limit": 1000,
+      "coupling_penalties": {
+        "default": 0.15
+      },
+      "test_bonus": 20.0,
+      "leaks_penalty_weight": 4.0,
+      "density_weight": 1.8,
+      "decoupling_weight": 0.7,
+      "semantic_weight": 0.35
+    }
+  },
+  "symbol_bucketing": {
+    "Class": "classes",
+    "Function": "functions",
+    "Arrow": "functions",
+    "Variable": "functions",
+    "DefaultExport": "functions",
+    "ProxyExport": "functions",
+    "Hook": "hooks",
+    "Arrow/Hook": "hooks",
+    "Interface": "interfaces",
+    "Type": "types",
+    "TypeDefinition": "types"
+  },
+  "intelligence_tuning": {
+    "merge_confidence_weights": {
+      "trusted_ratio": 0.45,
+      "auto_ratio": 0.3,
+      "low_risk_ratio": 0.25,
+      "high_risk_penalty": 0.15
+    },
+    "confidence_tiers": {
+      "high": 0.8,
+      "medium": 0.6
+    }
+  }
+}

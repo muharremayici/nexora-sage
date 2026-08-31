@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "signals.schema.json",
+  "title": "Nexora SAGE ContextOS Active Signals",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "input_evidence",
+    "changed_files_count",
+    "active_signals"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generator",
+        "input_evidence_status",
+        "current_change_scope",
+        "current_turn_claim",
+        "signal_origin"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "source_mode": {
+          "type": "string"
+        },
+        "input_evidence_status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "PARTIAL"
+          ]
+        },
+        "evidence_scope": {
+          "type": "string"
+        },
+        "broad_proof_deferred": {
+          "type": "boolean"
+        },
+        "current_change_scope": {
+          "type": "string",
+          "enum": [
+            "bounded",
+            "unknown"
+          ]
+        },
+        "current_turn_claim": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "not_established"
+          ]
+        },
+        "signal_origin": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "candidate_files",
+        "accepted_files",
+        "rejected_files",
+        "source_files",
+        "config_files",
+        "input_evidence_status",
+        "unavailable_inputs"
+      ],
+      "properties": {
+        "candidate_files": {
+          "type": "integer"
+        },
+        "watchdog_candidates": {
+          "type": "integer"
+        },
+        "git_candidates": {
+          "type": "integer"
+        },
+        "accepted_files": {
+          "type": "integer"
+        },
+        "source_files": {
+          "type": "integer"
+        },
+        "config_files": {
+          "type": "integer"
+        },
+        "halo_files": {
+          "type": "integer"
+        },
+        "total_transitive_dependents": {
+          "type": "integer"
+        },
+        "is_scene_pivot": {
+          "type": "boolean"
+        },
+        "scene_pivot_reason": {
+          "type": "string"
+        },
+        "rejected_files": {
+          "type": "object"
+        },
+        "input_evidence_status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "PARTIAL"
+          ]
+        },
+        "unavailable_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deferred_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "input_evidence": {
+      "type": "object",
+      "minProperties": 2,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "status",
+          "source",
+          "shape_status",
+          "payload_bytes",
+          "updated_at"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "deferred"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "shape_status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "invalid",
+              "not_evaluated"
+            ]
+          },
+          "payload_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "scope_status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "changed_files_count": {
+      "type": "integer"
+    },
+    "active_signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_key",
+          "relative_path",
+          "target_ref",
+          "signal_kind",
+          "impact_score_status",
+          "direct_dependents_count",
+          "transitive_dependents_count",
+          "direct_dependents_omitted",
+          "transitive_dependents_omitted",
+          "signal_actionability",
+          "active_violations_omitted",
+          "circular_cycles_omitted",
+          "circular_cycles_status",
+          "risk_claim_boundary"
+        ],
+        "properties": {
+          "node_key": {
+            "type": "string"
+          },
+          "relative_path": {
+            "type": "string"
+          },
+          "target_ref": {
+            "type": "string",
+            "pattern": "^[^:]+::.+"
+          },
+          "signal_kind": {
+            "type": "string",
+            "enum": [
+              "source",
+              "config"
+            ]
+          },
+          "impact_score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "impact_score_status": {
+            "type": "string"
+          },
+          "direct_dependents_count": {
+            "type": "integer"
+          },
+          "transitive_dependents_count": {
+            "type": "integer"
+          },
+          "direct_dependents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "direct_dependents_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "transitive_dependents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "transitive_dependents_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "focus_halo": {
+            "type": "array"
+          },
+          "reasoning_breadcrumbs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "signal_actionability": {
+            "type": "object"
+          },
+          "active_violations": {
+            "type": "array"
+          },
+          "active_violations_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "circular_cycles": {
+            "type": "array"
+          },
+          "circular_cycles_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "circular_cycles_status": {
+            "type": "string"
+          },
+          "risk_claim_boundary": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

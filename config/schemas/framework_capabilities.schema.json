@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Framework Capabilities",
+  "type": "object",
+  "required": [
+    "_meta",
+    "ecosystems",
+    "engine_boundary"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "boundary"
+      ],
+      "properties": {
+        "kind": {
+          "const": "framework_capabilities"
+        },
+        "version": {
+          "type": "string"
+        },
+        "boundary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ecosystems": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "claim_level",
+          "packages",
+          "evidence_categories",
+          "engines"
+        ],
+        "properties": {
+          "claim_level": {
+            "enum": [
+              "deep_specialist",
+              "framework_aware",
+              "contract_aware"
+            ]
+          },
+          "packages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "source_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "source_detection_tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "hooks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "config_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "route_markers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "directives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "boundary_tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "evidence_categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "engine_boundary": {
+      "type": "object",
+      "required": [
+        "manifest_owned",
+        "code_owned"
+      ],
+      "properties": {
+        "manifest_owned": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "code_owned": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

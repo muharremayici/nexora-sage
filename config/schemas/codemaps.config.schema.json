@@ -1,0 +1,521 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Runtime Config",
+  "type": "object",
+  "required": [
+    "_meta",
+    "_provenance",
+    "workspace_root",
+    "source_extensions",
+    "skip_dirs",
+    "variations",
+    "architecture",
+    "environment",
+    "plugins",
+    "quality_gates"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "codemaps.config"
+          ]
+        },
+        "purpose": {
+          "type": "string"
+        }
+      }
+    },
+    "_provenance": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "source_content_fingerprint",
+        "runtime_baseline_fingerprint"
+      ],
+      "properties": {
+        "contract_version": {
+          "type": "string"
+        },
+        "source_content_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "runtime_baseline_fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "workspace_root": {
+      "type": "string"
+    },
+    "source_extensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skip_dirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "_repository_topology": {
+      "type": "object"
+    },
+    "architecture": {
+      "type": "object",
+      "required": [
+        "type",
+        "module_root"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "module_root": {
+          "type": "string"
+        },
+        "module_container": {
+          "type": "string"
+        },
+        "hexagonal_ports": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hexagonal_adapters": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "bundler": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path_aliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "styling": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "linting": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "host_intelligence": {
+      "type": "object",
+      "properties": {
+        "host_locked_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compose_preferred_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "manual_review_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "public_boundary_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "integration_seam_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "properties": {
+        "file_extensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignore_file_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignore_path_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "loc_limits": {
+          "type": "object",
+          "properties": {
+            "hook": {
+              "type": "number"
+            },
+            "service": {
+              "type": "number"
+            },
+            "component": {
+              "type": "number"
+            },
+            "exclude_name_patterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "impure_stores": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "path_contains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "file_name_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "token_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "banned_i18n": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "content_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "allow_file_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "domain_ui_leaks": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "path_contains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "content_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "domain_platform_leaks": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "path_contains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "forbidden_prefixes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "forbid_cross_module_non_api": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "shared_features_leaks": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "path_contains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "forbidden_import_fragments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "cross_module_deep_imports": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "allow_api_suffix": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "own_api_imports": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "allow_only_in_api_index": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "relative_module_escapes": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "relative_imports_no_alias": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "min_parent_hops": {
+                  "type": "number"
+                }
+              }
+            },
+            "zustand_no_selector": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "require_plugin": {
+                  "type": "string"
+                },
+                "path_contains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "file_name_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "store_markers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "selector_markers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "report_sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "title",
+              "keys"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "quality_gates": {
+      "type": "object",
+      "required": [
+        "min_health_score",
+        "max_unresolved_targets",
+        "max_high_risk_candidates",
+        "max_total_audit_violations",
+        "max_encoding_findings",
+        "required_artifacts"
+      ],
+      "properties": {
+        "min_health_score": {
+          "type": "number"
+        },
+        "max_unresolved_targets": {
+          "type": "number"
+        },
+        "max_high_risk_candidates": {
+          "type": "number"
+        },
+        "manual_review_budget_baseline": {
+          "type": "object",
+          "required": [
+            "observed_items",
+            "reviewed_suppressions",
+            "reviewed_on",
+            "review_scope",
+            "source_artifact",
+            "source_artifact_sha256",
+            "authority",
+            "interpretation"
+          ],
+          "properties": {
+            "observed_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reviewed_suppressions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reviewed_on": {
+              "type": "string",
+              "format": "date"
+            },
+            "review_scope": {
+              "type": "string",
+              "enum": [
+                "aggregate_queue_volume_only"
+              ]
+            },
+            "source_artifact": {
+              "type": "string",
+              "const": "output/.raw/fractal_map.json"
+            },
+            "source_artifact_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "authority": {
+              "type": "string",
+              "minLength": 1
+            },
+            "interpretation": {
+              "type": "string",
+              "minLength": 20
+            }
+          }
+        },
+        "max_total_audit_violations": {
+          "type": "number"
+        },
+        "max_encoding_findings": {
+          "type": "number"
+        },
+        "required_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

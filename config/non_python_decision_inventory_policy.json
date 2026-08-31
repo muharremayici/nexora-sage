@@ -1,0 +1,94 @@
+{
+  "_meta": {
+    "kind": "non_python_decision_inventory_policy",
+    "version": "v1",
+    "purpose": "Central policy for non-Python decision inventory validation: machine-local paths, release decision owners, numeric policy keys, markdown release references and visible sample limits."
+  },
+  "patterns": {
+    "machine_absolute_path_regex": "([A-Za-z]:[\\\\/](?:Users|tmp|var|home|Program Files)|/Users/|/home/|/var/|/tmp/)",
+    "semver_regex": "\\b\\d+\\.\\d+\\.\\d+\\b"
+  },
+  "decision_keys": [
+    "allowed_claim",
+    "claim_boundary",
+    "claim_focus",
+    "claim_profile_id",
+    "current_product_release",
+    "included_releases",
+    "introduced_in",
+    "product_release",
+    "public_version",
+    "release",
+    "release_claim_profile_required",
+    "target_release"
+  ],
+  "decision_key_tokens": [
+    "claim",
+    "release",
+    "phase",
+    "profile"
+  ],
+  "numeric_policy_keys": [
+    "budget",
+    "budgets",
+    "depth",
+    "limit",
+    "limits",
+    "max",
+    "minimum",
+    "threshold",
+    "thresholds",
+    "timeout",
+    "token_budget"
+  ],
+  "release_decision_owner_json": [
+    "config/cage_mvp_contracts.json",
+    "config/capability_registry.json",
+    "config/principles/manifest.json",
+    "config/product_boundary_contract.json",
+    "config/react_fixture_family_taxonomy.json",
+    "config/release_claim_profiles.json",
+    "config/release_identity.json",
+    "config/roadmap_phase_registry.json",
+    "config/sage_work_item_registry.json"
+  ],
+  "release_decision_reference_json": [
+    "config/agent_surface_taxonomy.json",
+    "config/sage_active_work_package.json",
+    "config/sage_execution_wave_registry.json"
+  ],
+  "historical_release_identity_reference_paths": {
+    "config/external_repository_evaluation_registry.json": [
+      "factorial_evaluation_plans.*.sage_snapshot.release_identity",
+      "subjects.*.result.sage_release_identity"
+    ]
+  },
+  "ignored_dir_parts": [
+    ".git",
+    "__pycache__",
+    "node_modules",
+    "output"
+  ],
+  "archive_path_markers": [
+    "/archive/"
+  ],
+  "archive_path_prefixes": [
+    "docs/archive/"
+  ],
+  "machine_path_regex_definition_files": [
+    "config/non_python_decision_inventory_policy.json"
+  ],
+  "markdown_release_tokens": [
+    "release",
+    "claim",
+    "roadmap",
+    "version"
+  ],
+  "sample_limits": {
+    "machine_absolute_paths": 50,
+    "release_literal_violations": 50,
+    "numeric_policy_inventory": 100,
+    "markdown_release_inventory": 100,
+    "archive_machine_paths": 50
+  }
+}

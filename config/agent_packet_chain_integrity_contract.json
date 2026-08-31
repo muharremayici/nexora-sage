@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "status": "active",
+  "owner_layer": "agent_surface",
+  "purpose": "Machine-readable contract for validating that target-repository agent packets stay fresh, fail closed, and do not leak internal SAGE debug details into default briefs.",
+  "artifact_trust_allowed_statuses": [
+    "PASS",
+    "WARN"
+  ],
+  "required_server_contracts": [
+    "_ensure_agent_artifact_chain_current",
+    "refresh_sage_evidence_before_editing",
+    "Do not edit from this queue until SAGE evidence is refreshed."
+  ],
+  "work_queue_body_contract": {
+    "must_include": [
+      "returned_work_items:",
+      "grouped_work_items:",
+      "raw_page_items_grouped:",
+      "grouping_policy:"
+    ],
+    "must_include_any": [
+      "evidence_items:",
+      "status: \"clean\""
+    ],
+    "must_not_include": [
+      "raw_returned:",
+      "evidence_status:"
+    ]
+  },
+  "surgical_brief_contract": {
+    "must_include": [
+      "validation:",
+      "tools:",
+      "get_test_impact(target_file)",
+      "validate_patch(target_file, patch_content)",
+      "completion_rule:"
+    ],
+    "must_not_include": [
+      "debug_internal_refs:",
+      "atlas_nodes:",
+      "validate_doctrine_audit_quality_integrity.py",
+      "validate_contextos_contracts.py"
+    ]
+  },
+  "active_signals_idle_contract": {
+    "idle_marker": "no_active_signals",
+    "fail_closed_if_idle_must_include": [
+      "Do not make a repository edit from ContextOS alone right now.",
+      "Do not treat missing active signals as proof that the repository has no risk."
+    ]
+  },
+  "confidence_brief_contract": {
+    "must_include": [
+      "If aggregate_risk is MEDIUM or HIGH"
+    ],
+    "must_not_include": [
+      "If risk is MEDIUM, LOW, or CRITICAL"
+    ]
+  },
+  "contextos_default_brief_contract": {
+    "contextos_must_include": [
+      "debug_internal_refs",
+      "validation"
+    ],
+    "quality_review_must_include": [
+      "Internal SAGE graph/provenance identifiers belong in json or brief_debug modes"
+    ]
+  },
+  "pipeline_order_contract": {
+    "orchestrator_must_include": [
+      "\"Nexora Operator Packet\"",
+      "\"AI Context Generator\"",
+      "\"scope_dependencies\"",
+      "\"SAGE_ON_SAGE\": [\"Nexora Operator Packet\"]"
+    ]
+  },
+  "docs_idle_contract": {
+    "skill_must_include": [
+      "Treat missing or empty ContextOS active signals as an idle/fail-closed state"
+    ],
+    "runbook_must_include": [
+      "Missing or empty ContextOS active signals are an idle/fail-closed state"
+    ]
+  },
+  "target_root_contract": {
+    "server_must_include": [
+      "_raw_dir_for_target"
+    ],
+    "skill_must_include": [
+      "target_root",
+      "isolated external-target output"
+    ],
+    "skill_must_include_any": [
+      "fail-closed",
+      "fails closed"
+    ]
+  }
+}

@@ -1,0 +1,536 @@
+{
+  "_meta": {
+    "kind": "nexora.engine_signal_contracts",
+    "version": "1.0.0",
+    "description": "Machine-readable contract that separates engine signals, calibrated evidence, governance verdicts and human-approved actions."
+  },
+  "source_vocabulary": "config/evidence_vocabulary.json",
+  "default_policy_for_unlisted_capabilities": {
+    "emits": "signal",
+    "decision_authority": "engine_signal_only",
+    "quality_gate_effect": "none",
+    "allowed_confidence": [
+      "candidate",
+      "not_v1_scope"
+    ],
+    "runtime_proof_status": "not_required",
+    "claim_scope": "unlisted_capability_requires_contract_before_release_claim"
+  },
+  "validation_contract": {
+    "valid_emits": [
+      "signal",
+      "evidence",
+      "verdict",
+      "action_plan",
+      "context_packet"
+    ],
+    "valid_gate_effects": [
+      "none",
+      "advisory",
+      "warn",
+      "block",
+      "human_review",
+      "roadmap"
+    ],
+    "required_confidence": [
+      "confirmed",
+      "probable",
+      "candidate",
+      "needs_runtime_proof",
+      "not_v1_scope"
+    ],
+    "required_evidence": [
+      "atlas_feature",
+      "ast_span",
+      "static_policy",
+      "artifact_contract",
+      "claim_guard"
+    ],
+    "required_authorities": [
+      "engine_signal_only",
+      "evidence_calibrated",
+      "governance_decides",
+      "human_approval_required"
+    ],
+    "required_actionability": [
+      "advisory",
+      "warn",
+      "block",
+      "human_review",
+      "roadmap"
+    ],
+    "blocking_authorities": [
+      "governance_decides",
+      "human_approval_required",
+      "evidence_calibrated"
+    ],
+    "roadmap_claim_boundary_markers": [
+      "not v1",
+      "not active in v1",
+      "not active in the v1"
+    ]
+  },
+  "contracts": [
+    {
+      "capability_id": "repository_discovery",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "none",
+      "allowed_confidence": [
+        "confirmed",
+        "probable"
+      ],
+      "required_evidence_kinds": [
+        "compiled_config",
+        "artifact_contract"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "repository_shape_and_project_dna_hypotheses"
+    },
+    {
+      "capability_id": "atlas_sequencing",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "warn",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "needs_transitive_helper_proof"
+      ],
+      "required_evidence_kinds": [
+        "atlas_feature",
+        "ast_span",
+        "artifact_contract"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "react_typescript_deep_non_react_structural"
+    },
+    {
+      "capability_id": "architecture_governance",
+      "emits": "verdict",
+      "decision_authority": "governance_decides",
+      "quality_gate_effect": "block",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "needs_parent_boundary_proof"
+      ],
+      "required_evidence_kinds": [
+        "doctrine_rule",
+        "atlas_feature",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "sealed_architecture_and_quality_governance"
+    },
+    {
+      "capability_id": "react_surgical_intelligence",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "warn",
+      "allowed_confidence": [
+        "confirmed",
+        "likely",
+        "probable",
+        "needs_parent_boundary_proof",
+        "needs_runtime_proof",
+        "needs_transitive_helper_proof",
+        "reference_only"
+      ],
+      "required_evidence_kinds": [
+        "atlas_feature",
+        "ast_span",
+        "static_policy",
+        "react_state_signal"
+      ],
+      "runtime_proof_status": "needs_runtime_proof",
+      "claim_scope": "core_react_web_static_and_compiler_adjacent_governance"
+    },
+    {
+      "capability_id": "dead_code_public_contracts",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "warn",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "candidate",
+        "reference_only"
+      ],
+      "required_evidence_kinds": [
+        "public_contract",
+        "barrel_chain",
+        "type_augmentation",
+        "atlas_feature"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "dead_code_with_public_contract_guards"
+    },
+    {
+      "capability_id": "dependency_health",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "warn",
+      "allowed_confidence": [
+        "confirmed",
+        "probable"
+      ],
+      "required_evidence_kinds": [
+        "atlas_feature",
+        "artifact_contract"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "static_dependency_and_blast_radius"
+    },
+    {
+      "capability_id": "test_impact",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "advisory",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "candidate"
+      ],
+      "required_evidence_kinds": [
+        "atlas_feature",
+        "static_policy"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "likely_affected_tests_not_coverage_proof"
+    },
+    {
+      "capability_id": "merge_variation_intelligence",
+      "emits": "action_plan",
+      "decision_authority": "human_approval_required",
+      "quality_gate_effect": "human_review",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "needs_runtime_proof"
+      ],
+      "required_evidence_kinds": [
+        "release_proof",
+        "artifact_contract",
+        "human_approval"
+      ],
+      "runtime_proof_status": "needs_runtime_proof",
+      "claim_scope": "merge_evidence_and_human_approved_plan"
+    },
+    {
+      "capability_id": "contextos",
+      "emits": "context_packet",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "none",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "candidate"
+      ],
+      "required_evidence_kinds": [
+        "contextos_signal",
+        "watchdog_signal",
+        "git_signal"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "live_focus_and_agent_context_not_release_proof"
+    },
+    {
+      "capability_id": "agent_surface",
+      "emits": "context_packet",
+      "decision_authority": "governance_decides",
+      "quality_gate_effect": "warn",
+      "allowed_confidence": [
+        "confirmed",
+        "probable"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "human_approval",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "deterministic_agent_handoff_and_hitl_surface"
+    },
+    {
+      "capability_id": "sqlite_artifact_store",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "block",
+      "allowed_confidence": [
+        "confirmed"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "schema_validation"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "local_sqlite_primary_artifact_store_with_json_shadow_export"
+    },
+    {
+      "capability_id": "plugin_extension_foundation",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "warn",
+      "allowed_confidence": [
+        "confirmed",
+        "probable"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "schema_validation"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "manifest_contract_foundation_not_runtime_plugin_loader"
+    },
+    {
+      "capability_id": "principle_pack_expansion",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "candidate",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "static_policy"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "roadmap_advisory_engineering_principle_packs_not_v1_claim"
+    },
+    {
+      "capability_id": "third_party_plugin_runtime",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "candidate",
+        "needs_runtime_proof",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "schema_validation",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "needs_runtime_proof",
+      "claim_scope": "roadmap_executable_plugin_runtime_not_v1_claim"
+    },
+    {
+      "capability_id": "security_boundary",
+      "emits": "verdict",
+      "decision_authority": "governance_decides",
+      "quality_gate_effect": "block",
+      "allowed_confidence": [
+        "confirmed",
+        "probable"
+      ],
+      "required_evidence_kinds": [
+        "static_policy",
+        "human_approval",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "local_ai_agent_boundary_and_script_safety"
+    },
+    {
+      "capability_id": "ci_cd_gate_surface",
+      "emits": "verdict",
+      "decision_authority": "governance_decides",
+      "quality_gate_effect": "block",
+      "allowed_confidence": [
+        "confirmed"
+      ],
+      "required_evidence_kinds": [
+        "release_proof",
+        "artifact_contract",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "minimal_read_only_github_actions_contract_gate"
+    },
+    {
+      "capability_id": "engine_signal_evidence_contract",
+      "emits": "verdict",
+      "decision_authority": "governance_decides",
+      "quality_gate_effect": "block",
+      "allowed_confidence": [
+        "confirmed"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "schema_validation",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "engine_signal_evidence_vocabulary_and_decision_authority_contract"
+    },
+    {
+      "capability_id": "release_proof",
+      "emits": "verdict",
+      "decision_authority": "governance_decides",
+      "quality_gate_effect": "block",
+      "allowed_confidence": [
+        "confirmed"
+      ],
+      "required_evidence_kinds": [
+        "release_proof",
+        "artifact_contract",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "release_gate_and_claim_evidence_bundle"
+    },
+    {
+      "capability_id": "data_privacy_cage",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "candidate",
+        "needs_runtime_proof",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "static_policy",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "needs_runtime_proof",
+      "claim_scope": "roadmap_privacy_leakage_cage_not_v1_claim"
+    },
+    {
+      "capability_id": "performance_n_plus_one_cage",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "advisory",
+      "allowed_confidence": [
+        "candidate",
+        "needs_runtime_proof",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "ast_span",
+        "static_policy"
+      ],
+      "runtime_proof_status": "needs_runtime_proof",
+      "claim_scope": "policy_backed_mvp_signal_not_v1_release_blocker"
+    },
+    {
+      "capability_id": "resilience_error_handling_cage",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "advisory",
+      "allowed_confidence": [
+        "candidate",
+        "needs_runtime_proof",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "ast_span",
+        "static_policy"
+      ],
+      "runtime_proof_status": "needs_runtime_proof",
+      "claim_scope": "policy_backed_mvp_signal_not_v1_release_blocker"
+    },
+    {
+      "capability_id": "immutability_purity_cage",
+      "emits": "signal",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "advisory",
+      "allowed_confidence": [
+        "candidate",
+        "probable",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "ast_span",
+        "react_state_signal",
+        "static_policy"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "policy_backed_mvp_signal_not_v1_release_blocker"
+    },
+    {
+      "capability_id": "capability_activation_planner",
+      "emits": "action_plan",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "none",
+      "allowed_confidence": [
+        "confirmed",
+        "probable",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "compiled_config",
+        "artifact_contract"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "planning_only_dna_driven_capability_selection"
+    },
+    {
+      "capability_id": "runtime_trace_bridge",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "needs_runtime_proof",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "runtime_trace",
+        "telemetry_trace"
+      ],
+      "runtime_proof_status": "runtime_supported",
+      "claim_scope": "roadmap_runtime_trace_bridge_not_v1_claim"
+    },
+    {
+      "capability_id": "tree_sitter_polyglot_driver",
+      "emits": "evidence",
+      "decision_authority": "evidence_calibrated",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "candidate",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "atlas_feature",
+        "artifact_contract"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "roadmap_deeper_polyglot_drivers_not_v1_claim"
+    },
+    {
+      "capability_id": "multi_agent_coordination",
+      "emits": "action_plan",
+      "decision_authority": "human_approval_required",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "candidate",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "human_approval",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "roadmap_bounded_agent_ownership_not_v1_claim"
+    },
+    {
+      "capability_id": "scoped_governance_reality_projections",
+      "emits": "context_packet",
+      "decision_authority": "engine_signal_only",
+      "quality_gate_effect": "roadmap",
+      "allowed_confidence": [
+        "candidate",
+        "not_v1_scope"
+      ],
+      "required_evidence_kinds": [
+        "artifact_contract",
+        "claim_guard"
+      ],
+      "runtime_proof_status": "not_required",
+      "claim_scope": "roadmap_scoped_governance_projection_expansion_not_v1_claim"
+    }
+  ]
+}

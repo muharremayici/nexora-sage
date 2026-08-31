@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Audit Policy",
+  "type": "object",
+  "required": [
+    "_meta",
+    "loc_limits",
+    "loc_finding_contract",
+    "api_entry_filenames",
+    "report_sections"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "audit_policy"
+        },
+        "version": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "loc_limits": {
+      "type": "object",
+      "required": [
+        "hook",
+        "service",
+        "component",
+        "function",
+        "class",
+        "default"
+      ],
+      "properties": {
+        "hook": {
+          "type": "number"
+        },
+        "service": {
+          "type": "number"
+        },
+        "component": {
+          "type": "number"
+        },
+        "function": {
+          "type": "number"
+        },
+        "class": {
+          "type": "number"
+        },
+        "default": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "loc_finding_contract": {
+      "type": "object",
+      "required": [
+        "generic_rule",
+        "kind_rule_map",
+        "required_evidence_fields"
+      ],
+      "properties": {
+        "generic_rule": {
+          "type": "string"
+        },
+        "kind_rule_map": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "required_evidence_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "api_entry_filenames": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "report_sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "keys"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "keys": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "profile_report_section_overrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "replace_index",
+            "section"
+          ],
+          "properties": {
+            "replace_index": {
+              "type": "number"
+            },
+            "section": {
+              "type": "object",
+              "required": [
+                "title",
+                "keys"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "keys": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

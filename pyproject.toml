@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexora-sage"
+version = "1.0.0"
+description = "Nexora SAGE: polyglot architectural governance with deep TypeScript/React analysis."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0"
+license-files = [
+  "LICENSE",
+  "LICENSES/PolyForm-Noncommercial-1.0.0.md",
+  "LICENSES/PolyForm-Free-Trial-1.0.0.md",
+  "NOTICE.md",
+]
+dependencies = [
+  "json-repair>=0.30.0",
+  "mcp>=1.26.0,<2",
+  "rich>=14.3.0",
+  "watchdog>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools]
+py-modules = ["codemaps", "sage"]
+
+[tool.pytest.ini_options]
+testpaths = ["tools/tests"]
+python_files = ["test_*.py"]
+
+[tool.nexora_sage.distribution]
+mode = "source_checkout"
+wheel_supported = false
+entrypoint = "python sage.py"
+tested_python_versions = ["3.11", "3.12", "3.13", "3.14"]
+clean_mirror_sync = "tools/sync_clean_distribution.py"
+clean_mirror_closeout = "tools/close_clean_distribution.py"
+clean_mirror_name_token = "clean-install"
+clean_mirror_marker = "CLEAN_INSTALL_NOTES.md"
+clean_mirror_source_authority = "git_tracked_head_plus_declared_supplements"
+clean_mirror_supplemental_source_paths = []
+clean_mirror_preserved_relative_paths = ["CLEAN_INSTALL_DELIVERY.json"]
+clean_mirror_forbidden_relative_paths = [
+  "config/.nexora_hitl_secret",
+  "config/codemaps.config.json",
+  "config/codemaps.discovery.json",
+  "config/codemaps.overrides.json",
+  "tools/engines/node_modules",
+]

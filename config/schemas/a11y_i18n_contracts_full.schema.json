@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "files"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "files_analyzed",
+        "risk_counts",
+        "signal_counts",
+        "high_risk",
+        "medium_risk",
+        "by_project",
+        "primary_report_file_limit",
+        "truncated_in_primary_report",
+        "full_artifact"
+      ],
+      "properties": {
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "risk_counts": {
+          "type": "object"
+        },
+        "signal_counts": {
+          "type": "object"
+        },
+        "high_risk": {
+          "type": "integer"
+        },
+        "medium_risk": {
+          "type": "integer"
+        },
+        "by_project": {
+          "type": "object"
+        },
+        "primary_report_file_limit": {
+          "type": "integer"
+        },
+        "truncated_in_primary_report": {
+          "type": "integer"
+        },
+        "full_artifact": {
+          "type": "string"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": true
+}

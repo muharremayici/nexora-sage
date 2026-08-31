@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "kind": "quality_gate_policy",
+    "version": "v1",
+    "description": "Central defaults for generated quality gate seed and compiled quality gate contract values."
+  },
+  "contract_defaults": {
+    "min_health_score": 60,
+    "max_unresolved_targets": 0,
+    "max_total_audit_violations": 0,
+    "max_encoding_findings": 0,
+    "required_artifacts": [
+      "atlas",
+      "genome"
+    ]
+  },
+  "discovery_seed_fields": [
+    "min_health_score",
+    "required_artifacts"
+  ]
+}

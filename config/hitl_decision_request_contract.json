@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "kind": "nexora.hitl_decision_request_contract",
+    "version": "v1",
+    "purpose": "Machine-readable contract for HITL decision request vocabulary."
+  },
+  "validation_contract": {
+    "valid_statuses": [
+      "open",
+      "superseded",
+      "closed"
+    ],
+    "valid_risks": [
+      "low",
+      "medium",
+      "high",
+      "critical"
+    ],
+    "valid_human_responses": [
+      "approved",
+      "rejected",
+      "deferred"
+    ]
+  },
+  "derived_request_policies": {
+    "refresh_human_seal_after_impacting_changes": {
+      "gate": "agent_surface_release_seal",
+      "proposed_action": "Review impacted proof evidence and decide whether to renew the human seal.",
+      "risk": "critical",
+      "confidence": "high",
+      "requested_by": "release_seal_remaining_actions",
+      "rationale": "Source changes impacted an active human seal. SAGE may request review but must never renew approval automatically."
+    }
+  }
+}

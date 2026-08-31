@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "checks",
+    "route_summary"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "fixture_root",
+        "evidence_basis"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "react_v11_contract_validation"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "fixture_root": {
+          "type": "string"
+        },
+        "evidence_basis": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "families",
+        "checks",
+        "passed"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "families": {
+          "type": "integer"
+        },
+        "checks": {
+          "type": "integer"
+        },
+        "passed": {
+          "type": "integer"
+        }
+      }
+    },
+    "checks": {
+      "type": "array"
+    },
+    "route_summary": {
+      "type": "object",
+      "required": [
+        "route_counts",
+        "route_kind_counts",
+        "segment_kind_counts",
+        "hybrid_next_app_pages"
+      ]
+    }
+  }
+}

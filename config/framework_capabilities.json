@@ -1,0 +1,539 @@
+{
+  "_meta": {
+    "kind": "framework_capabilities",
+    "version": "1.0",
+    "boundary": "Claim-critical framework/package/marker knowledge is declarative; AST traversal, scoring and diagnostic correlation remain engine logic."
+  },
+  "validation_contract": {
+    "required_ecosystems": [
+      "react",
+      "next_app_router",
+      "next_pages_router",
+      "react_router",
+      "tanstack_router",
+      "vite",
+      "tanstack_query",
+      "zustand",
+      "redux",
+      "a11y_i18n",
+      "headless_ui"
+    ],
+    "required_manifest_owned_fields": [
+      "packages",
+      "config_files",
+      "route_markers",
+      "directives",
+      "hooks",
+      "tokens",
+      "evidence_categories"
+    ],
+    "required_code_owned_fields": [
+      "ast_traversal",
+      "risk_scoring",
+      "confidence_ladder",
+      "diagnostic_correlation"
+    ],
+    "required_boundary_doc_phrases": [
+      "Manifest-owned knowledge",
+      "Code-owned behavior",
+      "config/framework_capabilities.json",
+      "not a \"no hardcoded React\" policy"
+    ],
+    "route_detection_manifest_function": "framework_config_files()",
+    "forbidden_route_detection_literals": [
+      "\"next.config.js\"",
+      "\"vite.config.ts\""
+    ]
+  },
+  "ecosystems": {
+    "react": {
+      "claim_level": "deep_specialist",
+      "packages": [
+        "react",
+        "react-dom",
+        "react-router",
+        "react-router-dom"
+      ],
+      "source_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx"
+      ],
+      "source_detection_tokens": [
+        "React.",
+        "jsx",
+        "tsx",
+        "useState(",
+        "useEffect(",
+        "useMemo(",
+        "useCallback(",
+        "useQuery(",
+        "useMutation("
+      ],
+      "hooks": [
+        "useState",
+        "useEffect",
+        "useMemo",
+        "useCallback",
+        "useRef",
+        "useImperativeHandle",
+        "useTransition",
+        "useDeferredValue"
+      ],
+      "evidence_categories": [
+        "react_ecosystem_analysis",
+        "react_runtime_intelligence",
+        "react_frontier_intelligence",
+        "react_compiler_readiness"
+      ],
+      "engines": [
+        "React Ecosystem Analyzer",
+        "React Runtime Intelligence",
+        "React Frontier Intelligence",
+        "React Compiler Readiness"
+      ]
+    },
+    "next_app_router": {
+      "claim_level": "deep_specialist",
+      "packages": [
+        "next",
+        "next/navigation",
+        "next/headers",
+        "next/cache"
+      ],
+      "config_files": [
+        "next.config.ts",
+        "next.config.js",
+        "next.config.mjs"
+      ],
+      "route_markers": [
+        "app/**/page.tsx",
+        "app/**/layout.tsx",
+        "app/**/route.ts"
+      ],
+      "directives": [
+        "use client",
+        "use server"
+      ],
+      "boundary_tokens": [
+        "revalidatePath",
+        "revalidateTag",
+        "redirect(",
+        "notFound(",
+        "router.refresh",
+        "useRouter(",
+        "useSearchParams("
+      ],
+      "evidence_categories": [
+        "next_boundary_analysis",
+        "framework_routes",
+        "react_frontier_intelligence"
+      ],
+      "engines": [
+        "Next Boundary Analyzer",
+        "Framework Route Analyzer",
+        "React Frontier Intelligence"
+      ]
+    },
+    "next_pages_router": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "next",
+        "next/router"
+      ],
+      "config_files": [
+        "next.config.ts",
+        "next.config.js",
+        "next.config.mjs"
+      ],
+      "route_markers": [
+        "pages/**/*.tsx",
+        "pages/api/**/*.ts"
+      ],
+      "evidence_categories": [
+        "framework_routes",
+        "react_frontier_intelligence"
+      ],
+      "engines": [
+        "Framework Route Analyzer",
+        "React Frontier Intelligence"
+      ]
+    },
+    "nextjs": {
+      "claim_level": "deep_specialist",
+      "packages": [
+        "next",
+        "next/navigation",
+        "next/headers",
+        "next/cache"
+      ],
+      "config_files": [
+        "next.config.ts",
+        "next.config.js",
+        "next.config.mjs"
+      ],
+      "route_markers": [
+        "app/**/page.tsx",
+        "app/**/layout.tsx",
+        "app/**/route.ts",
+        "pages/**/*.tsx",
+        "pages/api/**/*.ts"
+      ],
+      "directives": [
+        "use client",
+        "use server"
+      ],
+      "boundary_tokens": [
+        "revalidatePath",
+        "revalidateTag",
+        "redirect(",
+        "notFound(",
+        "router.refresh",
+        "useRouter(",
+        "useSearchParams("
+      ],
+      "evidence_categories": [
+        "next_boundary_analysis",
+        "framework_routes",
+        "react_frontier_intelligence"
+      ],
+      "engines": [
+        "Next Boundary Analyzer",
+        "Framework Route Analyzer",
+        "React Frontier Intelligence"
+      ]
+    },
+    "react_router": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "react-router",
+        "react-router-dom"
+      ],
+      "tokens": [
+        "createBrowserRouter",
+        "createRoutesFromElements",
+        "Route",
+        "RouterProvider",
+        "useNavigate",
+        "useParams"
+      ],
+      "evidence_categories": [
+        "framework_routes",
+        "state_data_graph"
+      ],
+      "engines": [
+        "Framework Route Analyzer",
+        "State Data Graph Analyzer"
+      ]
+    },
+    "tanstack_router": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "@tanstack/react-router",
+        "@tanstack/router-plugin"
+      ],
+      "tokens": [
+        "createFileRoute",
+        "createRootRoute",
+        "createRootRouteWithContext",
+        "createRoute",
+        "createRouter"
+      ],
+      "route_markers": [
+        "src/routes/**/*.tsx",
+        "src/routeTree.gen.ts"
+      ],
+      "evidence_categories": [
+        "framework_routes",
+        "state_data_graph"
+      ],
+      "engines": [
+        "Framework Route Analyzer",
+        "State Data Graph Analyzer"
+      ]
+    },
+    "vite": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "vite",
+        "@vitejs/plugin-react"
+      ],
+      "config_files": [
+        "vite.config.ts",
+        "vite.config.js",
+        "vite.config.mts",
+        "vite.config.mjs"
+      ],
+      "evidence_categories": [
+        "react_frontier_evidence_readiness",
+        "framework_routes"
+      ],
+      "engines": [
+        "React Frontier Intelligence",
+        "Framework Route Analyzer"
+      ]
+    },
+    "tanstack_query": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "@tanstack/react-query",
+        "react-query"
+      ],
+      "hooks": [
+        "useQuery",
+        "useSuspenseQuery",
+        "useMutation",
+        "useQueryClient"
+      ],
+      "evidence_categories": [
+        "state_data_graph",
+        "react_ecosystem_analysis"
+      ],
+      "engines": [
+        "State Data Graph Analyzer",
+        "React Ecosystem Analyzer"
+      ]
+    },
+    "zustand": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "zustand"
+      ],
+      "tokens": [
+        "create(",
+        "createStore("
+      ],
+      "evidence_categories": [
+        "state_data_graph",
+        "react_ecosystem_analysis"
+      ],
+      "engines": [
+        "State Data Graph Analyzer",
+        "React Ecosystem Analyzer"
+      ]
+    },
+    "redux": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "redux",
+        "@reduxjs/toolkit",
+        "react-redux"
+      ],
+      "tokens": [
+        "createSlice",
+        "configureStore",
+        "createAsyncThunk",
+        "useSelector",
+        "useDispatch"
+      ],
+      "evidence_categories": [
+        "state_data_graph"
+      ],
+      "engines": [
+        "State Data Graph Analyzer"
+      ]
+    },
+    "a11y_i18n": {
+      "claim_level": "contract_aware",
+      "packages": [
+        "i18next",
+        "react-i18next",
+        "next-intl",
+        "react-aria",
+        "@react-aria/focus"
+      ],
+      "tokens": [
+        "aria-",
+        "role=",
+        "useTranslation",
+        "t(",
+        "Trans",
+        "FocusTrap"
+      ],
+      "evidence_categories": [
+        "a11y_i18n_contracts",
+        "ui_smoke_specs"
+      ],
+      "engines": [
+        "A11y i18n Contract Analyzer",
+        "UI Smoke Spec Generator"
+      ]
+    },
+    "headless_ui": {
+      "claim_level": "framework_aware",
+      "packages": [
+        "@headlessui/react",
+        "@radix-ui/react-dialog",
+        "@radix-ui/react-popover",
+        "ariakit",
+        "@ariakit/react"
+      ],
+      "evidence_categories": [
+        "react_ecosystem_analysis",
+        "a11y_i18n_contracts"
+      ],
+      "engines": [
+        "React Ecosystem Analyzer",
+        "A11y i18n Contract Analyzer"
+      ]
+    }
+  },
+  "ast_feature_rules": {
+    "imports": [
+      {
+        "sources": [
+          "@tanstack/react-router"
+        ],
+        "features": [
+          "TanStackRouter"
+        ]
+      },
+      {
+        "sources": [
+          "@headlessui/react",
+          "ariakit",
+          "@ariakit/react"
+        ],
+        "source_prefixes": [
+          "@radix-ui/"
+        ],
+        "features": [
+          "HeadlessComponentSurface"
+        ]
+      }
+    ],
+    "import_names": [
+      {
+        "sources": [
+          "react-router",
+          "react-router-dom"
+        ],
+        "names": [
+          "Links",
+          "Meta",
+          "Scripts",
+          "ScrollRestoration",
+          "Form",
+          "useFetcher"
+        ],
+        "features": [
+          "ReactRouterFrameworkMode",
+          "RouterConfig"
+        ]
+      },
+      {
+        "sources": [
+          "react-router",
+          "react-router-dom"
+        ],
+        "names": [
+          "createBrowserRouter",
+          "createMemoryRouter",
+          "createHashRouter",
+          "RouterProvider"
+        ],
+        "features": [
+          "ReactRouterDataMode",
+          "RouterConfig"
+        ]
+      },
+      {
+        "sources": [
+          "react"
+        ],
+        "names": [
+          "useOptimistic"
+        ],
+        "features": [
+          "ReactOptimisticState"
+        ]
+      }
+    ],
+    "calls": [
+      {
+        "sources": [
+          "@tanstack/react-router"
+        ],
+        "names": [
+          "createFileRoute"
+        ],
+        "features": [
+          "TanStackRouter",
+          "TanStackRouterFileRoute"
+        ]
+      },
+      {
+        "sources": [
+          "@tanstack/react-router"
+        ],
+        "names": [
+          "createRootRoute",
+          "createRootRouteWithContext",
+          "createRoute",
+          "createRouter"
+        ],
+        "features": [
+          "TanStackRouter",
+          "TanStackRouterCodeRoute"
+        ]
+      },
+      {
+        "sources": [
+          "react"
+        ],
+        "names": [
+          "useOptimistic"
+        ],
+        "features": [
+          "ReactOptimisticState"
+        ]
+      }
+    ],
+    "properties": [
+      {
+        "sources": [
+          "@tanstack/react-query",
+          "react-query"
+        ],
+        "names": [
+          "onMutate"
+        ],
+        "features": [
+          "TanStackOptimisticMutation"
+        ]
+      },
+      {
+        "sources": [
+          "@tanstack/react-query",
+          "react-query"
+        ],
+        "names": [
+          "onError"
+        ],
+        "features": [
+          "TanStackMutationRollback"
+        ]
+      }
+    ]
+  },
+  "engine_boundary": {
+    "manifest_owned": [
+      "packages",
+      "config_files",
+      "route_markers",
+      "directives",
+      "hooks",
+      "tokens",
+      "evidence_categories"
+    ],
+    "code_owned": [
+      "ast_traversal",
+      "regex_execution",
+      "risk_scoring",
+      "confidence_ladder",
+      "diagnostic_correlation",
+      "artifact_rendering"
+    ]
+  }
+}

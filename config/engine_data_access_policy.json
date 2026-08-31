@@ -1,0 +1,199 @@
+{
+  "version": "1.0.0",
+  "principles": {
+    "physical_ssot": "sqlite_artifact_store",
+    "structural_ssot": "committed_atlas",
+    "source_rule": "downstream engines may read raw source only through an Atlas-bound source evidence adapter",
+    "fallback_rule": "caught errors, fallbacks and unknown evidence must emit honesty telemetry"
+  },
+  "validation_contract": {
+    "scan_roots": [
+      "tools/engines",
+      "tools/orchestrators",
+      "tools/core"
+    ],
+    "traversal_names": [
+      "glob",
+      "rglob",
+      "walk"
+    ],
+    "ssot_review_classes": [
+      "artifact_reader",
+      "execution_adapter",
+      "materialization_adapter"
+    ],
+    "repeated_acquisition_audit": {
+      "scan_roots": [
+        "tools"
+      ],
+      "exclude_path_prefixes": [
+        "tools/tests",
+        "tools/fixtures"
+      ],
+      "acquisition_methods": [
+        "read_text",
+        "read_bytes",
+        "load_json_file",
+        "load_json_object_strict",
+        "ast.parse"
+      ],
+      "minimum_occurrences": 2,
+      "freshness_boundary": "enclosing_function",
+      "declared_independent_reads": {
+        "tools/core/declarative_evidence.py|evaluate_evidence_contract|read_text|path": {
+          "reason": "The contains and not_contains loops share a source-id cache; their syntactic reads are guarded cache misses, not repeated acquisitions of one immutable source."
+        },
+        "tools/core/json_io.py|load_raw_artifact_path|load_json_file|json_path": {
+          "reason": "Managed raw artifacts return through the managed branch, while the JSON-shadow read is only the final external-target fallback after SQLite lookup cannot supply a payload."
+        },
+        "tools/engines/merge_script_generator.py|_hydrate_sanctuary_dependency_closure|read_text|source_abs": {
+          "reason": "The second read is a Latin-1 decoding fallback attempted only after the UTF-8 acquisition fails. Keeping separate reads preserves fault isolation."
+        },
+        "tools/mcp/server.py|get_symbol_dna|read_text|closure_path": {
+          "reason": "The first read checks existing closure state; the second occurs after a subprocess may create a fresh closure artifact."
+        },
+        "tools/engines/quant_engine.py|run_quant_engine|load_json_file|audit_path": {
+          "reason": "Direct-scope and broad-scope branches are mutually exclusive evidence universes: one reads the scoped watchdog Audit and the other reads canonical broad Audit, so only one acquisition occurs per invocation."
+        }
+      }
+    }
+  },
+  "filesystem_inventory_allowlist": {
+    "tools/engines/generate_atlas.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "Atlas owner"
+    },
+    "tools/engines/ast_sequencer_python.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "language sequencer"
+    },
+    "tools/engines/ast_sequencer_cs.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "language sequencer"
+    },
+    "tools/engines/ast_sequencer_java.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "language sequencer"
+    },
+    "tools/engines/ast_sequencer_go.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "language sequencer"
+    },
+    "tools/orchestrators/watchdog.py": {
+      "class": "runtime_sensor",
+      "status": "accepted",
+      "reason": "filesystem event boundary"
+    },
+    "tools/core/cache_manager.py": {
+      "class": "ingestion_cache",
+      "status": "accepted",
+      "reason": "pre-Atlas staleness sensor"
+    },
+    "tools/core/config.py": {
+      "class": "bootstrap_sensor",
+      "status": "accepted",
+      "reason": "bounded target capability detection before Atlas exists"
+    },
+    "tools/core/target_inventory.py": {
+      "class": "ingestion",
+      "status": "accepted_bounded",
+      "reason": "pre-Atlas target inventory bounded by canonical project ownership, skip policy and a global file-count limit"
+    },
+    "tools/core/artifact_store.py": {
+      "class": "artifact_storage",
+      "status": "accepted",
+      "reason": "backup, restore and compatibility shadow enumeration"
+    },
+    "tools/orchestrators/discovery.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "repository boundary discovery before Atlas exists"
+    },
+    "tools/engines/validation_oracle.py": {
+      "class": "execution_adapter",
+      "status": "accepted_bounded",
+      "reason": "bounded compiler sandbox materialization through a single traversal helper"
+    },
+    "tools/engines/merge_dependency_packager.py": {
+      "class": "materialization_adapter",
+      "status": "accepted",
+      "reason": "explicit merge package"
+    },
+    "tools/engines/host_merge_intelligence.py": {
+      "class": "materialization_adapter",
+      "status": "accepted",
+      "reason": "explicit host merge scope"
+    },
+    "tools/engines/scoped_host_analyzer.py": {
+      "class": "materialization_adapter",
+      "status": "accepted",
+      "reason": "explicit user-selected host scope"
+    },
+    "tools/engines/project_dna_profiler.py": {
+      "class": "ingestion",
+      "status": "accepted_bounded",
+      "reason": "expands declared workspace package-manifest patterns beneath the target root for applicability evidence"
+    },
+    "tools/core/path_engine.py": {
+      "class": "execution_adapter",
+      "status": "accepted_bounded",
+      "reason": "resolves workspace package imports from package manifests with skip-directory filtering and one per-root cache"
+    },
+    "tools/engines/live_surface_analyzer.py": {
+      "class": "artifact_reader",
+      "status": "accepted",
+      "reason": "enumerates generated oracle reports"
+    },
+    "tools/engines/master_report_generator.py": {
+      "class": "artifact_reader",
+      "status": "accepted",
+      "reason": "enumerates generated reports"
+    },
+    "tools/engines/proof_obligations_engine.py": {
+      "class": "artifact_reader",
+      "status": "accepted",
+      "reason": "enumerates generated oracle reports"
+    },
+    "tools/engines/quality_review_engine.py": {
+      "class": "artifact_reader",
+      "status": "accepted",
+      "reason": "enumerates generated oracle reports"
+    },
+    "tools/engines/temporal_diff.py": {
+      "class": "artifact_history",
+      "status": "accepted",
+      "reason": "enumerates managed snapshots"
+    },
+    "tools/engines/ui_smoke_spec_generator.py": {
+      "class": "materialization_adapter",
+      "status": "accepted",
+      "reason": "clears and rewrites managed generated smoke spec files"
+    },
+    "tools/core/report_index.py": {
+      "class": "artifact_index",
+      "status": "accepted",
+      "reason": "central generated report/oracle report index boundary"
+    },
+    "tools/core/acquisition_audit.py": {
+      "class": "source_governance_inventory",
+      "status": "accepted",
+      "reason": "bounded AST inventory of repeated source acquisitions for central-decision validation"
+    },
+    "tools/core/source_state_identity.py": {
+      "class": "source_governance_identity",
+      "status": "accepted",
+      "reason": "deterministic governed-source fingerprint for proof currentness and pre-seal stabilization"
+    },
+    "tools/core/clean_delivery.py": {
+      "class": "source_governance_identity",
+      "status": "accepted",
+      "reason": "deterministic clean-distribution inventory and fingerprint verification excluding Git metadata and the generated delivery marker"
+    }
+  },
+  "atlas_bound_source_adapter": "tools/core/source_evidence.py"
+}

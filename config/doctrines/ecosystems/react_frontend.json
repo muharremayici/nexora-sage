@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "ecosystems.react_frontend",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "ui_discovery": {
+    "extensions": [
+      ".tsx",
+      ".jsx"
+    ],
+    "dirs": [
+      "components",
+      "features",
+      "pages",
+      "widgets",
+      "tabs",
+      "layout",
+      "hooks/ui",
+      "hooks/editor"
+    ],
+    "structural_categories": {
+      "pages": "Pages",
+      "hooks": "Hooks",
+      "features": "Feature Slices",
+      "widgets": "Widgets"
+    },
+    "default_structural": "Components"
+  },
+  "framework_monitoring_keys": {
+    "state_keys": [
+      "zustand_stores",
+      "zustand_consumers",
+      "tanstack_queries",
+      "tanstack_mutations"
+    ],
+    "check_fields": [
+      "has_zustand_store",
+      "zustand_consumers",
+      "zustand_no_selector_calls",
+      "zustand_broad_selector_calls",
+      "query_keys",
+      "mutation_keys",
+      "client_actions"
+    ]
+  }
+}

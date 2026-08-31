@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "meta",
+    "subject",
+    "claim_boundary",
+    "summary",
+    "sources",
+    "actions",
+    "unknowns"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator",
+        "contract_identity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "target_repository_action_memory"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "const": "tools.generate_target_repository_action_memory"
+        },
+        "contract_identity": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "required": [
+        "scope",
+        "target_root"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "const": "target_repository"
+        },
+        "target_root": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "declared_sources",
+        "present_sources",
+        "action_count",
+        "human_review_actions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "EMPTY"
+          ]
+        },
+        "declared_sources": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "present_sources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "action_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "human_review_actions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "artifact_id",
+          "availability",
+          "freshness",
+          "generated_at",
+          "action_count"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "artifact_id": {
+            "type": "string"
+          },
+          "availability": {
+            "enum": [
+              "PRESENT",
+              "MISSING",
+              "INVALID"
+            ]
+          },
+          "freshness": {
+            "enum": [
+              "DECLARED",
+              "UNKNOWN"
+            ]
+          },
+          "generated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "action_id",
+          "source_authority",
+          "source_identity",
+          "lifecycle",
+          "priority",
+          "target_ref",
+          "target_file",
+          "recommended_action",
+          "evidence",
+          "human_approval_required",
+          "source_generated_at",
+          "freshness"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_authority": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_identity": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lifecycle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "priority": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_ref": {
+            "type": "string"
+          },
+          "target_file": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "human_approval_required": {
+            "type": "boolean"
+          },
+          "source_generated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "freshness": {
+            "enum": [
+              "DECLARED",
+              "UNKNOWN"
+            ]
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

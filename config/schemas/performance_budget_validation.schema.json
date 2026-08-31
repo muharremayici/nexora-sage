@@ -1,0 +1,61 @@
+{
+  "type": "object",
+  "required": [
+    "summary",
+    "metrics",
+    "budgets",
+    "checks"
+  ],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_checks",
+        "passed_checks",
+        "failed_checks"
+      ],
+      "properties": {
+        "total_checks": {
+          "type": "integer"
+        },
+        "passed_checks": {
+          "type": "integer"
+        },
+        "failed_checks": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "budgets": {
+      "type": "object"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "passed",
+          "details"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

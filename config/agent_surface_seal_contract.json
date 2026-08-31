@@ -1,0 +1,435 @@
+{
+  "meta": {
+    "kind": "agent_surface_seal_contract",
+    "version": "v1",
+    "owner": "SAGE",
+    "purpose": "Define target-repository agent-surface seal families, representative samples, and Progressive HITL review prompts outside generator code."
+  },
+  "default_forbidden_markers": [
+    "atlas_node",
+    "SOVEREIGN_ELITE",
+    "output/.raw",
+    "architecture_profile:"
+  ],
+  "supporting_context_semantic_contract": {
+    "surfaces": [
+      "module_integrity",
+      "dead_code",
+      "clones",
+      "health_metrics",
+      "circular_dependencies",
+      "blast_radius",
+      "state_flow",
+      "hexagonal_bindings",
+      "surgical_context",
+      "ui_architecture"
+    ],
+    "required_markers": [
+      "analysis_root:",
+      "path_contract:",
+      "open_files_with:",
+      "target_ref_usage:",
+      "target_ref_format:",
+      "refs_are_not_paths: true",
+      "Treat this as context, not as permission to broaden the patch."
+    ],
+    "forbidden_markers": [
+      "output/.raw",
+      "SOVEREIGN_ELITE",
+      "debug_internal_refs:",
+      "artifact_trust:",
+      "release_ready:"
+    ],
+    "max_chars": 8000,
+    "surface_specific_required_markers": {
+      "dead_code": [
+        "actionability",
+        "file_imported",
+        "symbol_seen_globally",
+        "local_symbol_usage"
+      ],
+      "health_metrics": [
+        "# Target Repository Health Metrics Brief",
+        "Use this bounded triage context before selecting a concrete edit target.",
+        "No direct edit target; first request a concrete target_file from a primary agent tool.",
+        "resolution_status"
+      ]
+    }
+  },
+  "quality_review_contract": {
+    "negative_probe_purposes": {
+      "confidence_missing_target": "Intentional fail-closed probe for a missing target file.",
+      "external_target_preflight_invalid": "Intentional fail-closed probe for an invalid external target root.",
+      "patch_validation_missing_target": "Intentional fail-closed probe for an ungrounded patch target.",
+      "patch_validation_negative": "Intentional exact-payload applicability failure probe for patch validation.",
+      "watchdog_session_missing": "Intentional no-active-session probe for watchdog packet behavior."
+    },
+    "allowed_variation_samples": [
+      "domain_ui_all_projects_work_queue",
+      "merge_review_queue",
+      "merge_review_queue_json",
+      "upstream_trace_filled",
+      "upstream_trace_path_resolution"
+    ],
+    "required_lifecycle_markers": {
+      "automated_agent_eye_check": "passed",
+      "manual_agent_eye_review": "required",
+      "human_review": "required",
+      "human_seal_required": true,
+      "human_seal_status": "not_human_sealed"
+    }
+  },
+  "manual_pack_selection_policy": {
+    "max_samples_per_family": 3,
+    "min_distinct_quality_review_targets": 4,
+    "min_existing_quality_review_targets": 3,
+    "prefer_distinct_targets": true,
+    "prefer_distinct_sample_prefixes": true,
+    "selection_strategy": "deterministic_diversity_first",
+    "selection_order": [
+      "fail_closed_variant",
+      "distinct_target",
+      "distinct_package",
+      "distinct_variant",
+      "default"
+    ],
+    "include_fail_closed_samples": true,
+    "fail_closed_name_markers": [
+      "invalid",
+      "missing",
+      "negative"
+    ],
+    "allowed_no_review_target_markers": [
+      "No queued architecture/governance debt is available",
+      "status: invalid_external_target_root",
+      "No active watchdog session",
+      "# Watchdog Session Missing",
+      "Do not analyze or edit a repository until the target root is a real local directory",
+      "Do not invent a fix target from this clean queue",
+      "items:\n  []\ndo:",
+      "Do not edit from this summary alone."
+    ],
+    "purpose": "Keep the Progressive HITL manual seal pack diverse enough to catch target/file/type-specific defects without dumping every reviewed sample. Selection is deterministic, but it prefers diversity over repeatedly showing the same package or target."
+  },
+  "review_tracker_policy": {
+    "purpose": "Track target-repository agent packet family coverage, variants, and deferred debts so manual review does not circle over the same surfaces without a ledger.",
+    "blocking_priorities": [
+      "P0",
+      "P0.5"
+    ],
+    "deferred_priorities": [
+      "P1",
+      "P2"
+    ],
+    "required_statuses": [
+      "open",
+      "in_progress",
+      "deferred",
+      "closed"
+    ],
+    "reviewed_sample_status": "reviewed_by_codex_agent",
+    "human_seal_final_status": "human_sealed"
+  },
+  "manual_agent_review_evidence_policy": {
+    "evidence_source": "config/agent_surface_manual_review_evidence.json",
+    "fingerprint_model": "dual_identity_reviewed_variants_v2",
+    "volatile_value_fields": [
+      "analysis_snapshot_id",
+      "bound_snapshot_id",
+      "content_sha256",
+      "generated_at"
+    ],
+    "volatile_value_fields_by_sample": {
+      "active_signals": [
+        "active_focus_files_l1",
+        "estimated_tokens",
+        "halo_files",
+        "omitted_l1_files",
+        "returned_l1_files",
+        "volatile_neighbors_l2_direct"
+      ]
+    },
+    "required_fields": [
+      "sample",
+      "packet_sha256",
+      "reviewed_at",
+      "reviewer_kind",
+      "source_comparison_status",
+      "operational_applicability",
+      "evidence"
+    ],
+    "reviewed_semantic_variant_required_fields": [
+      "packet_sha256",
+      "review_semantics_sha256",
+      "reviewed_at",
+      "evidence"
+    ],
+    "accepted_reviewer_kinds": [
+      "codex_agent_manual",
+      "human_manual"
+    ],
+    "accepted_source_comparison_statuses": [
+      "matched",
+      "not_applicable_fail_closed"
+    ],
+    "accepted_operational_applicability": [
+      "actionable",
+      "orientation_only",
+      "review_only",
+      "fail_closed"
+    ],
+    "rule": "Automated packet checks cannot claim manual review. packet_sha256 preserves exact packet provenance; review_semantics_sha256 binds review currentness to normalized decision semantics while retaining volatile field presence. reviewed_semantic_variants preserves separately reviewed, legitimate lifecycle semantics without overwriting prior evidence; an unseen semantic variant remains stale. Legacy evidence without a semantic fingerprint remains current only while its exact packet hash matches. Source-backed samples must name source paths and lines or explain why fail-closed behavior makes source comparison not applicable."
+  },
+  "required_upstream_artifacts": [
+    {
+      "id": "agent_surface_quality_review",
+      "accepted_statuses": [
+        "PASS"
+      ]
+    },
+    {
+      "id": "agent_surface_source_grounding",
+      "accepted_statuses": [
+        "PASS"
+      ]
+    },
+    {
+      "id": "agent_semantic_contract_smoke",
+      "accepted_statuses": [
+        "PASS"
+      ]
+    },
+    {
+      "id": "agent_context_payload_validation",
+      "accepted_statuses": [
+        "PASS"
+      ]
+    },
+    {
+      "id": "release_agent_surface_integrity_validation",
+      "accepted_statuses": [
+        "PASS"
+      ]
+    },
+    {
+      "id": "external_target_agent_surface_validation",
+      "accepted_statuses": [
+        "PASS"
+      ]
+    }
+  ],
+  "open_followups": [],
+  "families": [
+    {
+      "id": "primary_fix_queue",
+      "label": "Primary fix queue",
+      "required": true,
+      "samples": [
+        "violation_work_queue",
+        "domain_ui_work_queue",
+        "domain_ui_all_projects_work_queue"
+      ],
+      "role": "Choose the smallest concrete architecture/governance fix target.",
+      "manual_review_prompts": [
+        "Does the packet name the exact target file before asking for a fix?",
+        "Does the action ask for the smallest safe patch instead of broad cleanup?",
+        "Does it include the violated rule and evidence in words an agent can act on?"
+      ]
+    },
+    {
+      "id": "target_inspection",
+      "label": "Target inspection",
+      "required": true,
+      "samples": [
+        "work_queue_roundtrip_inspect",
+        "inspect_file",
+        "inspect_symbol",
+        "search_symbols",
+        "inspect_folder"
+      ],
+      "role": "Open exact target files and disambiguate symbols before editing.",
+      "manual_review_prompts": [
+        "Can the agent open the target with analysis_root + target_file?",
+        "If the symbol is ambiguous, does the packet force target_ref/project narrowing before edits?",
+        "Does it avoid treating SAGE target_ref values as filesystem paths?"
+      ]
+    },
+    {
+      "id": "impact_and_causality",
+      "label": "Impact and causality",
+      "required": true,
+      "samples": [
+        "work_queue_roundtrip_impact",
+        "impact_radius",
+        "upstream_trace",
+        "upstream_trace_filled",
+        "upstream_trace_path_resolution",
+        "work_queue_roundtrip_upstream"
+      ],
+      "role": "Bound blast radius and upstream-cause checks without expanding scope by default.",
+      "manual_review_prompts": [
+        "Does the packet bound direct/transitive impact instead of dumping the whole graph?",
+        "Does it tell the agent how to request deeper impact only when needed?",
+        "Does upstream evidence point to a plausible source-cause path?"
+      ]
+    },
+    {
+      "id": "confidence_and_readiness",
+      "label": "Confidence and readiness",
+      "required": true,
+      "samples": [
+        "confidence_score",
+        "work_queue_roundtrip_confidence"
+      ],
+      "role": "Estimate whether a target has enough fresh evidence for action without turning confidence into approval.",
+      "manual_review_prompts": [
+        "Does the packet distinguish confidence from permission to edit or release?",
+        "Does it say what must be refreshed or inspected before a confidence decision?",
+        "Does it avoid hiding missing-target or stale-artifact uncertainty?"
+      ]
+    },
+    {
+      "id": "test_and_patch_validation",
+      "label": "Test and patch validation",
+      "required": true,
+      "samples": [
+        "work_queue_roundtrip_test",
+        "test_impact",
+        "test_impact_filled",
+        "patch_validation",
+        "patch_validation_negative",
+        "patch_validation_missing_target"
+      ],
+      "role": "Tell the agent which tests to run and whether a patch is safe to apply.",
+      "manual_review_prompts": [
+        "Does the packet say which validation command or test family matters?",
+        "Does patch validation fail closed when the target file is missing or unrelated?",
+        "Does it avoid treating a test PASS as architecture approval?"
+      ]
+    },
+    {
+      "id": "merge_review",
+      "label": "Merge review",
+      "required": true,
+      "samples": [
+        "merge_review_queue",
+        "merge_review_queue_json"
+      ],
+      "role": "Review variation/import candidates without granting mutation permission.",
+      "manual_review_prompts": [
+        "Does the packet clearly say review-only and withhold mutation permission?",
+        "Does it name the candidate source/target surfaces enough for a reviewer to inspect them?",
+        "Does it separate merge readiness from automatic merge authorization?"
+      ]
+    },
+    {
+      "id": "supporting_context",
+      "label": "Supporting context",
+      "required": true,
+      "samples": [
+        "state_flow",
+        "ui_architecture",
+        "dead_code",
+        "circular_dependencies",
+        "blast_radius_supporting",
+        "hexagonal_bindings",
+        "health_metrics",
+        "module_integrity",
+        "surgical_context",
+        "clone_context",
+        "simulate_change_impact"
+      ],
+      "role": "Provide bounded context after a concrete edit target exists.",
+      "manual_review_prompts": [
+        "Does the packet provide context only after a concrete target exists?",
+        "Does it avoid turning support context into a broad refactor mandate?",
+        "Does it keep dead-code/circular-dependency actions in review-before-delete mode?"
+      ]
+    },
+    {
+      "id": "operator_and_contextos",
+      "label": "Operator and ContextOS packets",
+      "required": true,
+      "samples": [
+        "actor_proposal_conformance",
+        "operator_packet",
+        "surgical_operation_packet",
+        "active_signals",
+        "work_queue_roundtrip_inspect"
+      ],
+      "role": "Separate SAGE/operator status and actor-gateway conformance from target-repository coding instructions and mutation authority.",
+      "manual_review_prompts": [
+        "Does the packet separate target-repository coding instructions from SAGE platform status?",
+        "Does it avoid leaking debug/release internals into the default target-agent projection?",
+        "Does it preserve operational next steps rather than raw artifact trivia?",
+        "Does proposal conformance stop at PROPOSED without implying authorization, validation or acceptance?"
+      ]
+    },
+    {
+      "id": "external_target_safety",
+      "label": "External target safety",
+      "required": true,
+      "samples": [
+        "external_target_preflight_invalid",
+        "watchdog_session_missing",
+        "confidence_missing_target"
+      ],
+      "role": "Fail closed when a target root, active signal, or target file is missing.",
+      "manual_review_prompts": [
+        "Does the packet fail closed when the external target root is invalid?",
+        "Does it forbid fallback to the SAGE workspace or stale unrelated artifacts?",
+        "Does it tell the agent what input must be corrected before continuing?"
+      ]
+    }
+  ],
+  "semantic_family_checks": {
+    "primary_fix_queue": [
+      "architecture_violation"
+    ],
+    "confidence_and_readiness": [
+      "confidence_score"
+    ],
+    "merge_review": [
+      "merge_review"
+    ],
+    "supporting_context": [
+      "dead_code",
+      "circular_dependencies"
+    ],
+    "test_and_patch_validation": [
+      "test_impact"
+    ]
+  },
+  "semantic_scenario_registry": [
+    {
+      "id": "architecture_violation",
+      "producer": "work_queue_architecture_violation",
+      "role": "primary_fix_task"
+    },
+    {
+      "id": "merge_review",
+      "producer": "merge_review_queue",
+      "role": "review_before_patch"
+    },
+    {
+      "id": "dead_code",
+      "producer": "dead_code_summary",
+      "role": "review_before_delete"
+    },
+    {
+      "id": "circular_dependencies",
+      "producer": "circular_dependency_chain",
+      "role": "smallest_edge_review"
+    },
+    {
+      "id": "test_impact",
+      "producer": "test_impact_summary",
+      "role": "validation_selection"
+    },
+    {
+      "id": "confidence_score",
+      "producer": "confidence_score_summary",
+      "role": "readiness_not_approval"
+    }
+  ]
+}

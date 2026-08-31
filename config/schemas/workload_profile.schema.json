@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Workload Profile",
+  "type": "object",
+  "required": [
+    "meta",
+    "snapshot_id",
+    "execution_profile",
+    "band",
+    "counts",
+    "budgets"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "workload_profile"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "enum": [
+            "v1"
+          ]
+        }
+      }
+    },
+    "snapshot_id": {
+      "type": "string"
+    },
+    "execution_profile": {
+      "type": "string"
+    },
+    "band": {
+      "type": "string",
+      "enum": [
+        "S",
+        "M",
+        "L"
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "projects",
+        "files",
+        "symbols",
+        "dependency_edges"
+      ],
+      "properties": {
+        "projects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "symbols": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dependency_edges": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": [
+        "adaptive_timeout_seconds",
+        "dead_code_seconds"
+      ],
+      "properties": {
+        "adaptive_timeout_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dead_code_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

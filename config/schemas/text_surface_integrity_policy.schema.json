@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Text Surface Integrity Policy",
+  "type": "object",
+  "required": [
+    "_meta",
+    "source_clean_scope",
+    "release_language_scope",
+    "checks",
+    "mojibake_markers",
+    "mojibake_marker_allowed_files",
+    "terminal_rendering_note"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "text_surface_integrity_policy"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_clean_scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "release_language_scope": {
+      "type": "object",
+      "required": [
+        "include_roots",
+        "include_suffixes",
+        "exclude_path_prefixes",
+        "disallowed_character_sets"
+      ],
+      "properties": {
+        "include_roots": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "include_suffixes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "exclude_path_prefixes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "disallowed_character_sets": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/stringArray"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "strict_utf8_decode",
+        "replacement_character",
+        "mojibake_marker_visibility"
+      ],
+      "properties": {
+        "strict_utf8_decode": {
+          "enum": [
+            true
+          ],
+          "description": "Mandatory source-byte invariant; false is not a supported operating mode."
+        },
+        "replacement_character": {
+          "type": "boolean"
+        },
+        "mojibake_marker_visibility": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mojibake_markers": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "mojibake_marker_allowed_files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "terminal_rendering_note": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "include_roots",
+        "include_suffixes",
+        "exclude_path_prefixes",
+        "exclude_path_parts"
+      ],
+      "properties": {
+        "include_roots": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "include_suffixes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "exclude_path_prefixes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "exclude_path_parts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

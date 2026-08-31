@@ -1,0 +1,253 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "nodes",
+    "edges",
+    "redux_signals"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "atlas_snapshot_id",
+        "state_flow_sha256",
+        "policy_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "state_data_graph"
+        },
+        "version": {
+          "const": "v2"
+        },
+        "atlas_snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state_flow_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "nodes",
+        "edges",
+        "by_kind",
+        "redux_signal_files",
+        "by_project"
+      ],
+      "properties": {
+        "nodes": {
+          "type": "integer"
+        },
+        "edges": {
+          "type": "integer"
+        },
+        "by_kind": {
+          "type": "object"
+        },
+        "redux_signal_files": {
+          "type": "integer"
+        },
+        "query_key_groups": {
+          "type": "integer"
+        },
+        "mutation_coverage_items": {
+          "type": "integer"
+        },
+        "mutation_risks": {
+          "type": "integer"
+        },
+        "router_signal_files": {
+          "type": "integer"
+        },
+        "router_risks": {
+          "type": "integer"
+        },
+        "by_project": {
+          "type": "object"
+        }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "project",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "kind",
+          "evidence"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "relation_basis",
+              "source_nodes",
+              "source_files",
+              "matched_key_pairs"
+            ],
+            "properties": {
+              "relation_basis": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "enum": [
+                    "normalized_name_containment",
+                    "shared_key_tokens"
+                  ]
+                }
+              },
+              "source_nodes": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "source_files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "matched_key_pairs": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "mutation_key",
+                    "query_key",
+                    "relation_basis"
+                  ],
+                  "properties": {
+                    "mutation_key": {
+                      "type": "string"
+                    },
+                    "query_key": {
+                      "type": "string"
+                    },
+                    "relation_basis": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "enum": [
+                          "normalized_name_containment",
+                          "shared_key_tokens"
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "redux_signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "features"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "query_key_graph": {
+      "type": "object"
+    },
+    "mutation_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "router_signals": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "router_risks": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": true
+}

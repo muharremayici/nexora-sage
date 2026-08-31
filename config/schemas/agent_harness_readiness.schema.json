@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_harness_readiness.schema.json",
+  "title": "Agent Harness Readiness",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "positioning",
+    "layers",
+    "mcp_tool_readiness",
+    "context_value"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator",
+        "framework"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "agent_harness_readiness"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "evidence_status",
+        "support_status",
+        "total_layers",
+        "validated_layers",
+        "failed_layers",
+        "bounded_layers",
+        "mcp_tools",
+        "mcp_tools_by_category",
+        "mcp_tools_by_permission",
+        "artifact_projection_reduction_percent",
+        "institutional_memory_portable",
+        "model_agnostic_control_plane",
+        "private_eval_learning_loop",
+        "evaluation_claim_boundary",
+        "evaluation_baseline_status",
+        "evaluation_baseline_opt_in"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "PASS_WITH_BOUNDARIES",
+            "ATTENTION"
+          ]
+        },
+        "evidence_status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "ATTENTION"
+          ]
+        },
+        "support_status": {
+          "type": "string",
+          "enum": [
+            "FULL_NATIVE_HARNESS",
+            "PARTIAL_HARNESS_CONTROL_PLANE"
+          ]
+        },
+        "total_layers": {
+          "type": "integer"
+        },
+        "validated_layers": {
+          "type": "integer"
+        },
+        "failed_layers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advisory_attention_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bounded_layers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mcp_tools": {
+          "type": "integer"
+        },
+        "mcp_tools_by_category": {
+          "type": "object"
+        },
+        "mcp_tools_by_permission": {
+          "type": "object"
+        },
+        "artifact_projection_reduction_percent": {
+          "type": "number"
+        },
+        "institutional_memory_portable": {
+          "type": "boolean"
+        },
+        "model_agnostic_control_plane": {
+          "type": "boolean"
+        },
+        "private_eval_learning_loop": {
+          "type": "boolean"
+        },
+        "evaluation_claim_boundary": {
+          "type": "string"
+        },
+        "evaluation_baseline_status": {
+          "type": "string",
+          "enum": [
+            "design_ready_not_executing",
+            "not_available"
+          ]
+        },
+        "evaluation_baseline_opt_in": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "positioning": {
+      "type": "object",
+      "required": [
+        "product_category",
+        "not_claimed",
+        "meaning",
+        "model_swap_rule",
+        "human_capital_rule"
+      ],
+      "properties": {
+        "product_category": {
+          "type": "string"
+        },
+        "not_claimed": {
+          "type": "string"
+        },
+        "meaning": {
+          "type": "string"
+        },
+        "model_swap_rule": {
+          "type": "string"
+        },
+        "human_capital_rule": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "support_level",
+          "evidence_policy",
+          "claim_boundary",
+          "evidence",
+          "status_basis",
+          "evidence_state",
+          "evidence_status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "support_level": {
+            "type": "string",
+            "enum": [
+              "native",
+              "partial",
+              "external_dependency"
+            ]
+          },
+          "evidence_policy": {
+            "type": "string",
+            "enum": [
+              "validated"
+            ]
+          },
+          "claim_boundary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status_basis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_state": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "artifact",
+                "exists",
+                "validated",
+                "required_for_release",
+                "status"
+              ],
+              "properties": {
+                "artifact": {
+                  "type": "string"
+                },
+                "exists": {
+                  "type": "boolean"
+                },
+                "validated": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "required_for_release": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "evidence_status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "ATTENTION"
+            ]
+          },
+          "advisory_attention_artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "mcp_tool_readiness": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "context_value": {
+      "type": "object",
+      "required": [
+        "measurement_boundary",
+        "raw_artifacts",
+        "distilled_artifacts",
+        "raw_bytes",
+        "distilled_bytes",
+        "raw_estimated_tokens",
+        "distilled_estimated_tokens",
+        "estimated_artifact_projection_reduction_ratio",
+        "estimated_artifact_projection_reduction_percent"
+      ],
+      "properties": {
+        "measurement_boundary": {
+          "type": "string"
+        },
+        "raw_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "distilled_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "raw_bytes": {
+          "type": "integer"
+        },
+        "distilled_bytes": {
+          "type": "integer"
+        },
+        "raw_estimated_tokens": {
+          "type": "integer"
+        },
+        "distilled_estimated_tokens": {
+          "type": "integer"
+        },
+        "estimated_artifact_projection_reduction_ratio": {
+          "type": "number"
+        },
+        "estimated_artifact_projection_reduction_percent": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

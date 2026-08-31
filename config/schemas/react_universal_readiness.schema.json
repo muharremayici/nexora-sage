@@ -1,0 +1,123 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "doctrine",
+    "missing_release_families",
+    "validation_artifacts",
+    "families"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "taxonomy",
+        "evidence_model"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "react_universal_readiness"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "taxonomy": {
+          "type": "string"
+        },
+        "evidence_model": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "total_families",
+        "release_families",
+        "proven_release_families",
+        "included_releases",
+        "certification_level",
+        "allowed_claim",
+        "release_identity_claim",
+        "universal_ready",
+        "fixture_coverage_complete",
+        "claim_policy_aligned",
+        "missing_release_families",
+        "failed_validation_artifacts"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "total_families": {
+          "type": "integer"
+        },
+        "release_families": {
+          "type": "integer"
+        },
+        "proven_release_families": {
+          "type": "integer"
+        },
+        "included_releases": {
+          "type": "array"
+        },
+        "certification_level": {
+          "type": "string"
+        },
+        "allowed_claim": {
+          "type": "string"
+        },
+        "release_identity_claim": {
+          "type": "string"
+        },
+        "universal_ready": {
+          "type": "boolean"
+        },
+        "fixture_coverage_complete": {
+          "type": "boolean"
+        },
+        "claim_policy_aligned": {
+          "type": "boolean"
+        },
+        "missing_release_families": {
+          "type": "integer"
+        },
+        "failed_validation_artifacts": {
+          "type": "integer"
+        }
+      }
+    },
+    "doctrine": {
+      "type": "object",
+      "required": [
+        "path",
+        "core_claim",
+        "runtime_boundary"
+      ]
+    },
+    "missing_release_families": {
+      "type": "array"
+    },
+    "validation_artifacts": {
+      "type": "array"
+    },
+    "families": {
+      "type": "array"
+    }
+  }
+}

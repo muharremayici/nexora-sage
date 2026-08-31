@@ -1,0 +1,91 @@
+{
+  "_meta": {
+    "kind": "audit_policy",
+    "version": "v1",
+    "purpose": "Central audit defaults that are not target-repo runtime discovery facts.",
+    "owner": "Nexora SAGE governance"
+  },
+  "loc_limits": {
+    "hook": 200,
+    "service": 300,
+    "component": 400,
+    "function": 150,
+    "class": 500,
+    "default": 400
+  },
+  "loc_finding_contract": {
+    "generic_rule": "loc_limits_symbol",
+    "kind_rule_map": {
+      "hook": "loc_limits_hook",
+      "component": "loc_limits_component",
+      "service": "loc_limits_service"
+    },
+    "required_evidence_fields": [
+      "symbol_name",
+      "symbol_kind",
+      "threshold_kind",
+      "start_line",
+      "end_line",
+      "observed_loc",
+      "limit"
+    ]
+  },
+  "api_entry_filenames": [
+    "index.ts",
+    "index.tsx",
+    "__init__.py",
+    "mod.go",
+    "main.go"
+  ],
+  "report_sections": [
+    {
+      "title": "HEXAGONAL & FSD PURITY",
+      "keys": [
+        "domain_ui_leaks",
+        "domain_platform_leaks",
+        "fsd_shared_features"
+      ]
+    },
+    {
+      "title": "MODULE BOUNDARIES",
+      "keys": [
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes",
+        "relative_imports_no_alias"
+      ]
+    },
+    {
+      "title": "CODE STANDARDS",
+      "keys": [
+        "impure_stores",
+        "banned_i18n",
+        "zustand_no_selector"
+      ]
+    },
+    {
+      "title": "COMPLEXITY (LOC)",
+      "keys": [
+        "loc_limits_hook",
+        "loc_limits_service",
+        "loc_limits_component",
+        "loc_limits_symbol"
+      ]
+    }
+  ],
+  "profile_report_section_overrides": {
+    "SOVEREIGN_ELITE": [
+      {
+        "replace_index": 0,
+        "section": {
+          "title": "SOVEREIGN ELITE HYBRID PURITY",
+          "keys": [
+            "domain_ui_leaks",
+            "domain_platform_leaks",
+            "fsd_shared_features"
+          ]
+        }
+      }
+    ]
+  }
+}

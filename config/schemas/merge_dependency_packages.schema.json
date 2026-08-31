@@ -1,0 +1,244 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "packages"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "merge_dependency_packages"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "packages",
+        "package_tiers",
+        "by_source",
+        "max_closure_files"
+      ],
+      "properties": {
+        "packages": {
+          "type": "integer"
+        },
+        "package_tiers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "by_source": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "max_closure_files": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate",
+          "source",
+          "target_path",
+          "entry_file",
+          "package_tier",
+          "closure_size",
+          "closure_truncated",
+          "files",
+          "external_deps",
+          "unresolved_internal_deps",
+          "transfer_plan"
+        ],
+        "properties": {
+          "candidate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "studio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_contract_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entry_file": {
+            "type": "string"
+          },
+          "recommended_gate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "candidate_risk_tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "package_tier": {
+            "type": "string",
+            "enum": [
+              "direct_package",
+              "assisted_package",
+              "manual_package_review"
+            ]
+          },
+          "closure_size": {
+            "type": "integer"
+          },
+          "closure_truncated": {
+            "type": "boolean"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "external_deps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolved_internal_deps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_contracts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "smoke_route": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "harness_plan": {
+            "type": "object",
+            "required": [
+              "provider_tree",
+              "store_shape",
+              "router_mocks",
+              "i18n_keys",
+              "style_tokens",
+              "browser_api_mocks",
+              "smoke_assertions"
+            ],
+            "properties": {
+              "provider_tree": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "store_shape": {
+                "type": "object"
+              },
+              "router_mocks": {
+                "type": "object"
+              },
+              "i18n_keys": {
+                "type": "object"
+              },
+              "style_tokens": {
+                "type": "object"
+              },
+              "browser_api_mocks": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "smoke_assertions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          },
+          "transfer_plan": {
+            "type": "object",
+            "required": [
+              "copy_from_project",
+              "copy_files",
+              "rewrite_imports",
+              "run_static_gate",
+              "run_browser_smoke"
+            ],
+            "properties": {
+              "copy_from_project": {
+                "type": "string"
+              },
+              "copy_files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rewrite_imports": {
+                "type": "boolean"
+              },
+              "run_static_gate": {
+                "type": "boolean"
+              },
+              "run_browser_smoke": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

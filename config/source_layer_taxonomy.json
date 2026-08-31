@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "kind": "source_layer_taxonomy",
+    "version": "v1",
+    "description": "Canonical source-layer order and human-readable layer roles. The shared classifier consumes declarative exact-path extensions from source_layer_classification_policy.json before executable family fallback; this contract owns taxonomy consumed by inventory, release matrix and SAGE self-map reports."
+  },
+  "layers": [
+    {
+      "id": "root_product_surface",
+      "description": "Public root entrypoints, packaging metadata and product-facing root files."
+    },
+    {
+      "id": "installation_onboarding",
+      "description": "First-run setup, dependency, clean-install and operator onboarding surface."
+    },
+    {
+      "id": "configuration_doctrine_policy",
+      "description": "Doctrine, policy, registry, capability and runtime-truth JSON inputs."
+    },
+    {
+      "id": "schema_artifact_contracts",
+      "description": "JSON schemas and artifact contract definitions."
+    },
+    {
+      "id": "golden_truth_fixtures",
+      "description": "Golden truth sets, fixture inputs and regression expectations."
+    },
+    {
+      "id": "documentation_claims_evidence",
+      "description": "Public claims, release evidence, positioning and roadmap documents."
+    },
+    {
+      "id": "documentation_layer_audits",
+      "description": "Layer audits, MRI reports and historical technical audit documents."
+    },
+    {
+      "id": "core_runtime_services",
+      "description": "Shared IO, policy, cache, path, registry and runtime service modules."
+    },
+    {
+      "id": "sqlite_artifact_store",
+      "description": "SQLite-first artifact store and artifact proxy/storage services."
+    },
+    {
+      "id": "discovery_config_truth",
+      "description": "Discovery, governance sync, config compiler and project truth synchronization."
+    },
+    {
+      "id": "orchestration_pipeline",
+      "description": "Pipeline scheduler, setup wizard and live orchestration code."
+    },
+    {
+      "id": "atlas_polyglot_sequencing",
+      "description": "Atlas generation, AST sequencers and polyglot source extraction."
+    },
+    {
+      "id": "governance_audit_quality",
+      "description": "Audit, dead-code, circular, health, quality and proof obligation engines."
+    },
+    {
+      "id": "react_surgical_intelligence",
+      "description": "React/Next/runtime/compiler/frontier/state/data/a11y intelligence engines and validators."
+    },
+    {
+      "id": "variation_merge_intelligence",
+      "description": "Variation, merge simulation, dependency packaging, cockpit and AI task-pack engines."
+    },
+    {
+      "id": "contextos_watchdog_mcp",
+      "description": "ContextOS signals, watchdog, MCP server and surgical context surfaces."
+    },
+    {
+      "id": "hitl_agent_governance",
+      "description": "HITL approval, decision request, response ledger and AI-agent contract surfaces."
+    },
+    {
+      "id": "validation_release_gates",
+      "description": "Validators, release proof, CI/release gates and source integrity checks."
+    },
+    {
+      "id": "reporting_product_readiness",
+      "description": "Report/demo/dashboard/readiness generators and product evidence assemblers."
+    },
+    {
+      "id": "external_target_corpus",
+      "description": "External target preflight/indexing and corpus validation support."
+    },
+    {
+      "id": "tests_fixtures",
+      "description": "Unit tests and local fixture source files."
+    },
+    {
+      "id": "package_runtime",
+      "description": "Package manager metadata and vendored runtime manifests."
+    },
+    {
+      "id": "generated_runtime_artifact",
+      "description": "Generated, cache, runtime, secret or scratch files that should not ship in clean distribution."
+    },
+    {
+      "id": "unknown_or_review",
+      "description": "Files that need human review or a more precise layer assignment."
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "kind": "engine_governance_input_lineage_policy",
+    "version": "v1"
+  },
+  "purpose": "Derive engine-to-governance-memory lineage without mixing doctrine inputs into the pipeline artifact graph.",
+  "compiled_doctrine": "config/architecture_doctrine.json",
+  "scan_roots": [
+    "tools/engines",
+    "tools/core"
+  ],
+  "consumer_file_patterns": [
+    "*.py"
+  ],
+  "supported_accessors": [
+    "DOCTRINE.get"
+  ],
+  "dynamic_access_module_allowlist": {
+    "tools/core/doctrine_contract.py": "central fail-closed path adapter; concrete consumer calls remain statically visible"
+  },
+  "validation": {
+    "literal_section_names_required": true,
+    "declared_sections_must_exist": true,
+    "empty_lineage_is_failure": true
+  }
+}

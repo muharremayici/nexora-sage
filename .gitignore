@@ -1,0 +1,38 @@
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Local dependency/runtime folders
+.vendor/
+vendor_runtime/
+codemaps_vendor/
+node_modules/
+
+# Generated analysis artifacts
+output/
+scratch/
+
+# Local logs and locks
+*.log
+.pipeline_run.lock
+
+# Local/secret environment files
+.env
+.env.*
+!.env.example
+config/.nexora_hitl_secret
+
+# Archives/backups
+*.zip
+*.rar
+*.7z
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "kind": "merge_simulation_input_contract",
+    "version": "v1"
+  },
+  "authority": {
+    "snapshot_source": "validated_atlas_commit",
+    "required_input_failure": "BLOCKED",
+    "optional_input_failure": "OMITTED",
+    "rule": "Merge simulation may score only inputs bound by producer receipts to one Atlas snapshot. Required unbound inputs block simulation; optional unbound inputs are omitted and reported, never treated as zero-risk evidence.",
+    "forbidden_artifacts": []
+  },
+  "inputs": {
+    "merge_dependency_packages": {
+      "required": true,
+      "snapshot_binding": "producer_lineage_receipt",
+      "decision_use": [
+        "static_closure",
+        "dependency_harness"
+      ]
+    },
+    "ui_smoke_execution": {
+      "required": true,
+      "snapshot_binding": "producer_lineage_receipt",
+      "decision_use": [
+        "smoke_readiness"
+      ]
+    },
+    "ts_diagnostics": {
+      "required": false,
+      "snapshot_binding": "producer_lineage_receipt",
+      "decision_use": [
+        "typescript_diagnostics"
+      ]
+    }
+  }
+}

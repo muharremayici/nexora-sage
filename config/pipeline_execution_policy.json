@@ -1,0 +1,2200 @@
+{
+  "meta": {
+    "kind": "pipeline_execution_policy",
+    "version": "v1",
+    "description": "Machine-readable execution semantics for SAGE pipeline steps. This policy documents scheduling intent; it does not replace the dependency DAG."
+  },
+  "scheduler_classes": {
+    "dag_parallel_safe": {
+      "description": "May run in the reactive DAG executor once dependencies are satisfied. Parallel safety still requires disjoint writes and normal SQLite busy-timeout behavior."
+    },
+    "sequential_required": {
+      "description": "Should run after dependency-bound producers because it reads broad/global state, writes final proof surfaces, or validates release artifacts."
+    },
+    "full_run_only": {
+      "description": "Only meaningful during full/deep profiles; should not be triggered by a narrow watchdog pulse unless explicitly requested."
+    }
+  },
+  "explicit_step_freshness": {
+    "enabled": true,
+    "anchor_artifact": "atlas",
+    "accepted_artifact_sources": [
+      "sqlite_state_payloads"
+    ],
+    "target_step_behavior": "always_execute",
+    "stale_projects_behavior": "retain_full_dependency_closure",
+    "missing_or_stale_output_behavior": "retain_dependency",
+    "fresh_dependency_behavior": "reuse_without_rerun",
+    "telemetry_prefix": "[FRESHNESS]",
+    "rationale": "Explicit steps may reuse a dependency only when every declared output is current SQLite truth relative to the current Atlas anchor."
+  },
+  "engine_progress": {
+    "default": {
+      "enabled": true,
+      "progress_every_items": 1000
+    },
+    "rationale": "Long-running engines emit bounded start, phase, checkpoint, progress and completion telemetry. Time cadence is inherited from the central pipeline heartbeat; the high item threshold prevents fast file loops from becoming console noise."
+  },
+  "heartbeat_cadence": {
+    "enabled": true,
+    "telemetry_artifact": "telemetry_traces",
+    "bootstrap_seconds": 15,
+    "minimum_seconds": 5,
+    "maximum_seconds": 30,
+    "minimum_samples": 3,
+    "max_samples": 50,
+    "target_updates_per_observed_run": 4,
+    "selection": "median_duration_divided_by_target_updates_clamped",
+    "scope_trace_types": {
+      "watchdog": [
+        "watchdog_pipeline_execution"
+      ],
+      "engine": [
+        "engine_execution"
+      ],
+      "subprocess": [
+        "subprocess_execution"
+      ],
+      "pipeline": [
+        "watchdog_pipeline_execution",
+        "engine_execution"
+      ],
+      "pipeline_lock": [
+        "watchdog_pipeline_execution",
+        "engine_execution"
+      ],
+      "default": [
+        "watchdog_pipeline_execution",
+        "engine_execution",
+        "subprocess_execution"
+      ]
+    },
+    "claim_boundary": "Local runtime telemetry selects only operator update cadence. It does not alter timeouts, scheduling, repository evidence, or release claims.",
+    "rationale": "Fast and constrained machines receive bounded local cadence after enough same-scope observations. Until then, the safe bootstrap cadence remains explicit and observable."
+  },
+  "pipeline_lock": {
+    "endpoint": ".pipeline_run.lock",
+    "protocol": "os_advisory_file_lock_v1",
+    "scope": "single_local_filesystem_endpoint",
+    "persistent_endpoint": true,
+    "holder_decision_source": "os_advisory_lock",
+    "metadata_role": "diagnostic_only",
+    "stale_recovery": "no_ttl_or_pid_eviction",
+    "release_state": "released",
+    "rationale": "A stable endpoint plus an operating-system advisory lock prevents PID-reuse and unlink/recreate races. Metadata reports the holder but never authorizes eviction."
+  },
+  "step_system_scope_policy": {
+    "taxonomy_source": "config/agent_surface_taxonomy.json",
+    "unclassified_behavior": "fail_closed",
+    "pipeline_run_scope": "SAGE_ON_REPOSITORY",
+    "default_repository_scope": "SAGE_ON_REPOSITORY",
+    "external_target_scope": "SAGE_ON_REPOSITORY",
+    "self_governance_scope": "SAGE_ON_SAGE",
+    "self_governance_entrypoint": "python sage.py self-audit",
+    "identity_rule": "Repository acquisition mode does not determine the governance subject. Normal pipeline runs analyze a repository in both default-workspace and explicit-target acquisition modes; SAGE self-governance is entered only through an explicit self-governance surface.",
+    "groups": {
+      "shared_repository_analysis": {
+        "system_scopes": [
+          "SAGE_ON_SAGE",
+          "SAGE_ON_REPOSITORY"
+        ],
+        "step_slugs": [
+          "atlas",
+          "projectdnaprofile",
+          "nuclearsequencing",
+          "architectureoracle",
+          "fractalmapping",
+          "decisionevidence",
+          "keywordstats",
+          "keywordscanner",
+          "gemscorer",
+          "uimapper",
+          "frameworkrouteanalyzer",
+          "landscapemapper",
+          "deadcodedetector",
+          "circulardependencyfinder",
+          "audit",
+          "aststructuraldiff",
+          "variationengine",
+          "testimpactmatcher",
+          "confidenceengine",
+          "localdevtelemetry",
+          "hexagonalportadapterbinder",
+          "stateflowscanner",
+          "reactsupportmatrix",
+          "semanticclonedetector",
+          "blastradiusengine",
+          "automergescriptgenerator",
+          "oraclevalidationgate",
+          "selfhealinggenerator",
+          "healthscore",
+          "moduleriskmatrix",
+          "temporaldiff",
+          "hostmergeintelligence",
+          "uiruntimecontractanalyzer",
+          "uismokespecgenerator",
+          "uismokeexecutionreadiness",
+          "nextboundaryanalyzer",
+          "statedatagraphanalyzer",
+          "a11yi18ncontractanalyzer",
+          "reactecosystemanalyzer",
+          "reactruntimeintelligence",
+          "reactcompilerreadiness",
+          "reactfrontierintelligence",
+          "mergedependencypackager",
+          "mergesimulationengine",
+          "mergedecisioncockpit",
+          "aitaskpackgenerator",
+          "scopedhostanalyzer",
+          "reactcapabilityprobe",
+          "proofobligations",
+          "qualityrevieworacle",
+          "qualitygates",
+          "livesurfaceanalyzer",
+          "contextosquantengine",
+          "aicontextgenerator",
+          "surgicalsafetygate",
+          "cmodashboard",
+          "closurewalker"
+        ],
+        "rationale": "These steps analyze or govern the selected repository subject. They may run when SAGE is the explicit self target or when an external target repository is selected."
+      },
+      "sage_product_governance": {
+        "system_scopes": [
+          "SAGE_ON_SAGE"
+        ],
+        "step_slugs": [
+          "adapterregistry",
+          "mergeintelligenceregression",
+          "distributionhardening",
+          "entrypointfailuredrills",
+          "releasereadiness",
+          "artifactcontractvalidation",
+          "masterreportgeneration",
+          "nexoraoperatorpacket"
+        ],
+        "rationale": "These steps validate, release, package, or summarize the SAGE product itself. External target runs must not present their outputs as target-repository truth."
+      }
+    },
+    "claim_boundary": "System scope controls which subject a pipeline step may evaluate. It does not broaden language support, authorize mutation, or convert SAGE product release evidence into target-repository proof."
+  },
+  "vocabularies": {
+    "cost_tiers": [
+      "low",
+      "medium",
+      "medium_high",
+      "high"
+    ],
+    "step_behaviors": [
+      "kept",
+      "skipped",
+      "signal_required",
+      "release_deep_only"
+    ],
+    "report_profiles": [
+      "daily",
+      "full",
+      "deep",
+      "release-deep",
+      "explicit_step"
+    ],
+    "explicit_step_closure_tiers": [
+      "standalone",
+      "narrow",
+      "broad",
+      "global"
+    ],
+    "validator_environment_classes": [
+      "source_clean",
+      "post_analysis",
+      "release_deep",
+      "external_target"
+    ],
+    "clean_mirror_behaviors": [
+      "allowed_before_analysis",
+      "blocked_until_post_analysis",
+      "release_deep_only",
+      "external_target_only"
+    ],
+    "clean_mirror_behavior_by_environment": {
+      "source_clean": "allowed_before_analysis",
+      "post_analysis": "blocked_until_post_analysis",
+      "release_deep": "release_deep_only",
+      "external_target": "external_target_only"
+    },
+    "validator_console_progress": [
+      "summary",
+      "per_step"
+    ],
+    "validator_silence_policies": [
+      "final_status_required",
+      "start_pass_fail_per_step",
+      "start_progress_pass_fail"
+    ],
+    "required_validation_red_lines": [
+      "no_test_without_claim_or_edge_case",
+      "no_duplicate_validator_without_new_failure_mode",
+      "clean_source_vs_post_analysis_must_not_mix",
+      "watchdog_must_not_become_release_deep",
+      "sqlite_first_for_managed_artifacts",
+      "main_first_agent_scope_variations_explicit",
+      "operational_constants_must_be_policy_backed",
+      "defect_fixes_must_scan_same_failure_family"
+    ],
+    "required_project_scope_fields": [
+      "purpose",
+      "default_agent_edit_scope",
+      "default_agent_read_scope",
+      "target_repo_agent_default",
+      "variation_visibility",
+      "companion_visibility",
+      "external_target_scope",
+      "allowed_non_main_contexts",
+      "agent_surface_rule",
+      "pipeline_rule"
+    ],
+    "required_operational_limits": [
+      "atlas_batch_sequencer_timeout_seconds",
+      "bootstrap_command_timeout_seconds",
+      "cli_command_timeout_seconds",
+      "cli_pipeline_refresh_timeout_seconds",
+      "ci_release_check_default_timeout_seconds",
+      "ci_release_check_release_timeout_seconds",
+      "distribution_cli_help_timeout_seconds",
+      "external_polyglot_smoke_timeout_seconds",
+      "external_react_smoke_timeout_seconds",
+      "external_target_smoke_timeout_seconds",
+      "install_proof_daily_timeout_seconds",
+      "install_proof_release_timeout_seconds",
+      "install_proof_smoke_timeout_seconds",
+      "quant_git_status_timeout_seconds",
+      "react_v11_fixture_ast_timeout_seconds",
+      "setup_interactive_timeout_seconds",
+      "setup_wizard_step_timeout_seconds",
+      "sqlite_busy_timeout_ms",
+      "sqlite_schema_initialize_retries",
+      "sqlite_schema_initialize_retry_delay_ms",
+      "sqlite_read_timeout_seconds",
+      "sqlite_write_timeout_seconds",
+      "pipeline_step_heartbeat_seconds",
+      "patch_applicability_timeout_seconds",
+      "watchdog_git_restore_timeout_seconds"
+    ],
+    "required_report_surface_limits": [
+      "a11y_i18n_contracts.primary_files",
+      "next_boundary_analysis.primary_files",
+      "react_compiler_readiness.primary_findings",
+      "react_ecosystem_analysis.primary_findings",
+      "react_frontier_intelligence.primary_findings",
+      "react_runtime_intelligence.primary_findings"
+    ],
+    "required_contextos_signal_limits": [
+      "active_signals",
+      "direct_dependents",
+      "transitive_dependents",
+      "active_violations",
+      "circular_cycles",
+      "cycle_nodes",
+      "dead_code_candidates"
+    ],
+    "required_scoped_local_literals": [
+      "cli_long_running_timeout_none",
+      "discovery_workspace_bfs_max_depth",
+      "orchestrator_reactive_poll_interval"
+    ],
+    "required_pipeline_lock_policy_fields": [
+      "endpoint",
+      "protocol",
+      "scope",
+      "persistent_endpoint",
+      "holder_decision_source",
+      "metadata_role",
+      "stale_recovery",
+      "release_state",
+      "rationale"
+    ],
+    "required_heartbeat_cadence_fields": [
+      "enabled",
+      "telemetry_artifact",
+      "bootstrap_seconds",
+      "minimum_seconds",
+      "maximum_seconds",
+      "minimum_samples",
+      "max_samples",
+      "target_updates_per_observed_run",
+      "selection",
+      "scope_trace_types",
+      "claim_boundary",
+      "rationale"
+    ],
+    "required_local_duration_guidance_fields": [
+      "telemetry_artifact",
+      "trace_type",
+      "sample_limit",
+      "minimum_samples_per_phase",
+      "phases",
+      "claim_boundary",
+      "rationale"
+    ],
+    "allowed_local_duration_telemetry_artifacts": [
+      "output/.raw/telemetry_traces.json"
+    ],
+    "required_heavy_validator_preconditions": [
+      "validate_step_isolation",
+      "validate_operational_parity"
+    ],
+    "oracle_validation_slug": "oraclevalidationgate",
+    "required_subprocess_runtime_policy_fields": [
+      "default_rule",
+      "protocol_surfaces",
+      "streaming_exceptions",
+      "short_bounded_exceptions",
+      "test_only_exceptions"
+    ],
+    "required_subprocess_streaming_exceptions": [
+      "tools/run_release_proof_bundle.py",
+      "tools/orchestrators/watchdog.py:auto_refresh",
+      "tools/core/bootstrap_env.py:run_command"
+    ],
+    "required_subprocess_short_exceptions": [
+      "tools/orchestrators/watchdog.py:git_restore",
+      "tools/core/bootstrap_env.py:version_checks"
+    ],
+    "required_non_main_contexts": [
+      "merge",
+      "variation_diff",
+      "comparative_proof",
+      "external_corpus_validation",
+      "explicit_all_projects_inspection"
+    ],
+    "required_execution_modes": [
+      "first_repo_onboarding",
+      "normal_full",
+      "daily",
+      "watchdog_save_pulse",
+      "release_deep",
+      "explicit_step",
+      "external_corpus_validation",
+      "clean_install_onboarding_proof"
+    ],
+    "required_execution_mode_fields": [
+      "profile",
+      "purpose",
+      "trigger",
+      "scope",
+      "ssot_expectation",
+      "heavy_step_policy",
+      "required_artifacts",
+      "required_validators",
+      "agent_surface",
+      "claim_boundary"
+    ],
+    "release_deep_required_ssot_validators": [
+      "release_claim_profiles",
+      "sqlite_artifact_parity",
+      "sqlite_proxy_coverage",
+      "atlas_sqlite_first_access",
+      "genome_sqlite_first_access",
+      "fractal_sqlite_first_access",
+      "large_artifact_sqlite_first_access"
+    ],
+    "finalizer_slugs": [
+      "artifactcontractvalidation",
+      "masterreportgeneration",
+      "aicontextgenerator",
+      "releasereadiness",
+      "qualitygates",
+      "qualityrevieworacle",
+      "proofobligations",
+      "contextosquantengine"
+    ],
+    "daily_forbidden_heavy_slugs": [
+      "variationengine",
+      "hostmergeintelligence",
+      "oraclevalidationgate",
+      "mergedependencypackager",
+      "mergesimulationengine",
+      "mergedecisioncockpit",
+      "aitaskpackgenerator",
+      "mergeintelligenceregression",
+      "reactecosystemanalyzer",
+      "reactruntimeintelligence",
+      "reactcompilerreadiness",
+      "reactfrontierintelligence"
+    ]
+  },
+  "sqlite_policy": {
+    "state_payload_writers_are_sqlite_writers": true,
+    "shadow_json_exports_are_compatibility_outputs": true,
+    "release_style_validation_should_run_artifact_producers_sequentially": true,
+    "flush_shadow_writes_before_json_parity_checks": true
+  },
+  "manual_validator_execution_policy": {
+    "mode": "plan_only_by_default",
+    "default_probe_steps": [
+      "source_snapshot_store",
+      "symbol_span_integrity"
+    ],
+    "sqlite_writer_rule": "release-proof steps with raw_artifact persistence are SQLite writers and must be serialized when dependency-linked or when more than one selected writer exists",
+    "parallel_intent_behavior": "fail_closed_with_serial_execution_plan",
+    "max_parallel_sqlite_writers": 1
+  },
+  "subprocess_runtime_policy": {
+    "default_rule": "Long-running or captured child processes must use tools.core.subprocess_telemetry.run_observed_subprocess so waits, timeouts, and process-tree termination are observable and cross-platform.",
+    "protocol_surfaces": {
+      "rule": "Protocol-bound tools such as MCP may use the shared helper with log=null so stdout is not polluted while still preserving bounded timeout behavior."
+    },
+    "streaming_exceptions": {
+      "tools/run_release_proof_bundle.py": {
+        "classification": "custom_streaming_release_runner",
+        "rationale": "Release proof streams child output and heartbeats directly because it is the top-level proof runner."
+      },
+      "tools/orchestrators/watchdog.py:auto_refresh": {
+        "classification": "operator_visible_watchdog_refresh",
+        "rationale": "Watchdog auto-refresh announces command, timeout, result, and honesty telemetry; child output is intentionally operator-visible."
+      },
+      "tools/core/bootstrap_env.py:run_command": {
+        "classification": "interactive_bootstrap_runner",
+        "rationale": "Bootstrap setup should let dependency tools speak directly while remaining bounded by central operational_limits."
+      }
+    },
+    "short_bounded_exceptions": {
+      "tools/orchestrators/watchdog.py:git_restore": {
+        "classification": "short_hitl_restore_command",
+        "rationale": "Circuit-breaker restore is gated by HITL policy, bounded by watchdog_git_restore_timeout_seconds, and records honesty telemetry on timeout."
+      },
+      "tools/core/bootstrap_env.py:version_checks": {
+        "classification": "short_environment_probe",
+        "rationale": "Python and Node version probes are bounded by bootstrap_command_timeout_seconds and only produce pass/warn setup status."
+      }
+    },
+    "test_only_exceptions": {
+      "tools/tests": {
+        "classification": "test_harness",
+        "rationale": "Tests may invoke subprocesses to exercise CLI behavior and patch runtime subprocess calls."
+      }
+    }
+  },
+  "operational_limits": {
+    "atlas_batch_sequencer_timeout_seconds": 180,
+    "bootstrap_command_timeout_seconds": 180,
+    "cli_command_timeout_seconds": 180,
+    "cli_pipeline_refresh_timeout_seconds": 1800,
+    "ci_release_check_default_timeout_seconds": 180,
+    "ci_release_check_release_timeout_seconds": 1800,
+    "distribution_cli_help_timeout_seconds": 60,
+    "clean_mirror_quiescence_timeout_seconds": 15,
+    "clean_mirror_quiescence_probe_interval_ms": 250,
+    "clean_mirror_quiescence_stable_samples": 3,
+    "artifact_shadow_flush_timeout_seconds": 15,
+    "distribution_git_visibility_retry_attempts": 2,
+    "distribution_git_visibility_retry_delay_ms": 200,
+    "entrypoint_failure_default_timeout_seconds": 180,
+    "entrypoint_failure_dead_code_drill_timeout_seconds": 300,
+    "external_polyglot_smoke_timeout_seconds": 90,
+    "external_react_smoke_timeout_seconds": 90,
+    "external_target_smoke_timeout_seconds": 180,
+    "install_proof_daily_timeout_seconds": 2400,
+    "install_proof_release_timeout_seconds": 4200,
+    "install_proof_smoke_timeout_seconds": 240,
+    "install_proof_step_timeout_seconds": {
+      "installation_contract": 180,
+      "doctor": 90,
+      "mcp_config": 60,
+      "release_language": 60,
+      "final_consistency": 120,
+      "init": 1200,
+      "daily_run": 1200,
+      "installed_distribution_surface": 180
+    },
+    "quant_git_status_timeout_seconds": 5,
+    "react_v11_fixture_ast_timeout_seconds": 60,
+    "setup_interactive_timeout_seconds": 180,
+    "setup_wizard_step_timeout_seconds": 1200,
+    "sqlite_busy_timeout_ms": 30000,
+    "sqlite_schema_initialize_retries": 3,
+    "sqlite_schema_initialize_retry_delay_ms": 100,
+    "sqlite_read_timeout_seconds": 5,
+    "sqlite_write_timeout_seconds": 30,
+    "pipeline_step_heartbeat_seconds": 15,
+    "patch_applicability_timeout_seconds": 30,
+    "watchdog_git_restore_timeout_seconds": 30
+  },
+  "release_proof_timeout_profiles": {
+    "entrypoint_failure_drills": {
+      "nested_operational_limit_paths": [
+        "operational_limits.entrypoint_failure_default_timeout_seconds",
+        "operational_limits.entrypoint_failure_default_timeout_seconds",
+        "operational_limits.entrypoint_failure_default_timeout_seconds",
+        "operational_limits.entrypoint_failure_default_timeout_seconds",
+        "operational_limits.entrypoint_failure_dead_code_drill_timeout_seconds",
+        "operational_limits.entrypoint_failure_default_timeout_seconds"
+      ],
+      "headroom_ratio": 0.2,
+      "minimum_timeout_seconds": 600,
+      "rationale": "Entrypoint failure drills run six sequential observed subprocess checks, including the bounded dead-code failure drill. The outer release-proof runner must reserve their declared combined limit plus policy headroom."
+    },
+    "operational_parity_full_validation": {
+      "nested_operational_limit_paths": [
+        "operational_limits.cli_command_timeout_seconds",
+        "operational_limits.cli_pipeline_refresh_timeout_seconds",
+        "operational_limits.cli_command_timeout_seconds"
+      ],
+      "headroom_ratio": 0.2,
+      "minimum_timeout_seconds": 600,
+      "rationale": "Operational parity performs lifecycle validation before and after a cached full-pipeline replay. The outer release-proof runner must reserve the declared sequential inner budget plus policy headroom; workload adaptation may only extend this floor."
+    },
+    "installation_proof_smoke": {
+      "nested_operational_limit_paths": [
+        "operational_limits.install_proof_step_timeout_seconds.installation_contract",
+        "operational_limits.install_proof_step_timeout_seconds.doctor",
+        "operational_limits.install_proof_step_timeout_seconds.mcp_config",
+        "operational_limits.install_proof_step_timeout_seconds.release_language",
+        "operational_limits.install_proof_step_timeout_seconds.final_consistency"
+      ],
+      "headroom_ratio": 0.2,
+      "minimum_timeout_seconds": 600,
+      "rationale": "Installation proof smoke runs five sequential observed subprocess checks. The release-proof outer runner must reserve their centrally declared combined limit plus policy headroom."
+    },
+    "release_analysis_quality_gate_refresh": {
+      "nested_operational_limit_paths": [
+        "operational_limits.cli_pipeline_refresh_timeout_seconds"
+      ],
+      "headroom_ratio": 0.2,
+      "minimum_timeout_seconds": 600,
+      "rationale": "Release proof refreshes the bounded forced daily MAIN producer set before runtime-artifact consumers run. This step establishes representative repository evidence but does not claim that final governance was evaluated. The outer runner derives policy headroom from the central pipeline limit."
+    },
+    "release_quality_gate_refresh": {
+      "nested_operational_limit_paths": [
+        "operational_limits.cli_pipeline_refresh_timeout_seconds"
+      ],
+      "headroom_ratio": 0.2,
+      "minimum_timeout_seconds": 600,
+      "rationale": "Release proof evaluates the explicit MAIN Quality Gates closure over the fresh bounded-analysis evidence produced by its direct dependency and requires quality_gate.json to be rewritten during the step. It does not rebuild Atlas a second time. Target findings remain evidence rather than SAGE product-process failure."
+    }
+  },
+  "local_duration_guidance": {
+    "installation_preflight": {
+      "telemetry_artifact": "output/.raw/telemetry_traces.json",
+      "trace_type": "subprocess_execution",
+      "sample_limit": 10,
+      "minimum_samples_per_phase": 2,
+      "phases": {
+        "canonical_target_preflight": "installation canonical target preflight"
+      },
+      "claim_boundary": "Local duration guidance is advisory wait information for target inspection only. It does not change timeout, dependency, repository, analysis or release semantics.",
+      "rationale": "Target-aware installation planning can inspect large repository topology before it knows which dependencies apply; exact local samples provide honest wait guidance without fixed machine assumptions."
+    },
+    "operational_parity": {
+      "telemetry_artifact": "output/.raw/telemetry_traces.json",
+      "trace_type": "subprocess_execution",
+      "sample_limit": 10,
+      "minimum_samples_per_phase": 2,
+      "phases": {
+        "lifecycle_before": "operational parity lifecycle validation before_cached_run",
+        "cached_replay": "operational parity cached full pipeline",
+        "lifecycle_after": "operational parity lifecycle validation after_cached_run"
+      },
+      "claim_boundary": "Local duration guidance is advisory wait information only. It does not alter timeout floors, semantic freshness, release readiness or repository truth.",
+      "rationale": "Operational parity has three sequential subprocess phases. Exact identifiers prevent a lifecycle-only sample from being presented as a completed replay estimate."
+    }
+  },
+  "report_surface_limits": {
+    "a11y_i18n_contracts.primary_files": 120,
+    "next_boundary_analysis.primary_files": 120,
+    "react_compiler_readiness.primary_findings": 800,
+    "react_ecosystem_analysis.primary_findings": 500,
+    "react_frontier_intelligence.primary_findings": 700,
+    "react_runtime_intelligence.primary_findings": 600
+  },
+  "contextos_signal_limits": {
+    "active_signals": 130,
+    "direct_dependents": 25,
+    "transitive_dependents": 50,
+    "agent_related_files": 8,
+    "agent_directives": 8,
+    "agent_ledger_entries": 2,
+    "agent_projects": 3,
+    "active_violations": 10,
+    "circular_cycles": 5,
+    "cycle_nodes": 12,
+    "dead_code_candidates": 20
+  },
+  "scoped_local_literals": {
+    "cli_long_running_timeout_none": {
+      "owner": "codemaps.py",
+      "classification": "intentional_long_running_process",
+      "rationale": "Run, watch, MCP server, and list-step command surfaces intentionally delegate lifetime control to the operator or child pipeline; bounded subprocess steps use operational_limits instead."
+    },
+    "discovery_workspace_bfs_max_depth": {
+      "owner": "tools/orchestrators/discovery.py",
+      "classification": "bounded_workspace_search",
+      "rationale": "Workspace discovery uses a shallow local BFS to find nearby project roots without scanning whole user directories; broader explicit targets should use --target-root or project registry configuration."
+    },
+    "orchestrator_reactive_poll_interval": {
+      "owner": "tools/orchestrators/orchestrator.py",
+      "classification": "event_loop_polling_interval",
+      "rationale": "The reactive DAG loop uses a short local wait interval for responsiveness while child step timeouts and execution policy are governed separately."
+    }
+  },
+  "validation_governance_red_lines": {
+    "purpose": "Prevent validation sprawl while preserving SAGE's claim -> evidence -> validation -> human seal discipline.",
+    "rules": [
+      {
+        "id": "no_test_without_claim_or_edge_case",
+        "rule": "A new validator or smoke test must protect a release claim, a known edge-case, a precondition boundary, or a user/agent safety surface."
+      },
+      {
+        "id": "no_duplicate_validator_without_new_failure_mode",
+        "rule": "Do not add another validator for an already-covered behavior unless it detects a distinct false-green or false-red failure mode."
+      },
+      {
+        "id": "clean_source_vs_post_analysis_must_not_mix",
+        "rule": "Clean source package checks must not require generated analysis artifacts; post-analysis validators must fail closed when required artifacts are absent."
+      },
+      {
+        "id": "watchdog_must_not_become_release_deep",
+        "rule": "Watchdog/save-time loops may record proof debt and narrow governance signals, but must not silently run heavyweight release-deep proof."
+      },
+      {
+        "id": "sqlite_first_for_managed_artifacts",
+        "rule": "Managed raw artifacts are SQLite-first; JSON shadows are compatibility exports or recovery fallback, not the primary truth source."
+      },
+      {
+        "id": "main_first_agent_scope_variations_explicit",
+        "rule": "Agent-facing default work queues and edit directives are MAIN-first; variation, companion, and all-project scopes may appear only for merge/diff/proof workflows or explicit operator-selected all-project inspection."
+      },
+      {
+        "id": "operational_constants_must_be_policy_backed",
+        "rule": "Operational constants that change execution behavior, including timeouts, profile boundaries, project scopes, release claim boundaries, and agent packet budgets, must come from a central policy/config/helper or declare a scoped rationale; engine-local literals are allowed only for display text or non-behavioral labels."
+      },
+      {
+        "id": "defect_fixes_must_scan_same_failure_family",
+        "rule": "When a defect reveals a reusable failure pattern, do not stop at the local fix; scan related surfaces for the same failure family and either fix, validate, or record a scoped non-blocking rationale."
+      }
+    ]
+  },
+  "project_scope_policy": {
+    "purpose": "Keep target-repository agent work MAIN-first while preserving explicit comparative/merge/proof use of variations and companion projects.",
+    "default_agent_edit_scope": "MAIN",
+    "default_agent_read_scope": "MAIN",
+    "target_repo_agent_default": "host_projects_only",
+    "variation_visibility": "explicit_only",
+    "companion_visibility": "explicit_only",
+    "external_target_scope": "isolated_main",
+    "allowed_non_main_contexts": [
+      "merge",
+      "variation_diff",
+      "comparative_proof",
+      "external_corpus_validation",
+      "explicit_all_projects_inspection"
+    ],
+    "agent_surface_rule": "Do not include variation or companion project edit directives in default target-repo agent packets; include them only as read-only comparative evidence unless the operator explicitly selects that project scope.",
+    "pipeline_rule": "Full/release analysis may compute all registered projects for proof, but watchdog/daily/agent work queues should expose MAIN/host scope unless a merge, diff, corpus, or explicit all-project task is active."
+  },
+  "validator_preconditions": {
+    "environment_classes": {
+      "source_clean": {
+        "description": "Can run in a clean source distribution before repository analysis artifacts are generated.",
+        "generated_artifacts_required": false
+      },
+      "post_analysis": {
+        "description": "Requires a completed analysis run and current target-repository artifacts.",
+        "generated_artifacts_required": true
+      },
+      "release_deep": {
+        "description": "Requires release/deep proof artifacts and should not be used as a cheap clean-source smoke.",
+        "generated_artifacts_required": true
+      },
+      "external_target": {
+        "description": "Requires isolated output/external_targets artifacts for the exact target_root.",
+        "generated_artifacts_required": true
+      }
+    },
+    "validators": {
+      "validate_clean_distribution": {
+        "command": "python -B tools\\validate_clean_distribution.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fail_if_runtime_artifacts_ship",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_source_contracts": {
+        "command": "python -B tools\\validate_source_contracts.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fail_contract_only",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_hardcoded_decision_inventory": {
+        "command": "python -B tools\\validate_hardcoded_decision_inventory.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fail_contract_only",
+        "observability": {
+          "console_progress": "per_step",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": true,
+          "silence_policy": "start_progress_pass_fail",
+          "progress_every_items": 50,
+          "progress_every_seconds": 5
+        }
+      },
+      "validate_repeated_acquisition_projection": {
+        "command": "python -B tools\\validate_repeated_acquisition_projection.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fail_contract_only",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_semantic_diff_lesson_projection": {
+        "command": "python -B tools\\validate_semantic_diff_lesson_projection.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fail_contract_only",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_capability_registry": {
+        "command": "python -B tools\\validate_capability_registry.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fail_contract_only",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_pipeline_execution_contract": {
+        "command": "python -B tools\\validate_pipeline_execution_contract.py",
+        "environment_class": "source_clean",
+        "clean_source_allowed": true,
+        "clean_mirror_behavior": "allowed_before_analysis",
+        "required_artifacts": [],
+        "must_not_require_generated_output": true,
+        "wrong_context_behavior": "fallback_to_catalog_if_registry_missing",
+        "registry_fallback_catalog_args": {
+          "profile": "release-deep",
+          "full": true,
+          "force": false,
+          "ai_context": true,
+          "smart_trigger": false,
+          "skip_audit": false,
+          "projects": null,
+          "scope": null,
+          "step": null,
+          "from_step": null
+        },
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_agent_context_payloads": {
+        "command": "python -B tools\\validate_agent_context_payloads.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "atlas",
+          "audit_report",
+          "signals"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_report_missing_current_artifacts",
+        "clean_mirror_rule": "Do not run as clean-source proof before analysis artifacts exist.",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_agent_semantic_contract_smoke": {
+        "command": "python -B tools\\validate_agent_semantic_contract_smoke.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "atlas",
+          "audit_report",
+          "quality_gate",
+          "release_readiness"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_report_missing_current_artifacts",
+        "clean_mirror_rule": "Run only after the clean mirror has completed analysis, not immediately after source sync.",
+        "observability": {
+          "console_progress": "per_step",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": true,
+          "silence_policy": "start_pass_fail_per_step"
+        }
+      },
+      "validate_agent_packet_chain_integrity": {
+        "command": "python -B tools\\validate_agent_packet_chain_integrity.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "atlas",
+          "audit_report",
+          "quality_gate",
+          "mcp_agent_surface_validation",
+          "mcp_surface_command_matrix"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_report_missing_current_artifacts",
+        "clean_mirror_rule": "Run only after analysis and agent surface inputs exist; do not use as a clean-source mirror validation.",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_watchdog_snapshot_freshness": {
+        "command": "python -B tools\\validate_watchdog_snapshot_freshness.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "atlas",
+          "atlas_commit",
+          "source_snapshot_store"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_warn_missing_current_snapshots",
+        "clean_mirror_rule": "Run only after Atlas/source snapshots exist; do not use as a clean-source mirror validation.",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "generate_agent_surface_quality_review": {
+        "command": "python -B tools\\generate_agent_surface_quality_review.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "atlas",
+          "agent_context_payloads",
+          "mcp_surface_command_matrix"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_report_missing_current_agent_surface_inputs",
+        "clean_mirror_rule": "Run only after analysis and agent surface inputs exist; do not use as a clean-source mirror validation.",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_agent_surface_snippet_ranges": {
+        "command": "python -B tools\\validate_agent_surface_snippet_ranges.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "agent_surface_quality_review"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_report_missing_agent_surface_quality_review",
+        "clean_mirror_rule": "Run only after agent surface quality review artifacts exist; do not use as a clean-source mirror validation.",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_agent_surface_source_grounding": {
+        "command": "python -B tools\\validate_agent_surface_source_grounding.py",
+        "environment_class": "post_analysis",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "blocked_until_post_analysis",
+        "required_artifacts": [
+          "agent_surface_quality_review"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "fail_closed_or_report_missing_agent_surface_quality_review",
+        "clean_mirror_rule": "Run only after agent surface quality review artifacts exist; do not use as a clean-source mirror validation.",
+        "observability": {
+          "console_progress": "summary",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": false,
+          "silence_policy": "final_status_required"
+        }
+      },
+      "validate_step_isolation": {
+        "command": "python -B tools\\validate_step_isolation.py",
+        "environment_class": "release_deep",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "release_deep_only",
+        "required_artifacts": [
+          "atlas",
+          "quality_gate",
+          "dead_code",
+          "ai_context"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "run_only_after_analysis_artifacts_exist_and_operator_accepts_heavy_step_cost",
+        "clean_mirror_rule": "Do not run as clean-source proof; it executes pipeline steps and intentionally writes analysis artifacts.",
+        "observability": {
+          "console_progress": "per_step",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": true,
+          "silence_policy": "start_pass_fail_per_step"
+        }
+      },
+      "validate_operational_parity": {
+        "command": "python -B tools\\validate_operational_parity.py",
+        "local_duration_guidance_id": "operational_parity",
+        "environment_class": "release_deep",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "release_deep_only",
+        "required_artifacts": [
+          "ai_context",
+          "quality_gate",
+          "dead_code",
+          "state_flow",
+          "blast_radius",
+          "decision_evidence",
+          "surgical_readiness"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "run_only_after_analysis_artifacts_exist_and_operator_accepts_cached_full_pipeline_cost",
+        "clean_mirror_rule": "Do not run as clean-source proof; it refreshes quality gates and cached full pipeline semantic snapshots.",
+        "observability": {
+          "console_progress": "per_step",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": true,
+          "silence_policy": "start_pass_fail_per_step"
+        }
+      },
+      "run_release_proof_bundle": {
+        "command": "python -B tools\\run_release_proof_bundle.py",
+        "environment_class": "release_deep",
+        "clean_source_allowed": false,
+        "clean_mirror_behavior": "release_deep_only",
+        "required_artifacts": [
+          "release_readiness",
+          "claim_guard_validation",
+          "release_claim_profiles_validation"
+        ],
+        "must_not_require_generated_output": false,
+        "wrong_context_behavior": "run_required_release_producers_or_fail",
+        "observability": {
+          "console_progress": "per_step",
+          "writes_machine_artifact": true,
+          "writes_human_report": true,
+          "records_step_telemetry": true,
+          "silence_policy": "start_pass_fail_per_step"
+        }
+      }
+    }
+  },
+  "execution_profiles": {
+    "release-deep": {
+      "mode": "all",
+      "description": "Complete release proof profile. Runs heavyweight validation and merge intelligence."
+    },
+    "deep": {
+      "mode": "all",
+      "description": "Alias of release-deep for deep validation runs."
+    },
+    "full": {
+      "mode": "selected",
+      "description": "Normal full analysis. Honors step-level release_deep_only gates."
+    },
+    "daily": {
+      "mode": "keep_slugs",
+      "description": "Fast dependency-closed development profile. Refreshes core repository truth, bounded quality signals and ContextOS evidence without claiming a final governance verdict.",
+      "keep_slugs": [
+        "atlas",
+        "projectdnaprofile",
+        "nuclearsequencing",
+        "architectureoracle",
+        "uimapper",
+        "frameworkrouteanalyzer",
+        "deadcodedetector",
+        "circulardependencyfinder",
+        "blastradiusengine",
+        "audit",
+        "testimpactmatcher",
+        "confidenceengine",
+        "localdevtelemetry",
+        "hexagonalportadapterbinder",
+        "stateflowscanner",
+        "reactsupportmatrix",
+        "moduleriskmatrix",
+        "statedatagraphanalyzer",
+        "reactcapabilityprobe",
+        "contextosquantengine"
+      ]
+    }
+  },
+  "smart_trigger_step_sets": {
+    "dna_unchanged_fast_path": {
+      "description": "Minimal no-op pulse when changed files do not alter Project DNA.",
+      "keep_slugs": [
+        "atlas",
+        "nuclearsequencing",
+        "qualitygates",
+        "aicontextgenerator",
+        "contextosquantengine"
+      ]
+    },
+    "absolute_zero": {
+      "description": "Minimal status/report pulse when no changed files are detected.",
+      "keep_slugs": [
+        "atlas",
+        "cmodashboard",
+        "masterreportgeneration"
+      ]
+    },
+    "watchdog_surgical_gate": {
+      "description": "Narrow save-time gate before live/smoke watchdog behavior removes policy-heavy steps.",
+      "keep_slugs": [
+        "atlas",
+        "nuclearsequencing",
+        "audit",
+        "uimapper",
+        "stateflowscanner",
+        "reactcapabilityprobe",
+        "reactsupportmatrix",
+        "reactecosystemanalyzer",
+        "reactruntimeintelligence",
+        "reactcompilerreadiness",
+        "reactfrontierintelligence",
+        "healthscore",
+        "proofobligations",
+        "qualityrevieworacle",
+        "qualitygates",
+        "aicontextgenerator",
+        "fractalmapping",
+        "contextosquantengine"
+      ]
+    },
+    "state_flow_signal_sensitive": {
+      "description": "Steps removed from live watchdog pulses when changed files carry no state-flow signals.",
+      "remove_slugs": [
+        "stateflowscanner"
+      ]
+    }
+  },
+  "watchdog_semantic_trigger_rules": {
+    "state_flow": {
+      "description": "Keep state-flow analysis only when changed Atlas nodes carry state-management or client-action evidence.",
+      "step_set": "state_flow_signal_sensitive",
+      "unknown_behavior": "keep_for_safety",
+      "truthy_object_fields": [
+        "state_flow"
+      ],
+      "feature_prefixes": [
+        "ZustandStore",
+        "TanStackQuery",
+        "TanStackMutation",
+        "QueryKey:",
+        "QueryKeyRef:",
+        "QueryKeyDynamic:",
+        "MutationKey:",
+        "MutationKeyRef:",
+        "MutationKeyDynamic:",
+        "QueryClientAction:",
+        "Tech:setState",
+        "Tech:getState",
+        "Tech:transition",
+        "Tech:dispatch",
+        "Tech:reducer",
+        "Tech:subscribe",
+        "Tech:selector"
+      ]
+    }
+  },
+  "execution_modes": {
+    "first_repo_onboarding": {
+      "profile": "full",
+      "purpose": "Initial repository entry. Establish Discovery, Atlas, Project DNA, Architecture Oracle proposal, doctrine inputs, and baseline reports before narrow governance claims are trusted.",
+      "trigger": "sage init, codemaps init, first full run, or a target root with missing/stale atlas_commit",
+      "scope": "workspace",
+      "ssot_expectation": "Atlas and SQLite state_payloads may be empty at start; run truth producers before downstream governance.",
+      "heavy_step_policy": "allowed",
+      "required_artifacts": [
+        "codemaps.config",
+        "atlas",
+        "atlas_commit",
+        "project_dna_profile",
+        "architecture_oracle"
+      ],
+      "required_validators": [
+        "discovery_universality",
+        "project_dna_profile_validation",
+        "architecture_oracle"
+      ],
+      "agent_surface": "Return onboarding status, missing setup actions, proposed doctrine, and claim boundaries. Do not present release readiness as sealed proof.",
+      "claim_boundary": "setup_and_baseline_only"
+    },
+    "normal_full": {
+      "profile": "full",
+      "purpose": "Normal complete local analysis after onboarding. Refreshes current structural truth and broad governance artifacts without forcing every release-deep proof drill.",
+      "trigger": "codemaps run --full without release-deep intent",
+      "scope": "workspace",
+      "ssot_expectation": "Atlas/SQLite state should be current or regenerated for stale projects before downstream engines run.",
+      "heavy_step_policy": "profile_guided",
+      "required_artifacts": [
+        "atlas",
+        "genome",
+        "audit_report",
+        "dead_code",
+        "quality_gate",
+        "signals"
+      ],
+      "required_validators": [
+        "pipeline_execution_contract",
+        "engine_data_access",
+        "artifact_contract_validation"
+      ],
+      "agent_surface": "Return current architecture facts, risks, quality gates, and relevant capabilities. Mark heavyweight release-only evidence as absent unless release-deep ran.",
+      "claim_boundary": "current_workspace_governance"
+    },
+    "daily": {
+      "profile": "daily",
+      "purpose": "Fast dependency-closed development loop. Refresh core repository truth, React applicability and bounded agent context while leaving final governance to a complete producer closure.",
+      "trigger": "codemaps run --profile daily or local development check",
+      "scope": "workspace_selected_steps",
+      "ssot_expectation": "Use existing Atlas/SQLite as baseline and refresh stale truth producers selected by the daily profile.",
+      "heavy_step_policy": "skip_unless_kept_or_requested",
+      "required_artifacts": [
+        "atlas",
+        "project_dna_profile",
+        "audit_report",
+        "react_support_matrix",
+        "signals"
+      ],
+      "required_validators": [
+        "pipeline_execution_contract",
+        "performance_profile_integrity"
+      ],
+      "agent_surface": "Return fresh daily spine status, skipped heavyweight steps, governance=NOT_EVALUATED, and whether full or release-deep proof is still needed.",
+      "claim_boundary": "daily_development_signal_without_final_governance"
+    },
+    "watchdog_save_pulse": {
+      "profile": "daily",
+      "purpose": "Narrow save-event pulse. Normalize changed files, refresh only affected truth surfaces, then distill ContextOS signals for the agent.",
+      "trigger": "watchdog changed/created/deleted file event",
+      "scope": "changed_files_plus_fresh_atlas_dependency_halo",
+      "ssot_expectation": "Changed files must be normalized to PROJECT::relative nodes and written back to Atlas/SQLite before ContextOS packaging.",
+      "heavy_step_policy": "skip_unless_changed_signal_requires",
+      "runtime_cache_policy": "skip_unrelated_broad_pre_warm",
+      "required_artifacts": [
+        "atlas",
+        "watchdog_audit_report",
+        "watchdog_graph_advisories",
+        "watchdog_session",
+        "signals"
+      ],
+      "required_validators": [
+        "contextos_signals",
+        "pipeline_execution_contract"
+      ],
+      "agent_surface": "Return only relevant files, affected symbols, reasons, capability hints, and explicit stale/deep-proof warnings.",
+      "claim_boundary": "surgical_change_context",
+      "scoped_evidence_contract": {
+        "version": "v1",
+        "scope_transport": "direct_pipeline_argument",
+        "evidence_scope": "changed_files_plus_fresh_atlas_dependency_halo",
+        "change_event_contract": {
+          "event_kinds": [
+            "create",
+            "modify",
+            "delete",
+            "rename_from",
+            "rename_to"
+          ],
+          "missing_exact_path_policy": "accept_only_when_present_in_previous_canonical_atlas",
+          "directory_membership_policy": "compare_previous_indexed_membership_with_current_filesystem_before_sampling",
+          "selection_priority": "indexed_tombstones_before_existing_smoke_candidates",
+          "omitted_tombstone_integrity": "UNKNOWN",
+          "rename_projection": "linked_delete_plus_create",
+          "atomicity": "atlas_payload_relational_rows_and_source_snapshots_share_one_scoped_generation_or_fail_closed"
+        },
+        "integrity_states": {
+          "clean": "CLEAN_IN_SCOPE",
+          "violations": "VIOLATIONS_IN_SCOPE",
+          "unknown": "UNKNOWN"
+        },
+        "artifacts": {
+          "audit": {
+            "artifact_id": "watchdog_audit_report",
+            "canonical_full_artifact_id": "audit_report",
+            "canonical_overwrite_policy": "forbidden"
+          },
+          "signals": {
+            "artifact_id": "signals"
+          },
+          "graph_advisories": {
+            "artifact_id": "watchdog_graph_advisories",
+            "canonical_overwrite_policy": "forbidden"
+          }
+        },
+        "graph_evidence": {
+          "dependency_halo": {
+            "artifact_id": "atlas",
+            "availability": "current_pulse_required",
+            "claim_boundary": "dependency_reachability_only"
+          },
+          "active_violations": {
+            "artifact_id": "watchdog_audit_report",
+            "availability": "current_pulse_required",
+            "claim_boundary": "changed_files_only"
+          },
+          "circular_cycles": {
+            "artifact_id": "watchdog_graph_advisories",
+            "canonical_full_artifact_id": "circular_deps",
+            "availability": "current_global_atlas_scc_projection",
+            "claim_boundary": "changed_node_membership_not_full_cycle_enumeration"
+          },
+          "blast_scores": {
+            "artifact_id": "watchdog_graph_advisories",
+            "canonical_full_artifact_id": "blast_radius",
+            "availability": "dependency_only_lower_bound",
+            "claim_boundary": "boundary_bonus_and_canonical_full_ranking_deferred"
+          },
+          "dead_code_candidates": {
+            "artifact_id": "watchdog_graph_advisories",
+            "canonical_full_artifact_id": "dead_code",
+            "availability": "static_named_import_candidate_projection",
+            "claim_boundary": "candidate_only_not_dead_code_proof_or_absence_claim"
+          }
+        },
+        "current_pulse_atlas_transport": {
+          "mode": "producer_return_after_persistence",
+          "authority": "sqlite_persisted_atlas",
+          "lifetime": "single_pipeline_execution",
+          "consumer_access": "read_only",
+          "fallback": "sqlite_first_artifact_store",
+          "consumers": [
+            "semantic_trigger",
+            "audit",
+            "state_flow",
+            "contextos_quant"
+          ],
+          "forbidden_behaviors": [
+            "cross_process_memory_authority",
+            "cross_pulse_payload_reuse",
+            "consumer_mutation",
+            "silent_fallback"
+          ]
+        }
+      },
+      "deep_proof_debt_policy": {
+        "status": "active",
+        "debt_name": "target_repository_deep_proof_needed",
+        "pulse_warning_threshold": 5,
+        "changed_file_warning_threshold": 20,
+        "violation_warning_threshold": 1,
+        "reset_artifact_scope": "current_target_output",
+        "reset_artifact_ids": [
+          "dead_code",
+          "circular_deps",
+          "blast_radius",
+          "quality_gate",
+          "release_readiness"
+        ],
+        "missing_reset_artifact_behavior": "debt_due",
+        "repo_wide_artifacts_not_proven_by_watchdog": [
+          "dead_code",
+          "circular_deps",
+          "blast_radius",
+          "quality_gate",
+          "release_readiness"
+        ],
+        "recommended_refresh_modes": [
+          "auto_daily",
+          "auto_full",
+          "auto_release_deep"
+        ],
+        "auto_refresh": {
+          "mode": "advisory",
+          "allowed_modes": [
+            "advisory",
+            "auto_daily",
+            "auto_full",
+            "auto_release_deep"
+          ],
+          "default_mode": "advisory",
+          "release_deep_requires_explicit_policy": true,
+          "command_by_mode": {
+            "auto_daily": [
+              "run",
+              "--profile",
+              "daily"
+            ],
+            "auto_full": [
+              "run",
+              "--full"
+            ],
+            "auto_release_deep": [
+              "run",
+              "--profile",
+              "release-deep"
+            ]
+          },
+          "timeout_seconds_by_mode": {
+            "auto_daily": 300,
+            "auto_full": 1800,
+            "auto_release_deep": 3600
+          },
+          "agent_rule": "Automatic watchdog debt refresh is disabled by default. Enable auto_daily or auto_full for managed development loops; enable auto_release_deep only when the operator accepts heavyweight proof cost."
+        },
+        "pulse_ledger": {
+          "enabled": true,
+          "artifact": "watchdog_pulse_ledger.json",
+          "max_entries": 200,
+          "unread_status": "unresolved_unread",
+          "resolved_status": "resolved_by_absence_in_next_pulse",
+          "agent_rule": "Latest watchdog_session may be overwritten by a later pulse, but unresolved pulse findings must remain queryable in the bounded ledger until they are resolved or explicitly acknowledged by a future surface."
+        },
+        "agent_rule": "Watchdog is a live constitutional guard and ContextOS signal loop. It must not be treated as full target-repository proof when repo-wide artifacts have been skipped or allowed to age."
+      }
+    },
+    "release_deep": {
+      "profile": "release-deep",
+      "purpose": "Release sealing profile. Runs complete proof, validation, claim guard, fixture/corpus, agent-surface, and distribution hardening checks.",
+      "trigger": "codemaps run --profile release-deep, codemaps run --full --force, or run_release_proof_bundle",
+      "scope": "workspace_release_proof",
+      "ssot_expectation": "All required artifacts must be current, SQLite-backed, schema-valid, and included in release proof snapshots.",
+      "heavy_step_policy": "run_all_required",
+      "required_artifacts": [
+        "release_readiness",
+        "release_proof_bundle",
+        "claim_guard_validation",
+        "release_claim_profiles_validation",
+        "react_universal_readiness",
+        "pipeline_execution_contract_validation"
+      ],
+      "required_validators": [
+        "release_readiness",
+        "claim_guard",
+        "release_claim_profiles",
+        "pipeline_execution_contract",
+        "capability_registry_validation",
+        "sqlite_artifact_parity",
+        "sqlite_proxy_coverage",
+        "atlas_sqlite_first_access",
+        "genome_sqlite_first_access",
+        "fractal_sqlite_first_access",
+        "large_artifact_sqlite_first_access",
+        "artifact_contract_validation"
+      ],
+      "agent_surface": "Return release proof status, allowed claim, failed required steps, and evidence bundle pointers.",
+      "claim_boundary": "sealed_release_claim"
+    },
+    "explicit_step": {
+      "profile": "full",
+      "purpose": "Operator-requested single step or from-step run. Honors the requested scope and does not imply global freshness unless upstream dependencies were also refreshed.",
+      "trigger": "codemaps run --step or codemaps run --from-step",
+      "scope": "requested_step_scope",
+      "ssot_expectation": "Requested step may read existing Atlas/SQLite; caller must inspect input artifact freshness when using the result as proof.",
+      "heavy_step_policy": "operator_requested",
+      "required_artifacts": [
+        "pipeline_step_registry"
+      ],
+      "required_validators": [
+        "pipeline_execution_contract"
+      ],
+      "agent_surface": "Return the step output, its declared inputs, stale-risk warning, and suggested follow-up validators.",
+      "claim_boundary": "single_step_evidence"
+    },
+    "external_corpus_validation": {
+      "profile": "release-deep",
+      "purpose": "External repository validation/corpus evidence. Measures behavior-family coverage, false positives, false negatives, and fixture promotion candidates.",
+      "trigger": "external repo corpus run or manual validation batch",
+      "scope": "external_targets",
+      "ssot_expectation": "External target facts must be isolated by target root/project identity and not overwrite the host workspace truth without explicit selection.",
+      "heavy_step_policy": "allowed_with_budget",
+      "required_artifacts": [
+        "external_react_smoke_validation",
+        "react_corpus_saturation_report",
+        "react_corpus_semantic_audit"
+      ],
+      "required_validators": [
+        "external_react_smoke",
+        "react_corpus_saturation",
+        "react_corpus_semantic_audit"
+      ],
+      "agent_surface": "Return category coverage, sampled manual findings, false-positive/false-negative notes, and fixture promotion candidates.",
+      "claim_boundary": "corpus_quality_control"
+    },
+    "clean_install_onboarding_proof": {
+      "profile": "release-deep",
+      "purpose": "Fresh machine/distribution proof. Verifies the package can initialize, run, validate, and expose agent surfaces from a clean copy.",
+      "trigger": "clean distribution mirror, friend machine proof, or final release candidate check",
+      "scope": "distribution_copy",
+      "ssot_expectation": "Generated/cache artifacts may be absent at start; required setup and proof artifacts must be created by documented commands.",
+      "heavy_step_policy": "run_required_install_proof",
+      "required_artifacts": [
+        "distribution_hardening_validation",
+        "entrypoint_failure_validation",
+        "installation_contract_validation",
+        "release_proof_bundle"
+      ],
+      "required_validators": [
+        "distribution_hardening",
+        "entrypoint_failure_drills",
+        "installation_contract",
+        "release_proof_bundle"
+      ],
+      "agent_surface": "Return install friction, missing dependency guidance, exact command transcript needs, and final release-proof status.",
+      "claim_boundary": "distribution_readiness"
+    }
+  },
+  "explicit_step_closure_policy": {
+    "description": "Central policy for operator-requested `run --step` commands. A step command runs the transitive dependency closure by default; broad/global closures must be visible before humans or agents treat the result as narrow evidence.",
+    "freshness_claim": "single_step_evidence_not_global_freshness",
+    "tiers": {
+      "standalone": {
+        "max_closure_count": 1,
+        "operator_warning": ""
+      },
+      "narrow": {
+        "max_closure_count": 5,
+        "operator_warning": "This step has a small dependency closure; it is suitable for targeted refresh when the listed inputs are current."
+      },
+      "broad": {
+        "max_closure_count": 20,
+        "operator_warning": "This step has a broad dependency closure. Treat it as a partial pipeline refresh, not a cheap single-engine probe."
+      },
+      "global": {
+        "max_closure_count": 999,
+        "operator_warning": "This step has a global dependency closure and may run most of the pipeline. Use a profile or a more specific agent-facing/MCP surface when you need surgical context."
+      }
+    },
+    "broad_closure_warning_threshold": 20,
+    "global_closure_warning_threshold": 35,
+    "sample_limit": 12,
+    "step_overrides": {
+      "aicontextgenerator": {
+        "recommended_alternative": "Use ContextOS/MCP surgical packet tools or `python sage.py run --profile daily` for narrow agent context. Reserve AI Context Generator for global index refresh.",
+        "operator_warning": "AI Context Generator reads global pipeline state and depends on most finalizers; it is not a cheap surgical context refresh."
+      },
+      "artifactcontractvalidation": {
+        "recommended_alternative": "Use the specific artifact validator for a local contract check; reserve this step for broad artifact proof."
+      },
+      "masterreportgeneration": {
+        "recommended_alternative": "Use release readiness, quality gate, or targeted reports for local evidence; reserve master report generation for human-facing summary refresh."
+      },
+      "releasereadiness": {
+        "recommended_alternative": "Use quality gates for local verdicts; reserve release readiness for release envelope refresh."
+      },
+      "nexoraoperatorpacket": {
+        "recommended_alternative": "Use MCP agent packet tools for narrow target-repo work; reserve operator packet refresh for current operator summary."
+      }
+    }
+  },
+  "sequential_required_slugs": {
+    "frameworkrouteanalyzer": "contention-sensitive route graph expansion; isolated execution prevents CPU/IO inflation during full analysis",
+    "deadcodedetector": "contention-sensitive public-contract scan; isolated execution prevents false performance regression under concurrent heavy analyzers",
+    "artifactcontractvalidation": "validates broad artifact state and should see producers after writes settle",
+    "masterreportgeneration": "aggregates many upstream reports into human-facing release context",
+    "nexoraoperatorpacket": "packages current governance and ContextOS state for agent-facing use",
+    "aicontextgenerator": "packages final agent context and reads broad pipeline state",
+    "releasereadiness": "final release verdict over quality and merge surfaces",
+    "qualitygates": "final quality gate over upstream proofs",
+    "qualityrevieworacle": "review verdict over proof obligations",
+    "proofobligations": "proof synthesis over multiple upstream analysis outputs",
+    "contextosquantengine": "packages active signals after dependency and audit outputs exist"
+  },
+  "full_run_sequential_slugs": {
+    "oraclevalidationgate": "validates generated merge scripts and sandbox outputs",
+    "livessurfaceanalyzer": "uses broad dead-code/live-surface state",
+    "blastradiusengine": "expands graph impact over global dependency state",
+    "automerge_scriptgenerator": "generates mutation plans and should not overlap with final validators"
+  },
+  "static_runtime_boundary_contract": {
+    "required_steps": [
+      "reactruntimeintelligence"
+    ],
+    "evidence_mode": "static_repository_analysis",
+    "executes_target_runtime": false,
+    "ingests_target_runtime_stderr": false,
+    "runtime_question_authority": "target_native_execution_required",
+    "claim_boundary": "A runtime-oriented step covered by this contract analyzes repository evidence only. It does not claim target execution or runtime stderr authority."
+  },
+  "step_profile_guidance": {
+    "keywordstats": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "cache_strategy": "keyword_scanner_cache_meta_signature",
+      "cache_artifact": "keyword_scanner_cache_meta",
+      "rationale": "Keyword stats are derived from Atlas/Genome and should reuse keyword_scanner_cache_meta when the Atlas snapshot and Genome payload are unchanged."
+    },
+    "keywordscanner": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "cache_strategy": "keyword_scanner_cache_meta_signature",
+      "cache_artifact": "keyword_scanner_cache_meta",
+      "rationale": "Keyword scanning should be full/release evidence, not a save-pulse cost; unchanged Atlas/Genome signatures must hit the cache."
+    },
+    "gemscorer": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "cache_strategy": "keyword_scanner_cache_meta_signature",
+      "cache_artifact": "keyword_scanner_cache_meta",
+      "rationale": "Gem scoring closes the keyword cache bundle and must publish keyword_scanner_cache_meta so later runs avoid rescanning unchanged project evidence."
+    },
+    "variationengine": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Cross-variation semantic alignment is valuable but expensive; daily runs should consume the latest existing variation artifact and refresh this step only during full/release proof or explicit operator requests."
+    },
+    "hostmergeintelligence": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Host-aware merge analysis reads broad merge/fractal surfaces; daily runs should consume existing merge evidence and refresh this step during full/release proof or explicit merge work."
+    },
+    "oraclevalidationgate": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "release-deep",
+        "deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Validation Oracle materializes compiler sandboxes and must run only during release-deep/deep proof or explicit operator requests."
+    },
+    "mergedependencypackager": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Merge dependency packaging is Atlas-backed but materializes transfer manifests; daily/watchdog should consume existing packages unless an explicit merge workflow is requested."
+    },
+    "mergesimulationengine": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Merge simulation depends on generated package manifests and should run in full/release or explicit merge workflows, not routine save pulses."
+    },
+    "mergedecisioncockpit": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Merge decision cockpit synthesizes merge evidence for humans/agents and should not imply fresh merge readiness during daily/watchdog profiles; consume existing cockpit evidence unless explicit merge proof is requested."
+    },
+    "aitaskpackgenerator": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "AI merge task packs are derived from merge cockpit evidence; generate them only when merge evidence has been explicitly refreshed."
+    },
+    "mergeintelligenceregression": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": false,
+      "rationale": "Merge regression validates the merge-intelligence chain and belongs to full/release or explicit merge proof runs."
+    },
+    "scopedhostanalyzer": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "max_scope_files": 250,
+      "max_candidate_rows": 500,
+      "heartbeat_rows": 25,
+      "too_broad_scope_behavior": "fail_closed_with_narrow_scope_guidance",
+      "rationale": "Scoped host analysis is explicit-scope merge intelligence; run it only with an operator-provided scope or full/release merge work."
+    },
+    "reactecosystemanalyzer": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Deep React ecosystem synthesis is claim-critical for release proof but too broad for every watchdog pulse; refresh explicitly in full/release proof or targeted React claim work."
+    },
+    "reactsupportmatrix": {
+      "cost_tier": "high",
+      "daily_behavior": "kept",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "daily",
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "React support visibility is part of the daily governance spine, but it evaluates workspace- and project-wide capability evidence and must not run on every save pulse. Watchdog records the broad proof debt; daily/full profiles refresh the matrix."
+    },
+    "reactcapabilityprobe": {
+      "cost_tier": "medium",
+      "daily_behavior": "kept",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "daily",
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": false,
+      "rationale": "React capability discovery is package/discovery-wide onboarding evidence. Live source saves consume the existing capability truth and defer refresh to daily/full or explicit manifest work."
+    },
+    "fractalmapping": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Fractal genome analysis is broad topology work; daily profile should consume existing outputs unless explicitly refreshed."
+    },
+    "entrypointfailuredrills": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Entry-point failure drills protect install/onboarding and release surfaces but are not repository-analysis evidence. Installation proof invokes its own bounded health checks; full/release or explicit validation owns the complete drill family."
+    },
+    "nuclearsequencing": {
+      "cost_tier": "high",
+      "daily_behavior": "kept",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "daily",
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Genome extraction is a truth-layer dependency; optimization must preserve Atlas/Genome integrity and incremental scope."
+    },
+    "blastradiusengine": {
+      "cost_tier": "medium",
+      "daily_behavior": "kept",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "daily",
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Daily refresh already updates Circular Dependency evidence consumed by Blast Radius, ContextOS and agent risk surfaces. Keeping the bounded project-scoped Blast Radius producer closes that freshness chain without enabling comparative merge or multi-project release work."
+    },
+    "uiruntimecontractanalyzer": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "UI runtime contracts are useful for merge and smoke surfaces but should remain downstream of route/UI changes; refresh explicitly in full/release proof or targeted UI/runtime work."
+    },
+    "artifactcontractvalidation": {
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Artifact validation is a broad release safety net. Daily analysis validates its selected producers locally and leaves the complete artifact family contract to full/release or explicit validation."
+    },
+    "qualitygates": {
+      "cost_tier": "medium",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": false,
+      "rationale": "Quality Gates are final governance verdicts and require the complete declared producer closure. Daily runs expose bounded signals and report governance as NOT_EVALUATED; full/release or explicit Quality Gate execution owns the verdict."
+    },
+    "reactruntimeintelligence": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "evidence_mode": "static_repository_analysis",
+      "executes_target_runtime": false,
+      "ingests_target_runtime_stderr": false,
+      "runtime_question_authority": "target_native_execution_required",
+      "rationale": "Runtime intelligence is broad static React synthesis, does not execute the target or ingest test stderr, and should not run on every save pulse without explicit deep/release intent."
+    },
+    "reactcompilerreadiness": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Compiler readiness aggregates React runtime surfaces and belongs to explicit full or release proof flows."
+    },
+    "reactfrontierintelligence": {
+      "cost_tier": "high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Frontier intelligence tracks broad React edge-case posture and should remain outside live save pulses; refresh explicitly during full/release claim validation."
+    },
+    "healthscore": {
+      "cost_tier": "medium",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Health Score requires the complete declared keyword and structural evidence chain. Daily runs must not convert an intentionally omitted producer into a numeric zero; full/release or explicit execution owns the score."
+    },
+    "proofobligations": {
+      "cost_tier": "medium",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": false,
+      "rationale": "Proof synthesis requires its complete producer closure, including release-deep Oracle evidence when applicable. Daily runs preserve proof debt and defer synthesis to full/release or explicit execution."
+    },
+    "qualityrevieworacle": {
+      "cost_tier": "medium",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": false,
+      "rationale": "Review verdicts depend on upstream health, React, Oracle and proof surfaces. Daily runs must not score omitted evidence as zero; full/release or explicit execution owns the review."
+    },
+    "aicontextgenerator": {
+      "cost_tier": "medium",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "Full AI context generation is superseded by ContextOS surgical packets during live save pulses."
+    },
+    "uimapper": {
+      "cost_tier": "medium",
+      "daily_behavior": "kept",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "daily",
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": true,
+      "rationale": "UI mapping is the declared producer for the daily Framework Route Analyzer. It remains outside live save pulses but is refreshed in the dependency-closed daily profile."
+    },
+    "projectdnaprofile": {
+      "cost_tier": "medium",
+      "daily_behavior": "kept",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "daily",
+        "full",
+        "release-deep"
+      ],
+      "optimization_candidate": false,
+      "rationale": "Project DNA is the authoritative capability and framework applicability producer for daily React and repository-scope analysis. Omitting it can turn missing evidence into a false NOT_APPLICABLE result."
+    }
+  },
+  "report_profile_guidance": {
+    "ssot_optimization_plan": {
+      "command": "python -B tools\\generate_ssot_optimization_plan.py",
+      "cost_tier": "medium_high",
+      "daily_behavior": "skipped",
+      "watchdog_behavior": "skipped",
+      "preferred_profiles": [
+        "full",
+        "release-deep",
+        "explicit_step"
+      ],
+      "profile_boundary": "heavy_report_not_live_pulse",
+      "telemetry_required": true,
+      "rationale": "SSOT optimization planning scans runtime references across SAGE source trees. It is useful release/report evidence, but too broad for watchdog save pulses."
+    }
+  },
+  "external_input_artifacts": {
+    "description": "Inputs consumed by pipeline steps that are not produced as managed raw artifacts by SAGE. Connectivity validators must classify these as external/runtime inputs, not missing producers.",
+    "items": {
+      "architecture_doctrine": {
+        "kind": "configuration_input",
+        "source": "config/architecture_doctrine.json",
+        "rationale": "Architecture doctrine is human-sealed governance configuration consumed by analysis/reporting steps, not produced by a pipeline writer."
+      },
+      "capability_activation_plan": {
+        "kind": "runtime_registry_input",
+        "source": "output/.raw/capability_activation_plan.json",
+        "rationale": "Capability activation plan is generated by capability tooling outside the orchestrator step catalog and consumed by operator packets as runtime governance context."
+      },
+      "capability_registry": {
+        "kind": "configuration_registry_input",
+        "source": "config/capability_registry.json",
+        "rationale": "Capability registry is central configuration consumed through capability helpers, not produced by a pipeline writer."
+      },
+      "codemaps_adapters": {
+        "kind": "configuration_input",
+        "source": "config/codemaps.adapters.json",
+        "rationale": "Adapter declarations are configuration inputs consumed before adapter_registry is produced as a managed SAGE artifact."
+      },
+      "codemaps_suppressions": {
+        "kind": "configuration_input",
+        "source": "config/codemaps.suppressions.json",
+        "rationale": "Suppression declarations are governance configuration inputs consumed by release readiness, not produced by a pipeline writer."
+      },
+      "discovery": {
+        "kind": "configuration_input",
+        "source": "config/codemaps.discovery.json",
+        "rationale": "Discovery configuration and workspace signals seed analysis before managed artifacts exist."
+      },
+      "atlas_bound_source": {
+        "kind": "target_repo_input",
+        "source": "target repository source files bounded by Atlas scope and source_evidence guards",
+        "rationale": "Atlas-bound source evidence is live target source content used by migration-candidate analyzers, not a shadow JSON artifact produced by a prior pipeline writer."
+      },
+      "package_json": {
+        "kind": "target_repo_input",
+        "source": "target package.json",
+        "rationale": "Framework/package signals are read from the target repository, not produced by a SAGE artifact writer."
+      },
+      "mcp_agent_surface_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/mcp_agent_surface_validation.json",
+        "rationale": "MCP agent surface validation is produced by release-proof validators outside the orchestrator step catalog and consumed by release readiness as proof evidence."
+      },
+      "engine_signal_contract_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/engine_signal_contract_validation.json",
+        "rationale": "Engine signal contract validation is produced by release-proof validators outside the orchestrator step catalog and consumed by operator packets as proof evidence."
+      },
+      "hitl_approval_ledger": {
+        "kind": "hitl_runtime_input",
+        "source": "output/.raw/hitl_approval_ledger.json",
+        "rationale": "HITL approval ledger is maintained by governance/HITL tooling and consumed by operator packets, not produced by the static pipeline catalog."
+      },
+      "hitl_decision_requests": {
+        "kind": "hitl_runtime_input",
+        "source": "output/.raw/hitl_decision_requests.json",
+        "rationale": "HITL decision requests are maintained by governance/HITL tooling and consumed by operator packets, not produced by the static pipeline catalog."
+      },
+      "hitl_governance_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/hitl_governance_validation.json",
+        "rationale": "HITL governance validation is produced by release-proof validators outside the orchestrator step catalog and consumed by operator packets as proof evidence."
+      },
+      "hitl_lifecycle_smoke": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/hitl_lifecycle_smoke.json",
+        "rationale": "HITL lifecycle smoke is produced by release-proof validators outside the orchestrator step catalog and consumed by operator packets as proof evidence."
+      },
+      "nexora_agent_contract": {
+        "kind": "agent_contract_input",
+        "source": "output/.raw/nexora_agent_contract.json",
+        "rationale": "Nexora agent contract is generated by agent-surface tooling outside the orchestrator step catalog and consumed by operator packets."
+      },
+      "nexora_agent_handoff": {
+        "kind": "agent_surface_runtime_input",
+        "source": "output/.raw/nexora_agent_handoff.json",
+        "rationale": "Nexora agent handoff is an agent-surface runtime artifact consumed by operator packets, not a pipeline writer output."
+      },
+      "nexora_agent_response_ledger": {
+        "kind": "agent_surface_runtime_input",
+        "source": "output/.raw/nexora_agent_response_ledger.json",
+        "rationale": "Nexora agent response ledger is an agent-surface runtime artifact consumed by operator packets, not a pipeline writer output."
+      },
+      "nexora_agent_response_validation": {
+        "kind": "agent_surface_validation_input",
+        "source": "output/.raw/nexora_agent_response_validation.json",
+        "rationale": "Nexora agent response validation is produced by agent-surface validators outside the orchestrator step catalog and consumed by operator packets."
+      },
+      "nexora_brief": {
+        "kind": "agent_contract_input",
+        "source": "output/.raw/nexora_brief.json",
+        "rationale": "Nexora brief is generated by agent-surface tooling outside the orchestrator step catalog and consumed by operator packets."
+      },
+      "nexora_surface_inventory": {
+        "kind": "agent_surface_inventory_input",
+        "source": "output/.raw/nexora_surface_inventory.json",
+        "rationale": "Nexora surface inventory is generated by agent-surface tooling outside the orchestrator step catalog and consumed by operator packets."
+      },
+      "operational_parity_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/operational_parity_validation.json",
+        "rationale": "Operational parity validation is produced by release-proof validators outside the orchestrator step catalog and consumed by release readiness as proof evidence."
+      },
+      "performance_budget_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/performance_budget_validation.json",
+        "rationale": "Performance budget validation is produced by release-proof validators outside the orchestrator step catalog and consumed by release readiness as optional proof evidence."
+      },
+      "performance_ledger": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/performance_ledger.json",
+        "rationale": "Performance ledger is maintained by performance validators outside the orchestrator step catalog and consumed by release readiness as optional proof evidence."
+      },
+      "pipeline_execution_contract_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/pipeline_execution_contract_validation.json",
+        "rationale": "Pipeline execution contract validation is produced by release-proof validators outside the orchestrator step catalog and consumed by operator packets as proof evidence."
+      },
+      "react_fixture_matrix_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/react_fixture_matrix_validation.json",
+        "rationale": "React fixture matrix validation is produced by release-proof validators outside the orchestrator step catalog and consumed by release readiness as proof evidence."
+      },
+      "react_universal_readiness": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/react_universal_readiness.json",
+        "rationale": "React universal readiness is produced by release-proof validators outside the orchestrator step catalog and consumed by release readiness as claim evidence."
+      },
+      "release_identity": {
+        "kind": "configuration_input",
+        "source": "config/release_identity.json",
+        "rationale": "Release identity is version/claim configuration consumed by release readiness and claim guard, not produced by a pipeline writer."
+      },
+      "release_proof_bundle": {
+        "kind": "release_proof_bundle_input",
+        "source": "output/.raw/release_proof_bundle.json",
+        "rationale": "Release proof bundle is produced by the release-proof runner outside the orchestrator step catalog and consumed by post-proof release surfaces. Pipeline generators must not read the final bundle before the proof run produces it.",
+        "broader_system_consumers": [
+          "tools/generate_system_health_check.py",
+          "tools/generate_v1_quality_scorecard.py",
+          "tools/generate_sage_self_map.py",
+          "tools/mcp/server.py"
+        ]
+      },
+      "report_freshness_index": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/report_freshness_index.json",
+        "rationale": "Report freshness index is produced by release-proof/report validators outside the orchestrator step catalog and consumed by operator packets."
+      },
+      "source_snapshot_store": {
+        "kind": "sqlite_runtime_input",
+        "source": "SQLite source_snapshots table projected from Atlas file scope",
+        "rationale": "SQLite source snapshots are a runtime source-content store populated during Atlas/artifact persistence, not a managed raw JSON artifact with a single pipeline writer."
+      },
+      "ts_diagnostics": {
+        "kind": "runtime_input",
+        "source": "TypeScript diagnostics collector output generated inside React Frontier Intelligence",
+        "rationale": "React Frontier invokes the local TypeScript diagnostics collector and reads its output as runtime evidence within the same step, so connectivity checks should not expect an upstream SAGE pipeline writer."
+      },
+      "telemetry_traces": {
+        "kind": "runtime_input",
+        "source": "local runtime telemetry traces",
+        "rationale": "Telemetry traces are runtime observations consumed by local telemetry analysis rather than managed artifacts produced by an upstream pipeline step."
+      },
+      "universal_proof_validation": {
+        "kind": "release_proof_validation_input",
+        "source": "output/.raw/universal_proof_validation.json",
+        "rationale": "Universal proof validation is produced by release-proof validators outside the orchestrator step catalog and consumed by release readiness as proof evidence."
+      },
+      "watchdog_session": {
+        "kind": "runtime_input",
+        "source": "watchdog pulse/session state",
+        "rationale": "Live save-time sessions are runtime inputs that seed ContextOS signals."
+      }
+    }
+  },
+  "ai_context_generator_policy": {
+    "surface_role": "global_index_not_surgical_packet",
+    "agent_rule": "AI Context is a broad repository index. Do not use it alone as permission to edit; request a bounded ContextOS/MCP surgical packet before target-repository mutation.",
+    "product_governance_enrichment": {
+      "default": "excluded",
+      "activation": "explicit_sage_self_surface_only",
+      "excluded_artifacts": [
+        "merge_intelligence_regression.json",
+        "adapter_registry.json",
+        "release_readiness.json",
+        "nexora_operator_packet.json",
+        "nexora_brief.json",
+        "nexora_agent_contract.json",
+        "mcp_agent_surface_validation.json",
+        "watchdog_session.json",
+        "performance_budget_validation.json",
+        "performance_ledger.json",
+        "distribution_hardening_validation.json",
+        "entrypoint_failure_validation.json",
+        "operational_parity_validation.json"
+      ],
+      "claim_boundary": "Target-repository AI Context must not inherit stale or unrelated SAGE product release, distribution, operator, MCP-readiness or performance evidence. Those surfaces remain available through explicit SAGE operator tools."
+    },
+    "recommended_followups": [
+      {
+        "intent": "targeted_fix",
+        "next_surface": "get_surgical_operation_packet",
+        "reason": "Use for file/symbol/span-grounded coding tasks."
+      },
+      {
+        "intent": "impact_review",
+        "next_surface": "get_impact_radius",
+        "reason": "Use when the blast radius is the next decision point."
+      },
+      {
+        "intent": "test_selection",
+        "next_surface": "get_test_impact",
+        "reason": "Use before choosing validation commands for a targeted patch."
+      },
+      {
+        "intent": "root_cause",
+        "next_surface": "trace_upstream_cause",
+        "reason": "Use when a finding needs upstream dependency evidence before editing."
+      }
+    ],
+    "decision_rules": {
+      "mutation": "Do not mutate from AI Context alone; obtain a target-repository surgical packet with file, symbol/span, evidence and validation contract.",
+      "human_approval": "Ask for explicit human approval before mutation, merge/import, deletion, movement, public API change, or large refactor actions.",
+      "scope": "Prefer MAIN scope for target-repository coding unless a merge/variation surface explicitly asks otherwise.",
+      "validation": "Run packet-listed validators first; if none are listed, use the closest focused target-repository validator."
+    }
+  },
+  "wildcard_read_artifacts": [
+    "*"
+  ]
+}

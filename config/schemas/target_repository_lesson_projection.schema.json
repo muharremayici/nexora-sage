@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "meta",
+    "subject",
+    "claim_boundary",
+    "summary",
+    "sources",
+    "lessons",
+    "unknowns"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator",
+        "contract_identity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "target_repository_lesson_projection"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "generated_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generator": {
+          "const": "tools.generate_target_repository_lesson_projection"
+        },
+        "contract_identity": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "required": [
+        "system_scope",
+        "target_id",
+        "target_root"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "system_scope": {
+          "const": "SAGE_ON_REPOSITORY"
+        },
+        "target_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "target_root": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "declared_sources",
+        "present_sources",
+        "lesson_count",
+        "recurrence_candidates",
+        "human_confirmed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "EMPTY"
+          ]
+        },
+        "declared_sources": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "present_sources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lesson_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recurrence_candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "human_confirmed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "source_authority",
+          "artifact_id",
+          "availability",
+          "eligible_rows"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source_authority": {
+            "enum": [
+              "target_binding",
+              "watchdog_recurrence",
+              "human_target_decision"
+            ]
+          },
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "availability": {
+            "enum": [
+              "PRESENT",
+              "MISSING",
+              "INVALID"
+            ]
+          },
+          "eligible_rows": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "lessons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "lesson_id",
+          "source_authority",
+          "source_identity",
+          "authority_status",
+          "attention",
+          "validity",
+          "enforcement",
+          "rule",
+          "target_paths",
+          "evidence",
+          "human_actor"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "lesson_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_authority": {
+            "enum": [
+              "watchdog_recurrence",
+              "human_target_decision"
+            ]
+          },
+          "source_identity": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authority_status": {
+            "enum": [
+              "CANDIDATE_RECURRENCE",
+              "HUMAN_CONFIRMED"
+            ]
+          },
+          "attention": {
+            "enum": [
+              "ACTIVE",
+              "DORMANT"
+            ]
+          },
+          "validity": {
+            "enum": [
+              "UNCONFIRMED",
+              "CONFIRMED_FOR_TARGET"
+            ]
+          },
+          "enforcement": {
+            "enum": [
+              "NONE",
+              "ADVISORY_UNLESS_SEPARATE_POLICY_EXISTS"
+            ]
+          },
+          "rule": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "human_actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

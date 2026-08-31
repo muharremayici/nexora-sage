@@ -1,0 +1,64 @@
+{
+  "min_detected_present_ratio": 1.0,
+  "max_partial_capabilities": 0,
+  "artifact_contract_checks": [
+    {
+      "name": "react_compiler_readiness_contract",
+      "artifact": "react_compiler_readiness.json",
+      "required_paths": [
+        "summary.blocked",
+        "summary.review",
+        "findings.0.readiness_status",
+        "findings.0.evidence_ladder"
+      ]
+    },
+    {
+      "name": "next_boundary_contract_depth",
+      "artifact": "next_boundary_analysis.json",
+      "required_paths": [
+        "summary.boundary_contract_counts",
+        "files.0.boundary_contract"
+      ]
+    },
+    {
+      "name": "state_data_query_router_depth",
+      "artifact": "state_data_graph.json",
+      "required_paths": [
+        "summary.mutation_coverage_items",
+        "summary.router_risks",
+        "query_key_graph",
+        "mutation_coverage",
+        "router_risks"
+      ]
+    },
+    {
+      "name": "merge_simulation_confidence_contract",
+      "artifact": "merge_simulation.json",
+      "required_paths": [
+        "summary.simulations",
+        "summary.import_recommendations",
+        "summary.required_actions",
+        "simulations"
+      ]
+    },
+    {
+      "name": "ai_task_pack_proof_contract",
+      "artifact": "ai_task_packs.json",
+      "required_paths": [
+        "summary.generated",
+        "summary.actions",
+        "summary.source_artifact",
+        "taskpacks"
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "current_workspace",
+      "label": "Current Workspace Baseline",
+      "enabled": true,
+      "required": true,
+      "artifact_root": "output/.raw"
+    }
+  ]
+}

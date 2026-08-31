@@ -1,0 +1,1059 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SAGE External Repository Evaluation Registry",
+  "type": "object",
+  "required": [
+    "meta",
+    "state_machine",
+    "finding_quality_evaluation_plans",
+    "factorial_evaluation_plans",
+    "generalization_sequences",
+    "subjects"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "const": "external_repository_evaluation_registry"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 30
+        }
+      },
+      "additionalProperties": false
+    },
+    "state_machine": {
+      "type": "object",
+      "required": [
+        "allowed_states",
+        "holdout_eligible_states",
+        "result_inspection_transition"
+      ],
+      "properties": {
+        "allowed_states": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "holdout_eligible_states": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "result_inspection_transition": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding_quality_evaluation_plans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/findingQualityEvaluationPlan"
+      }
+    },
+    "factorial_evaluation_plans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/factorialEvaluationPlan"
+      }
+    },
+    "generalization_sequences": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/generalizationSequence"
+      }
+    },
+    "subjects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/subject"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyUniqueStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "factorialEvaluationPlan": {
+      "type": "object",
+      "required": [
+        "plan_id",
+        "status",
+        "created_at",
+        "repository_subject_id",
+        "corpus_authority",
+        "task_snapshot",
+        "runner_snapshot",
+        "sage_snapshot",
+        "cells",
+        "controlled_equal_fields",
+        "stop_conditions",
+        "claim_boundary",
+        "result"
+      ],
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "status": {
+          "type": "string",
+          "minLength": 5
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "repository_subject_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "corpus_authority": {
+          "type": "string",
+          "minLength": 10
+        },
+        "task_snapshot": {
+          "$ref": "#/$defs/factorialTaskSnapshot"
+        },
+        "runner_snapshot": {
+          "$ref": "#/$defs/factorialRunnerSnapshot"
+        },
+        "sage_snapshot": {
+          "$ref": "#/$defs/factorialSageSnapshot"
+        },
+        "cell_input_manifests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/factorialCellInputManifest"
+          }
+        },
+        "cells": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/factorialCell"
+          }
+        },
+        "controlled_equal_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "stop_conditions": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 40
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "outcome",
+            "reason"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialTaskSnapshot": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "task_fingerprint",
+        "purpose",
+        "target_scope",
+        "target_source_evidence",
+        "adjudication_truth",
+        "expected_output",
+        "mutation_allowed"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "task_fingerprint": {
+          "type": "string",
+          "minLength": 8
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 40
+        },
+        "target_scope": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "target_source_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/factorialTargetSourceEvidence"
+          }
+        },
+        "adjudication_truth": {
+          "type": "object",
+          "required": [
+            "expected_classification",
+            "exact_scope"
+          ],
+          "properties": {
+            "expected_classification": {
+              "enum": [
+                "actionable",
+                "false_positive",
+                "unknown",
+                "file_local_private_refactor",
+                "not_file_local_private_refactor",
+                "inconclusive"
+              ]
+            },
+            "exact_scope": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            }
+          },
+          "additionalProperties": false
+        },
+        "expected_output": {
+          "type": "string",
+          "minLength": 30
+        },
+        "mutation_allowed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialTargetSourceEvidence": {
+      "type": "object",
+      "required": [
+        "source_location",
+        "path",
+        "repository_fingerprint",
+        "content_sha256"
+      ],
+      "properties": {
+        "source_location": {
+          "type": "string",
+          "minLength": 3
+        },
+        "path": {
+          "type": "string",
+          "minLength": 3
+        },
+        "repository_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialRunnerSnapshot": {
+      "type": "object",
+      "required": [
+        "actor_class",
+        "actor_identity",
+        "model_identity",
+        "model_configuration",
+        "isolation_requirement"
+      ],
+      "properties": {
+        "actor_class": {
+          "type": "string",
+          "minLength": 3
+        },
+        "actor_identity": {
+          "type": "string",
+          "minLength": 3
+        },
+        "model_identity": {
+          "type": "string",
+          "minLength": 3
+        },
+        "model_configuration": {
+          "type": "string",
+          "minLength": 3
+        },
+        "isolation_requirement": {
+          "type": "string",
+          "minLength": 40
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialSageSnapshot": {
+      "type": "object",
+      "required": [
+        "release_identity",
+        "source_identity",
+        "runtime_identity",
+        "contract_identity"
+      ],
+      "properties": {
+        "release_identity": {
+          "type": "string",
+          "minLength": 3
+        },
+        "source_identity": {
+          "type": "string",
+          "minLength": 8
+        },
+        "runtime_identity": {
+          "type": "string",
+          "minLength": 20
+        },
+        "contract_identity": {
+          "type": "string",
+          "minLength": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialCellInputManifest": {
+      "type": "object",
+      "required": [
+        "cell_id",
+        "variant",
+        "input_path",
+        "content_sha256",
+        "controller_only_truth_disclosed",
+        "actor_input_scope"
+      ],
+      "properties": {
+        "cell_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "variant": {
+          "type": "string",
+          "minLength": 3
+        },
+        "input_path": {
+          "type": "string",
+          "pattern": "^config/evaluation_inputs/.+\\.md$"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "controller_only_truth_disclosed": {
+          "const": false
+        },
+        "actor_input_scope": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialMetricMeasurement": {
+      "type": "object",
+      "required": [
+        "status",
+        "value",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "measured",
+            "not_available"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "integer",
+            "boolean"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 3
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialCell": {
+      "type": "object",
+      "required": [
+        "cell_id",
+        "variant",
+        "status",
+        "repository_fingerprint",
+        "task_fingerprint",
+        "actor_identity",
+        "model_identity",
+        "model_configuration",
+        "metrics",
+        "evidence_references",
+        "result"
+      ],
+      "properties": {
+        "cell_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "variant": {
+          "type": "string",
+          "minLength": 3
+        },
+        "status": {
+          "type": "string",
+          "minLength": 3
+        },
+        "repository_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "task_fingerprint": {
+          "type": "string",
+          "minLength": 8
+        },
+        "actor_identity": {
+          "type": "string",
+          "minLength": 3
+        },
+        "model_identity": {
+          "type": "string",
+          "minLength": 3
+        },
+        "model_configuration": {
+          "type": "string",
+          "minLength": 3
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/factorialMetricMeasurement"
+          }
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "result": {
+          "$ref": "#/$defs/factorialCellResult"
+        }
+      },
+      "additionalProperties": false
+    },
+    "factorialCellResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "reason"
+          ],
+          "properties": {
+            "status": {
+              "const": "not_available"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 3
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "classification",
+            "reported_scope",
+            "evidence",
+            "uncertainty",
+            "recommendation",
+            "mutation_performed"
+          ],
+          "properties": {
+            "status": {
+              "const": "measured"
+            },
+            "classification": {
+              "enum": [
+                "actionable",
+                "false_positive",
+                "unknown",
+                "file_local_private_refactor",
+                "not_file_local_private_refactor",
+                "inconclusive"
+              ]
+            },
+            "reported_scope": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "evidence": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "uncertainty": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "recommendation": {
+              "type": "string",
+              "minLength": 10
+            },
+            "mutation_performed": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "concreteFindingTruth": {
+      "type": "object",
+      "required": [
+        "truth_id",
+        "finding_family",
+        "applicability",
+        "expected_observation",
+        "target_scope",
+        "independent_evidence",
+        "uncertainty_boundary"
+      ],
+      "properties": {
+        "truth_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "finding_family": {
+          "type": "string",
+          "minLength": 3
+        },
+        "applicability": {
+          "enum": [
+            "APPLICABLE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "expected_observation": {
+          "type": "string",
+          "minLength": 30
+        },
+        "target_scope": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "independent_evidence": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "uncertainty_boundary": {
+          "type": "string",
+          "minLength": 30
+        }
+      },
+      "additionalProperties": false
+    },
+    "findingQualityEvaluationPlan": {
+      "type": "object",
+      "required": [
+        "plan_id",
+        "status",
+        "created_at",
+        "originating_evidence_gap",
+        "claim_disposition",
+        "task",
+        "authority_boundary",
+        "finding_families",
+        "risk_strata",
+        "fn_truth_protocol",
+        "required_repository_shape",
+        "sampling_policy_authority",
+        "candidate_selection"
+      ],
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "status": {
+          "type": "string",
+          "minLength": 5
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "originating_evidence_gap": {
+          "type": "string",
+          "minLength": 20
+        },
+        "claim_disposition": {
+          "type": "string",
+          "minLength": 5
+        },
+        "task": {
+          "type": "object"
+        },
+        "authority_boundary": {
+          "type": "object",
+          "required": [
+            "maximum_claim_level",
+            "required_active_signals",
+            "included_domains",
+            "excluded_domains"
+          ],
+          "properties": {
+            "maximum_claim_level": {
+              "type": "string",
+              "minLength": 3
+            },
+            "required_active_signals": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "included_domains": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "excluded_domains": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            }
+          },
+          "additionalProperties": false
+        },
+        "finding_families": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "finding_family",
+              "artifact_or_rule_id",
+              "risk_tier",
+              "independent_truth_method",
+              "not_applicable_rule"
+            ],
+            "properties": {
+              "finding_family": {
+                "type": "string",
+                "minLength": 3
+              },
+              "artifact_or_rule_id": {
+                "type": "string",
+                "minLength": 3
+              },
+              "risk_tier": {
+                "type": "string",
+                "minLength": 3
+              },
+              "independent_truth_method": {
+                "type": "string",
+                "minLength": 50
+              },
+              "not_applicable_rule": {
+                "type": "string",
+                "minLength": 30
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "risk_strata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 30
+          }
+        },
+        "fn_truth_protocol": {
+          "type": "object",
+          "required": [
+            "concrete_truth_status",
+            "freeze_before",
+            "required_for_each_applicable_family",
+            "independent_evidence_sources",
+            "missing_truth_rule",
+            "concrete_truths"
+          ],
+          "properties": {
+            "concrete_truth_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "freeze_before": {
+              "type": "string",
+              "minLength": 10
+            },
+            "required_for_each_applicable_family": {
+              "const": true
+            },
+            "independent_evidence_sources": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "missing_truth_rule": {
+              "type": "string",
+              "minLength": 40
+            },
+            "concrete_truths": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/concreteFindingTruth"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "required_repository_shape": {
+          "type": "object",
+          "required": [
+            "primary_ecosystem",
+            "topology",
+            "source_scale",
+            "required_signals",
+            "excluded_shapes",
+            "selection_rule"
+          ],
+          "properties": {
+            "primary_ecosystem": {
+              "type": "string",
+              "minLength": 20
+            },
+            "topology": {
+              "type": "string",
+              "minLength": 30
+            },
+            "source_scale": {
+              "type": "string",
+              "minLength": 30
+            },
+            "required_signals": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "excluded_shapes": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "selection_rule": {
+              "type": "string",
+              "minLength": 60
+            }
+          },
+          "additionalProperties": false
+        },
+        "sampling_policy_authority": {
+          "type": "string",
+          "minLength": 30
+        },
+        "candidate_selection": {
+          "type": "object",
+          "required": [
+            "status",
+            "repository_id",
+            "source_url_or_local_identity",
+            "commit_or_content_fingerprint",
+            "identity_evidence",
+            "selection_trace",
+            "source_inspection_allowed",
+            "sage_execution_allowed"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "minLength": 3
+            },
+            "repository_id": {
+              "type": "string",
+              "minLength": 3
+            },
+            "source_url_or_local_identity": {
+              "type": "string",
+              "minLength": 3
+            },
+            "commit_or_content_fingerprint": {
+              "type": "string",
+              "pattern": "^(not_selected|[0-9a-f]{40})$"
+            },
+            "identity_evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "selection_trace": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "source_inspection_allowed": {
+              "type": "boolean"
+            },
+            "sage_execution_allowed": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "generalizationSequence": {
+      "type": "object",
+      "required": [
+        "sequence_id",
+        "originating_regression_subject_ids",
+        "stages",
+        "review_status",
+        "reviewed_at",
+        "shared_supported_invariants",
+        "non_promoted_claims",
+        "open_evidence_gaps",
+        "claim_disposition",
+        "next_holdout_decision"
+      ],
+      "properties": {
+        "sequence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "originating_regression_subject_ids": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "stages": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": [
+              "order",
+              "stage",
+              "repository_id",
+              "outcome"
+            ],
+            "properties": {
+              "order": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "stage": {
+                "type": "string",
+                "minLength": 3
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 8
+              },
+              "outcome": {
+                "type": "string",
+                "minLength": 2
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "review_status": {
+          "type": "string",
+          "minLength": 3
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "shared_supported_invariants": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "non_promoted_claims": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "open_evidence_gaps": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "claim_disposition": {
+          "type": "string",
+          "minLength": 3
+        },
+        "next_holdout_decision": {
+          "type": "object",
+          "required": [
+            "status",
+            "automatic_count_extension",
+            "evidence_gap_required",
+            "rationale"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "minLength": 3
+            },
+            "automatic_count_extension": {
+              "const": false
+            },
+            "evidence_gap_required": {
+              "const": true
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 30
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "subject": {
+      "type": "object",
+      "required": [
+        "repository_id",
+        "source_url_or_local_identity",
+        "commit_or_content_fingerprint",
+        "license_observation",
+        "selection_timestamp",
+        "corpus_role",
+        "prior_sage_exposure",
+        "selection_strata",
+        "state",
+        "selection_basis",
+        "task",
+        "result",
+        "transition_history"
+      ],
+      "properties": {
+        "repository_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evaluation_plan_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "source_url_or_local_identity": {
+          "type": "string",
+          "minLength": 8
+        },
+        "commit_or_content_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "license_observation": {
+          "type": "string",
+          "minLength": 20
+        },
+        "selection_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "corpus_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prior_sage_exposure": {
+          "type": "string",
+          "minLength": 10
+        },
+        "selection_strata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selection_basis": {
+          "type": "string",
+          "minLength": 30
+        },
+        "task": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "outcome",
+            "reason"
+          ]
+        },
+        "regression_verification": {
+          "type": "object",
+          "required": [
+            "status",
+            "verified_at",
+            "evidence",
+            "claim_boundary"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "INCONCLUSIVE"
+              ]
+            },
+            "verified_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "evidence": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "claim_boundary": {
+              "type": "string",
+              "minLength": 30
+            }
+          },
+          "additionalProperties": false
+        },
+        "transition_history": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "state",
+              "timestamp",
+              "evidence"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "minLength": 1
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "evidence": {
+                "$ref": "#/$defs/nonEmptyUniqueStrings"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

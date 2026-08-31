@@ -1,0 +1,605 @@
+{
+  "meta": {
+    "kind": "nexora.sage_actor_interaction_contract",
+    "version": "0.3.0",
+    "status": "normative_draft",
+    "purpose": "Channel-independent interaction rules for external actors consuming SAGE engineering context, authority, evidence and validation.",
+    "claim_boundary": "This contract operationalizes existing constitutional and governance authority. It does not make SAGE an agent, grant an actor authority, or expand a product capability claim."
+  },
+  "constitutional_hierarchy": {
+    "supreme_human_readable_authority": "docs/CONSTITUTION.md",
+    "canonical_authority_sources": [
+      "config/evidence_vocabulary.json",
+      "config/engine_signal_contracts.json",
+      "config/hitl_policy.json",
+      "config/hitl_governance_contract.json",
+      "config/mcp_tool_roles.json",
+      "config/pipeline_execution_policy.json",
+      "config/governance_trace_contract.json"
+    ],
+    "precedence": "constitution_then_sealed_doctrine_and_policy_then_this_interaction_contract_then_adapter_projection",
+    "conflict_rule": "This contract must fail validation rather than override a higher authority source."
+  },
+  "ontology": {
+    "principal_types": [
+      "human",
+      "organization",
+      "service_identity"
+    ],
+    "actor_types": [
+      "human_actor",
+      "tool_actor",
+      "pipeline_actor",
+      "machine_reasoning_actor"
+    ],
+    "adapter_types": [
+      "cli",
+      "mcp",
+      "api",
+      "ide",
+      "ci",
+      "hook",
+      "dashboard"
+    ],
+    "mutation_domains": {
+      "repository_state": {
+        "allowed_operations": [
+          "mutate"
+        ],
+        "meaning": "Authorized changes to target-repository source, configuration or project-owned state."
+      },
+      "governance_record": {
+        "allowed_operations": [
+          "exception_request"
+        ],
+        "meaning": "Append or update a bounded governance request and its derived governance projections without granting approval or changing target-repository state."
+      }
+    },
+    "separation_rules": [
+      "An adapter transports an interaction; it is not automatically the acting principal.",
+      "An actor performs or proposes work; actor identity does not grant authority.",
+      "A principal is accountable within an explicitly granted authority scope.",
+      "A model or conversation cannot become an engineering truth source."
+    ]
+  },
+  "sage_boundary": {
+    "is": [
+      "model_independent_deterministic_engineering_substrate",
+      "bounded_context_and_evidence_provider",
+      "policy_and_validation_control_plane"
+    ],
+    "is_not": [
+      "agent",
+      "agent_runtime",
+      "conversation_memory",
+      "universal_reasoning_engine",
+      "autonomous_software_developer",
+      "organizational_accountability_substitute"
+    ],
+    "capability_honesty_rule": "A capability is available only when its registry state, applicability, source evidence and freshness contract support it; otherwise SAGE must report not_available, incomplete_evidence or unknown explicitly."
+  },
+  "canonical_invariants": [
+    {
+      "id": "engineering_reality_is_external_to_actor",
+      "level": "MUST",
+      "rule": "Actor memory, plans, prompts and explanations are not authoritative engineering reality."
+    },
+    {
+      "id": "proposal_is_not_authorization",
+      "level": "MUST",
+      "rule": "A proposal cannot authorize its own execution."
+    },
+    {
+      "id": "execution_is_not_validation",
+      "level": "MUST",
+      "rule": "A successful write, command, build or test cannot impersonate applicable SAGE validation."
+    },
+    {
+      "id": "confidence_is_not_evidence",
+      "level": "MUST",
+      "rule": "Actor confidence cannot replace deterministic evidence."
+    },
+    {
+      "id": "context_is_bounded_and_fresh",
+      "level": "MUST",
+      "rule": "Context is valid only for its declared purpose, scope, snapshot, policy version and invalidation conditions."
+    },
+    {
+      "id": "failure_is_information",
+      "level": "MUST",
+      "rule": "Failures and unknowns remain visible and retain their canonical semantics."
+    },
+    {
+      "id": "channel_semantics_are_equal",
+      "level": "MUST",
+      "rule": "CLI, MCP, IDE, CI, hooks and future adapters must preserve scope, authority, severity and evidence meaning."
+    },
+    {
+      "id": "scope_expansion_is_explicit",
+      "level": "MUST",
+      "rule": "An actor cannot silently expand mutation scope."
+    },
+    {
+      "id": "stale_context_cannot_authorize_mutation",
+      "level": "MUST_NOT",
+      "rule": "A stale package cannot authorize or validate a mutation."
+    },
+    {
+      "id": "interface_hopping_cannot_bypass_governance",
+      "level": "MUST_NOT",
+      "rule": "Changing adapters cannot bypass a finding, approval or scope boundary."
+    },
+    {
+      "id": "policy_change_is_separate_work",
+      "level": "MUST",
+      "rule": "Policy may change only as an explicit authorized policy task, never merely to make another task pass."
+    },
+    {
+      "id": "actor_cannot_self_certify",
+      "level": "MUST_NOT",
+      "rule": "A proposing or mutating actor cannot be the sole authority declaring its result valid."
+    },
+    {
+      "id": "unknown_is_explicit",
+      "level": "MUST",
+      "rule": "Missing evidence must be reported as unknown, not_available or incomplete_evidence rather than inferred away."
+    }
+  ],
+  "finding_authority": {
+    "vocabulary_source": "config/engine_signal_contracts.json#validation_contract.required_authorities",
+    "levels": {
+      "engine_signal_only": {
+        "may_block": false,
+        "meaning": "Diagnostic signal only; it cannot independently become policy or authorization."
+      },
+      "evidence_calibrated": {
+        "may_block": true,
+        "meaning": "Evidence may affect a gate only through its configured actionability and quality-gate contract; evidence does not self-authorize an action."
+      },
+      "governance_decides": {
+        "may_block": true,
+        "meaning": "A policy-backed governance decision may control a gate within its declared scope."
+      },
+      "human_approval_required": {
+        "may_block": true,
+        "meaning": "The scoped mutation remains blocked until current explicit human authority exists."
+      }
+    },
+    "no_authority_escalation": "Neither an actor nor an adapter may promote a lower authority finding into a higher authority state."
+  },
+  "operation_profiles": {
+    "inspect": {
+      "mutation_allowed": false,
+      "allowed_mutation_domains": [],
+      "required_states": [
+        "REQUESTED",
+        "CONTEXT_RESOLVED"
+      ],
+      "terminal_states": [
+        "ACCEPTED",
+        "INVALID_CONTEXT",
+        "INCOMPLETE_EVIDENCE",
+        "FAILED"
+      ]
+    },
+    "advise": {
+      "mutation_allowed": false,
+      "allowed_mutation_domains": [],
+      "required_states": [
+        "REQUESTED",
+        "CONTEXT_RESOLVED",
+        "SCOPE_RESOLVED",
+        "PROPOSED"
+      ],
+      "terminal_states": [
+        "ACCEPTED",
+        "CLARIFICATION_REQUIRED",
+        "INVALID_CONTEXT",
+        "INCOMPLETE_EVIDENCE"
+      ]
+    },
+    "propose": {
+      "mutation_allowed": false,
+      "allowed_mutation_domains": [],
+      "required_states": [
+        "REQUESTED",
+        "CONTEXT_RESOLVED",
+        "SCOPE_RESOLVED",
+        "POLICY_EVALUATED",
+        "PROPOSED"
+      ],
+      "terminal_states": [
+        "PROPOSAL_CONFORMANT",
+        "INVALID_CONTEXT",
+        "INCOMPLETE_EVIDENCE",
+        "BLOCKED",
+        "REJECTED"
+      ]
+    },
+    "mutate": {
+      "mutation_allowed": true,
+      "allowed_mutation_domains": [
+        "repository_state"
+      ],
+      "required_states": [
+        "REQUESTED",
+        "CONTEXT_RESOLVED",
+        "SCOPE_RESOLVED",
+        "POLICY_EVALUATED",
+        "PROPOSED",
+        "AUTHORIZED",
+        "EXECUTED",
+        "VALIDATED"
+      ],
+      "terminal_states": [
+        "ACCEPTED",
+        "PASS_WITH_ACCEPTED_RISK",
+        "BLOCKED",
+        "PARTIALLY_EXECUTED",
+        "FAILED"
+      ]
+    },
+    "validate": {
+      "mutation_allowed": false,
+      "allowed_mutation_domains": [],
+      "required_states": [
+        "REQUESTED",
+        "CONTEXT_RESOLVED",
+        "SCOPE_RESOLVED",
+        "VALIDATED"
+      ],
+      "terminal_states": [
+        "PASS",
+        "PASS_WITH_ACCEPTED_RISK",
+        "ADVISE",
+        "REVIEW_REQUIRED",
+        "BLOCKED",
+        "INVALID_CONTEXT",
+        "INCOMPLETE_EVIDENCE"
+      ]
+    },
+    "exception_request": {
+      "mutation_allowed": true,
+      "allowed_mutation_domains": [
+        "governance_record"
+      ],
+      "required_states": [
+        "REQUESTED",
+        "SCOPE_RESOLVED",
+        "POLICY_EVALUATED",
+        "APPROVAL_REQUIRED"
+      ],
+      "terminal_states": [
+        "APPROVAL_REQUIRED",
+        "REJECTED",
+        "BLOCKED",
+        "INCOMPLETE_EVIDENCE"
+      ]
+    },
+    "decision_support": {
+      "mutation_allowed": false,
+      "allowed_mutation_domains": [],
+      "required_states": [
+        "REQUESTED",
+        "CONTEXT_RESOLVED",
+        "SCOPE_RESOLVED",
+        "POLICY_EVALUATED"
+      ],
+      "terminal_states": [
+        "ACCEPTED",
+        "APPROVAL_REQUIRED",
+        "INCOMPLETE_EVIDENCE"
+      ]
+    }
+  },
+  "request_contract": {
+    "required_common_fields": [
+      "request_id",
+      "principal_id",
+      "actor_id",
+      "actor_type",
+      "adapter_type",
+      "purpose",
+      "operation",
+      "target_scope",
+      "requested_mode"
+    ],
+    "operation_required_fields": {
+      "propose": [
+        "repository_snapshot",
+        "constraints",
+        "expected_outcome"
+      ],
+      "mutate": [
+        "repository_snapshot",
+        "authority_scope",
+        "constraints",
+        "expected_outcome"
+      ]
+    },
+    "rules": [
+      "Purpose must be explicit when valid scope depends on intent.",
+      "Known target scope and constraints must not be concealed.",
+      "An adapter may downgrade to a safer mode but must never silently upgrade authority or mutation mode."
+    ]
+  },
+  "proposal_contract": {
+    "required_fields": [
+      "proposal_id",
+      "request_id",
+      "actor_id",
+      "purpose",
+      "repository_snapshot",
+      "affected_scope",
+      "intended_changes",
+      "expected_effects",
+      "known_risks",
+      "required_validations",
+      "evidence_used",
+      "interaction_state"
+    ],
+    "nonempty_fields": [
+      "proposal_id",
+      "request_id",
+      "actor_id",
+      "purpose",
+      "repository_snapshot",
+      "affected_scope",
+      "intended_changes",
+      "expected_effects",
+      "required_validations",
+      "evidence_used",
+      "interaction_state"
+    ],
+    "list_fields": [
+      "intended_changes",
+      "expected_effects",
+      "known_risks",
+      "required_validations",
+      "evidence_used"
+    ],
+    "required_state": "PROPOSED",
+    "forbidden_authority_fields": [
+      "approval",
+      "approval_id",
+      "approved",
+      "authorization",
+      "authorized",
+      "execution_authorized",
+      "validation_completed",
+      "validated",
+      "accepted_result"
+    ],
+    "forbidden_authority_key_fragments": [
+      "approval",
+      "approved",
+      "authoriz",
+      "validation_completed",
+      "validated",
+      "accepted_result"
+    ],
+    "scope_rule": "Each affected_scope category must be a non-empty subset of the same category in the canonical request target_scope.",
+    "identity_rule": "request_id, actor_id, purpose and repository_snapshot must equal the canonical request envelope values.",
+    "claim_boundary": "PROPOSAL_CONFORMANT proves only structured identity, freshness reference and declared-scope conformance. It does not prove technical correctness, authorize execution, complete validation or accept the result."
+  },
+  "freshness_contract": {
+    "invalidated_by": [
+      "relevant_source_change",
+      "repository_snapshot_change",
+      "policy_change",
+      "contract_change",
+      "dependency_graph_change",
+      "configuration_change",
+      "scope_expansion",
+      "execution_mode_change"
+    ],
+    "on_invalidation": [
+      "stop_mutation",
+      "refresh_context",
+      "re_evaluate_scope_and_policy",
+      "rerun_affected_validation",
+      "renew_approval_when_required"
+    ]
+  },
+  "trace_contract": {
+    "sources": {
+      "operational_events": "config/governance_trace_contract.json",
+      "human_authority_decisions": "config/hitl_governance_contract.json"
+    },
+    "required_for": [
+      "mutation",
+      "approval",
+      "exception",
+      "policy_change",
+      "claim_change"
+    ],
+    "recommended_for": [
+      "significant_inspection",
+      "decision_support"
+    ],
+    "privacy_rule": "Structured identifiers, bounded metadata and fingerprints are allowed; raw source, prompts, secrets and unrestricted model output must not be persisted by this contract.",
+    "narrative_is_not_trace": true
+  },
+  "adapter_contract": {
+    "semantic_requirements": [
+      "operation",
+      "scope",
+      "authority",
+      "severity",
+      "blocking_status",
+      "evidence_references",
+      "validation_outcome"
+    ],
+    "privilege_upgrade": "prohibited",
+    "translation_failure": "fail_closed",
+    "implementation_status": {
+      "cli": "partial",
+      "mcp": "partial",
+      "ci": "partial",
+      "hook": "partial",
+      "api": "not_available",
+      "ide": "not_available",
+      "dashboard": "not_available"
+    },
+    "implementation_evidence": {
+      "cli": [
+        "config/pipeline_execution_policy.json",
+        "config/cli_command_contract.json"
+      ],
+      "mcp": [
+        "config/mcp_tool_roles.json",
+        "config/agent_surface_contract.json"
+      ],
+      "ci": [
+        ".github/workflows/quality-gate.yml"
+      ],
+      "hook": [
+        "config/pipeline_execution_policy.json",
+        "tools/orchestrators/watchdog.py"
+      ]
+    },
+    "conformance_evidence": {
+      "required_promotion_dimensions": [
+        "request_translation",
+        "authority_non_escalation",
+        "stale_context_rejection",
+        "trace_routing",
+        "validation_outcome_preservation"
+      ],
+      "adapters": {
+        "cli": {
+          "status": "partial",
+          "dimensions": {},
+          "claim_boundary": "CLI commands exist, but no dedicated end-to-end Actor Interaction Contract conformance suite is declared."
+        },
+        "mcp": {
+          "status": "partial",
+          "dimensions": {
+            "request_translation": {
+              "status": "partial",
+              "evidence": [
+                "tools/tests/test_actor_adapter_conformance.py",
+                "tools/tests/test_actor_interaction_runtime.py"
+              ]
+            },
+            "authority_non_escalation": {
+              "status": "pass",
+              "evidence": [
+                "tools/tests/test_actor_adapter_conformance.py"
+              ]
+            },
+            "stale_context_rejection": {
+              "status": "pass",
+              "evidence": [
+                "tools/tests/test_actor_adapter_conformance.py"
+              ]
+            },
+            "trace_routing": {
+              "status": "pass",
+              "evidence": [
+                "tools/tests/test_actor_adapter_conformance.py"
+              ]
+            },
+            "validation_outcome_preservation": {
+              "status": "pass",
+              "evidence": [
+                "tools/tests/test_actor_adapter_conformance.py"
+              ]
+            }
+          },
+          "available_surfaces": {
+            "dispatch_actor_request": {
+              "status": "available",
+              "promotion_dimensions": [
+                "request_translation",
+                "authority_non_escalation",
+                "stale_context_rejection",
+                "trace_routing",
+                "validation_outcome_preservation"
+              ],
+              "eligible_tools": [
+                "get_violation_work_queue",
+                "get_surgical_operation_packet",
+                "validate_actor_proposal",
+                "validate_patch",
+                "get_merge_review_queue",
+                "create_hitl_decision_request"
+              ],
+              "operation_profiles": [
+                "inspect",
+                "advise",
+                "propose",
+                "validate",
+                "decision_support",
+                "exception_request"
+              ],
+              "evidence": [
+                "tools/tests/test_actor_adapter_conformance.py",
+                "tools/tests/test_actor_interaction_runtime.py",
+                "tools/tests/test_surgical_packet_inputs.py"
+              ]
+            }
+          },
+          "claim_boundary": "The dispatch_actor_request surface proves bounded request translation, profile authority, stale target-context rejection, local trace routing, separate completed-state evidence, registry-bound terminal outcome mapping and unchanged raw tool results for its declared inspect, advise, propose, validate, decision-support and exception-request tools. Proposal conformance is identity-, snapshot- and category-scope-bound but never grants authorization or proves technical correctness. Exception requests may write only a scoped governance record and remain APPROVAL_REQUIRED; they cannot mutate repository state or grant approval. Surgical advice uses only producer-lineage-bound inputs from one target Atlas snapshot; optional unbound inputs are omitted and reported. Unknown, unparseable or failed dispatch yields INCOMPLETE_EVIDENCE. MCP remains partial overall because legacy direct tool calls do not carry the canonical actor request envelope and repository mutation conformance is not implemented."
+        },
+        "ci": {
+          "status": "partial",
+          "dimensions": {},
+          "claim_boundary": "CI evidence exists without a dedicated end-to-end Actor Interaction Contract conformance suite."
+        },
+        "hook": {
+          "status": "partial",
+          "dimensions": {},
+          "claim_boundary": "Hook evidence exists without a dedicated end-to-end Actor Interaction Contract conformance suite."
+        },
+        "api": {
+          "status": "not_available",
+          "dimensions": {},
+          "claim_boundary": "No API adapter is available."
+        },
+        "ide": {
+          "status": "not_available",
+          "dimensions": {},
+          "claim_boundary": "No IDE adapter is available."
+        },
+        "dashboard": {
+          "status": "not_available",
+          "dimensions": {},
+          "claim_boundary": "No dashboard adapter is available."
+        }
+      }
+    },
+    "promotion_rule": "An adapter may become available only after dedicated conformance evidence proves request, authority, freshness, trace and validation semantics end to end."
+  },
+  "conformance": {
+    "minimum": [
+      "purpose_declared",
+      "operation_declared",
+      "scope_explicit",
+      "proposal_execution_validation_separated",
+      "bounded_context_respected",
+      "findings_not_bypassed",
+      "authorization_respected",
+      "stale_context_refreshed",
+      "post_change_validation_requested",
+      "significant_trace_preserved"
+    ],
+    "full": [
+      "structured_requests_and_results",
+      "scope_expansion_requests",
+      "exception_requests",
+      "snapshot_and_policy_identity",
+      "safe_pause_and_resume",
+      "evidence_and_validation_ids",
+      "complete_change_disclosure",
+      "machine_readable_failure_handling",
+      "adapter_semantics_separated",
+      "reproducible_interaction_replay"
+    ]
+  },
+  "documentation": {
+    "generated_path": "docs/SAGE_ACTOR_INTERACTION_CONTRACT.md",
+    "generator": "tools/generate_actor_interaction_contract_doc.py",
+    "source_of_truth": "config/actor_interaction_contract.json"
+  }
+}

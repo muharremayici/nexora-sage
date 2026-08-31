@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "kind": "next_boundary_policy",
+    "version": "v1",
+    "notes": "Configures ecosystem-level Next/RSC boundary recognition without embedding vendor or corpus-specific names in the Python engine."
+  },
+  "contract_patterns": {
+    "action_client_error_state": "\\b(?:state|formState|actionState|lastSubmission)\\.(?:error|message|success|status)\\b|\\b(?:useActionData|FormError|lastSubmission)\\b",
+    "action_client_contract": "\\b(?:[A-Za-z_$][A-Za-z0-9_$]*ActionClient|actionClient|safeActionClient)\\b[\\s\\S]{0,500}\\.action\\s*\\(",
+    "framework_server_function_contract": "\\b(?:ServerFunctionClient|handleServerFunctions|RootLayout)\\b"
+  },
+  "reference_surfaces": {
+    "path_markers": [
+      "/apps/remix/",
+      "/remix/",
+      "/app/routes/",
+      "/static/app/",
+      "/examples/",
+      "/example/",
+      "/demos/",
+      "/demo/",
+      "/docs/",
+      "/fixtures/",
+      "/fixture/",
+      "/__fixtures__/",
+      "/__tests__/",
+      "/tests/",
+      "/test/",
+      "/stories/",
+      "/storybook/",
+      "/template/",
+      "/templates/",
+      "/integrations/"
+    ],
+    "file_suffixes": [
+      ".test.ts",
+      ".test.tsx",
+      ".spec.ts",
+      ".spec.tsx",
+      ".stories.ts",
+      ".stories.tsx",
+      ".story.ts",
+      ".story.tsx"
+    ]
+  },
+  "validation_contract": {
+    "required_policy_tokens": [
+      "safeActionClient",
+      "ServerFunctionClient",
+      "handleServerFunctions",
+      "RootLayout",
+      "/apps/remix/",
+      "/storybook/",
+      "/examples/",
+      "/fixtures/",
+      "/__tests__/",
+      "/stories/",
+      "/template/",
+      "/demos/",
+      "/demo/",
+      "/integrations/",
+      ".test.tsx",
+      ".spec.tsx"
+    ]
+  }
+}

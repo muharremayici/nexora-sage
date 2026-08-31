@@ -1,0 +1,866 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SAGE External Repository Evaluation Contract",
+  "type": "object",
+  "required": [
+    "meta",
+    "authorities",
+    "corpus_roles",
+    "identity_contract",
+    "leakage_policy",
+    "holdout_generalization_design",
+    "claim_level_evaluation",
+    "authority_resolution",
+    "outcome_semantics",
+    "evaluation_run_contract",
+    "factorial_evaluation_contract",
+    "finding_quality_sampling_contract",
+    "task_contract",
+    "promotion_policy",
+    "human_projection",
+    "validation_contract"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "const": "external_repository_evaluation_contract"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "design_ready_not_executing",
+            "active_evaluation_contract"
+          ]
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "authorities": {
+      "type": "object",
+      "required": [
+        "language_claims",
+        "harness_variants_and_metrics",
+        "target_readiness"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "source",
+          "pointer"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 5
+          },
+          "pointer": {
+            "type": "string",
+            "pattern": "^/"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "corpus_roles": {
+      "type": "object",
+      "minProperties": 5,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "may_influence_rules_or_thresholds",
+          "independent_generalization_evidence",
+          "required_disclosure"
+        ],
+        "properties": {
+          "may_influence_rules_or_thresholds": {
+            "type": "boolean"
+          },
+          "independent_generalization_evidence": {
+            "type": "boolean"
+          },
+          "required_disclosure": {
+            "type": "string",
+            "minLength": 5
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "identity_contract": {
+      "type": "object",
+      "required": [
+        "required_repository_fields",
+        "required_selection_strata",
+        "identity_change_rule"
+      ],
+      "properties": {
+        "required_repository_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_selection_strata": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "identity_change_rule": {
+          "type": "string",
+          "minLength": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "leakage_policy": {
+      "type": "object",
+      "required": [
+        "states",
+        "post_run_transition",
+        "failure_retention"
+      ]
+    },
+    "holdout_generalization_design": {
+      "type": "object",
+      "required": [
+        "trigger",
+        "ordered_stages",
+        "single_stage_universal_claim_authorized",
+        "required_sequence_completion_before_claim_review",
+        "sequence_rule",
+        "claim_rule",
+        "sequence_review_contract"
+      ],
+      "properties": {
+        "trigger": {
+          "type": "string",
+          "minLength": 30
+        },
+        "ordered_stages": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "order",
+              "stage",
+              "tests_same_failure_family",
+              "requires_material_topology_difference_from_predecessor",
+              "purpose"
+            ],
+            "properties": {
+              "order": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "stage": {
+                "type": "string",
+                "minLength": 3
+              },
+              "tests_same_failure_family": {
+                "type": "boolean"
+              },
+              "requires_material_topology_difference_from_predecessor": {
+                "type": "boolean"
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 30
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "single_stage_universal_claim_authorized": {
+          "const": false
+        },
+        "required_sequence_completion_before_claim_review": {
+          "const": true
+        },
+        "sequence_rule": {
+          "type": "string",
+          "minLength": 40
+        },
+        "claim_rule": {
+          "type": "string",
+          "minLength": 40
+        },
+        "sequence_review_contract": {
+          "type": "object",
+          "required": [
+            "required_fields",
+            "allowed_review_statuses",
+            "allowed_claim_dispositions",
+            "next_subject_rule",
+            "stage_reference_rule"
+          ],
+          "properties": {
+            "required_fields": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "allowed_review_statuses": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "allowed_claim_dispositions": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "next_subject_rule": {
+              "type": "string",
+              "minLength": 40
+            },
+            "stage_reference_rule": {
+              "type": "string",
+              "minLength": 40
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "claim_level_evaluation": {
+      "type": "object",
+      "minProperties": 3,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "eligible_test_domains",
+          "outside_claim_domains",
+          "result_authority"
+        ],
+        "properties": {
+          "eligible_test_domains": {
+            "$ref": "#/$defs/nonEmptyUniqueStrings"
+          },
+          "outside_claim_domains": {
+            "$ref": "#/$defs/nonEmptyUniqueStrings"
+          },
+          "result_authority": {
+            "type": "string",
+            "minLength": 20
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "authority_resolution": {
+      "type": "object",
+      "required": [
+        "claim_level_is_ceiling_not_entitlement",
+        "resolution_order",
+        "missing_active_capability_rule",
+        "framework_scope_rule"
+      ],
+      "properties": {
+        "claim_level_is_ceiling_not_entitlement": {
+          "const": true
+        },
+        "resolution_order": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "missing_active_capability_rule": {
+          "type": "string",
+          "minLength": 30
+        },
+        "framework_scope_rule": {
+          "type": "string",
+          "minLength": 30
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome_semantics": {
+      "type": "object",
+      "minProperties": 6,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 20
+      }
+    },
+    "evaluation_run_contract": {
+      "type": "object",
+      "required": [
+        "harness_baseline_authority",
+        "additional_repository_metrics",
+        "required_result_fields",
+        "missing_metric_rule"
+      ]
+    },
+    "factorial_evaluation_contract": {
+      "type": "object",
+      "required": [
+        "baseline_authority",
+        "registry_path",
+        "allowed_statuses",
+        "required_plan_fields",
+        "required_task_snapshot_fields",
+        "required_target_source_evidence_fields",
+        "required_cell_input_manifest_fields",
+        "required_runner_snapshot_fields",
+        "required_sage_snapshot_fields",
+        "required_cell_fields",
+        "required_cell_result_envelope_fields",
+        "allowed_cell_result_statuses",
+        "required_cell_result_fields",
+        "allowed_cell_classifications",
+        "metric_semantics",
+        "required_metric_measurement_fields",
+        "allowed_metric_measurement_statuses",
+        "allowed_cell_statuses",
+        "pre_execution_status",
+        "executable_status",
+        "running_status",
+        "result_frozen_status",
+        "pending_identity_value",
+        "pending_source_identity_value",
+        "pending_result_value",
+        "same_snapshot_fields",
+        "only_planned_cell_difference",
+        "corpus_authority_profiles",
+        "known_subject_rule",
+        "execution_gate",
+        "result_rule"
+      ],
+      "properties": {
+        "baseline_authority": {
+          "type": "string",
+          "minLength": 20
+        },
+        "registry_path": {
+          "type": "string",
+          "minLength": 20
+        },
+        "allowed_statuses": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_plan_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_task_snapshot_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_target_source_evidence_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_cell_input_manifest_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_runner_snapshot_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_sage_snapshot_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_cell_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_cell_result_envelope_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "allowed_cell_result_statuses": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_cell_result_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "allowed_cell_classifications": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "metric_semantics": {
+          "type": "object",
+          "required": [
+            "decision_accuracy",
+            "scope_precision",
+            "scope_recall",
+            "task_success"
+          ],
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 20
+          }
+        },
+        "required_metric_measurement_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "allowed_metric_measurement_statuses": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "allowed_cell_statuses": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "pre_execution_status": {
+          "type": "string",
+          "minLength": 5
+        },
+        "executable_status": {
+          "type": "string",
+          "minLength": 5
+        },
+        "running_status": {
+          "type": "string",
+          "minLength": 5
+        },
+        "result_frozen_status": {
+          "type": "string",
+          "minLength": 5
+        },
+        "pending_identity_value": {
+          "type": "string",
+          "minLength": 5
+        },
+        "pending_source_identity_value": {
+          "type": "string",
+          "minLength": 5
+        },
+        "pending_result_value": {
+          "type": "string",
+          "minLength": 5
+        },
+        "same_snapshot_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "only_planned_cell_difference": {
+          "const": "variant"
+        },
+        "corpus_authority_profiles": {
+          "type": "object",
+          "minProperties": 2,
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "allowed_subject_states_by_plan_status",
+              "requires_verified_unseen_history",
+              "plan_must_precede_first_running_transition"
+            ],
+            "properties": {
+              "allowed_subject_states_by_plan_status": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/nonEmptyUniqueStrings"
+                }
+              },
+              "requires_verified_unseen_history": {
+                "type": "boolean"
+              },
+              "required_history_prefix": {
+                "$ref": "#/$defs/nonEmptyUniqueStrings"
+              },
+              "plan_must_precede_first_running_transition": {
+                "type": "boolean"
+              },
+              "requires_hashed_cell_inputs": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "known_subject_rule": {
+          "type": "string",
+          "minLength": 40
+        },
+        "execution_gate": {
+          "type": "string",
+          "minLength": 40
+        },
+        "result_rule": {
+          "type": "string",
+          "minLength": 40
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding_quality_sampling_contract": {
+      "type": "object",
+      "required": [
+        "activation_rule",
+        "authority_boundary",
+        "plan_preregistration_contract",
+        "finding_family_authorities",
+        "adjudication_classes",
+        "sample_record_fields_authority",
+        "selection_policy",
+        "independence_rules",
+        "aggregate_rules",
+        "subject_selection_rule"
+      ],
+      "properties": {
+        "activation_rule": {
+          "type": "string",
+          "minLength": 40
+        },
+        "authority_boundary": {
+          "type": "string",
+          "minLength": 40
+        },
+        "plan_preregistration_contract": {
+          "type": "object",
+          "required": [
+            "registry_path",
+            "required_plan_fields",
+            "allowed_statuses",
+            "required_risk_tiers",
+            "subject_search_status",
+            "source_truth_pending_status",
+            "source_truth_frozen_status",
+            "running_status",
+            "result_frozen_status",
+            "source_truth_invariant_statuses",
+            "result_frozen_subject_states",
+            "run_forbidden_statuses",
+            "initial_candidate_status",
+            "selected_candidate_status",
+            "source_truth_frozen_candidate_status",
+            "selected_subject_state",
+            "source_verified_subject_state",
+            "pending_subject_outcome",
+            "unselected_repository_id",
+            "unselected_source_identity",
+            "unselected_fingerprint",
+            "required_candidate_fields",
+            "pending_concrete_truth_status",
+            "source_truth_frozen_protocol_status",
+            "required_concrete_truth_fields",
+            "allowed_truth_applicability",
+            "fn_truth_freeze_boundary",
+            "required_claim_disposition",
+            "sampling_policy_authority",
+            "temporal_rule"
+          ],
+          "properties": {
+            "registry_path": {
+              "const": "config/external_repository_evaluation_registry.json#/finding_quality_evaluation_plans"
+            },
+            "required_plan_fields": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "allowed_statuses": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "required_risk_tiers": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "subject_search_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "source_truth_pending_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "source_truth_frozen_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "running_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "result_frozen_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "source_truth_invariant_statuses": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "result_frozen_subject_states": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "run_forbidden_statuses": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "initial_candidate_status": {
+              "type": "string",
+              "minLength": 3
+            },
+            "selected_candidate_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "source_truth_frozen_candidate_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "selected_subject_state": {
+              "type": "string",
+              "minLength": 5
+            },
+            "source_verified_subject_state": {
+              "type": "string",
+              "minLength": 5
+            },
+            "pending_subject_outcome": {
+              "type": "string",
+              "minLength": 5
+            },
+            "unselected_repository_id": {
+              "type": "string",
+              "minLength": 3
+            },
+            "unselected_source_identity": {
+              "type": "string",
+              "minLength": 3
+            },
+            "unselected_fingerprint": {
+              "type": "string",
+              "minLength": 3
+            },
+            "required_candidate_fields": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "pending_concrete_truth_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "source_truth_frozen_protocol_status": {
+              "type": "string",
+              "minLength": 5
+            },
+            "required_concrete_truth_fields": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "allowed_truth_applicability": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "fn_truth_freeze_boundary": {
+              "type": "string",
+              "minLength": 10
+            },
+            "required_claim_disposition": {
+              "type": "string",
+              "minLength": 5
+            },
+            "sampling_policy_authority": {
+              "type": "string",
+              "minLength": 30
+            },
+            "temporal_rule": {
+              "type": "string",
+              "minLength": 80
+            }
+          },
+          "additionalProperties": false
+        },
+        "finding_family_authorities": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 3
+          }
+        },
+        "adjudication_classes": {
+          "type": "object",
+          "minProperties": 6,
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "meaning",
+              "supports_positive_quality_claim",
+              "requires_independent_source_truth"
+            ],
+            "properties": {
+              "meaning": {
+                "type": "string",
+                "minLength": 30
+              },
+              "supports_positive_quality_claim": {
+                "type": "boolean"
+              },
+              "requires_independent_source_truth": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "sample_record_fields_authority": {
+          "const": "/validation_contract/required_finding_sample_fields"
+        },
+        "selection_policy": {
+          "type": "object",
+          "required": [
+            "strategy",
+            "blocking_or_high_severity_rule",
+            "remaining_finding_rule",
+            "false_negative_probe_rule",
+            "unknown_boundary_rule",
+            "fixed_sample_count_allowed",
+            "adaptive_budget_inputs",
+            "termination_rule"
+          ],
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "minLength": 10
+            },
+            "blocking_or_high_severity_rule": {
+              "type": "string",
+              "minLength": 40
+            },
+            "remaining_finding_rule": {
+              "type": "string",
+              "minLength": 40
+            },
+            "false_negative_probe_rule": {
+              "type": "string",
+              "minLength": 40
+            },
+            "unknown_boundary_rule": {
+              "type": "string",
+              "minLength": 40
+            },
+            "fixed_sample_count_allowed": {
+              "const": false
+            },
+            "adaptive_budget_inputs": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "termination_rule": {
+              "type": "string",
+              "minLength": 60
+            }
+          },
+          "additionalProperties": false
+        },
+        "independence_rules": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "aggregate_rules": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "subject_selection_rule": {
+          "type": "string",
+          "minLength": 50
+        }
+      },
+      "additionalProperties": false
+    },
+    "task_contract": {
+      "type": "object",
+      "required": [
+        "required_fields",
+        "mechanical_pass_rule"
+      ],
+      "properties": {
+        "required_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "mechanical_pass_rule": {
+          "type": "string",
+          "minLength": 30
+        }
+      },
+      "additionalProperties": false
+    },
+    "promotion_policy": {
+      "type": "object",
+      "required": [
+        "calibration_to_claim",
+        "single_holdout_to_universal_claim",
+        "required_before_claim_expansion",
+        "scope_rule"
+      ]
+    },
+    "human_projection": {
+      "type": "object",
+      "required": [
+        "path",
+        "required_phrases"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 5
+        },
+        "required_phrases": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation_contract": {
+      "type": "object",
+      "required": [
+        "required_corpus_roles",
+        "required_outcomes",
+        "required_finding_adjudications",
+        "required_finding_sample_fields",
+        "finding_sampling_invariants",
+        "required_task_fields",
+        "forbidden_domains_by_claim_level"
+      ],
+      "properties": {
+        "required_corpus_roles": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_outcomes": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_finding_adjudications": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "required_finding_sample_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "finding_sampling_invariants": {
+          "type": "object",
+          "required": [
+            "positive_claim_adjudications",
+            "independent_truth_adjudications",
+            "allowed_selection_strategies",
+            "fixed_sample_count_allowed"
+          ],
+          "properties": {
+            "positive_claim_adjudications": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "independent_truth_adjudications": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "allowed_selection_strategies": {
+              "$ref": "#/$defs/nonEmptyUniqueStrings"
+            },
+            "fixed_sample_count_allowed": {
+              "const": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "required_task_fields": {
+          "$ref": "#/$defs/nonEmptyUniqueStrings"
+        },
+        "forbidden_domains_by_claim_level": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/nonEmptyUniqueStrings"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "nonEmptyUniqueStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

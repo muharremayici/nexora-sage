@@ -1,0 +1,96 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_manifest",
+    "version": "1.0",
+    "description": "Active modular doctrine packs compiled into config/architecture_doctrine.json."
+  },
+  "compiled_output": "../architecture_doctrine.json",
+  "compile_contract": {
+    "compiler": "tools/doctrine_compiler.py",
+    "merge_strategy": "ordered_deep_merge",
+    "runtime_compatibility": "engines continue reading config/architecture_doctrine.json"
+  },
+  "validation_contract": {
+    "minimum_active_packs": 5,
+    "exclusive_contract_owners": {
+      "audit_rule_profiles": "governance.audit_rules",
+      "audit_rule_profile_contract": "governance.audit_rules",
+      "merge_safety_rules": "capabilities.impact_and_risk"
+    }
+  },
+  "active_doctrines": [
+    {
+      "id": "core.base",
+      "path": "core/base.json",
+      "required": true
+    },
+    {
+      "id": "governance.audit_rules",
+      "path": "governance/audit_rules.json",
+      "required": true
+    },
+    {
+      "id": "quality.scoring",
+      "path": "quality/scoring.json",
+      "required": true
+    },
+    {
+      "id": "languages.universal",
+      "path": "languages/universal.json",
+      "required": true
+    },
+    {
+      "id": "ecosystems.react_frontend",
+      "path": "ecosystems/react_frontend.json",
+      "required": true
+    },
+    {
+      "id": "capabilities.dead_code",
+      "path": "capabilities/dead_code.json",
+      "required": true
+    },
+    {
+      "id": "capabilities.impact_and_risk",
+      "path": "capabilities/impact_and_risk.json",
+      "required": true
+    },
+    {
+      "id": "capabilities.merge_variation",
+      "path": "capabilities/merge_variation.json",
+      "required": true
+    },
+    {
+      "id": "capabilities.fractal_mapping",
+      "path": "capabilities/fractal_mapping.json",
+      "required": true
+    },
+    {
+      "id": "discovery.defaults",
+      "path": "discovery/defaults.json",
+      "required": true
+    },
+    {
+      "id": "oracle.architecture_oracle",
+      "path": "oracle/architecture_oracle.json",
+      "required": true
+    },
+    {
+      "id": "oracle.decision_evidence",
+      "path": "oracle/decision_evidence.json",
+      "required": true
+    },
+    {
+      "id": "reports.master_reports",
+      "path": "reports/master_reports.json",
+      "required": true
+    }
+  ],
+  "inactive_doctrines": [
+    {
+      "id": "local.overrides",
+      "path": "local/overrides.json",
+      "required": false,
+      "reason": "Reserved for team/local overrides after v1 seal."
+    }
+  ]
+}

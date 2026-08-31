@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "kind": "nexora.mcp_surface_command_matrix_contract",
+    "version": "v1",
+    "purpose": "Machine-readable policy for MCP surface command matrix generation."
+  },
+  "role_groups": {
+    "target_agent_roles": [
+      "primary_agent",
+      "supporting_context"
+    ],
+    "internal_roles": [
+      "debug_provenance",
+      "heavy_validation"
+    ],
+    "hitl_roles": [
+      "human_hitl"
+    ],
+    "mutating_roles": [
+      "mutating"
+    ]
+  },
+  "quality_sample_aliases": {
+    "dispatch_actor_request": [
+      "actor_proposal_conformance"
+    ],
+    "validate_actor_proposal": [
+      "actor_proposal_conformance"
+    ],
+    "search_symbols": [
+      "search_symbols"
+    ],
+    "inspect_file": [
+      "inspect_file",
+      "work_queue_roundtrip_inspect"
+    ],
+    "inspect_folder": [
+      "inspect_folder"
+    ],
+    "inspect_symbol": [
+      "inspect_symbol"
+    ],
+    "get_violation_work_queue": [
+      "violation_work_queue",
+      "domain_ui_work_queue"
+    ],
+    "get_operator_packet": [
+      "operator_packet"
+    ],
+    "get_surgical_operation_packet": [
+      "surgical_operation_packet"
+    ],
+    "get_active_signals": [
+      "active_signals"
+    ],
+    "get_impact_radius": [
+      "impact_radius",
+      "work_queue_roundtrip_impact"
+    ],
+    "get_test_impact": [
+      "test_impact",
+      "test_impact_filled",
+      "work_queue_roundtrip_test"
+    ],
+    "trace_upstream_cause": [
+      "upstream_trace",
+      "upstream_trace_filled",
+      "work_queue_roundtrip_upstream"
+    ],
+    "validate_patch": [
+      "patch_validation",
+      "patch_validation_negative",
+      "patch_validation_missing_target"
+    ],
+    "get_merge_review_queue": [
+      "merge_review_queue",
+      "merge_review_queue_json"
+    ],
+    "get_state_flow": [
+      "state_flow"
+    ],
+    "get_ui_architecture": [
+      "ui_architecture"
+    ],
+    "get_dead_code": [
+      "dead_code"
+    ],
+    "get_circular_dependencies": [
+      "circular_dependencies"
+    ],
+    "get_blast_radius": [
+      "blast_radius_supporting"
+    ],
+    "get_hexagonal_bindings": [
+      "hexagonal_bindings"
+    ],
+    "get_health_metrics": [
+      "health_metrics"
+    ],
+    "check_module_integrity": [
+      "module_integrity"
+    ],
+    "get_surgical_context": [
+      "surgical_context"
+    ],
+    "find_clones": [
+      "clone_context"
+    ],
+    "simulate_change_impact": [
+      "simulate_change_impact"
+    ],
+    "external_target_preflight": [
+      "external_target_preflight_invalid"
+    ],
+    "get_watchdog_session": [
+      "watchdog_session_missing"
+    ],
+    "get_confidence_score": [
+      "confidence_missing_target"
+    ]
+  },
+  "surface_family_policy": {
+    "actor_gateway": [
+      "dispatch_actor_request"
+    ],
+    "proposal_conformance": [
+      "validate_actor_proposal"
+    ],
+    "primary_fix_queue": [
+      "get_violation_work_queue",
+      "get_active_signals",
+      "get_surgical_operation_packet"
+    ],
+    "target_inspection": [
+      "search_symbols",
+      "inspect_file",
+      "inspect_folder",
+      "inspect_symbol"
+    ],
+    "impact_radius": [
+      "get_impact_radius",
+      "get_blast_radius",
+      "simulate_change_impact"
+    ],
+    "causality": [
+      "trace_upstream_cause"
+    ],
+    "test_and_patch_validation": [
+      "get_test_impact",
+      "validate_patch",
+      "get_confidence_score"
+    ],
+    "merge_review": [
+      "get_merge_review_queue",
+      "get_merge_waves"
+    ],
+    "external_target_safety": [
+      "external_target_preflight",
+      "run_external_target_analysis"
+    ]
+  },
+  "tool_review_obligations": {
+    "inspect_file": [
+      "source_grounding_or_explicit_missing_status"
+    ],
+    "inspect_symbol": [
+      "source_grounding_or_explicit_missing_status",
+      "main_scoped_by_default_or_explicit_all_scope"
+    ],
+    "search_symbols": [
+      "main_scoped_by_default_or_explicit_all_scope"
+    ],
+    "get_surgical_operation_packet": [
+      "source_grounding_or_explicit_missing_status",
+      "external_target_fail_closed_no_workspace_fallback"
+    ],
+    "get_violation_work_queue": [
+      "source_grounding_or_explicit_missing_status"
+    ],
+    "get_impact_radius": [
+      "bounded_depth_or_omission_notice",
+      "next_depth_hint_when_truncated"
+    ],
+    "get_blast_radius": [
+      "bounded_depth_or_omission_notice",
+      "next_depth_hint_when_truncated"
+    ],
+    "simulate_change_impact": [
+      "bounded_depth_or_omission_notice",
+      "next_depth_hint_when_truncated"
+    ],
+    "get_test_impact": [
+      "test_command_and_evidence_snippets_when_available"
+    ],
+    "trace_upstream_cause": [
+      "dependency_hop_evidence_snippets_when_available"
+    ],
+    "validate_patch": [
+      "fail_closed_on_full_replacement_or_missing_target"
+    ],
+    "validate_actor_proposal": [
+      "proposal_conformance_does_not_authorize_execution"
+    ],
+    "external_target_preflight": [
+      "external_target_fail_closed_no_workspace_fallback"
+    ],
+    "run_external_target_analysis": [
+      "external_target_fail_closed_no_workspace_fallback"
+    ],
+    "get_operator_packet": [
+      "external_target_fail_closed_no_workspace_fallback"
+    ]
+  }
+}

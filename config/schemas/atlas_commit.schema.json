@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Atlas Commit Envelope",
+  "type": "object",
+  "required": [
+    "meta",
+    "state",
+    "snapshot_id",
+    "generation_mode",
+    "atlas_sha256",
+    "source_fingerprint",
+    "configuration_fingerprint",
+    "generator_fingerprint",
+    "projects",
+    "counts"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "nexora.atlas_commit"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "enum": [
+            "v1"
+          ]
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        }
+      }
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "complete"
+      ]
+    },
+    "snapshot_id": {
+      "type": "string"
+    },
+    "generation_mode": {
+      "type": "string"
+    },
+    "atlas_sha256": {
+      "type": "string"
+    },
+    "source_fingerprint": {
+      "type": "string"
+    },
+    "configuration_fingerprint": {
+      "type": "string"
+    },
+    "generator_fingerprint": {
+      "type": "string"
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "projects",
+        "files",
+        "symbols",
+        "dependency_edges"
+      ],
+      "properties": {
+        "projects": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "symbols": {
+          "type": "integer"
+        },
+        "dependency_edges": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

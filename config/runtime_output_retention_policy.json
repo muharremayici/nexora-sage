@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "kind": "nexora.runtime_output_retention_policy",
+    "version": "1.0.0",
+    "description": "Bounded retention policy for runtime logs, telemetry and generated operational outputs. SAGE should speak, but must not fill user disks silently."
+  },
+  "default_policy": {
+    "unbounded_runtime_logs": "forbidden",
+    "unbounded_telemetry_events": "forbidden",
+    "generated_outputs": "must_be_excluded_from_contribution_payloads_unless_explicitly_registered",
+    "operator_visibility": "retention_limits_must_be_machine_readable_and_validated"
+  },
+  "retention_targets": [
+    {
+      "id": "pipeline_log",
+      "path": "output/logs/pipeline.log",
+      "kind": "rotating_file_log",
+      "implemented_by": "tools/core/logger.py",
+      "max_bytes": 5242880,
+      "backup_count": 5,
+      "claim_boundary": "Keeps pipeline execution observable without unbounded log growth."
+    },
+    {
+      "id": "honesty_telemetry",
+      "path": "output/.raw/honesty_telemetry.json",
+      "kind": "bounded_deduplicated_event_log",
+      "implemented_by": "tools/core/honesty_telemetry.py",
+      "max_events": 2000,
+      "claim_boundary": "Keeps fallback, uncertainty and caught-error telemetry visible without unbounded event growth."
+    },
+    {
+      "id": "telemetry_traces",
+      "path": "output/.raw/telemetry_traces.json",
+      "kind": "bounded_local_runtime_trace_log",
+      "implemented_by": "tools/engines/local_telemetry_engine.py",
+      "max_events": 1000,
+      "claim_boundary": "Keeps local runtime timing and hot-path traces bounded. It is advisory telemetry, not repository truth or a release-proof input."
+    },
+    {
+      "id": "mcp_call_telemetry",
+      "path": "output/.raw/mcp_call_telemetry_ledger.json",
+      "kind": "bounded_per_call_tool_ledger",
+      "implemented_by": "tools/core/mcp_call_telemetry.py",
+      "max_entries": 200,
+      "max_summary_tools": 50,
+      "claim_boundary": "Keeps MCP call latency, payload size and fail-closed wait guidance visible without turning agent packets into noisy telemetry dumps."
+    },
+    {
+      "id": "external_target_generated_fixtures",
+      "path": "output/external_targets/generated_*",
+      "kind": "generated_fixture_retention",
+      "implemented_by": "tools/core/external_target_retention.py",
+      "validator": "tools/validate_external_target_retention.py",
+      "generated_fixture_prefixes": [
+        "nexora_external_react_smoke_",
+        "nexora_external_polyglot_smoke_",
+        "nexora_external_target_smoke_",
+        "sage_external_agent_surface_"
+      ],
+      "producer_validators": [
+        "tools/validate_external_react_smoke.py",
+        "tools/validate_external_polyglot_smoke.py",
+        "tools/validate_external_target_smoke.py",
+        "tools/validate_external_target_agent_surface.py"
+      ],
+      "default_keep_per_prefix": 5,
+      "claim_boundary": "Generated external-target fixture outputs are bounded; user-scoped target outputs are preserved."
+    }
+  ]
+}

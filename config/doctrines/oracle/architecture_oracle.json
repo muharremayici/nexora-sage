@@ -1,0 +1,146 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "oracle.architecture_oracle",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "architecture_oracle_policy": {
+    "blueprint_markers": {
+      "fsd_ranks": {
+        "app": 0,
+        "pages": 1,
+        "widgets": 2,
+        "features": 3,
+        "entities": 4,
+        "shared": 5
+      },
+      "clean_layers": [
+        "domain",
+        "application",
+        "usecases",
+        "use-cases",
+        "infrastructure",
+        "infra",
+        "adapters",
+        "presentation",
+        "ui"
+      ],
+      "package_library_markers": [
+        "packages",
+        "libs",
+        "library",
+        "libraries"
+      ],
+      "plugin_markers": [
+        "plugins",
+        "plugin",
+        "extensions",
+        "extension",
+        "adapters",
+        "providers",
+        "integrations"
+      ],
+      "module_anchors": [
+        "features",
+        "entities",
+        "widgets",
+        "pages",
+        "apps",
+        "packages",
+        "modules"
+      ],
+      "public_api_filenames": [
+        "index.ts",
+        "index.tsx",
+        "index.js",
+        "index.jsx"
+      ],
+      "public_api_prefixes": [
+        "public."
+      ],
+      "next_app_route_filenames": [
+        "page.tsx",
+        "layout.tsx",
+        "route.ts",
+        "loading.tsx",
+        "error.tsx",
+        "template.tsx"
+      ]
+    },
+    "fsd_weights": {
+      "layer_coverage": 0.35,
+      "direction_ratio": 0.45,
+      "encapsulation_ratio": 0.2
+    },
+    "fsd_caps": {
+      "app_pages_only": 0.65,
+      "few_layers": 0.7,
+      "very_low_coverage": 0.4,
+      "low_coverage": 0.62
+    },
+    "fsd_thresholds": {
+      "very_low_coverage": 0.05,
+      "low_coverage": 0.2,
+      "few_layers_count": 3
+    },
+    "nextjs_weights": {
+      "route_handlers": 0.7,
+      "server_client_markers": 0.2,
+      "app_router_files": 0.1
+    },
+    "nextjs_caps": {
+      "route_handler_cap": 3,
+      "server_client_marker_cap": 10,
+      "app_router_file_cap": 60,
+      "strong_app_router_score": 0.82
+    },
+    "nextjs_thresholds": {
+      "strong_route_handlers": 2,
+      "strong_app_router_files": 3
+    },
+    "clean_hex_weights": {
+      "clean_coverage": 0.55,
+      "purity": 0.45,
+      "hex_signal_multiplier": 2.5,
+      "hex_signal": 0.65,
+      "hex_purity": 0.35
+    },
+    "sovereign_hybrid_weights": {
+      "fsd_direction": 0.25,
+      "fsd_coverage": 0.18,
+      "clean_score": 0.22,
+      "purity": 0.2,
+      "profile_prior": 0.15
+    },
+    "sovereign_hybrid_caps": {
+      "missing_clean_spine_multiplier": 0.75
+    },
+    "classification": {
+      "fsd_profile_name": "FSD_STRICT",
+      "nextjs_profile_name": "NEXTJS_APP_ROUTER",
+      "clean_profile_name": "CLEAN_ARCHITECTURE",
+      "sovereign_profile_name": "SOVEREIGN_ELITE",
+      "modular_profile_name": "MODULAR_FLAT",
+      "minimal_profile_name": "MINIMAL",
+      "package_library_profile_name": "MONOREPO_PACKAGE_LIBRARY",
+      "turborepo_saas_profile_name": "TURBOREPO_SAAS",
+      "plugin_platform_profile_name": "PLUGIN_PLATFORM",
+      "mixed_profile_name": "MIXED_ARCHITECTURE",
+      "sovereign_specificity_threshold": 0.68,
+      "turborepo_specificity_threshold": 0.55,
+      "mixed_specificity_threshold": 0.7,
+      "mixed_min_close_families": 2,
+      "specificity_override_delta": 0.2,
+      "modular_flat_cap": 0.68,
+      "minimal_confidence_threshold": 0.45,
+      "minimal_confidence_floor": 0.2,
+      "seal_confidence_threshold": 0.72,
+      "seal_min_file_count": 20,
+      "non_sealable_profiles": [
+        "MODULAR_FLAT"
+      ]
+    }
+  }
+}

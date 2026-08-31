@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "kind": "hitl_policy",
+    "version": "v1",
+    "purpose": "Progressive human-approval policy for advisory and mutating governance actions."
+  },
+  "actions": {
+    "watchdog_auto_restore": {
+      "approval_mode": "hard",
+      "gate": "watchdog_auto_restore",
+      "require_signed_ledger": true,
+      "scope_kind": "watch_root",
+      "fallback": "advise_without_mutation"
+    },
+    "architecture_doctrine_proposal": {
+      "approval_mode": "soft",
+      "gate": "architecture_doctrine_seal",
+      "fallback": "persist_proposal_without_sealing"
+    },
+    "architecture_doctrine_seal": {
+      "approval_mode": "hard",
+      "gate": "architecture_doctrine_seal",
+      "require_signed_ledger": true,
+      "fallback": "leave_current_doctrine_unchanged"
+    }
+  }
+}

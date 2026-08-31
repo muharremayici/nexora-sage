@@ -1,0 +1,573 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "governance.audit_rules",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "audit_feature_tags": {
+    "banned_i18n": "Banned:i18n",
+    "impure_stores": "Banned:ImpureStore",
+    "zustand_no_selector": "Zustand:NoSelector",
+    "zustand_broad_selector": "Zustand:BroadSelector"
+  },
+  "audit_rule_profiles": {
+    "relative_imports_no_alias": {
+      "label": "Canonical Alias Boundary Bypass",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "path_alias",
+          "value": true
+        }
+      ],
+      "rationale": "When a JavaScript or TypeScript workspace exposes a canonical path alias, local path imports that cross its safe within-module relative boundary must use that alias; package imports, alias-free workspaces, safe within-module relatives and declared asset side effects remain outside this rule.",
+      "scope_contract": {
+        "identity": "canonical_alias_boundary_bypass",
+        "languages": [
+          "javascript",
+          "typescript"
+        ],
+        "requires_workspace_path_alias": true,
+        "allow_within_module_relative_imports": true,
+        "exempt_import_extensions": [
+          ".css",
+          ".scss",
+          ".sass",
+          ".less"
+        ]
+      }
+    },
+    "loc_limits_hook": {
+      "label": "LOC Hook > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized hooks are a broadly applicable maintainability smell."
+    },
+    "loc_limits_component": {
+      "label": "LOC Oversized Component > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized components are maintainability review signals; bounded source evidence must determine the correction strategy."
+    },
+    "loc_limits_symbol": {
+      "label": "LOC Oversized Non-Component Symbol > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized non-component symbols are maintainability review signals; the exact symbol kind and bounded source evidence determine whether decomposition is warranted."
+    },
+    "loc_limits_service": {
+      "label": "LOC Service > limit",
+      "layer": "universal",
+      "default_mode": "enforced",
+      "requires": [],
+      "rationale": "Oversized service surfaces usually indicate poor decomposition regardless of repo style."
+    },
+    "deep_imports": {
+      "label": "Cross-Module Deep Imports",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "This is most meaningful when the workspace follows module-rooted FSD-style boundaries."
+    },
+    "own_api_imports": {
+      "label": "Own API Imports",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "API-surface import discipline depends on a module/public-API architecture."
+    },
+    "relative_module_escapes": {
+      "label": "Relative Module Escapes (../)",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "Module escape semantics only become strong signals when bounded module roots exist."
+    },
+    "fsd_shared_features": {
+      "label": "FSD Shared->Features Leaks",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "FSD_STANDARD"
+          ]
+        }
+      ],
+      "rationale": "This rule is specific to Feature-Sliced Design style layering."
+    },
+    "domain_ui_leaks": {
+      "label": "Domain UI Leaks",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Domain-to-UI purity is meaningful when domain/application layering exists."
+    },
+    "domain_platform_leaks": {
+      "label": "Domain Platform Leaks",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Domain/platform purity is architecture-sensitive rather than universally applicable."
+    },
+    "impure_stores": {
+      "label": "Impure Stores",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "path_pattern",
+          "value": "/entities/"
+        }
+      ],
+      "rationale": "Entity-store purity matters when entities/stores are first-class architectural concepts."
+    },
+    "zustand_no_selector": {
+      "label": "Zustand Store Missing Selector/Shallow",
+      "layer": "doctrine",
+      "default_mode": "disabled",
+      "requires": [
+        {
+          "kind": "plugin",
+          "value": "zustand"
+        }
+      ],
+      "rationale": "This rule is only meaningful in repositories that actually use Zustand."
+    },
+    "banned_i18n": {
+      "label": "Banned i18n Usage",
+      "layer": "doctrine",
+      "default_mode": "disabled",
+      "requires": [
+        {
+          "kind": "rule_enabled",
+          "value": "banned_i18n"
+        }
+      ],
+      "rationale": "i18n policy is typically a repo-specific governance choice."
+    },
+    "hexagonal_layer_violation": {
+      "label": "Hexagonal Layer Violation",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Enforces strict layering (e.g., infra must not depend on application directly)."
+    },
+    "impure_entities": {
+      "label": "Impure Entities/Store (React Leak)",
+      "layer": "architectural",
+      "default_mode": "enforced",
+      "requires": [
+        {
+          "kind": "profile",
+          "value": [
+            "SOVEREIGN_ELITE",
+            "HEXAGONAL_PURE"
+          ]
+        }
+      ],
+      "rationale": "Entities and stores should remain pure and headless, free from UI library dependencies."
+    }
+  },
+  "audit_rule_profile_contract": {
+    "required_fields": [
+      "label",
+      "layer",
+      "default_mode",
+      "requires",
+      "rationale"
+    ],
+    "allowed_layers": [
+      "universal",
+      "architectural",
+      "doctrine"
+    ],
+    "allowed_default_modes": [
+      "enforced",
+      "advisory",
+      "disabled"
+    ],
+    "allowed_requirement_kinds": [
+      "architecture_type",
+      "profile",
+      "plugin",
+      "path_alias",
+      "rule_enabled",
+      "path_pattern",
+      "multi_project"
+    ]
+  },
+  "architectural_integrity_rules": {
+    "global_rules": [
+      {
+        "source": "domain",
+        "targets": [
+          "infra",
+          "api"
+        ],
+        "reason": "Domain must be pure (Language Agnostic)",
+        "scope": [
+          "typescript",
+          "python",
+          "java",
+          "go",
+          "csharp"
+        ]
+      }
+    ],
+    "language_specific_rules": {
+      "typescript": [
+        {
+          "source": "domain/logic",
+          "targets": [
+            "infra",
+            "pages",
+            "widgets",
+            "api"
+          ],
+          "reason": "TS Domain must be pure"
+        },
+        {
+          "source": "infra",
+          "targets": [
+            "application"
+          ],
+          "reason": "TS Adapters must not depend on orchestration"
+        }
+      ],
+      "python": [
+        {
+          "source": "domain",
+          "targets": [
+            "infra",
+            "api"
+          ],
+          "reason": "Python Domain logic must be framework-free"
+        },
+        {
+          "source": "infra",
+          "targets": [
+            "domain"
+          ],
+          "reason": "Python Adapters must not pollute domain models"
+        }
+      ],
+      "java": [
+        {
+          "source": "domain",
+          "targets": [
+            "infra"
+          ],
+          "reason": "Java Domain must remain decoupled from DB adapters"
+        }
+      ]
+    },
+    "forbidden_mappings": [
+      {
+        "source": "domain/logic",
+        "targets": [
+          "infra",
+          "pages",
+          "widgets",
+          "api"
+        ],
+        "reason": "Domain must be pure"
+      },
+      {
+        "source": "infra",
+        "targets": [
+          "application"
+        ],
+        "reason": "Adapters must not depend on orchestration"
+      },
+      {
+        "source": "entities",
+        "targets": [
+          "pages",
+          "widgets"
+        ],
+        "reason": "State entities must be dumb"
+      }
+    ],
+    "layer_identification_hints": [
+      {
+        "fragment": "infra",
+        "layer": "infra"
+      },
+      {
+        "fragment": "application",
+        "layer": "application"
+      },
+      {
+        "fragment": "domain",
+        "layer": "domain/logic"
+      },
+      {
+        "fragment": "entities",
+        "layer": "entities"
+      },
+      {
+        "fragment": "stores",
+        "layer": "entities"
+      },
+      {
+        "fragment": "shared/hooks",
+        "layer": "shared/hooks"
+      },
+      {
+        "fragment": "pages",
+        "layer": "pages"
+      },
+      {
+        "fragment": "widgets",
+        "layer": "widgets"
+      },
+      {
+        "fragment": "api",
+        "layer": "api"
+      }
+    ],
+    "api_entry_filenames": [
+      "index.ts",
+      "index.tsx",
+      "__init__.py",
+      "mod.go",
+      "main.go"
+    ],
+    "feature_tag_audit_rules": [
+      {
+        "tag": "Banned:i18n",
+        "rule_key": "banned_i18n"
+      },
+      {
+        "tag": "Banned:ImpureStore",
+        "rule_key": "impure_stores"
+      },
+      {
+        "tag": "Zustand:NoSelector",
+        "rule_key": "zustand_no_selector"
+      },
+      {
+        "tag": "Zustand:BroadSelector",
+        "rule_key": "zustand_no_selector"
+      }
+    ],
+    "layer_import_restrictions": [
+      {
+        "layer": "entities",
+        "language": "typescript",
+        "forbidden_substrings": [
+          "react",
+          "next/"
+        ],
+        "rule_key": "impure_entities"
+      },
+      {
+        "layer": "domain/logic",
+        "forbidden_substrings": [
+          "infra",
+          "ui",
+          "widgets",
+          "pages",
+          "platform"
+        ],
+        "allowed_source_globs": [
+          "*/domain/schemas/platformPorts.ts"
+        ],
+        "rule_key": "domain_ui_leaks"
+      }
+    ]
+  },
+  "audit_remediation_policy": {
+    "waves": {
+      "relative_imports_no_alias": {
+        "wave": "wave_1_alias_hygiene",
+        "priority": "P1",
+        "action": "Replace the local path import with the workspace canonical alias when it crosses the safe within-module relative boundary."
+      },
+      "loc_limits_hook": {
+        "wave": "wave_2_hook_decomposition",
+        "priority": "P1",
+        "action": "Split oversized hooks into orchestrator + focused sub-hooks."
+      },
+      "loc_limits_component": {
+        "wave": "wave_3_component_partition",
+        "priority": "P2",
+        "action": "Split oversized implementations along existing responsibilities; keep public contracts stable and avoid creating shallow helper files."
+      },
+      "loc_limits_symbol": {
+        "wave": "wave_3_symbol_decomposition",
+        "priority": "P2",
+        "action": "Review the reported symbol kind and bounded source evidence, then split only along demonstrated responsibilities while preserving the public contract."
+      },
+      "loc_limits_service": {
+        "wave": "wave_3_service_partition",
+        "priority": "P2",
+        "action": "Decompose services into smaller units."
+      },
+      "default": {
+        "wave": "wave_4_structural_cleanup",
+        "priority": "P3",
+        "action": "Remediate via AST-backed boundary refactors."
+      }
+    }
+  },
+  "violation_labels": {
+    "impure_stores": "Impure Stores",
+    "banned_i18n": "Banned i18n Usage",
+    "deep_imports": "Cross-Module Deep Imports",
+    "own_api_imports": "Own API Imports",
+    "relative_module_escapes": "Relative Module Escapes (../)",
+    "domain_ui_leaks": "Domain UI Leaks",
+    "domain_platform_leaks": "Domain Platform Leaks",
+    "fsd_shared_features": "FSD Shared->Features Leaks",
+    "loc_limits_hook": "LOC Hook > limit",
+    "loc_limits_component": "LOC Oversized Component > limit",
+    "loc_limits_symbol": "LOC Oversized Non-Component Symbol > limit",
+    "loc_limits_service": "LOC Service > limit",
+    "relative_imports_no_alias": "Canonical Alias Boundary Bypass",
+    "zustand_no_selector": "Zustand Store Missing Selector/Shallow",
+    "hexagonal_layer_violation": "Hexagonal Layer Violation",
+    "impure_entities": "Impure Entities/Store (React Leak)"
+  },
+  "governance_policy": {
+    "blocking_rules": [
+      "RELATIVE_PARENT_ESCAPE",
+      "Banned:ImpureStore"
+    ],
+    "healing_rules": [
+      "relative_imports_no_alias",
+      "banned_i18n",
+      "hexagonal_layer_violation",
+      "impure_entities",
+      "Banned:ImpureStore",
+      "loc_limits_hook"
+    ],
+    "auto_heal_script_policy": {
+      "mode": "filtered_manifest",
+      "default_action": "manual_review",
+      "allowed_projects": [
+        "MAIN"
+      ],
+      "max_total_operations": 200,
+      "max_operations_per_file": 5,
+      "max_skipped_samples": 50,
+      "allowed_rules": {
+        "relative_imports_no_alias": {
+          "script_action": "relative_import_rewrite",
+          "requires_parsed_import": true,
+          "requires_target_ref": true,
+          "manual_review_when_severity_missing": true
+        }
+      },
+      "manual_review_rules": [
+        "banned_i18n",
+        "hexagonal_layer_violation",
+        "impure_entities",
+        "Banned:ImpureStore",
+        "loc_limits_hook"
+      ]
+    },
+    "advisory_rules": [
+      "loc_limits_component",
+      "loc_limits_symbol"
+    ],
+    "max_side_effect_intensity": 35,
+    "i18n_remediation": {
+      "useSettings": "useTranslation"
+    },
+    "platform_modules": [
+      "platform",
+      "shared",
+      "layouts",
+      "contexts",
+      "hooks",
+      "components",
+      "features"
+    ],
+    "governance_gates": {
+      "component_identifiers": [
+        "features",
+        "widgets",
+        "pages"
+      ],
+      "component_extensions": [
+        ".tsx"
+      ],
+      "ui_layers": [
+        "features",
+        "pages",
+        "widgets"
+      ],
+      "api_layers": [
+        "api"
+      ],
+      "domain_purification": {
+        "protected_layers": [
+          "domain",
+          "entities"
+        ],
+        "forbidden_leak_tokens": [
+          "SIDE_EFFECT_FETCH",
+          "SIDE_EFFECT_AXIOS"
+        ]
+      }
+    }
+  }
+}

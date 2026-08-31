@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "operational_parity_validation"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "passed"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "changed_sections": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "before": {
+      "type": "object"
+    },
+    "after": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "diff": {
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

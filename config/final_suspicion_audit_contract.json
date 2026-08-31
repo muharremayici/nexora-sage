@@ -1,0 +1,140 @@
+{
+  "contract_id": "final_suspicion_audit_contract",
+  "version": "1.0.0",
+  "purpose": "Run the final skeptical release-readiness audit without treating automated PASS as a human seal.",
+  "principles": [
+    "claim -> evidence -> validation -> human seal",
+    "automated evidence is necessary but not sufficient when manual review is declared",
+    "public release readiness is separate from machine readiness",
+    "when a weak link is found, sweep the failure family before claiming closure"
+  ],
+  "required_inputs": [
+    "release_identity_validation",
+    "system_health_check",
+    "system_health_check_validation",
+    "release_seal_remaining_actions",
+    "release_seal_remaining_actions_validation",
+    "product_boundary_map",
+    "agent_surface_manual_seal_pack",
+    "agent_surface_quality_review",
+    "agent_surface_snippet_range_validation",
+    "pipeline_execution_contract_validation",
+    "system_connectivity_map_validation",
+    "target_repo_lineage_contract_validation",
+    "manual_adversarial_audit_checklist_validation",
+    "manual_adversarial_audit_progress_validation"
+  ],
+  "completion_requirements": [
+    {
+      "id": "manual_adversarial_micro_walkthrough_complete",
+      "artifact": "manual_adversarial_audit_progress_validation",
+      "summary_field": "micro_walkthrough_status",
+      "expected_value": "complete",
+      "title": "The current manual adversarial micro walkthrough is incomplete.",
+      "priority": "P0.5",
+      "owner": "SAGE/human",
+      "next_step": "Complete the current pipeline-step and release-proof-step walkthroughs before requesting the final human reseal. Structural validation PASS proves the ledger is coherent, not that the walkthrough is complete."
+    }
+  ],
+  "audit_domains": [
+    {
+      "id": "release_identity_and_claim_boundary",
+      "manual_eye_required": false,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "release_identity_validation",
+        "release_seal_remaining_actions"
+      ]
+    },
+    {
+      "id": "machine_readiness_and_public_release_boundary",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "system_health_check",
+        "release_seal_remaining_actions"
+      ]
+    },
+    {
+      "id": "product_license_and_learning_asset_boundary",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "product_boundary_map",
+        "release_seal_remaining_actions"
+      ]
+    },
+    {
+      "id": "agent_surface_and_human_seal",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "agent_surface_manual_seal_pack",
+        "agent_surface_quality_review",
+        "agent_surface_snippet_range_validation"
+      ]
+    },
+    {
+      "id": "target_repo_surface_boundary",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "target_repo_lineage_contract_validation",
+        "agent_surface_quality_review",
+        "agent_surface_snippet_range_validation"
+      ]
+    },
+    {
+      "id": "execution_dependency_and_parallelism",
+      "manual_eye_required": false,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "pipeline_execution_contract_validation"
+      ]
+    },
+    {
+      "id": "system_connectivity_and_layer_flow",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "system_connectivity_map_validation",
+        "manual_adversarial_audit_checklist_validation"
+      ]
+    },
+    {
+      "id": "manual_adversarial_pipeline_walkthrough",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "manual_adversarial_audit_checklist_validation",
+        "manual_adversarial_audit_progress_validation",
+        "audit_lesson_registry_validation",
+        "pipeline_layer_chain_integrity_validation",
+        "target_repo_lineage_contract_validation"
+      ]
+    },
+    {
+      "id": "honesty_telemetry_and_negative_probes",
+      "manual_eye_required": true,
+      "failure_family_sweep_required": true,
+      "evidence_artifacts": [
+        "agent_surface_quality_review",
+        "system_health_check"
+      ]
+    }
+  ],
+  "status_policy": {
+    "machine_blocking_if_any_required_input_missing": true,
+    "machine_blocking_if_any_required_validation_fails": true,
+    "public_release_ready_must_follow_release_seal_remaining_actions": true,
+    "human_sealed_agent_surface_does_not_imply_public_release_ready": true
+  },
+  "manual_review_prompts": [
+    "Do the agent-facing packets let an agent act on target repository code without guessing?",
+    "Do negative probes fail closed and explain themselves without looking like real repo defects?",
+    "Do layer/connectivity artifacts show contracts instead of hidden cross-layer coupling?",
+    "Does the manual adversarial checklist cover upstream truth, downstream agent surfaces, release gates and clean distribution without relying on memory?",
+    "Do public release blockers remain visible after machine readiness passes?",
+    "Does the shipped license match the human decision, preserve user-owned learning assets and keep contribution relicensing rights explicit?"
+  ]
+}

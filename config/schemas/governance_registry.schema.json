@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance_registry.schema.json",
+  "type": "object",
+  "required": [
+    "_meta",
+    "default_rules",
+    "governance_surfaces"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "description"
+      ],
+      "properties": {
+        "kind": {
+          "const": "nexora.governance_registry"
+        },
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "default_rules": {
+      "type": "object"
+    },
+    "governance_surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "surface_kind",
+          "source",
+          "runtime_output",
+          "validator",
+          "release_proof_step",
+          "binding_level",
+          "claim_impact",
+          "human_seal_policy",
+          "seal_scope_kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "surface_kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runtime_output": {
+            "type": "string",
+            "minLength": 1
+          },
+          "validator": {
+            "type": "string",
+            "minLength": 1
+          },
+          "release_proof_step": {
+            "type": "string",
+            "minLength": 1
+          },
+          "binding_level": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_impact": {
+            "type": "string",
+            "minLength": 1
+          },
+          "human_seal_policy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "seal_scope_kind": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,94 @@
+{
+  "type": "object",
+  "required": [
+    "summary",
+    "policy",
+    "rows",
+    "checks"
+  ],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_checks",
+        "passed_checks",
+        "failed_checks"
+      ],
+      "properties": {
+        "total_checks": {
+          "type": "integer"
+        },
+        "passed_checks": {
+          "type": "integer"
+        },
+        "failed_checks": {
+          "type": "integer"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "min_detected_present_ratio",
+        "max_partial_capabilities"
+      ],
+      "properties": {
+        "min_detected_present_ratio": {
+          "type": "number"
+        },
+        "max_partial_capabilities": {
+          "type": "integer"
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "required",
+          "enabled",
+          "status",
+          "ratio",
+          "partial",
+          "details"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": "number"
+          },
+          "partial": {
+            "type": "integer"
+          },
+          "details": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "passed",
+          "details"
+        ]
+      }
+    }
+  }
+}

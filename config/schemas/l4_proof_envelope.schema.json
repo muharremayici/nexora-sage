@@ -1,0 +1,238 @@
+{
+  "type": "object",
+  "required": [
+    "_meta",
+    "proof_obligations",
+    "quality_review"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "numeric_constraints"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "numeric_constraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "min",
+              "max",
+              "integer",
+              "default"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "integer": {
+                "type": "boolean"
+              },
+              "default": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "proof_obligations": {
+      "type": "object",
+      "required": [
+        "thresholds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "atlas_contract_ratio_min",
+            "genome_contract_ratio_min",
+            "health_score_min",
+            "dead_high_max",
+            "dead_high_ratio_max",
+            "cycle_count_max",
+            "cycle_file_ratio_max",
+            "react_ratio_min",
+            "transition_ratio_min",
+            "property_ratio_min",
+            "project_transition_ratio_min",
+            "state_projects_pass_ratio_min",
+            "project_property_ratio_min",
+            "state_projects_property_pass_ratio_min",
+            "property_ratio_strong_min",
+            "project_property_ratio_strong_min",
+            "state_projects_property_strong_pass_ratio_min",
+            "strict_property_min_projects"
+          ],
+          "properties": {
+            "atlas_contract_ratio_min": {
+              "type": "number"
+            },
+            "genome_contract_ratio_min": {
+              "type": "number"
+            },
+            "health_score_min": {
+              "type": "number"
+            },
+            "dead_high_max": {
+              "type": "number"
+            },
+            "dead_high_ratio_max": {
+              "type": "number"
+            },
+            "cycle_count_max": {
+              "type": "number"
+            },
+            "cycle_file_ratio_max": {
+              "type": "number"
+            },
+            "react_ratio_min": {
+              "type": "number"
+            },
+            "transition_ratio_min": {
+              "type": "number"
+            },
+            "property_ratio_min": {
+              "type": "number"
+            },
+            "project_transition_ratio_min": {
+              "type": "number"
+            },
+            "state_projects_pass_ratio_min": {
+              "type": "number"
+            },
+            "project_property_ratio_min": {
+              "type": "number"
+            },
+            "state_projects_property_pass_ratio_min": {
+              "type": "number"
+            },
+            "property_ratio_strong_min": {
+              "type": "number"
+            },
+            "project_property_ratio_strong_min": {
+              "type": "number"
+            },
+            "state_projects_property_strong_pass_ratio_min": {
+              "type": "number"
+            },
+            "strict_property_min_projects": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "quality_review": {
+      "type": "object",
+      "required": [
+        "ladder",
+        "advisory"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ladder": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "l0_health_score_min",
+            "l1_contract_file_ratio_min",
+            "l1_contract_genome_ratio_min",
+            "l2_react_ratio_min",
+            "l2_state_flow_ratio_min",
+            "l3_dead_high_ratio_max",
+            "l3_cycle_count_max",
+            "l4_proof_ratio_min",
+            "l4_quality_score_min",
+            "l4_dead_high_ratio_max",
+            "l4_cycle_count_max"
+          ],
+          "properties": {
+            "l0_health_score_min": {
+              "type": "number"
+            },
+            "l1_contract_file_ratio_min": {
+              "type": "number"
+            },
+            "l1_contract_genome_ratio_min": {
+              "type": "number"
+            },
+            "l2_react_ratio_min": {
+              "type": "number"
+            },
+            "l2_state_flow_ratio_min": {
+              "type": "number"
+            },
+            "l3_dead_high_ratio_max": {
+              "type": "number"
+            },
+            "l3_cycle_count_max": {
+              "type": "number"
+            },
+            "l4_proof_ratio_min": {
+              "type": "number"
+            },
+            "l4_quality_score_min": {
+              "type": "number"
+            },
+            "l4_dead_high_ratio_max": {
+              "type": "number"
+            },
+            "l4_cycle_count_max": {
+              "type": "number"
+            }
+          }
+        },
+        "advisory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "health_score_warning_min",
+            "cycle_warning_max",
+            "dead_high_warning_max",
+            "state_property_strict_warning_min",
+            "oracle_coverage_warning_min",
+            "oracle_coverage_warning_expected_min"
+          ],
+          "properties": {
+            "health_score_warning_min": {
+              "type": "number"
+            },
+            "cycle_warning_max": {
+              "type": "number"
+            },
+            "dead_high_warning_max": {
+              "type": "number"
+            },
+            "state_property_strict_warning_min": {
+              "type": "number"
+            },
+            "oracle_coverage_warning_min": {
+              "type": "number"
+            },
+            "oracle_coverage_warning_expected_min": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+}

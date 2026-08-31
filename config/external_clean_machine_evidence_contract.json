@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "kind": "external_clean_machine_evidence_contract",
+    "version": "v1",
+    "status": "normative"
+  },
+  "acquisition": {
+    "environment_variable": "SAGE_EXTERNAL_CLEAN_INSTALL_EVIDENCE",
+    "default_discovery": false,
+    "rule": "Independent clean-machine evidence remains outside the tracked source and must be supplied explicitly for release closure."
+  },
+  "manifest": {
+    "kind": "independent_clean_machine_evidence_manifest",
+    "accepted_status": "PASS_CURRENT_SOURCE_CLEAN_MACHINE_CLOSEOUT",
+    "required_evidence_files": [
+      "closeout.txt",
+      "installation_preflight.json",
+      "installation_proof.json",
+      "powershell-transcript.txt",
+      "runner.ps1",
+      "package.sha256.txt"
+    ]
+  },
+  "identity": {
+    "delivery_commit_must_equal_current_head": true,
+    "canonical_source_commit_must_be_delivery_ancestor": true,
+    "canonical_source_scope_must_have_no_tracked_changes": true,
+    "package_sha256_must_match_checksum_receipt": true,
+    "all_manifest_evidence_hashes_must_match": true
+  },
+  "validation": {
+    "producer_and_validator_must_evaluate_receipt_independently": true,
+    "embedded_validation_artifact_is_not_authority_by_itself": true
+  },
+  "required_closeout_values": {
+    "UTF8_TEMPLATE_CONTRACT_PASS": "True",
+    "UNICODE_TARGET_PRESERVED_IN_TRANSCRIPT": "True",
+    "REPLACEMENT_CHARACTER_ABSENT": "True",
+    "CLEAN_MACHINE_UTF8_TRANSCRIPT_PASS": "True",
+    "CALLER_ERROR_POLICY_RESTORED": "True",
+    "INSTALL_PROOF_STRUCTURED_PASS": "True",
+    "PLAN_EXIT": "0",
+    "INIT_EXIT": "0",
+    "DOCTOR_BEFORE_EXIT": "0",
+    "INSTALL_PROOF_EXIT": "0",
+    "DOCTOR_AFTER_EXIT": "0",
+    "CLEAN_MACHINE_INSTALLATION_VERDICT": "PASS",
+    "CURRENT_SOURCE_CLEAN_MACHINE_CLOSEOUT": "PASS",
+    "RUN_EXCEPTION": ""
+  },
+  "claim_boundary": {
+    "accepted_receipt_closes": "external_clean_install_proof",
+    "does_not_grant": [
+      "target_repository_governance_pass",
+      "human_agent_surface_seal",
+      "legal_approval",
+      "publication_authority",
+      "cross_platform_equivalence",
+      "independent_user_or_market_value"
+    ]
+  }
+}

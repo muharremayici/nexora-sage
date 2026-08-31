@@ -1,0 +1,219 @@
+{
+  "meta": {
+    "kind": "governance_trace_contract",
+    "version": "v1",
+    "purpose": "Define the local, privacy-bounded trace fields used to attribute SAGE tool and governance outcomes without inferring causes from a final score."
+  },
+  "scope": {
+    "storage": "target analysis SQLite codemaps.db",
+    "local_first": true,
+    "remote_egress": "prohibited_by_contract",
+    "raw_content_policy": "Do not persist source code, prompts, full tool arguments, secrets, or model output. Persist only bounded metadata and deterministic fingerprints.",
+    "claim_boundary": "A trace preserves observed handoffs and declared unknowns. It does not by itself prove a root cause or repository correctness."
+  },
+  "event": {
+    "table": "governance_trace_events",
+    "required_fields": [
+      "trace_id",
+      "recorded_at",
+      "event_type",
+      "principal",
+      "tool_name",
+      "task_fingerprint",
+      "context_fingerprint",
+      "policy_version",
+      "state_change",
+      "retry_count",
+      "latency_ms",
+      "outcome",
+      "failure_layer",
+      "claim_boundary"
+    ],
+    "event_types": [
+      "mcp_tool_call",
+      "watchdog_session",
+      "release_proof_step",
+      "agent_handoff",
+      "work_package_operation"
+    ],
+    "detail_allowed_keys": {
+      "mcp_tool_call": [
+        "argument_keys"
+      ],
+      "watchdog_session": [
+        "pulse_id",
+        "changed_file_count",
+        "violation_count",
+        "deep_proof_debt_status"
+      ],
+      "release_proof_step": [
+        "step_id",
+        "required",
+        "timed_out",
+        "timeout_basis",
+        "raw_artifact_present"
+      ],
+      "agent_handoff": [
+        "packet_kind",
+        "packet_status",
+        "source_grounding_status"
+      ],
+      "work_package_operation": [
+        "package_id",
+        "package_status",
+        "operation_id",
+        "result_status",
+        "evidence_artifact",
+        "evidence_fingerprint",
+        "authority"
+      ]
+    },
+    "outcomes": [
+      "success",
+      "failure",
+      "unknown"
+    ],
+    "failure_layers": [
+      "none",
+      "tool_visibility",
+      "tool_execution",
+      "validation",
+      "unknown"
+    ],
+    "unknown_value": "not_available",
+    "fingerprint_algorithm": "sha256_json_canonical_v1"
+  },
+  "retention": {
+    "max_events_per_tenant": 1000,
+    "prune_order": "oldest_recorded_at_first",
+    "retention_boundary": "Operational trace retention only; never use this ledger as repository truth or a release-proof substitute."
+  },
+  "integration": {
+    "observed_surfaces": [
+      "mcp_server",
+      "watchdog",
+      "release_proof",
+      "agent_handoff",
+      "work_package_operations"
+    ],
+    "future_surfaces": [],
+    "integration_rule": "A surface may emit an event only when it can preserve the contract fields or explicitly write not_available. Do not synthesize causal attribution."
+  },
+  "work_package_receipts": {
+    "authority": "non_authoritative_evidence_proposal",
+    "closure_mutation_allowed": false,
+    "write_scope": "development_workspace_only",
+    "clean_mirror_behavior": "skip_with_explicit_notice",
+    "source_fingerprint_excluded_paths": [
+      "config/sage_active_work_package.json",
+      "config/sage_work_item_registry.json"
+    ],
+    "proposal_max_receipts": 500,
+    "matching_rule": "A receipt may be proposed only when package identity and the current affected-source content fingerprint both match. A proposal never changes closure evidence, manual review, approval or human seal state.",
+    "operation_profiles": {
+      "sage_active_work_package_validation": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "targeted_validators_pass",
+        "evidence_artifact": "output/.raw/sage_active_work_package_validation.json"
+      },
+      "sage_work_item_registry_validation": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "targeted_validators_pass",
+        "evidence_artifact": "output/.raw/sage_work_item_registry_validation.json"
+      },
+      "sage_work_package_closure_validation": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "targeted_validators_pass",
+        "evidence_artifact": "output/.raw/sage_work_package_closure_validation.json"
+      },
+      "governance_trace_contract_validation": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "targeted_validators_pass",
+        "evidence_artifact": "output/.raw/governance_trace_contract_validation.json"
+      },
+      "actor_interaction_contract_validation": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "targeted_validators_pass",
+        "evidence_artifact": "output/.raw/actor_interaction_contract_validation.json"
+      },
+      "source_contract_validation": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "targeted_validators_pass",
+        "evidence_artifact": "output/.raw/source_contract_validation.json"
+      },
+      "semantic_diff_review": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "semantic_git_diff_review_completed",
+        "evidence_artifact": "output/.raw/semantic_diff_impacted_lesson_projection.json"
+      },
+      "clean_distribution_sync": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "clean_mirror_synced_and_validated_when_applicable",
+        "evidence_artifact": "not_available"
+      },
+      "clean_distribution_closeout": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "closure_evidence_id": "clean_mirror_synced_and_validated_when_applicable",
+        "evidence_artifact": "not_available"
+      },
+      "sage_learning_system_bootstrap": {
+        "accepted_statuses": [
+          "PASS"
+        ],
+        "purpose": "mutation_preflight",
+        "evidence_artifact": "not_available"
+      }
+    },
+    "evidence_requirements": {
+      "targeted_validators_pass": [
+        "governance_trace_contract_validation",
+        "actor_interaction_contract_validation",
+        "source_contract_validation",
+        "sage_active_work_package_validation",
+        "sage_work_item_registry_validation",
+        "sage_work_package_closure_validation"
+      ],
+      "semantic_git_diff_review_completed": [
+        "semantic_diff_review"
+      ],
+      "clean_mirror_synced_and_validated_when_applicable": [
+        "clean_distribution_sync",
+        "clean_distribution_closeout"
+      ]
+    },
+    "mutation_preflight": {
+      "required_operations": [
+        "sage_learning_system_bootstrap"
+      ],
+      "accepted_package_statuses": [
+        "in_progress"
+      ],
+      "ready_status": "READY_FOR_SAGE_OWNED_MUTATION",
+      "blocked_status": "BLOCKED",
+      "external_editor_enforcement": "not_available",
+      "enforced_surfaces": [
+        "mcp_sage_internal_mutating_tools"
+      ],
+      "read_only_recovery_allowed_when_blocked": true,
+      "claim_boundary": "This preflight is technically enforced for SAGE_ON_SAGE mutating MCP tools and informs external developer agents. It does not gate target-repository MCP tools or physically prevent an independent editor/CLI from changing files, and it never grants closure, approval or human-seal authority."
+    }
+  }
+}

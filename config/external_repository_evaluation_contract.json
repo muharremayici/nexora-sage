@@ -1,0 +1,698 @@
+{
+  "meta": {
+    "kind": "external_repository_evaluation_contract",
+    "version": "1.0",
+    "status": "active_evaluation_contract",
+    "purpose": "Classify external repositories by evaluation role and constrain result authority to the target language claim level without turning calibration evidence into independent proof."
+  },
+  "authorities": {
+    "language_claims": {
+      "source": "config/polyglot_capabilities.json",
+      "pointer": "/languages"
+    },
+    "harness_variants_and_metrics": {
+      "source": "config/agent_harness_contract.json",
+      "pointer": "/evaluation_baseline"
+    },
+    "target_readiness": {
+      "source": "config/external_target_preflight_policy.json",
+      "pointer": "/status_policy"
+    },
+    "evaluation_subjects": {
+      "source": "config/external_repository_evaluation_registry.json",
+      "pointer": "/subjects"
+    }
+  },
+  "corpus_roles": {
+    "calibration": {
+      "may_influence_rules_or_thresholds": true,
+      "independent_generalization_evidence": false,
+      "required_disclosure": "known_to_development"
+    },
+    "regression": {
+      "may_influence_rules_or_thresholds": true,
+      "independent_generalization_evidence": false,
+      "required_disclosure": "known_and_repeated"
+    },
+    "holdout": {
+      "may_influence_rules_or_thresholds": false,
+      "independent_generalization_evidence": true,
+      "required_disclosure": "unseen_verified_before_run"
+    },
+    "blind_holdout": {
+      "may_influence_rules_or_thresholds": false,
+      "independent_generalization_evidence": true,
+      "required_disclosure": "repository_task_and_actor_plan_sealed_before_run"
+    },
+    "longitudinal": {
+      "may_influence_rules_or_thresholds": true,
+      "independent_generalization_evidence": false,
+      "required_disclosure": "known_continuous_use"
+    }
+  },
+  "identity_contract": {
+    "required_repository_fields": [
+      "repository_id",
+      "source_url_or_local_identity",
+      "commit_or_content_fingerprint",
+      "license_observation",
+      "selection_timestamp",
+      "corpus_role",
+      "prior_sage_exposure",
+      "selection_strata"
+    ],
+    "required_selection_strata": [
+      "primary_language",
+      "repository_shape",
+      "size_band",
+      "framework_family",
+      "package_or_build_system",
+      "test_surface",
+      "generated_code_presence"
+    ],
+    "identity_change_rule": "A changed commit or content fingerprint creates a new evaluation subject; results must not be silently carried forward."
+  },
+  "leakage_policy": {
+    "states": {
+      "unseen_verified": {
+        "holdout_eligible": true
+      },
+      "known_to_development": {
+        "holdout_eligible": false
+      },
+      "unknown": {
+        "holdout_eligible": false
+      }
+    },
+    "post_run_transition": "After result inspection or tuning, a holdout repository becomes regression evidence. A future holdout claim requires a new unseen subject.",
+    "failure_retention": "Failed, unsupported and inconclusive subjects remain in the result set; they must not be removed to improve aggregate scores."
+  },
+  "holdout_generalization_design": {
+    "trigger": "A holdout exposes a product defect and transitions to known regression evidence after remediation.",
+    "ordered_stages": [
+      {
+        "order": 1,
+        "stage": "near_neighbor",
+        "tests_same_failure_family": true,
+        "requires_material_topology_difference_from_predecessor": false,
+        "purpose": "Test whether the exact repair family generalizes to an unseen repository with related semantics without target-specific tuning."
+      },
+      {
+        "order": 2,
+        "stage": "topology_divergent",
+        "tests_same_failure_family": false,
+        "requires_material_topology_difference_from_predecessor": true,
+        "purpose": "Test whether the repaired invariant remains honest in an unseen repository with materially different structure, build ownership or product topology."
+      }
+    ],
+    "single_stage_universal_claim_authorized": false,
+    "required_sequence_completion_before_claim_review": true,
+    "sequence_rule": "Run the near-neighbor stage before the topology-divergent stage unless identity or availability invalidates the selected subject; replacement subjects preserve the same stage order.",
+    "claim_rule": "Neither stage alone authorizes a universal claim. Both remain bounded by declared task domain, language authority, source-grounded sampling and promotion policy.",
+    "sequence_review_contract": {
+      "required_fields": [
+        "sequence_id",
+        "originating_regression_subject_ids",
+        "stages",
+        "review_status",
+        "reviewed_at",
+        "shared_supported_invariants",
+        "non_promoted_claims",
+        "open_evidence_gaps",
+        "claim_disposition",
+        "next_holdout_decision"
+      ],
+      "allowed_review_statuses": [
+        "bounded_review_complete",
+        "inconclusive",
+        "invalid_sequence"
+      ],
+      "allowed_claim_dispositions": [
+        "no_claim_expansion",
+        "bounded_claim_review_candidate"
+      ],
+      "next_subject_rule": "A completed sequence does not trigger repository-count growth. Select another unseen subject only when a declared evidence gap requires a materially relevant stratum, failure family or claim boundary.",
+      "stage_reference_rule": "Every stage references one distinct registered subject whose frozen result outcome is copied without reinterpretation."
+    }
+  },
+  "claim_level_evaluation": {
+    "deep_specialist": {
+      "eligible_test_domains": [
+        "structural",
+        "ast",
+        "framework_semantic",
+        "static_governance"
+      ],
+      "outside_claim_domains": [
+        "universal_runtime_behavior",
+        "distributed_service_behavior"
+      ],
+      "result_authority": "May support only the named language/framework static claim when required evidence is complete."
+    },
+    "ast_strong": {
+      "eligible_test_domains": [
+        "structural",
+        "ast"
+      ],
+      "outside_claim_domains": [
+        "framework_semantic",
+        "compiler_type_semantics",
+        "interprocedural_data_flow",
+        "runtime_behavior"
+      ],
+      "result_authority": "May support AST extraction and normalized repository-graph claims; framework or runtime observations remain exploratory."
+    },
+    "structural": {
+      "eligible_test_domains": [
+        "structural"
+      ],
+      "outside_claim_domains": [
+        "ast_semantic",
+        "framework_semantic",
+        "compiler_type_semantics",
+        "runtime_behavior"
+      ],
+      "result_authority": "May support file, package, symbol and import-structure claims only."
+    }
+  },
+  "authority_resolution": {
+    "claim_level_is_ceiling_not_entitlement": true,
+    "resolution_order": [
+      "target_applicability",
+      "language_claim_level_ceiling",
+      "active_capability_and_evidence_intersection",
+      "declared_task_domain",
+      "result_outcome"
+    ],
+    "missing_active_capability_rule": "If a claim-level domain has no separately active capability and evidence for the selected language/framework, the result is UNSUPPORTED or INCONCLUSIVE, never PASS.",
+    "framework_scope_rule": "A deep-specialist language level does not imply support for every framework in that language."
+  },
+  "outcome_semantics": {
+    "PASS": "All required evidence for the declared test domain and claim level passed; authority does not expand beyond that domain.",
+    "FAIL": "A required behavior inside the declared supported claim failed and remains part of aggregate evidence.",
+    "INCONCLUSIVE": "Required evidence was missing, stale, conflicting or insufficient; no pass or capability promotion is allowed.",
+    "UNSUPPORTED": "The requested test domain is outside the active language or product claim.",
+    "NOT_APPLICABLE": "The repository or task does not contain the declared behavior family; this is not a pass.",
+    "INVALID_SUBJECT": "Repository identity, provenance, readability or selection evidence is invalid; the run has no evaluation authority."
+  },
+  "evaluation_run_contract": {
+    "harness_baseline_authority": "config/agent_harness_contract.json#/evaluation_baseline",
+    "additional_repository_metrics": [
+      "preflight_status",
+      "claim_level",
+      "tested_domains",
+      "unknown_count",
+      "unsupported_count",
+      "not_applicable_count",
+      "time_to_first_actionable_finding_ms",
+      "actor_comprehension_status",
+      "manual_tp_sample_count",
+      "manual_fp_sample_count",
+      "manual_fn_probe_count"
+    ],
+    "required_result_fields": [
+      "repository_identity",
+      "sage_release_identity",
+      "actor_or_runner_identity",
+      "language_claim_levels",
+      "tested_domains",
+      "outcome",
+      "evidence_references",
+      "unknowns",
+      "limitations",
+      "duration_ms"
+    ],
+    "missing_metric_rule": "Use not_available with a reason; never coerce missing measurements to zero or PASS."
+  },
+  "factorial_evaluation_contract": {
+    "baseline_authority": "config/agent_harness_contract.json#/evaluation_baseline",
+    "registry_path": "config/external_repository_evaluation_registry.json#/factorial_evaluation_plans",
+    "allowed_statuses": [
+      "runner_identity_pending",
+      "ready_to_execute",
+      "running",
+      "result_frozen",
+      "invalid"
+    ],
+    "required_plan_fields": [
+      "plan_id",
+      "status",
+      "created_at",
+      "repository_subject_id",
+      "corpus_authority",
+      "task_snapshot",
+      "runner_snapshot",
+      "sage_snapshot",
+      "cells",
+      "controlled_equal_fields",
+      "stop_conditions",
+      "claim_boundary",
+      "result"
+    ],
+    "required_task_snapshot_fields": [
+      "task_id",
+      "task_fingerprint",
+      "purpose",
+      "target_scope",
+      "target_source_evidence",
+      "adjudication_truth",
+      "expected_output",
+      "mutation_allowed"
+    ],
+    "required_target_source_evidence_fields": [
+      "source_location",
+      "path",
+      "repository_fingerprint",
+      "content_sha256"
+    ],
+    "required_cell_input_manifest_fields": [
+      "cell_id",
+      "variant",
+      "input_path",
+      "content_sha256",
+      "controller_only_truth_disclosed",
+      "actor_input_scope"
+    ],
+    "required_runner_snapshot_fields": [
+      "actor_class",
+      "actor_identity",
+      "model_identity",
+      "model_configuration",
+      "isolation_requirement"
+    ],
+    "required_sage_snapshot_fields": [
+      "release_identity",
+      "source_identity",
+      "runtime_identity",
+      "contract_identity"
+    ],
+    "required_cell_fields": [
+      "cell_id",
+      "variant",
+      "status",
+      "repository_fingerprint",
+      "task_fingerprint",
+      "actor_identity",
+      "model_identity",
+      "model_configuration",
+      "metrics",
+      "evidence_references",
+      "result"
+    ],
+    "required_cell_result_envelope_fields": [
+      "status"
+    ],
+    "allowed_cell_result_statuses": [
+      "measured",
+      "not_available"
+    ],
+    "required_cell_result_fields": [
+      "classification",
+      "reported_scope",
+      "evidence",
+      "uncertainty",
+      "recommendation",
+      "mutation_performed"
+    ],
+    "allowed_cell_classifications": [
+      "actionable",
+      "false_positive",
+      "unknown",
+      "file_local_private_refactor",
+      "not_file_local_private_refactor",
+      "inconclusive"
+    ],
+    "metric_semantics": {
+      "decision_accuracy": "Boolean: measured classification equals adjudication_truth.expected_classification.",
+      "scope_precision": "Number in [0,1]: reported_scope entries present in adjudication_truth.exact_scope divided by all reported_scope entries; measured results require non-empty reported scope.",
+      "scope_recall": "Number in [0,1]: adjudication_truth.exact_scope entries present in reported_scope divided by all adjudication truth entries.",
+      "task_success": "Boolean conjunction of decision_accuracy=true, scope_precision=1 and scope_recall=1. It must not erase the component measurements."
+    },
+    "required_metric_measurement_fields": [
+      "status",
+      "value",
+      "reason"
+    ],
+    "allowed_metric_measurement_statuses": [
+      "measured",
+      "not_available"
+    ],
+    "allowed_cell_statuses": [
+      "not_started",
+      "running",
+      "completed",
+      "invalid"
+    ],
+    "pre_execution_status": "runner_identity_pending",
+    "executable_status": "ready_to_execute",
+    "running_status": "running",
+    "result_frozen_status": "result_frozen",
+    "pending_identity_value": "not_selected",
+    "pending_source_identity_value": "pending_pre_execution_freeze",
+    "pending_result_value": "not_available",
+    "same_snapshot_fields": [
+      "repository_fingerprint",
+      "task_fingerprint",
+      "actor_identity",
+      "model_identity",
+      "model_configuration"
+    ],
+    "only_planned_cell_difference": "variant",
+    "corpus_authority_profiles": {
+      "known_regression_mechanics_only": {
+        "allowed_subject_states_by_plan_status": {
+          "runner_identity_pending": [
+            "known_regression"
+          ],
+          "ready_to_execute": [
+            "known_regression"
+          ],
+          "running": [
+            "known_regression"
+          ],
+          "result_frozen": [
+            "known_regression"
+          ],
+          "invalid": [
+            "known_regression",
+            "invalid_subject"
+          ]
+        },
+        "requires_verified_unseen_history": false,
+        "plan_must_precede_first_running_transition": false
+      },
+      "independent_holdout_pre_registered": {
+        "allowed_subject_states_by_plan_status": {
+          "runner_identity_pending": [
+            "identity_verified"
+          ],
+          "ready_to_execute": [
+            "identity_verified"
+          ],
+          "running": [
+            "running"
+          ],
+          "result_frozen": [
+            "result_frozen",
+            "known_regression"
+          ],
+          "invalid": [
+            "invalid_subject",
+            "known_regression"
+          ]
+        },
+        "requires_verified_unseen_history": true,
+        "required_history_prefix": [
+          "selected_unseen",
+          "identity_verified"
+        ],
+        "plan_must_precede_first_running_transition": true,
+        "requires_hashed_cell_inputs": true
+      }
+    },
+    "known_subject_rule": "A calibration or regression subject may prove factorial mechanics but cannot become independent generalization evidence or erase prior SAGE exposure.",
+    "execution_gate": "No cell may start until one concrete actor and model identity, one SAGE source identity, the complete required variant set, identical controlled snapshots, content-bound evidence for every exact controller target and hash-bound actor inputs that do not disclose controller-only adjudication truth are frozen.",
+    "result_rule": "The plan may become result_frozen only when every required cell is completed or explicitly invalid, every required metric is a measured value or not_available with a reason, and confounds remain visible."
+  },
+  "finding_quality_sampling_contract": {
+    "activation_rule": "Required before selecting an unseen subject for any task that claims actionable finding quality beyond bounded preflight inventory, applicability and authority evidence.",
+    "authority_boundary": "Finding adjudication may evaluate only the declared task domain and active language capability. It does not create framework, compiler, runtime or product-correctness authority.",
+    "plan_preregistration_contract": {
+      "registry_path": "config/external_repository_evaluation_registry.json#/finding_quality_evaluation_plans",
+      "required_plan_fields": [
+        "plan_id",
+        "status",
+        "created_at",
+        "originating_evidence_gap",
+        "claim_disposition",
+        "task",
+        "authority_boundary",
+        "finding_families",
+        "risk_strata",
+        "fn_truth_protocol",
+        "required_repository_shape",
+        "sampling_policy_authority",
+        "candidate_selection"
+      ],
+      "allowed_statuses": [
+        "pre_registered_subject_search",
+        "subject_selected_source_truth_pending",
+        "source_truth_frozen_ready_to_run",
+        "running",
+        "result_frozen",
+        "invalid_subject"
+      ],
+      "required_risk_tiers": [
+        "blocking_high",
+        "remaining_findings",
+        "uncertain_boundaries"
+      ],
+      "subject_search_status": "pre_registered_subject_search",
+      "source_truth_pending_status": "subject_selected_source_truth_pending",
+      "source_truth_frozen_status": "source_truth_frozen_ready_to_run",
+      "running_status": "running",
+      "result_frozen_status": "result_frozen",
+      "source_truth_invariant_statuses": [
+        "source_truth_frozen_ready_to_run",
+        "running",
+        "result_frozen"
+      ],
+      "result_frozen_subject_states": [
+        "result_frozen",
+        "known_regression"
+      ],
+      "run_forbidden_statuses": [
+        "pre_registered_subject_search",
+        "subject_selected_source_truth_pending"
+      ],
+      "initial_candidate_status": "not_started",
+      "selected_candidate_status": "identity_frozen_source_uninspected",
+      "source_truth_frozen_candidate_status": "source_truth_frozen_ready_to_run",
+      "selected_subject_state": "selected_unseen",
+      "source_verified_subject_state": "identity_verified",
+      "pending_subject_outcome": "not_available",
+      "unselected_repository_id": "not_selected",
+      "unselected_source_identity": "not_selected",
+      "unselected_fingerprint": "not_selected",
+      "required_candidate_fields": [
+        "status",
+        "repository_id",
+        "source_url_or_local_identity",
+        "commit_or_content_fingerprint",
+        "identity_evidence",
+        "selection_trace",
+        "source_inspection_allowed",
+        "sage_execution_allowed"
+      ],
+      "pending_concrete_truth_status": "pending_source_freeze",
+      "source_truth_frozen_protocol_status": "frozen_before_first_sage_analysis",
+      "required_concrete_truth_fields": [
+        "truth_id",
+        "finding_family",
+        "applicability",
+        "expected_observation",
+        "target_scope",
+        "independent_evidence",
+        "uncertainty_boundary"
+      ],
+      "allowed_truth_applicability": [
+        "APPLICABLE",
+        "NOT_APPLICABLE"
+      ],
+      "fn_truth_freeze_boundary": "first_sage_finding_or_analysis_command",
+      "required_claim_disposition": "no_claim_expansion",
+      "sampling_policy_authority": "config/external_repository_evaluation_contract.json#/finding_quality_sampling_contract/selection_policy",
+      "temporal_rule": "The plan is committed before candidate search. Candidate identity is frozen before source inspection. Concrete FN truths are then frozen from independent source evidence before any SAGE finding or analysis command runs."
+    },
+    "finding_family_authorities": {
+      "dead_code": "dead_code",
+      "circular_dependencies": "circular_deps",
+      "blast_radius": "blast_radius",
+      "relative_import_policy": "relative_imports_no_alias"
+    },
+    "adjudication_classes": {
+      "TP": {
+        "meaning": "A reported finding is confirmed by independent source-grounded evidence inside the declared authority boundary.",
+        "supports_positive_quality_claim": true,
+        "requires_independent_source_truth": true
+      },
+      "FP": {
+        "meaning": "A reported finding is contradicted by independent source-grounded evidence or exceeds the declared authority boundary.",
+        "supports_positive_quality_claim": false,
+        "requires_independent_source_truth": true
+      },
+      "FN": {
+        "meaning": "A predeclared source-grounded condition inside the declared authority boundary is not reported by the applicable SAGE finding surface.",
+        "supports_positive_quality_claim": false,
+        "requires_independent_source_truth": true
+      },
+      "UNKNOWN": {
+        "meaning": "Available evidence is missing, stale, conflicting or insufficient for TP, FP or FN adjudication.",
+        "supports_positive_quality_claim": false,
+        "requires_independent_source_truth": false
+      },
+      "UNSUPPORTED": {
+        "meaning": "The proposed finding or probe is outside the active language, engine or product claim boundary.",
+        "supports_positive_quality_claim": false,
+        "requires_independent_source_truth": false
+      },
+      "NOT_APPLICABLE": {
+        "meaning": "The declared behavior family is absent from the frozen subject and therefore cannot produce a quality pass.",
+        "supports_positive_quality_claim": false,
+        "requires_independent_source_truth": false
+      }
+    },
+    "sample_record_fields_authority": "/validation_contract/required_finding_sample_fields",
+    "selection_policy": {
+      "strategy": "deterministic_risk_stratified_adaptive",
+      "blocking_or_high_severity_rule": "Review every blocking or high-severity finding inside the declared task scope; truncation must become INCONCLUSIVE rather than sampled PASS.",
+      "remaining_finding_rule": "Select deterministically across finding family, engine, source file, repository stratum, language authority and evidence state; repeated examples may not crowd out uncovered strata.",
+      "false_negative_probe_rule": "Declare expected source truths and their independent evidence before inspecting SAGE findings; absence from SAGE output may then be adjudicated as FN.",
+      "unknown_boundary_rule": "Include evidence-missing, unsupported and not-applicable boundaries when observed; none may be relabeled as TP or omitted from the aggregate result.",
+      "fixed_sample_count_allowed": false,
+      "adaptive_budget_inputs": [
+        "blocking_and_high_finding_count",
+        "finding_family_count",
+        "engine_surface_count",
+        "repository_strata_count",
+        "language_authority_count",
+        "evidence_state_count",
+        "measured_local_review_duration",
+        "configured_safety_ceiling"
+      ],
+      "termination_rule": "Stop only after all blocking and high findings are adjudicated, every applicable declared stratum has an attempted sample or explicit absence reason, predeclared FN probes are resolved, and the adaptive safety ceiling has not forced an INCONCLUSIVE result."
+    },
+    "independence_rules": [
+      "The proposing engine or actor cannot be the sole evidence authority for its own finding.",
+      "SAGE output may identify a candidate location but cannot serve as the independent source truth used to adjudicate it.",
+      "Manual review must compare the finding with frozen source, authoritative project contracts or independently executed target checks.",
+      "Repository-specific observations remain corpus evidence unless generalized and promoted through validator and fixture policy."
+    ],
+    "aggregate_rules": [
+      "Counts are grouped by adjudication, finding family, engine or surface and declared authority.",
+      "Missing adjudication classes use not_observed or not_available with attempted-probe evidence; they are never coerced to zero-quality risk or PASS.",
+      "A PASS requires no unresolved blocking or high finding, no unresolved predeclared FN probe and no UNKNOWN evidence satisfying a required claim.",
+      "Precision, recall or rate claims require declared denominators and are forbidden when the relevant denominator is absent or incomplete."
+    ],
+    "subject_selection_rule": "Choose the unseen repository only after the task, authority boundary, expected finding families, source-grounded FN probes, repository strata and adaptive sampling plan are predeclared."
+  },
+  "task_contract": {
+    "required_fields": [
+      "task_id",
+      "purpose",
+      "target_scope",
+      "tested_claim_domain",
+      "real_failure_mode",
+      "user_relevance_hypothesis",
+      "expected_evidence",
+      "success_criteria",
+      "stop_conditions"
+    ],
+    "mechanical_pass_rule": "Contract conformance alone does not prove that the tested rule represents a real or valuable user failure mode."
+  },
+  "promotion_policy": {
+    "calibration_to_claim": "forbidden",
+    "single_holdout_to_universal_claim": "forbidden",
+    "required_before_claim_expansion": [
+      "multiple_predeclared_holdout_subjects",
+      "representative_selection_strata",
+      "required_negative_and_boundary_cases",
+      "manual_source_grounded_sampling",
+      "validator_and_fixture_promotion",
+      "claim_guard_update",
+      "human_release_authority"
+    ],
+    "scope_rule": "Repository count alone never proves ecosystem universality or economic value."
+  },
+  "human_projection": {
+    "path": "docs/EXTERNAL_REPOSITORY_EVALUATION.md",
+    "required_phrases": [
+      "Calibration is not independent proof.",
+      "A holdout stops being unseen after its result is inspected.",
+      "Language claim level limits evaluation authority.",
+      "Claim level is a ceiling, not an entitlement.",
+      "UNSUPPORTED and NOT_APPLICABLE are not PASS.",
+      "Repository count alone does not prove universality.",
+      "Factorial mechanics on known regression are not independent proof."
+    ]
+  },
+  "validation_contract": {
+    "required_corpus_roles": [
+      "calibration",
+      "regression",
+      "holdout",
+      "blind_holdout",
+      "longitudinal"
+    ],
+    "required_outcomes": [
+      "PASS",
+      "FAIL",
+      "INCONCLUSIVE",
+      "UNSUPPORTED",
+      "NOT_APPLICABLE",
+      "INVALID_SUBJECT"
+    ],
+    "required_finding_adjudications": [
+      "TP",
+      "FP",
+      "FN",
+      "UNKNOWN",
+      "UNSUPPORTED",
+      "NOT_APPLICABLE"
+    ],
+    "required_finding_sample_fields": [
+      "sample_id",
+      "repository_id",
+      "repository_fingerprint",
+      "finding_family",
+      "engine_or_surface",
+      "source_location",
+      "declared_authority",
+      "sage_finding_reference",
+      "independent_evidence_references",
+      "adjudication",
+      "rationale",
+      "reviewer_identity",
+      "reviewed_at"
+    ],
+    "finding_sampling_invariants": {
+      "positive_claim_adjudications": [
+        "TP"
+      ],
+      "independent_truth_adjudications": [
+        "TP",
+        "FP",
+        "FN"
+      ],
+      "allowed_selection_strategies": [
+        "deterministic_risk_stratified_adaptive"
+      ],
+      "fixed_sample_count_allowed": false
+    },
+    "required_task_fields": [
+      "task_id",
+      "purpose",
+      "target_scope",
+      "tested_claim_domain",
+      "real_failure_mode",
+      "user_relevance_hypothesis",
+      "expected_evidence",
+      "success_criteria",
+      "stop_conditions"
+    ],
+    "forbidden_domains_by_claim_level": {
+      "ast_strong": [
+        "framework_semantic",
+        "compiler_type_semantics",
+        "interprocedural_data_flow",
+        "runtime_behavior"
+      ],
+      "structural": [
+        "ast_semantic",
+        "framework_semantic",
+        "compiler_type_semantics",
+        "runtime_behavior"
+      ]
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "families"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator",
+        "config",
+        "config_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "react_fixture_family_taxonomy_report"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "config": {
+          "type": "string"
+        },
+        "config_sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "families",
+        "status",
+        "release_required_total",
+        "release_required_proven",
+        "included_releases",
+        "release_family_total",
+        "release_family_proven"
+      ],
+      "properties": {
+        "families": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "ATTENTION"
+          ]
+        },
+        "release_required_total": {
+          "type": "integer"
+        },
+        "release_required_proven": {
+          "type": "integer"
+        },
+        "included_releases": {
+          "type": "array"
+        },
+        "release_family_total": {
+          "type": "integer"
+        },
+        "release_family_proven": {
+          "type": "integer"
+        }
+      }
+    },
+    "families": {
+      "type": "array"
+    }
+  }
+}

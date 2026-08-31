@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "kind": "layer_import_boundary_policy",
+    "version": "v1"
+  },
+  "principles": {
+    "contract_boundary": "Layers may consume shared core contracts, schemas, registries and artifact readers, but downstream agent surfaces must not silently depend on arbitrary upstream engine internals.",
+    "adapter_exception": "MCP and ContextOS adapter surfaces may import explicit engine adapter functions only when the import is declared here.",
+    "review_rule": "New cross-layer imports that bypass this policy must be reviewed as potential layer leakage before release claims are widened."
+  },
+  "validation_scope": {
+    "scan_roots": [
+      "tools"
+    ],
+    "python_module_prefixes": [
+      "tools."
+    ]
+  },
+  "repository_cycle_no_worsening": {
+    "claim": "Repository-wide static Python import cycles do not exceed the measured V1 baseline.",
+    "algorithm": "python_ast_static_import_scc_v1",
+    "edge_semantics": "Every statically declared internal import is an edge, including lazy and TYPE_CHECKING imports; dynamic imports and runtime call cycles are outside this claim.",
+    "baseline_update_rule": "A known component may only shrink after a verified refactor, and the baseline must shrink in the same reviewed change so removed modules or edges cannot silently return. New modules or edges must fail validation and must not be copied into the baseline merely to make a release pass.",
+    "baseline_measured_at": "2026-07-27",
+    "scan_roots": [
+      "tools"
+    ],
+    "excluded_globs": [],
+    "explicit_non_claims": [
+      "dynamic_import_targets",
+      "runtime_call_cycles",
+      "non_python_dependency_cycles",
+      "architectural_correctness_of_the_known_component"
+    ],
+    "known_components": [
+      {
+        "modules": [
+          "tools.config_compiler",
+          "tools.core.artifact_store",
+          "tools.core.atlas_integrity",
+          "tools.core.atlas_io",
+          "tools.core.config",
+          "tools.core.db",
+          "tools.core.heartbeat_cadence",
+          "tools.core.honesty_telemetry",
+          "tools.core.json_io",
+          "tools.core.language_registry",
+          "tools.core.logger",
+          "tools.core.operational_limits",
+          "tools.core.quality_gate_policy",
+          "tools.core.workload_profile",
+          "tools.engines.local_telemetry_engine"
+        ],
+        "maximum_internal_edges": 41,
+        "edges": [
+          "tools.config_compiler->tools.core.config",
+          "tools.config_compiler->tools.core.quality_gate_policy",
+          "tools.core.artifact_store->tools.core.config",
+          "tools.core.artifact_store->tools.core.db",
+          "tools.core.artifact_store->tools.core.honesty_telemetry",
+          "tools.core.artifact_store->tools.core.json_io",
+          "tools.core.artifact_store->tools.core.workload_profile",
+          "tools.core.atlas_integrity->tools.core.config",
+          "tools.core.atlas_io->tools.core.artifact_store",
+          "tools.core.atlas_io->tools.core.config",
+          "tools.core.atlas_io->tools.core.json_io",
+          "tools.core.config->tools.config_compiler",
+          "tools.core.config->tools.core.artifact_store",
+          "tools.core.config->tools.core.honesty_telemetry",
+          "tools.core.config->tools.core.language_registry",
+          "tools.core.db->tools.core.operational_limits",
+          "tools.core.heartbeat_cadence->tools.core.config",
+          "tools.core.heartbeat_cadence->tools.core.json_io",
+          "tools.core.heartbeat_cadence->tools.engines.local_telemetry_engine",
+          "tools.core.honesty_telemetry->tools.core.config",
+          "tools.core.honesty_telemetry->tools.core.json_io",
+          "tools.core.honesty_telemetry->tools.core.logger",
+          "tools.core.json_io->tools.core.artifact_store",
+          "tools.core.json_io->tools.core.config",
+          "tools.core.json_io->tools.core.honesty_telemetry",
+          "tools.core.json_io->tools.core.operational_limits",
+          "tools.core.language_registry->tools.core.honesty_telemetry",
+          "tools.core.language_registry->tools.core.json_io",
+          "tools.core.logger->tools.core.config",
+          "tools.core.operational_limits->tools.core.config",
+          "tools.core.operational_limits->tools.core.heartbeat_cadence",
+          "tools.core.operational_limits->tools.core.json_io",
+          "tools.core.quality_gate_policy->tools.core.config",
+          "tools.core.quality_gate_policy->tools.core.json_io",
+          "tools.core.workload_profile->tools.core.atlas_integrity",
+          "tools.core.workload_profile->tools.core.config",
+          "tools.engines.local_telemetry_engine->tools.core.atlas_io",
+          "tools.engines.local_telemetry_engine->tools.core.config",
+          "tools.engines.local_telemetry_engine->tools.core.honesty_telemetry",
+          "tools.engines.local_telemetry_engine->tools.core.json_io",
+          "tools.engines.local_telemetry_engine->tools.core.logger"
+        ]
+      }
+    ]
+  },
+  "protected_consumers": {
+    "contextos_watchdog_mcp": {
+      "allowed_module_prefixes": [
+        "tools.core.",
+        "tools.generate_nexora_",
+        "tools.hitl_",
+        "tools.inspect_target",
+        "tools.nexora_agent_response_ledger",
+        "tools.validate_engine_signal_contracts",
+        "tools.validate_hitl_",
+        "tools.validate_nexora_agent_response",
+        "tools.validate_pipeline_execution_contract"
+      ],
+      "allowed_modules": [
+        "tools.engines.ast_sequencer_cs",
+        "tools.engines.ast_sequencer_go",
+        "tools.engines.ast_sequencer_java",
+        "tools.engines.ast_sequencer_python",
+        "tools.engines.capability_activation_planner",
+        "tools.engines.capability_registry_report",
+        "tools.engines.confidence_engine",
+        "tools.engines.local_telemetry_engine",
+        "tools.engines.mcp_governance_engine",
+        "tools.engines.test_impact_matcher"
+      ],
+      "reason": "Agent-facing ContextOS/MCP surfaces may call explicitly declared adapter engines, not arbitrary upstream internals."
+    },
+    "hitl_agent_governance": {
+      "allowed_module_prefixes": [
+        "tools.core.",
+        "tools.hitl_",
+        "tools.nexora_agent_response_ledger",
+        "tools.validate_"
+      ],
+      "allowed_modules": [],
+      "reason": "HITL surfaces should stay on ledgers, validators and shared contracts."
+    }
+  }
+}

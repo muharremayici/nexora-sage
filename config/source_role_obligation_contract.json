@@ -1,0 +1,132 @@
+{
+  "meta": {
+    "kind": "nexora.source_role_obligation_contract",
+    "version": "v1",
+    "purpose": "Classify executable SAGE source roles and declare their minimum integration obligations without auto-activating engines or widening claims."
+  },
+  "executable_extensions": [
+    ".py",
+    ".cjs",
+    ".js",
+    ".mjs",
+    ".ps1"
+  ],
+  "excluded_source_layers": [
+    "generated_runtime_artifact"
+  ],
+  "role_rules": [
+    {
+      "role": "test",
+      "path_prefixes": [
+        "tools/tests/"
+      ],
+      "obligations": [
+        "test_runner_discovery"
+      ]
+    },
+    {
+      "role": "mcp_surface",
+      "path_prefixes": [
+        "tools/mcp/"
+      ],
+      "obligations": [
+        "mcp_role_registry",
+        "agent_surface_validation",
+        "scope_boundary"
+      ]
+    },
+    {
+      "role": "engine",
+      "path_prefixes": [
+        "tools/engines/"
+      ],
+      "obligations": [
+        "explicit_pipeline_or_standalone_owner",
+        "input_output_contract",
+        "telemetry",
+        "validator_coverage"
+      ]
+    },
+    {
+      "role": "validator",
+      "path_prefixes": [
+        "tools/validate_"
+      ],
+      "obligations": [
+        "proof_or_local_invocation_owner",
+        "non_silent_result"
+      ]
+    },
+    {
+      "role": "generator",
+      "path_prefixes": [
+        "tools/generate_"
+      ],
+      "obligations": [
+        "artifact_owner",
+        "consumer_or_terminal_output",
+        "non_silent_result"
+      ]
+    },
+    {
+      "role": "orchestrator",
+      "path_prefixes": [
+        "tools/orchestrators/"
+      ],
+      "obligations": [
+        "pipeline_execution_policy",
+        "dependency_order",
+        "telemetry"
+      ]
+    },
+    {
+      "role": "core_service",
+      "path_prefixes": [
+        "tools/core/"
+      ],
+      "obligations": [
+        "explicit_consumer",
+        "shared_contract_boundary"
+      ]
+    },
+    {
+      "role": "utility",
+      "path_prefixes": [
+        "tools/utils/"
+      ],
+      "obligations": [
+        "explicit_consumer_or_cli_owner"
+      ]
+    },
+    {
+      "role": "tool_surface",
+      "path_prefixes": [
+        "tools/"
+      ],
+      "obligations": [
+        "explicit_consumer_or_cli_owner",
+        "non_silent_result"
+      ]
+    },
+    {
+      "role": "root_entrypoint",
+      "exact_paths": [
+        "sage.py",
+        "codemaps.py",
+        "verify_benchmark.py"
+      ],
+      "obligations": [
+        "entrypoint_contract",
+        "cross_platform_behavior",
+        "failure_telemetry"
+      ]
+    }
+  ],
+  "default_behavior": {
+    "undeclared_executable_role": "fail",
+    "excluded_generated_runtime_behavior": "tracked_by_runtime_and_generated_script_contracts_not_source_role_obligations",
+    "role_inference_grants_activation": false,
+    "role_inference_expands_claims": false,
+    "new_engine_requires_explicit_pipeline_or_standalone_registration": true
+  }
+}

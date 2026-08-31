@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "test_impact_report.schema.json",
+  "title": "Test Impact Report",
+  "type": "object",
+  "required": [
+    "target",
+    "impacted_tests"
+  ],
+  "properties": {
+    "target": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "impacted_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file",
+          "project",
+          "type",
+          "confidence",
+          "run_command"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "run_command": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

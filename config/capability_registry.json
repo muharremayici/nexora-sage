@@ -1,0 +1,1424 @@
+{
+  "_meta": {
+    "kind": "nexora.capability_registry",
+    "version": "1.0.0",
+    "product_release": "1.0.0",
+    "description": "Machine-readable capability/plugin foundation for Nexora SAGE engines, adapters, artifacts and claim boundaries. Product release and capability introduction use SemVer; internal artifact contracts version independently.",
+    "validation_contract": {
+      "roadmap_decision_matrix": {
+        "required_fields": [
+          "target_release",
+          "priority",
+          "effort",
+          "value",
+          "current_state",
+          "roadmap_scope",
+          "rationale"
+        ],
+        "allowed_priorities": [
+          "P0",
+          "P1",
+          "P2"
+        ],
+        "allowed_efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "allowed_values": [
+          "medium",
+          "high",
+          "strategic"
+        ]
+      },
+      "roadmap_activation_contract": {
+        "required_conditions": [
+          "engines",
+          "artifacts",
+          "validators",
+          "release_proof",
+          "claim_guard_update"
+        ],
+        "release_claim_rule": "A roadmap capability becomes release-claimable only after it has engines, artifacts, validators, release-proof coverage and claim-guard wording."
+      },
+      "capability_validation_scope": {
+        "explicit_runtime_report_artifacts": [
+          "audit_report",
+          "blast_radius",
+          "release_proof_bundle"
+        ],
+        "required_language_scopes": [
+          "typescript_react_deep",
+          "python_ast",
+          "java_structural",
+          "go_structural",
+          "csharp_structural"
+        ],
+        "required_domain_prefixes": [
+          "languages.",
+          "capabilities.",
+          "platform."
+        ],
+        "polyglot_anchor_capability_id": "tree_sitter_polyglot_driver"
+      },
+      "capability_specific_contracts": {
+        "sqlite_artifact_store": {
+          "required_artifacts": [
+            "sqlite_artifact_parity_validation",
+            "sqlite_proxy_coverage_validation",
+            "atlas_sqlite_first_access_validation",
+            "genome_sqlite_first_access_validation",
+            "fractal_sqlite_first_access_validation",
+            "large_artifact_sqlite_first_access_validation"
+          ],
+          "required_validators": [
+            "tools/validate_sqlite_artifact_parity.py",
+            "tools/validate_sqlite_proxy_coverage.py",
+            "tools/validate_atlas_sqlite_first_access.py",
+            "tools/validate_genome_sqlite_first_access.py",
+            "tools/validate_fractal_sqlite_first_access.py",
+            "tools/validate_large_artifact_sqlite_first_access.py"
+          ],
+          "description": "The SQLite Artifact Store capability entry is the canonical list of SQLite-first SSOT validation artifacts and validators advertised by release-deep proof."
+        }
+      }
+    }
+  },
+  "capabilities": [
+    {
+      "id": "repository_discovery",
+      "title": "Repository Discovery",
+      "domain": "repository",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Discovery",
+        "Configuration Compiler",
+        "Project DNA Profiler"
+      ],
+      "artifacts": [
+        "codemaps_discovery",
+        "codemaps_config",
+        "project_dna_profile"
+      ],
+      "validators": [
+        "tools/validate_discovery_universality.py",
+        "tools/validate_project_dna_profile.py"
+      ],
+      "claim_boundary": "Discovers workspace shape, hypotheses and policy-backed project DNA; final architecture confidence belongs to post-Atlas evidence.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "atlas_sequencing",
+      "title": "Atlas And Sequencing",
+      "domain": "cognition",
+      "language_scope": [
+        "typescript_react_deep",
+        "python_ast",
+        "java_structural",
+        "go_structural",
+        "csharp_structural"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Atlas",
+        "Nuclear Sequencing"
+      ],
+      "artifacts": [
+        "atlas",
+        "atlas_commit",
+        "workload_profile",
+        "genome",
+        "derived_graph_integrity_validation"
+      ],
+      "validators": [
+        "tools/validate_atlas_genome_audit_integrity.py",
+        "tools/validate_derived_graph_integrity.py"
+      ],
+      "claim_boundary": "React/TypeScript is deep; non-React languages are structural unless separately proven.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "architecture_governance",
+      "title": "Architecture Governance",
+      "domain": "governance",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Architecture Oracle",
+        "Audit",
+        "Quality Gates"
+      ],
+      "artifacts": [
+        "architecture_oracle",
+        "audit_report",
+        "quality_gate"
+      ],
+      "validators": [
+        "tools/validate_architecture_oracle.py",
+        "tools/validate_doctrine_audit_quality_integrity.py",
+        "tools/validate_modular_doctrine_registry.py"
+      ],
+      "claim_boundary": "Oracle proposes architecture; doctrine sealing remains human-governed.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "react_surgical_intelligence",
+      "title": "React Surgical Intelligence",
+      "domain": "languages.typescript-react",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "react",
+        "next_app_router",
+        "next_pages_router",
+        "react_router",
+        "tanstack_router",
+        "zustand",
+        "tanstack_query",
+        "headless_ui"
+      ],
+      "aliases": [
+        "route_discovery",
+        "ui_runtime_contracts",
+        "browser_smoke_templates",
+        "react_ecosystem_surgical_analysis",
+        "react_runtime_intelligence",
+        "react_frontier_intelligence",
+        "regression_gate"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Framework Route Analyzer",
+        "UI Runtime Contract Analyzer",
+        "UI Smoke Spec Generator",
+        "Next Boundary Analyzer",
+        "State/Data Graph Analyzer",
+        "A11y/i18n Contract Analyzer",
+        "React Ecosystem Analyzer",
+        "React Runtime Intelligence",
+        "React Compiler Readiness",
+        "React Frontier Intelligence"
+      ],
+      "artifacts": [
+        "framework_routes",
+        "ui_runtime_contracts",
+        "ui_smoke_specs",
+        "next_boundary_analysis",
+        "state_data_graph",
+        "a11y_i18n_contracts",
+        "react_ecosystem_analysis",
+        "react_runtime_intelligence",
+        "react_compiler_readiness",
+        "react_frontier_intelligence",
+        "react_v11_contract_validation",
+        "react_corpus_saturation_report",
+        "react_corpus_semantic_audit",
+        "react_capability_probe"
+      ],
+      "validators": [
+        "tools/validate_react_analysis_chain_integrity.py",
+        "tools/validate_react_universal_readiness.py",
+        "tools/validate_react_v11_contracts.py",
+        "tools/validate_react_fixtures.py",
+        "tools/validate_react_corpus_semantic_audit.py"
+      ],
+      "claim_boundary": "Evidence-backed universal React web static governance across the declared 1.0.0 taxonomy; runtime-only behavior remains explicitly bounded by runtime-proof requirements.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "dead_code_public_contracts",
+      "title": "Dead Code And Public Contracts",
+      "domain": "capabilities.dead-code",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Dead Code Detector",
+        "Live Surface Analyzer"
+      ],
+      "artifacts": [
+        "dead_code",
+        "live_surface_findings",
+        "live_surface_priority_pack"
+      ],
+      "validators": [
+        "tools/validate_dead_code_public_contracts.py",
+        "tools/validate_dead_code_language_agnostic_core.py"
+      ],
+      "claim_boundary": "Protects known public contract surfaces; runtime-only reflection remains confidence-ranked.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "dependency_health",
+      "title": "Dependency Health",
+      "domain": "capabilities.dependency-health",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Circular Dependency Finder",
+        "Blast Radius Engine",
+        "Module Risk Matrix"
+      ],
+      "artifacts": [
+        "circular_deps",
+        "blast_radius",
+        "module_risk_matrix",
+        "derived_graph_integrity_validation"
+      ],
+      "validators": [
+        "tools/validate_pipeline_layer_chain_integrity.py",
+        "tools/validate_derived_graph_integrity.py"
+      ],
+      "claim_boundary": "Static dependency graph and impact analysis; runtime dependency flow is a post-2.0.0 capability.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "test_impact",
+      "title": "Test Impact",
+      "domain": "capabilities.test-impact",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Test-Impact Matcher"
+      ],
+      "artifacts": [
+        "test_impact_report",
+        "test_gap_report"
+      ],
+      "validators": [
+        "tools/validate_test_impact_change_integrity.py"
+      ],
+      "claim_boundary": "Maps likely impacted tests from static graph plus bounded live co-located direct-import evidence and naming conventions; does not prove coverage completeness or replace the target repository's test runner.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "merge_variation_intelligence",
+      "title": "Merge And Variation Intelligence",
+      "domain": "capabilities.merge",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "aliases": [
+        "dependency_packaging",
+        "merge_simulation",
+        "decision_cockpit",
+        "ai_task_packs"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Merge Dependency Packager",
+        "Merge Simulation Engine",
+        "Merge Decision Cockpit",
+        "AI Task Pack Generator",
+        "Merge Intelligence Regression"
+      ],
+      "artifacts": [
+        "merge_dependency_packages",
+        "merge_simulation",
+        "merge_decision_cockpit",
+        "ai_task_packs",
+        "merge_intelligence_regression"
+      ],
+      "validators": [
+        "tools/validate_merge_intelligence_regression.py"
+      ],
+      "claim_boundary": "Provides architectural merge evidence and plans; generated mutations still require HITL/safety gates.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "contextos",
+      "title": "ContextOS Live Focus",
+      "domain": "contextos",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "ContextOS Quant Engine"
+      ],
+      "artifacts": [
+        "signals"
+      ],
+      "validators": [
+        "tools/validate_contextos_contracts.py",
+        "tools/validate_contextos_signals.py"
+      ],
+      "claim_boundary": "Distills live repository signals for agents; not a replacement for full pipeline proof.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "agent_surface",
+      "title": "Agent Surface",
+      "domain": "agent",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "MCP Server",
+        "HITL Governance",
+        "Agent Harness"
+      ],
+      "artifacts": [
+        "mcp_agent_surface_validation",
+        "hitl_governance_validation",
+        "agent_harness_readiness",
+        "agent_context_payload_validation",
+        "agent_semantic_contract_smoke"
+      ],
+      "validators": [
+        "tools/validate_mcp_agent_surface.py",
+        "tools/validate_hitl_governance.py",
+        "tools/generate_agent_harness_readiness.py",
+        "tools/validate_agent_context_payloads.py",
+        "tools/validate_agent_semantic_contract_smoke.py"
+      ],
+      "claim_boundary": "Provides deterministic AI-agent context and governance; does not make autonomous code changes safe without approval.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "sqlite_artifact_store",
+      "title": "SQLite Artifact Store",
+      "domain": "platform.storage",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "SQLite Artifact Store"
+      ],
+      "artifacts": [
+        "sqlite_artifact_parity_validation",
+        "sqlite_proxy_coverage_validation",
+        "atlas_sqlite_first_access_validation",
+        "genome_sqlite_first_access_validation",
+        "fractal_sqlite_first_access_validation",
+        "large_artifact_sqlite_first_access_validation"
+      ],
+      "validators": [
+        "tools/validate_sqlite_artifact_parity.py",
+        "tools/validate_sqlite_proxy_coverage.py",
+        "tools/validate_atlas_sqlite_first_access.py",
+        "tools/validate_genome_sqlite_first_access.py",
+        "tools/validate_fractal_sqlite_first_access.py",
+        "tools/validate_large_artifact_sqlite_first_access.py"
+      ],
+      "claim_boundary": "SQLite is primary runtime artifact store with JSON shadow export; Atlas, Genome, Fractal Map and large/hot managed artifacts are release-deep SQLite-first validated; not a remote/shared DB service.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "plugin_extension_foundation",
+      "title": "Plugin Extension Foundation",
+      "domain": "platform.extensions",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Capability Registry",
+        "Plugin Manifest Contract"
+      ],
+      "artifacts": [
+        "plugin_manifest_contract_validation",
+        "adapter_registry"
+      ],
+      "validators": [
+        "tools/validate_plugin_manifest_contract.py"
+      ],
+      "claim_boundary": "Defines the manifest contract for future capabilities and plugins; does not load third-party executable plugin code in V1.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "security_boundary",
+      "title": "Security Boundary",
+      "domain": "capabilities.security",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Security Boundary Validation",
+        "Generated Script Safety",
+        "HITL"
+      ],
+      "artifacts": [
+        "security_boundary_validation"
+      ],
+      "validators": [
+        "tools/validate_security_boundary.py"
+      ],
+      "claim_boundary": "Covers AI-agent safety and local boundary controls; not a full SAST/AppSec scanner.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "data_privacy_cage",
+      "title": "Data Privacy And Leakage Cage",
+      "domain": "capabilities.security.privacy",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has security boundary validation and agent safety controls, but it does not yet prove credential or sensitive-object flow through persistent browser storage, logs, serialization/export, outbound network destinations, migrations, DTOs or mappers. External target evaluations preserved counterexamples for passthrough import-to-storage, asymmetric sibling-ingress sanitization, unconditional telemetry bootstrap, destructive migration cleanup after failed writes, recursive multi-sink logging redaction and credential derivatives entering token-bearing sessions. SAGE emitted no privacy finding in these cases and correctly does not claim this roadmap-only family is covered.",
+      "roadmap_scope": "Detect policy-declared credentials and sensitive objects across browser-storage, logging, serialization/export, outbound-network, migration-cleanup and server/client/API boundaries. Required fixtures follow root and nested credential aliases from every sibling ingress through parser/schema, store action, migration, repository write, returned state and telemetry; they must detect when only one converging ingress has a dominating sanitizer, distinguish new-ingress sanitization from historical at-rest cleanup, and model migration writes as receipts whose proven success must dominate destructive cleanup of prior sources. Exercise quota, SecurityError, unavailable browser API and serialization failures; distinguish privacy minimization from durability/recoverability and shorter-lived session storage from encryption. Session fixtures must distinguish plaintext credentials, password hashes, access tokens, refresh tokens and safe public profile fields; trace repository entities spread into DTOs through direct and middleware storage sinks, include legacy-record migration, recommend a credential-free session DTO and never delete repository verification fields without source-to-sink authority. Logging fixtures must cover privateKey/private_key/private-key and passphrase aliases, generic/RSA/EC/OpenSSH private-key boundaries, Error message/stack, nested objects, arrays, retained logs, console or telemetry and user notifications; use synthetic sentinels, preserve safe neighboring metadata and include circular-object controls. Separately model third-party telemetry bootstrap, PII-enabling options, consent or opt-in evidence, high-fidelity replay consent, masking/blocking controls, bounded sample rates and build-time source-map credentials. A client DSN is configuration identity rather than a secret by default. Avoid emitting secret values, preserve safe neighboring metadata and retain UNKNOWN for residual alias, wrapper behavior, consent state, write-commit outcome or source-to-sink uncertainty. Ingest target-native privacy regressions as separately identified evidence before enforcement.",
+      "rationale": "High enterprise value and strong fit with AI-agent safety. Pass 13 demonstrates that a sanitizer on one ingress can create false end-to-end confidence when a sibling legacy path reaches the same sink, so policy aliases, ingress enumeration and malformed/runtime fixtures are required to control false positives and false negatives.",
+      "claim_boundary": "Roadmap capability slot for credential-flow and sensitive-object leakage analysis; not active in V1 release claims. A disabled activation state or clean architecture audit is not evidence that a target repository has no privacy defect.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "performance_n_plus_one_cage",
+      "title": "Performance And N+1 Cage",
+      "domain": "capabilities.performance",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep",
+        "python_ast"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [
+        "Performance And N+1 Cage"
+      ],
+      "artifacts": [
+        "performance_n_plus_one_cage",
+        "performance_n_plus_one_cage_validation"
+      ],
+      "validators": [
+        "tools/validate_performance_n_plus_one_cage.py"
+      ],
+      "current_state": "SAGE has a policy-backed MVP for loop-contained async database/network call candidates, but it is not yet calibrated as an active release claim.",
+      "roadmap_scope": "Detect N+1-shaped async database/network calls inside loops and known iterator callbacks.",
+      "rationale": "High practical value for AI-generated code quality and relatively deterministic AST evidence.",
+      "claim_boundary": "Roadmap capability slot with a policy-backed MVP for loop-contained async database/network call detection; not active in V1 release claims.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "resilience_error_handling_cage",
+      "title": "Resilience And Error Handling Cage",
+      "domain": "capabilities.resilience",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep",
+        "python_ast"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [
+        "Resilience Error Handling Cage"
+      ],
+      "artifacts": [
+        "resilience_error_handling_cage",
+        "resilience_error_handling_cage_validation"
+      ],
+      "validators": [
+        "tools/validate_resilience_error_handling_cage.py"
+      ],
+      "current_state": "SAGE has a policy-backed MVP for naked external call candidates without visible local error, timeout, retry or fallback contracts, but it is not yet calibrated as an active release claim.",
+      "roadmap_scope": "Detect external calls without explicit error handling, timeout, retry or fallback contracts.",
+      "rationale": "Useful AI-agent guardrail with strong enterprise relevance, but must be configurable by framework and client library.",
+      "claim_boundary": "Roadmap capability slot with a policy-backed MVP for naked network call, timeout and fallback analysis; not active in V1 release claims.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "immutability_purity_cage",
+      "title": "Immutability And Purity Cage",
+      "domain": "capabilities.state-integrity",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "maturity": "production_candidate",
+      "introduced_in": "1.0.0",
+      "priority": "P0",
+      "effort": "low",
+      "value": "high",
+      "engines": [
+        "React Immutability Purity Cage"
+      ],
+      "artifacts": [
+        "react_immutability_purity_cage",
+        "react_immutability_purity_cage_validation"
+      ],
+      "validators": [
+        "tools/validate_react_immutability_purity_cage.py"
+      ],
+      "current_state": "Policy-backed advisory React state and props mutation evidence is active and release-validated.",
+      "roadmap_scope": "Further corpus-calibrate direct mutation evidence without broadening static claims into runtime certainty.",
+      "rationale": "Best near-term value-to-effort ratio because it strengthens React nanometric claims without new infrastructure.",
+      "claim_boundary": "Active in 1.0.0 as policy-backed advisory React state/props mutation evidence; findings remain non-blocking unless separately promoted by corpus-calibrated governance."
+    },
+    {
+      "id": "cognitive_load_cage",
+      "title": "Cognitive Load Cage",
+      "domain": "capabilities.maintainability.cognitive-load",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep",
+        "python_ast"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has advisory cognitive-load principle packs for directive guidance, but no enforceable cognitive-load analyzer is claimed in 1.0.0.",
+      "roadmap_scope": "Detect complex conditionals, deep nesting, shallow abstraction chains, over-layering, premature service boundaries and DRY-abuse patterns with configurable, evidence-ranked heuristics.",
+      "rationale": "High fit for AI-generated code governance because agents often create over-abstracted or mentally expensive code while trying to look professional.",
+      "claim_boundary": "Roadmap capability slot for cognitive-load analysis; principle hints may guide directives, but this is not active as a V1 release claim or enforced violation.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "config_hygiene_cage",
+      "title": "Config Hygiene And Magic Literal Cage",
+      "domain": "capabilities.maintainability.config-hygiene",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep",
+        "python_ast"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE self-governance has hardcoded decision inventory guards for its own codebase, but target repositories do not yet have a project-calibrated config hygiene cage.",
+      "roadmap_scope": "Detect hardcoded secrets, machine-local paths, environment-specific literals, magic thresholds, policy constants, duplicated config decisions and framework-specific hardcoded behavior in target repositories with doctrine/policy-backed severity calibration.",
+      "rationale": "The same failure family found in SAGE can affect customer repositories, but target-project enforcement must be configurable because literals can be legitimate domain values, tests or local implementation constants.",
+      "claim_boundary": "Roadmap capability slot for target-repository config hygiene and magic literal analysis; not active in V1 release claims and not blocking unless a project doctrine or cage policy explicitly promotes it.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "provider_topology_engine",
+      "title": "Provider Topology Engine",
+      "domain": "languages.typescript-react.runtime-topology",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "react",
+        "next_app_router",
+        "next_pages_router"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE detects context/provider-related React signals, but it does not yet build a full provider-consumer topology.",
+      "roadmap_scope": "Build provider tree and consumer reachability maps with ownership, scope and boundary evidence.",
+      "rationale": "Important for deep React topology intelligence, but higher effort than 1.1.0 guardrails.",
+      "claim_boundary": "Roadmap capability slot for React provider tree, context consumer reachability and ownership topology; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "runtime_trace_bridge",
+      "title": "Runtime Trace Bridge",
+      "domain": "runtime",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has local telemetry and runtime-proof labels, but full browser/dev runtime trace integration is not active.",
+      "roadmap_scope": "Bridge browser/dev runtime traces into static Atlas evidence for render paths, events and state propagation.",
+      "rationale": "Strategic differentiator, but should follow the 2.0.0 polyglot semantic expansion so runtime evidence can attach to a broader language-normalized graph.",
+      "claim_boundary": "Roadmap capability slot for browser/dev runtime traces, render paths and event/state propagation proof; not active in V1 release claims.",
+      "target_release": "2.5.0"
+    },
+    {
+      "id": "ast_daemon_service",
+      "title": "AST Daemon Service",
+      "domain": "platform.performance",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE runs sequencers as process-oriented jobs; repeated full or broad runs still pay process startup and parse orchestration cost.",
+      "roadmap_scope": "Run a long-lived AST service for repeated symbol extraction, incremental batches and lower watchdog latency.",
+      "rationale": "Performance hardening matters after v1 adoption; implementation has operational complexity.",
+      "claim_boundary": "Roadmap capability slot for long-lived AST sequencing services and lower repeated process-spawn cost; not active in V1 release claims.",
+      "target_release": "1.4.0"
+    },
+    {
+      "id": "tree_sitter_polyglot_driver",
+      "title": "Tree-sitter Polyglot Driver",
+      "domain": "platform.polyglot",
+      "language_scope": [
+        "python_ast",
+        "java_structural",
+        "go_structural",
+        "csharp_structural"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has a polyglot foundation and structural extraction for non-React languages, while React/TypeScript remains the deep vertical.",
+      "roadmap_scope": "Add Tree-sitter-backed drivers and normalized symbol schemas for deeper non-React language analysis.",
+      "rationale": "Strategic for universal claims, but not needed to launch the React-first v1.",
+      "claim_boundary": "Roadmap capability slot for deeper non-React AST extraction through language drivers; not active in V1 release claims. V1 remains React/TypeScript deep and other languages structural unless separately proven.",
+      "target_release": "2.0.0"
+    },
+    {
+      "id": "ci_cd_gate_surface",
+      "title": "CI/CD Gate Surface",
+      "domain": "platform.ci",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "priority": "P0",
+      "effort": "low",
+      "value": "high",
+      "engines": [
+        "GitHub Actions Quality Gate"
+      ],
+      "artifacts": [
+        "contribution_trust_foundation_validation"
+      ],
+      "validators": [
+        "tools/validate_contribution_trust_foundation.py"
+      ],
+      "current_state": "A read-only GitHub Actions quality gate runs installation validation and engine contract tests.",
+      "roadmap_scope": "Add optional organization-specific PR annotations and local hook surfaces without duplicating the release proof SSOT.",
+      "rationale": "High adoption value with relatively low engine risk because it wraps existing proof commands.",
+      "claim_boundary": "Active in 1.0.0 as a minimal GitHub Actions contract gate; it does not claim hosted CI governance, PR annotation services or organization policy management.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "capability_activation_planner",
+      "title": "Capability Activation Planner",
+      "domain": "platform.extensions",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "introduced_in": "1.0.0",
+      "priority": "P0",
+      "effort": "medium",
+      "value": "high",
+      "engines": [
+        "Capability Activation Planner"
+      ],
+      "artifacts": [
+        "project_dna_profile",
+        "capability_activation_plan",
+        "capability_activation_plan_validation"
+      ],
+      "validators": [
+        "tools/validate_project_dna_profile.py",
+        "tools/validate_capability_activation_plan.py"
+      ],
+      "current_state": "Project DNA and the capability registry produce an activation plan consumed by daily and normal full pipeline profiles; explicit, forced and release-deep runs bypass filtering.",
+      "roadmap_scope": "Extend activation precision as executable third-party plugins and deeper polyglot adapters are introduced.",
+      "rationale": "This is the shortest path from plugin-readiness to faster, lower-noise, project-aware execution without rewriting existing engines.",
+      "claim_boundary": "DNA-driven engine selection is active for non-release profiles; explicit steps, forced runs and release-deep proof remain complete and deterministic."
+    },
+    {
+      "id": "ide_lsp_surface",
+      "title": "IDE And LSP Surface",
+      "domain": "agent.ide",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE exposes CLI/MCP/Skill surfaces, but IDE-native diagnostics are not active.",
+      "roadmap_scope": "Surface SAGE findings as IDE/LSP diagnostics, quick explanations and safe-edit hints.",
+      "rationale": "Strong DX value, but it is a separate integration project and should follow stable artifacts.",
+      "claim_boundary": "Roadmap capability slot for IDE diagnostics and LSP-style live feedback; not active in V1 release claims.",
+      "target_release": "1.4.0"
+    },
+    {
+      "id": "shadow_variation_lab",
+      "title": "Shadow Variation Lab",
+      "domain": "capabilities.merge.shadowing",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has merge and variation intelligence, but not a full sparse-clone shadow lab contract.",
+      "roadmap_scope": "Create sandboxed sparse variations and merge certificates without disturbing the source workspace.",
+      "rationale": "Natural extension of existing merge intelligence and valuable for AI-agent experimentation.",
+      "claim_boundary": "Roadmap capability slot for sparse cloning, sandboxed variations and merge simulation certificates; not active in V1 release claims.",
+      "target_release": "1.4.0"
+    },
+    {
+      "id": "external_evidence_fabric",
+      "title": "External Evidence Adapter Fabric",
+      "domain": "capabilities.evidence.adapters",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P0",
+      "effort": "medium",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has adapter and evidence contracts, but external CI, security, test and observability outputs are not yet normalized into Atlas evidence.",
+      "roadmap_scope": "Ingest Semgrep, CodeQL, Snyk, CI, test, Sentry and OpenTelemetry outputs through trusted adapters; normalize provenance, confidence, trace identity and source freshness before attaching evidence to Atlas entities.",
+      "rationale": "SAGE should govern evidence from specialist tools instead of attempting to replace every scanner, test runner or observability platform.",
+      "claim_boundary": "Roadmap capability slot for provenance-preserving external evidence normalization into Atlas; it is not active in V1 release claims.",
+      "target_release": "1.4.0"
+    },
+    {
+      "id": "agent_execution_sandbox",
+      "title": "Bounded Agent Execution Sandbox",
+      "domain": "agent.execution",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has validation sandboxes, task packs and HITL controls, but not a general untrusted agent execution runtime with resource and filesystem isolation.",
+      "roadmap_scope": "Provide cross-platform bounded command, filesystem, network, resource, reset and timeout policies for agent-executed changes while preserving replayable audit trails and human approval boundaries.",
+      "rationale": "Execution completes the harness loop, but must follow a threat model and stable governance contracts rather than becoming an unrestricted shell wrapper.",
+      "claim_boundary": "Roadmap capability slot for isolated agent execution; it is not active in V1, and validation sandboxes do not constitute a general execution sandbox.",
+      "target_release": "1.4.0"
+    },
+    {
+      "id": "historical_cognition_memory",
+      "title": "Historical Cognition Memory",
+      "domain": "contextos.memory",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "ContextOS distills current repository signals, but long-lived SAGE-native trend memory is not active.",
+      "roadmap_scope": "Track local drift timelines, recurring failures, instability patterns, repeated violations, proof debt, human seal decisions and agent correction-loop outcomes as normalized SAGE memory.",
+      "rationale": "Strategic learning-loop value, but SAGE should first remember its own governance evidence and correction patterns before integrating external organizational systems.",
+      "claim_boundary": "Roadmap capability slot for SAGE-native historical governance memory and recurring failure timelines; not active in V1 release claims and not a replacement for ADR, issue tracker, incident or ownership source systems.",
+      "target_release": "2.5.0"
+    },
+    {
+      "id": "organizational_memory_adapters",
+      "title": "Organizational Memory Adapters",
+      "domain": "contextos.memory.adapters",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has governance registries, HITL ledgers and roadmap memory slots, but it does not ingest ADR, PR, issue, incident or ownership systems.",
+      "roadmap_scope": "Ingest external organizational memory through adapters, normalize it as provenance-backed evidence, and attach it to Atlas nodes, doctrine decisions, risk gates and ContextOS directives without becoming the source-of-record for those systems.",
+      "rationale": "ADR, PR, incident, issue and ownership history can strengthen repository digital twin governance, but SAGE should bind evidence from those systems rather than replace GitHub, Jira, incident tools or documentation platforms.",
+      "claim_boundary": "Roadmap capability slot for external organizational memory adapters; not active in V1 release claims and not a built-in ADR, PR, issue, incident, ownership or wiki system.",
+      "target_release": "2.5.0"
+    },
+    {
+      "id": "multi_agent_coordination",
+      "title": "Bounded Multi-Agent Coordination",
+      "domain": "agent.coordination",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE is already multi-agent compatible through MCP, Skill.md, ContextOS and deterministic artifacts.",
+      "roadmap_scope": "Coordinate multiple agents through explicit task ownership, architectural zones, lock boundaries, conflict prevention and typed handoff contracts carrying intent, constraints, permissions, artifacts, provenance, budget, risk, trace history and unresolved decisions.",
+      "rationale": "Strategic fit for modular monolith and studio/feature team workflows, but it requires coordination semantics beyond v1 harnessing.",
+      "claim_boundary": "Roadmap capability slot for bounded multi-agent orchestration; SAGE is multi-agent compatible today, but explicit agent coordination is not active in V1 release claims.",
+      "target_release": "3.0.0"
+    },
+    {
+      "id": "auth_permission_graph",
+      "title": "Auth And Permission Graph",
+      "domain": "capabilities.security.authorization",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has security boundary controls and architectural graphs, but permission-flow topology is not active.",
+      "roadmap_scope": "Map auth boundaries, RBAC checks, protected routes and permission propagation across modules.",
+      "rationale": "High enterprise value and natural extension of architecture/security boundaries.",
+      "claim_boundary": "Roadmap capability slot for auth boundary, RBAC and permission-flow graph analysis; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "cache_revalidation_graph",
+      "title": "Cache And Revalidation Graph",
+      "domain": "languages.typescript-react.server-state",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "next_app_router",
+        "tanstack_query",
+        "trpc",
+        "apollo"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE detects data/query signals, but cache ownership and revalidation relations are not first-class topology artifacts.",
+      "roadmap_scope": "Map cache keys, invalidation, revalidation and ownership across framework/data-layer boundaries.",
+      "rationale": "High React/Next value and directly improves mutation-impact analysis.",
+      "claim_boundary": "Roadmap capability slot for cache ownership, invalidation and revalidation graph analysis; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "route_data_mutation_graph",
+      "title": "Route Data To Mutation Graph",
+      "domain": "languages.typescript-react.server-state",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "next_app_router",
+        "react_router",
+        "tanstack_router"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE sees routes, server actions and data graph signals separately, but it does not yet bind them into a route-to-mutation graph.",
+      "roadmap_scope": "Connect route loaders/actions/server actions to mutations, cache invalidation and UI blast radius.",
+      "rationale": "Strong React ecosystem value with a clear path from existing route and data artifacts.",
+      "claim_boundary": "Roadmap capability slot for mapping route loaders/actions/server actions to data mutations and UI invalidation; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "state_topology_engine",
+      "title": "State Topology Engine",
+      "domain": "languages.typescript-react.state-topology",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "react",
+        "zustand",
+        "redux",
+        "jotai",
+        "xstate"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE has state-flow scanner and React state signals, but cross-library state topology is not first-class.",
+      "roadmap_scope": "Represent stores, atoms, machines, selectors and mutation surfaces as a graph.",
+      "rationale": "Improves React surgical depth and supports future Redux/Jotai/XState families.",
+      "claim_boundary": "Roadmap capability slot for client-state ownership, atom/store topology and mutation surface analysis; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "server_state_graph",
+      "title": "Server State Graph",
+      "domain": "languages.typescript-react.server-state",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "tanstack_query",
+        "swr",
+        "apollo",
+        "relay",
+        "trpc"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE extracts TanStack and data-fetching signals, but server-state graphs across libraries are not complete.",
+      "roadmap_scope": "Normalize query/procedure/subscription keys across TanStack Query, SWR, Apollo, Relay and tRPC.",
+      "rationale": "High-value React ecosystem expansion that should follow cache and route mutation graph work.",
+      "claim_boundary": "Roadmap capability slot for server-state key/procedure/query graph analysis beyond current static signals; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "bundle_intelligence",
+      "title": "Bundle Intelligence",
+      "domain": "platform.bundle",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "framework_scope": [
+        "vite",
+        "next_app_router",
+        "webpack",
+        "rspack",
+        "turbopack"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "medium",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE tracks static imports and some boundary signals, but it does not correlate bundle/build outputs.",
+      "roadmap_scope": "Detect heavy import boundaries, bundle risk and build-output correlations for React apps.",
+      "rationale": "Useful product value, but lower priority than correctness/security/topology guardrails.",
+      "claim_boundary": "Roadmap capability slot for bundle boundary, heavy import and build-output correlation; not active in V1 release claims.",
+      "target_release": "1.3.0"
+    },
+    {
+      "id": "documentation_knowledge_governance",
+      "title": "Documentation And Knowledge Governance",
+      "domain": "capabilities.documentation",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P0",
+      "effort": "low",
+      "value": "medium",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE now separates public docs and evidence surfaces, but code-to-doc freshness is not analyzed.",
+      "roadmap_scope": "Check README/API docs/ADR freshness and map documented claims back to code evidence.",
+      "rationale": "Low implementation risk and helps product trust, but less core than architecture/runtime analysis.",
+      "claim_boundary": "Roadmap capability slot for README/API docs/ADR freshness and code-to-documentation alignment; not active in V1 release claims.",
+      "target_release": "1.1.0"
+    },
+    {
+      "id": "distributed_service_governance",
+      "title": "Distributed Service Governance",
+      "domain": "capabilities.distributed-systems",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep",
+        "python_ast",
+        "java_structural",
+        "go_structural",
+        "csharp_structural"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE can model static repo dependencies and multi-project workspaces, but it does not yet extract service-to-service network edges or prove API contract compatibility.",
+      "roadmap_scope": "Model NetworkEdge and ContractEdge relationships across services, including OpenAPI, protobuf, GraphQL schema, tRPC and REST client/server surfaces, then compute cross-repo blast radius and breaking-change risk.",
+      "rationale": "Strategic extension of the existing evidence graph for microservice and multi-repo AI governance, but it requires contract parsers and cross-repo proof fixtures before it can be claimed.",
+      "claim_boundary": "Roadmap capability slot for cross-repo service contracts, network dependency edges and distributed blast radius; not active in V1 release claims.",
+      "target_release": "2.5.0"
+    },
+    {
+      "id": "engine_signal_evidence_contract",
+      "title": "Engine Signal And Evidence Contract",
+      "domain": "platform.evidence",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Engine Signal Contract Validator"
+      ],
+      "artifacts": [
+        "engine_signal_contract_validation",
+        "agent_semantic_contract_smoke",
+        "artifact_contract_validation"
+      ],
+      "validators": [
+        "tools/validate_engine_signal_contracts.py",
+        "tools/validate_agent_semantic_contract_smoke.py"
+      ],
+      "claim_boundary": "Defines the shared boundary between engine signals, calibrated evidence, governance verdicts and human-approved actions.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "private_eval_learning_loop",
+      "title": "Private Eval And Learning Loop",
+      "domain": "agent.learning-loop",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P2",
+      "effort": "high",
+      "value": "strategic",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE produces deterministic evidence and validation artifacts, but it does not run organization-specific private eval loops.",
+      "roadmap_scope": "Turn release proof, agent outcomes and human review into private eval and learning-loop signals; compare fixed model/task/repository snapshots across SAGE-on/SAGE-off and harness-variant runs, and ablate controls that may no longer justify their cost or complexity.",
+      "rationale": "Powerful long-term moat aligned with human/token capital, but far beyond v1 launch scope.",
+      "claim_boundary": "Roadmap capability slot for organization-specific private evals and human-token learning loops; not active in V1 release claims.",
+      "target_release": "3.0.0"
+    },
+    {
+      "id": "target_repository_action_memory",
+      "title": "Target Repository Action Memory Projection",
+      "domain": "governance.target-repository-action-memory",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "low",
+      "value": "high",
+      "engines": [],
+      "artifacts": [
+        "audit_report",
+        "watchdog_pulse_ledger",
+        "merge_decision_cockpit",
+        "target_repository_action_memory"
+      ],
+      "validators": [
+        "tools/validate_target_repository_action_memory.py"
+      ],
+      "current_state": "SAGE can derive one read-only target action projection from schema-valid Audit violations, the watchdog pulse/proof-debt ledger and Merge Decision Cockpit while preserving source authority, lifecycle, declared freshness uncertainty and human-review boundaries. Missing or invalid sources produce PARTIAL rather than a false clean result, and cross-source semantic similarity is never used to erase evidence.",
+      "roadmap_scope": "Expose the projection through the bounded target actor surfaces and calibrate action priority and freshness against external target workflows before activating a 1.1.0 product claim.",
+      "rationale": "Lets humans and target-repository actors route existing actions without reconstructing three domain queues or polluting SAGE product debt.",
+      "claim_boundary": "Implemented roadmap projection only. It is not a second action ledger, does not authorize mutation, does not prove currentness from timestamps alone and is not active in V1.0.0 release claims.",
+      "target_release": "1.1.0"
+    },
+    {
+      "id": "target_repository_proof_bundle",
+      "title": "Target Repository Proof Bundle",
+      "domain": "validation.target-repository-proof",
+      "language_scope": [
+        "language_agnostic",
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [
+        "atlas",
+        "atlas_commit",
+        "genome",
+        "audit_report",
+        "dead_code",
+        "circular_deps",
+        "quality_gate",
+        "test_impact_report",
+        "merge_decision_cockpit",
+        "target_repository_proof_bundle"
+      ],
+      "validators": [
+        "tools/validate_target_repository_proof_contract.py"
+      ],
+      "current_state": "SAGE can assemble existing target evidence into a dedicated target_repository_proof_bundle, derive target identity from validated Atlas commit evidence, bind analyzed project roots, suppress unbound statistics and fail closed on missing, stale, tampered or snapshot-unbound required evidence. Genome, Audit, Quality Gate, Dead Code, Circular Dependencies and Test Impact now emit producer-owned, content-hash-bound Atlas snapshot lineage receipts; real baseline and change evidence can prove snapshot coherence while preserving a red source verdict. Merge Decision Cockpit remains an explicitly declared transitional payload-pointer surface until its upstream merge evidence chain is lineage-bound.",
+      "roadmap_scope": "Calibrate positive target proof on external mutation workflows, deliver the separate merge evidence snapshot lineage chain, then activate the 1.1.0 claim profile only after independent target evidence and human authority pass.",
+      "rationale": "Gives customers and agents a single honest proof envelope for the analyzed repository without confusing it with SAGE's own release proof. It should aggregate existing evidence first, not create new claims.",
+      "claim_boundary": "Implemented roadmap envelope for bounded target repository proof; snapshot coherence is proven for baseline and change evidence producers, but a positive target verdict still depends on each source verdict and independent calibration. Merge proof lineage remains transitional. This capability is not active in V1 release claims, not a production-runtime certificate and not a replacement for SAGE release_proof_bundle.",
+      "target_release": "1.1.0"
+    },
+    {
+      "id": "target_repository_lesson_memory",
+      "title": "Target Repository Lesson Memory Projection",
+      "domain": "governance.target-repository-lesson-memory",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "low",
+      "value": "high",
+      "engines": [],
+      "artifacts": [
+        "watchdog_pulse_ledger",
+        "hitl_approval_ledger",
+        "target_repository_lesson_projection"
+      ],
+      "validators": [
+        "tools/validate_target_repository_lesson_projection.py"
+      ],
+      "current_state": "SAGE can derive a target-owned, read-only lesson projection from repeated target-local Watchdog identities and chain-valid human lesson admissions explicitly bound to one target. Recurrence remains an unconfirmed candidate; SAGE release seals and the SAGE audit lesson registry are excluded.",
+      "roadmap_scope": "Calibrate target lesson admission, lifecycle and bounded actor presentation against external repository workflows before activating a product claim.",
+      "rationale": "Preserves reusable target experience across sessions without mixing customer memory with SAGE product memory or declaring every repeated finding a proven lesson.",
+      "claim_boundary": "Implemented roadmap projection only. It does not prove causal correctness, enforce a rule, promote cross-repository knowledge or expose SAGE-internal lessons, and it is not active in V1.0.0 claims.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "scoped_governance_reality_projections",
+      "title": "Scoped SAGE And Target Repository Governance Projections",
+      "domain": "platform.governance-scope",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Reality Scope Projection"
+      ],
+      "artifacts": [
+        "sage_self_map",
+        "target_repo_lineage_contract_validation"
+      ],
+      "validators": [
+        "tools/validate_mcp_agent_surface.py",
+        "tools/validate_capability_registry.py"
+      ],
+      "current_state": "Canonical SAGE_ON_SAGE, SAGE_ON_REPOSITORY and SHARED_PLATFORM taxonomy, capability partitioning and filtered developer/target projections are active and validator-backed. Explicit SAGE self-target surgical reuse is delivered through its own governed profile rather than by merging the two realities.",
+      "claim_boundary": "Separates SAGE product governance from target-repository context and filters role projections; it does not merge SAGE release proof with target-repository proof or expose SAGE-internal debt and debug evidence to ordinary target-repository actors.",
+      "introduced_in": "1.0.0"
+    },
+    {
+      "id": "local_governance_telemetry",
+      "title": "Local Governance Telemetry",
+      "domain": "governance.telemetry",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [
+        "Watchdog",
+        "ContextOS",
+        "HITL Governance",
+        "Agent Response Validation"
+      ],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE logs step timings, watchdog proof debt and validation artifacts, but it does not yet maintain a normalized local event ledger for correction loops, first-pass rate, recurrence rate or time-to-resolution.",
+      "roadmap_scope": "Add an opt-in local SQLite governance event ledger with trace_id, principal, task and context fingerprints, tool calls, policy decision/version, state changes, retries, cost, latency, outcome, attributed failure layer, correction_loop_count, packet_first_pass_rate, average_loops_to_pass, same_violation_recurrence_rate and watchdog_resolution_time exports.",
+      "rationale": "Turns agent governance from anecdotal success into local-first measurable eval infrastructure while preserving repository privacy.",
+      "claim_boundary": "Roadmap capability slot for local governance metrics and private eval loops; not active in V1 release claims and not remote telemetry.",
+      "target_release": "1.1.0"
+    },
+    {
+      "id": "principle_pack_expansion",
+      "title": "Engineering Principle Pack Expansion",
+      "domain": "governance.principles",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [
+        "principle_pack_validation"
+      ],
+      "validators": [],
+      "current_state": "SAGE has advisory principle pack contracts and a small active principle set, but organization-specific engineering wisdom packs are not yet curated, versioned or evaluated as a broader ecosystem.",
+      "roadmap_scope": "Add curated advisory packs for testing discipline, error handling, review AI code, security hygiene, SRE-style operational readiness, YAGNI/KISS and organization-specific engineering standards while preserving the doctrine/principle boundary.",
+      "rationale": "Captures software engineering wisdom as advisory context without turning doctrine into a giant rule book; high leverage for agent directives and contributor ecosystem growth.",
+      "claim_boundary": "Roadmap capability slot for advisory engineering wisdom packs; principle packs explain and guide but do not create binding doctrine, quality gates or V1 release claims unless separately promoted through governance. Not active in V1 release claims.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "third_party_plugin_runtime",
+      "title": "Third-Party Plugin Runtime",
+      "domain": "platform.plugins",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [
+        "plugin_manifest_contract_validation",
+        "contribution_trust_foundation_validation"
+      ],
+      "validators": [],
+      "current_state": "SAGE validates plugin and contribution trust contracts in 1.0.0, but it does not load or execute untrusted third-party plugin code.",
+      "roadmap_scope": "Define trusted plugin installation, versioning, sandboxing, permission declarations, artifact contracts, claim boundaries and revocation policy for external engines and adapters.",
+      "rationale": "A plugin ecosystem needs executable extension governance, but loading third-party code before sandbox, trust and artifact contracts are mature would weaken the V1 foundation.",
+      "claim_boundary": "Roadmap capability slot for executable third-party plugin runtime and marketplace-style extension governance; V1 validates manifests and trust foundations only and does not execute external plugin code. Not active in V1 release claims.",
+      "target_release": "1.5.0"
+    },
+    {
+      "id": "structured_export_serialization_integrity",
+      "title": "Structured Export Serialization Integrity",
+      "domain": "capabilities.structured-output",
+      "language_scope": [
+        "typescript_react_deep",
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE can inspect export code and security boundaries, but it does not prove that dynamic values crossing into XML element text, attributes or other structured serialization sinks are encoded correctly or round-trip through a format-native parser.",
+      "roadmap_scope": "Detect policy-declared dynamic values entering XML and comparable structured-output sinks, recognize trusted builders or typed serializers, distinguish correctness and injection risk from credential privacy, and require format-native parse/round-trip fixtures including attributes, CDATA, namespaces and double-encoding counterexamples.",
+      "rationale": "An external target evaluation proved malformed XML with a format-native parser round-trip while SAGE reported no finding. The failure mode is generalizable but does not justify a V1 claim without broader sink, serializer and false-positive calibration.",
+      "claim_boundary": "Roadmap capability slot for structured export serialization integrity. SAGE V1 does not claim XML correctness, structured-output injection detection or serializer round-trip proof. Not active in V1 release claims.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "native_build_diagnostic_ingestion",
+      "title": "Native Build Diagnostic Ingestion",
+      "domain": "capabilities.target-native-evidence",
+      "language_scope": [
+        "typescript_react_deep",
+        "language_agnostic"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "medium",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE records selected validator and subprocess evidence, but target-repository build warning streams are not normalized, severity-classified or attributed from generated output back to likely source inputs.",
+      "roadmap_scope": "Ingest provenance-bound target-native build stdout and stderr, normalize and deduplicate diagnostics, preserve warning severity and tool identity, distinguish syntax/integrity warnings from informational output, and correlate generated CSS or comparable output diagnostics to likely source literals without claiming certainty when source maps are absent.",
+      "rationale": "An external target evaluation showed valid TypeScript and green lint/type checks producing invalid generated CSS that only the native build warning stream exposed. Native build evidence remains authoritative until an explicit ingestion contract is delivered.",
+      "claim_boundary": "Roadmap capability slot for target-native build diagnostic ingestion and source attribution. V1 does not claim runtime/build-output observability or complete warning ingestion. Not active in V1 release claims.",
+      "target_release": "1.1.0"
+    },
+    {
+      "id": "target_runtime_schema_and_mutation_invariants",
+      "title": "Target Runtime Schema And Mutation Invariants",
+      "domain": "capabilities.target-runtime-data-integrity",
+      "language_scope": [
+        "typescript_react_deep"
+      ],
+      "maturity": "roadmap",
+      "priority": "P1",
+      "effort": "high",
+      "value": "high",
+      "engines": [],
+      "artifacts": [],
+      "validators": [],
+      "current_state": "SAGE can orient to repository boundaries, maintainability hotspots, source relationships and selected schema signals, but it does not currently prove runtime persistence invariants, validation dominance across repository overrides or that external provider responses are parsed before state and persistence mutation.",
+      "roadmap_scope": "Add advisory, fixture-calibrated source-to-guard-to-sink probes for immutable property presence, finite-number constraints, schema stripping followed by broader casts, narrow storage versus broad domain returns, read/write/patch semantic asymmetry, base-validator bypass by direct/collection/filtered/bulk overrides and unknown/any network, AI-provider, plugin or IPC results reaching state or persistence sinks without a dominating repository-native parser. Recognize validating subclass overrides and require branch-complete provenance plus target-native compiler and malformed-row/batch/response runtime tests before enforcement.",
+      "rationale": "External target evaluations found deterministic persistence-integrity, external-response-to-state and repository-override defects in files that SAGE helped locate but did not semantically cover. The patterns are potentially generalizable, but upstream branding, intentional opaque storage, hidden or injected validation, generic wrappers and native runtime authority require independent fixtures before a product claim.",
+      "claim_boundary": "Roadmap capability slot for TypeScript runtime schema, external-response and mutation invariant candidates. V1 does not claim complete Zod, provider-payload, repository, persistence or runtime data-integrity validation. Not active in V1 release claims.",
+      "target_release": "1.2.0"
+    },
+    {
+      "id": "release_proof",
+      "title": "Release Proof",
+      "domain": "validation.release-proof",
+      "language_scope": [
+        "language_agnostic"
+      ],
+      "maturity": "production_candidate",
+      "engines": [
+        "Release Readiness",
+        "Claim Guard",
+        "Release Proof Bundle"
+      ],
+      "artifacts": [
+        "release_readiness",
+        "claim_guard_validation",
+        "release_claim_profiles_validation",
+        "release_proof_bundle",
+        "capability_pipeline_graph",
+        "pipeline_execution_contract_validation",
+        "distribution_hardening_validation",
+        "engine_signal_contract_validation",
+        "agent_semantic_contract_smoke",
+        "cage_mvp_contract_validation"
+      ],
+      "validators": [
+        "tools/run_release_proof_bundle.py",
+        "tools/validate_claim_guard.py",
+        "tools/validate_release_claim_profiles.py",
+        "tools/validate_pipeline_execution_contract.py",
+        "tools/validate_engine_signal_contracts.py",
+        "tools/validate_agent_semantic_contract_smoke.py",
+        "tools/validate_cage_mvp_contracts.py"
+      ],
+      "claim_boundary": "Proves the scoped release claim only; claim guard blocks wider unsupported claims.",
+      "introduced_in": "1.0.0"
+    }
+  ]
+}

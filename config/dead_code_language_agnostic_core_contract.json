@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "kind": "dead_code_language_agnostic_core_contract",
+    "version": "v1",
+    "description": "Machine-readable scope for the dead-code language-agnostic core validator. The validator consumes this contract instead of owning legacy token lists or required doctrine sections locally."
+  },
+  "forbidden_engine_tokens": [
+    "projectslice",
+    "hexagonal architecture",
+    "abstract interface",
+    "src\" / \"platform\" / \"repositories",
+    "privatehost",
+    "legacyproduct"
+  ],
+  "required_heuristic_sections": [
+    "dynamic_import_resolutions",
+    "barrel_public_surfaces",
+    "nest_runtime_decorators",
+    "test_support_heuristics",
+    "reference_example_heuristics",
+    "e2e_page_object_heuristics",
+    "generated_surfaces",
+    "dynamic_registry_heuristics",
+    "framework_discovered_exports",
+    "contract_surface_registry",
+    "runtime_consumed_contracts"
+  ],
+  "doctrine_owned_surface_token_fields": {
+    "test_support_heuristics": [
+      "path_tokens",
+      "file_suffixes"
+    ],
+    "reference_example_heuristics": [
+      "path_tokens"
+    ],
+    "generated_surfaces": [
+      "file_tokens",
+      "file_suffixes"
+    ],
+    "dynamic_registry_heuristics": [
+      "markers"
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "kind": "doctrine_rule_lineage_contract",
+    "version": "v1"
+  },
+  "purpose": "Machine-readable contract for human-governed doctrine rules that must propagate from active doctrine packs into engine findings and agent-facing repair directives.",
+  "default_policy": {
+    "doctrine_source": "config/doctrines/manifest.json",
+    "compiled_runtime_doctrine": "config/architecture_doctrine.json",
+    "rule_surface_behavior": "agent_packets_must_show_rule_label_rationale_and_validation",
+    "missing_rule_behavior": "fallback_label_allowed_but_source_artifact_must_be_named",
+    "human_seal_boundary": "oracle_proposals_are_advisory_until_human_sealed"
+  },
+  "critical_rule_lineage": [
+    {
+      "id": "governance_audit_rules_pack",
+      "required_rules": [
+        "relative_imports_no_alias",
+        "loc_limits_hook",
+        "loc_limits_component",
+        "loc_limits_symbol"
+      ],
+      "producer_markers": [
+        {
+          "file": "config/doctrines/manifest.json",
+          "contains": "governance.audit_rules"
+        },
+        {
+          "file": "config/doctrines/governance/audit_rules.json",
+          "contains": "\"audit_remediation_policy\""
+        },
+        {
+          "file": "config/doctrines/governance/audit_rules.json",
+          "contains": "\"violation_labels\""
+        }
+      ],
+      "runtime_markers": [
+        {
+          "file": "config/architecture_doctrine.json",
+          "contains": "\"audit_remediation_policy\""
+        },
+        {
+          "file": "config/architecture_doctrine.json",
+          "contains": "\"violation_labels\""
+        }
+      ],
+      "engine_consumer_markers": [
+        {
+          "file": "tools/engines/audit.py",
+          "contains": "require_doctrine_mapping(\"audit_remediation_policy\")"
+        },
+        {
+          "file": "tools/engines/audit.py",
+          "contains": "RELATIVE_IMPORTS_NO_ALIAS_RULE"
+        }
+      ],
+      "agent_surface_markers": [
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "def _rule_explanation"
+        },
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "\"rule_explanation\": explanation"
+        },
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "\"source_artifacts\": [\"output/.raw/audit_report.json\", \"config/architecture_doctrine.json\"]"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "\"rule_explanation\""
+        }
+      ]
+    }
+  ],
+  "agent_directive_required_fields": [
+    "rule",
+    "rule_explanation.rule",
+    "rule_explanation.label",
+    "rule_explanation.rationale",
+    "evidence",
+    "validation_commands",
+    "source_artifacts",
+    "human_approval_required"
+  ],
+  "claim_boundary": {
+    "v1_scope": "active_architecture_doctrine_rules_are_carried_to_agent_repair_directives",
+    "not_claimed": [
+      "automatic_human_seal_without_hitl",
+      "full_semantic_proof_for_every_soft_principle",
+      "runtime_behavioral_policy_enforcement_without_runtime_adapter"
+    ]
+  }
+}

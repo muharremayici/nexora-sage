@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "kind": "claim_guard_policy",
+    "version": "v1",
+    "purpose": "Central policy for public claim guard documentation scope, broad-claim patterns and negation hints."
+  },
+  "claim_docs": [
+    "README.md",
+    "docs/PRODUCT_SCOPE_AND_NAMING.md",
+    "docs/CLAIMS_EVIDENCE_MATRIX.md",
+    "docs/NEXORA_SAGE_POSITIONING.md",
+    "docs/REACT_EDGE_CASE_COVERAGE.md",
+    "docs/SECURITY_CAPABILITY_MATRIX.md",
+    "docs/V1_RELEASE_BOUNDARY.md",
+    "docs/REACT_RUNTIME_GAP_MATRIX.md",
+    "docs/PYTHON_CAPABILITY_BOUNDARY.md",
+    "docs/ARCHITECTURE_ORACLE_BLUEPRINT_COVERAGE.md",
+    "docs/EXTERNAL_REPOSITORY_EVALUATION.md"
+  ],
+  "negated_claim_hints": [
+    "not",
+    "not the",
+    "not a claim",
+    "not claim",
+    "out of scope"
+  ],
+  "pattern_groups": {
+    "broad_react": [
+      "\\bfull\\s+react\\s+ecosystem\\b",
+      "\\bcomplete\\s+react\\s+ecosystem\\b"
+    ],
+    "absolute_ready": [
+      "\\bproduction\\s+ready\\b",
+      "\\bstable\\s+v1\\b"
+    ],
+    "broad_security": [
+      "\\breplaces?\\s+SAST\\b",
+      "\\bfull\\s+SAST\\b",
+      "\\bfull\\s+AppSec\\b",
+      "\\bcomplete\\s+vulnerability\\s+scanner\\b",
+      "\\bexploit\\s+detection\\s+platform\\b"
+    ]
+  }
+}

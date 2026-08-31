@@ -1,0 +1,495 @@
+{
+  "meta": {
+    "kind": "sqlite_first_access_policy",
+    "version": "v1",
+    "description": "Shared SQLite-first access policy for managed core graph artifacts. Validators consume this contract so hot consumers and allowed path-reference exceptions do not drift across files."
+  },
+  "managed_artifacts": {
+    "atlas": {
+      "artifact_file": "atlas.json",
+      "central_adapter": "tools/core/atlas_io.py",
+      "central_apis": [
+        "load_atlas_data",
+        "resolve_atlas_data"
+      ],
+      "sqlite_first_source_marker": "STORE.load_raw(\"atlas\"",
+      "hot_consumers": [
+        "tools/core/atlas_io.py",
+        "tools/core/contextos_mcp.py",
+        "tools/engines/a11y_i18n_contract_analyzer.py",
+        "tools/engines/architecture_oracle.py",
+        "tools/engines/audit.py",
+        "tools/engines/blast_radius_engine.py",
+        "tools/engines/circular_dependency_finder.py",
+        "tools/engines/clone_detector.py",
+        "tools/engines/confidence_engine.py",
+        "tools/engines/dead_code_detector.py",
+        "tools/engines/framework_route_analyzer.py",
+        "tools/engines/fractal_mapper.py",
+        "tools/engines/hexagonal_binder.py",
+        "tools/engines/host_merge_intelligence.py",
+        "tools/inspect_target.py",
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/keyword_scanner.py",
+        "tools/engines/landscape_mapper.py",
+        "tools/engines/local_telemetry_engine.py",
+        "tools/engines/live_surface_analyzer.py",
+        "tools/engines/merge_dependency_packager.py",
+        "tools/engines/merge_decision_cockpit.py",
+        "tools/engines/merge_simulation_engine.py",
+        "tools/engines/nanometric_diff_engine.py",
+        "tools/engines/next_boundary_analyzer.py",
+        "tools/engines/nuclear_processor.py",
+        "tools/engines/proof_obligations_engine.py",
+        "tools/engines/quant_engine.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/quality_review_engine.py",
+        "tools/engines/react_ecosystem_analyzer.py",
+        "tools/engines/react_frontier_intelligence.py",
+        "tools/engines/react_runtime_intelligence.py",
+        "tools/engines/release_readiness_report.py",
+        "tools/engines/scoped_host_analyzer.py",
+        "tools/engines/state_data_graph_analyzer.py",
+        "tools/engines/state_flow_scanner.py",
+        "tools/engines/test_impact_matcher.py",
+        "tools/engines/ui_mapper.py",
+        "tools/engines/ui_runtime_contract_analyzer.py",
+        "tools/engines/ui_smoke_execution_report.py",
+        "tools/engines/ui_smoke_spec_generator.py",
+        "tools/engines/variation_manager.py",
+        "tools/generate_agent_surface_quality_review.py",
+        "tools/mcp/server.py",
+        "tools/validate_react_support.py",
+        "tools/validate_agent_context_payloads.py",
+        "tools/validate_agent_semantic_contract_smoke.py"
+      ],
+      "allowed_direct_path_references": {
+        "tools/core/atlas_io.py": "central SQLite-first adapter keeps the external-target JSON fallback boundary",
+        "tools/core/artifact_store.py": "storage, restore and projection owner",
+        "tools/core/artifact_validator.py": "artifact path registry",
+        "tools/core/artifact_trust.py": "artifact freshness/trust boundary",
+        "tools/engines/generate_atlas.py": "Atlas producer and shadow export owner",
+        "tools/validate_sqlite_artifact_parity.py": "explicit SQLite-vs-shadow parity validator",
+        "tools/validate_sqlite_proxy_coverage.py": "proxy coverage validator",
+        "tools/validate_entrypoints_and_failures.py": "failure drill that intentionally mutates/restores atlas shadow",
+        "tools/validate_source_contracts.py": "source contract validator asserts the Atlas shadow failure-drill contract",
+        "tools/validate_external_target_smoke.py": "external-target artifact isolation smoke",
+        "tools/validate_external_react_smoke.py": "external-target smoke discovery",
+        "tools/validate_external_polyglot_smoke.py": "external-target smoke discovery",
+        "tools/engines/fractal_mapper.py": "fractal sidecar artifact names are not Atlas SSOT reads",
+        "tools/engines/project_dna_profiler.py": "provenance metadata names Atlas as an input artifact",
+        "tools/engines/validation_oracle.py": "the orchestrator step wrapper consumes Atlas for worker sizing; the Oracle module itself consumes workload policy and source materialization inputs",
+        "tools/engines/proof_obligations_engine.py": "proof envelope references Atlas artifact name as evidence label",
+        "tools/generate_agent_harness_readiness.py": "harness evidence matrix references Atlas-adjacent artifact names",
+        "tools/generate_nexora_brief.py": "human-facing brief documents Atlas artifact path as provenance",
+        "tools/generate_ssot_optimization_plan.py": "SSOT validator reads validator outputs and documents Atlas migration actions",
+        "tools/generate_test_gap_report.py": "test-gap report records Atlas artifact path as provenance",
+        "tools/validate_atlas_sqlite_first_access.py": "self-validator searches for atlas.json string references by design",
+        "tools/validate_artifact_trust.py": "artifact trust validator enumerates required artifact names and uses proxy-aware loaders",
+        "tools/validate_lifecycle.py": "lifecycle validator uses central Atlas loader; path strings are other raw artifact paths",
+        "tools/validate_step_isolation.py": "step isolation validator hashes shadow artifacts intentionally to prove write boundaries",
+        "tools/validate_test_impact_change_integrity.py": "test-impact integrity report references Atlas path as provenance text",
+        "tools/tests/test_polyglot_atlas.py": "polyglot test fixture artifact lookup",
+        "tools/tests/test_artifact_registry.py": "artifact registry tests assert the canonical Atlas shadow path without consuming runtime payloads",
+        "tools/tests/test_mcp_json_cache.py": "MCP cache tests synthesize isolated Atlas SQLite and JSON-shadow fixtures",
+        "tools/tests/test_engine_contracts.py": "test fixture and contract assertions",
+        "tools/tests/test_target_repository_lesson_projection.py": "target lesson projection test records Atlas as fixture provenance without consuming the runtime shadow",
+        "tools/validate_target_repository_lesson_projection.py": "isolated target lesson projection fixture records Atlas provenance without consuming the runtime shadow"
+      }
+    },
+    "genome": {
+      "artifact_file": "genome.json",
+      "central_adapter": "tools/core/genome_io.py",
+      "central_apis": [
+        "load_genome_data"
+      ],
+      "sqlite_first_source_marker": "STORE.load_raw(\"genome\"",
+      "hot_consumers": [
+        "tools/core/genome_io.py",
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/circular_dependency_finder.py",
+        "tools/engines/closure_walker.py",
+        "tools/engines/clone_detector.py",
+        "tools/engines/dead_code_detector.py",
+        "tools/engines/decision_evidence.py",
+        "tools/engines/fractal_mapper.py",
+        "tools/engines/health_score.py",
+        "tools/engines/keyword_scanner.py",
+        "tools/engines/merge_script_generator.py",
+        "tools/engines/nanometric_diff_engine.py",
+        "tools/engines/nuclear_processor.py",
+        "tools/engines/proof_obligations_engine.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/quality_review_engine.py",
+        "tools/engines/release_readiness_report.py",
+        "tools/engines/safety_gate_calculator.py",
+        "tools/engines/scoped_host_analyzer.py",
+        "tools/engines/state_flow_scanner.py",
+        "tools/engines/temporal_diff.py"
+      ],
+      "allowed_direct_path_references": {
+        "tools/core/genome_io.py": "central SQLite-first adapter keeps the external-target JSON fallback boundary",
+        "tools/core/artifact_store.py": "storage, restore and projection owner",
+        "tools/core/artifact_validator.py": "artifact path registry",
+        "tools/engines/nuclear_processor.py": "Genome producer and shadow export owner",
+        "tools/validate_sqlite_artifact_parity.py": "explicit SQLite-vs-shadow parity validator",
+        "tools/validate_sqlite_proxy_coverage.py": "proxy coverage validator",
+        "tools/validate_entrypoints_and_failures.py": "failure drill that intentionally mutates/restores managed raw artifacts",
+        "tools/generate_agent_harness_readiness.py": "harness evidence matrix references Genome artifact name",
+        "tools/generate_nexora_brief.py": "human-facing brief documents Genome artifact path as provenance",
+        "tools/generate_ssot_optimization_plan.py": "SSOT validator reads validator outputs and documents Genome migration actions",
+        "tools/validate_genome_sqlite_first_access.py": "self-validator searches for genome.json string references by design",
+        "tools/validate_step_isolation.py": "step isolation validator hashes shadow artifacts intentionally to prove write boundaries",
+        "tools/tests/test_engine_contracts.py": "test fixture and contract assertions"
+      }
+    },
+    "fractal": {
+      "artifact_file": "fractal_map.json",
+      "central_adapter": "tools/core/fractal_io.py",
+      "central_apis": [
+        "load_fractal_map_data"
+      ],
+      "sqlite_first_source_marker": "STORE.load_raw(\"fractal_map\"",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/decision_evidence.py",
+        "tools/engines/fractal_mapper.py",
+        "tools/engines/host_merge_intelligence.py",
+        "tools/engines/merge_script_generator.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/scoped_host_analyzer.py",
+        "tools/mcp/server.py",
+        "tools/orchestrators/orchestrator.py",
+        "tools/utils/lookup_engine.py"
+      ],
+      "allowed_direct_path_references": {
+        "tools/core/artifact_validator.py": "artifact path registry",
+        "tools/core/fractal_io.py": "central SQLite-first Fractal Map adapter and isolated-target shadow fallback",
+        "tools/engines/fractal_mapper.py": "Fractal map producer and sidecar owner",
+        "tools/generate_ssot_optimization_plan.py": "SSOT optimization plan classifies Fractal Map reference actions",
+        "tools/validate_source_contracts.py": "source contract validator asserts Fractal shadow/proxy consumer contracts",
+        "tools/validate_sqlite_proxy_coverage.py": "proxy coverage validator",
+        "tools/validate_fractal_sqlite_first_access.py": "this validator"
+      }
+    }
+  },
+  "large_managed_artifacts": {
+    "a11y_i18n_contracts.json": {
+      "producer": "tools/engines/a11y_i18n_contract_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/a11y_i18n_contract_analyzer.py",
+        "tools/engines/ai_context_generator.py"
+      ]
+    },
+    "a11y_i18n_contracts_full.json": {
+      "producer": "tools/engines/a11y_i18n_contract_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/a11y_i18n_contract_analyzer.py"
+      ]
+    },
+    "audit_report.json": {
+      "producer": "tools/engines/audit.py",
+      "hot_consumers": [
+        "codemaps.py",
+        "tools/core/artifact_trust.py",
+        "tools/core/audit_report.py",
+        "tools/engines/dashboard.py",
+        "tools/engines/health_score.py",
+        "tools/engines/master_report_generator.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/quant_engine.py",
+        "tools/engines/scoped_host_analyzer.py",
+        "tools/engines/self_healing_generator.py",
+        "tools/generate_nexora_operator_packet.py",
+        "tools/inspect_target.py",
+        "tools/mcp/server.py",
+        "tools/orchestrators/watchdog.py",
+        "tools/validate_agent_context_payloads.py",
+        "tools/validate_artifact_trust.py",
+        "tools/validate_lifecycle.py"
+      ]
+    },
+    "blast_radius.json": {
+      "producer": "tools/engines/blast_radius_engine.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/blast_radius_engine.py",
+        "tools/engines/cmo_dashboard.py",
+        "tools/engines/dashboard.py",
+        "tools/engines/merge_script_generator.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/quant_engine.py",
+        "tools/generate_test_gap_report.py",
+        "tools/inspect_target.py",
+        "tools/mcp/server.py",
+        "tools/validate_derived_graph_integrity.py",
+        "tools/validate_lifecycle.py",
+        "tools/validate_operational_parity.py"
+      ]
+    },
+    "circular_deps.json": {
+      "producer": "tools/engines/circular_dependency_finder.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/blast_radius_engine.py",
+        "tools/engines/circular_dependency_finder.py",
+        "tools/engines/confidence_engine.py",
+        "tools/engines/health_score.py",
+        "tools/engines/module_risk_matrix.py",
+        "tools/engines/proof_obligations_engine.py",
+        "tools/engines/quality_review_engine.py",
+        "tools/engines/quant_engine.py",
+        "tools/engines/temporal_diff.py",
+        "tools/engines/test_impact_matcher.py",
+        "tools/generate_test_gap_report.py",
+        "tools/inspect_target.py",
+        "tools/mcp/server.py",
+        "tools/validate_agent_context_payloads.py",
+        "tools/validate_agent_semantic_contract_smoke.py",
+        "tools/validate_derived_graph_integrity.py",
+        "tools/validate_lifecycle.py"
+      ]
+    },
+    "clone_detector.json": {
+      "producer": "tools/engines/clone_detector.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/clone_detector.py",
+        "tools/engines/live_surface_analyzer.py",
+        "tools/mcp/server.py"
+      ]
+    },
+    "dead_code.json": {
+      "producer": "tools/engines/dead_code_detector.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/dead_code_detector.py",
+        "tools/engines/health_score.py",
+        "tools/engines/live_surface_analyzer.py",
+        "tools/engines/master_report_generator.py",
+        "tools/engines/module_risk_matrix.py",
+        "tools/engines/proof_obligations_engine.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/quality_review_engine.py",
+        "tools/engines/temporal_diff.py",
+        "tools/generate_dead_code_manual_review_pack.py",
+        "tools/generate_dead_code_medium_precision_pack.py",
+        "tools/inspect_target.py",
+        "tools/mcp/server.py",
+        "tools/validate_dead_code_groundtruth.py",
+        "tools/validate_dead_code_public_contracts.py",
+        "tools/validate_lifecycle.py",
+        "tools/validate_operational_parity.py",
+        "tools/validate_performance_budget.py"
+      ]
+    },
+    "keyword_scanner_all.json": {
+      "producer": "tools/engines/keyword_scanner.py",
+      "hot_consumers": [
+        "tools/engines/health_score.py",
+        "tools/engines/keyword_scanner.py",
+        "tools/engines/master_report_generator.py",
+        "tools/orchestrators/orchestrator.py"
+      ]
+    },
+    "keyword_scanner_keywords.json": {
+      "producer": "tools/engines/keyword_scanner.py",
+      "hot_consumers": [
+        "tools/engines/keyword_scanner.py"
+      ]
+    },
+    "keyword_scanner_stats.json": {
+      "producer": "tools/engines/keyword_scanner.py",
+      "hot_consumers": [
+        "tools/engines/keyword_scanner.py"
+      ]
+    },
+    "landscape_map.json": {
+      "producer": "tools/engines/landscape_mapper.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/landscape_mapper.py",
+        "tools/orchestrators/orchestrator.py"
+      ]
+    },
+    "lifecycle_validation.json": {
+      "producer": "tools/validate_lifecycle.py",
+      "hot_consumers": [
+        "tools/generate_phase_status.py",
+        "tools/validate_lifecycle.py",
+        "tools/validate_operational_parity.py"
+      ]
+    },
+    "live_surface_findings.json": {
+      "producer": "tools/engines/live_surface_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/master_report_generator.py"
+      ]
+    },
+    "live_surface_priority_pack.json": {
+      "producer": "tools/engines/live_surface_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/master_report_generator.py",
+        "tools/mcp/server.py"
+      ]
+    },
+    "merge_dependency_packages.json": {
+      "producer": "tools/engines/merge_dependency_packager.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/merge_decision_cockpit.py",
+        "tools/engines/merge_simulation_engine.py",
+        "tools/engines/quality_gate.py",
+        "tools/validate_merge_intelligence_regression.py"
+      ]
+    },
+    "nanometric_diff.json": {
+      "producer": "tools/engines/nanometric_diff_engine.py",
+      "hot_consumers": [
+        "tools/engines/nanometric_diff_engine.py",
+        "tools/validate_lifecycle.py"
+      ]
+    },
+    "react_ecosystem_analysis.json": {
+      "producer": "tools/engines/react_ecosystem_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/react_ecosystem_analyzer.py",
+        "tools/engines/react_runtime_intelligence.py"
+      ]
+    },
+    "react_ecosystem_findings_full.json": {
+      "producer": "tools/engines/react_ecosystem_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/react_ecosystem_analyzer.py"
+      ]
+    },
+    "react_frontier_intelligence.json": {
+      "producer": "tools/engines/react_frontier_intelligence.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/react_frontier_intelligence.py"
+      ]
+    },
+    "react_frontier_intelligence_full.json": {
+      "producer": "tools/engines/react_frontier_intelligence.py",
+      "hot_consumers": [
+        "tools/engines/react_frontier_intelligence.py"
+      ]
+    },
+    "react_runtime_intelligence.json": {
+      "producer": "tools/engines/react_runtime_intelligence.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/react_runtime_intelligence.py",
+        "tools/validate_agent_semantic_contract_smoke.py"
+      ]
+    },
+    "react_runtime_intelligence_full.json": {
+      "producer": "tools/engines/react_runtime_intelligence.py",
+      "hot_consumers": [
+        "tools/engines/react_runtime_intelligence.py"
+      ]
+    },
+    "source_layer_inventory.json": {
+      "producer": "tools/generate_source_layer_inventory.py",
+      "hot_consumers": [
+        "tools/generate_decision_domain_classification.py",
+        "tools/generate_layer_release_matrix.py",
+        "tools/generate_product_boundary_map.py",
+        "tools/generate_source_layer_inventory.py",
+        "tools/generate_system_connectivity_map.py"
+      ]
+    },
+    "state_flow.json": {
+      "producer": "tools/engines/state_flow_scanner.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/proof_obligations_engine.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/quality_review_engine.py",
+        "tools/engines/state_data_graph_analyzer.py",
+        "tools/engines/state_flow_scanner.py",
+        "tools/mcp/server.py",
+        "tools/validate_artifact_trust.py",
+        "tools/validate_derived_graph_integrity.py",
+        "tools/validate_lifecycle.py",
+        "tools/validate_operational_parity.py",
+        "tools/validate_react_support.py"
+      ]
+    },
+    "surgical_discovery.json": {
+      "producer": "tools/engines/nuclear_processor.py",
+      "hot_consumers": [
+        "tools/engines/fractal_mapper.py",
+        "tools/engines/health_score.py",
+        "tools/engines/master_report_generator.py",
+        "tools/engines/module_risk_matrix.py",
+        "tools/engines/nuclear_processor.py"
+      ]
+    },
+    "ui_architecture_map.json": {
+      "producer": "tools/engines/ui_mapper.py",
+      "hot_consumers": [
+        "tools/engines/ui_mapper.py",
+        "tools/mcp/server.py",
+        "tools/orchestrators/orchestrator.py"
+      ]
+    },
+    "ui_runtime_contracts.json": {
+      "producer": "tools/engines/ui_runtime_contract_analyzer.py",
+      "hot_consumers": [
+        "tools/engines/ai_context_generator.py",
+        "tools/engines/merge_decision_cockpit.py",
+        "tools/engines/merge_dependency_packager.py",
+        "tools/engines/quality_gate.py",
+        "tools/engines/ui_runtime_contract_analyzer.py",
+        "tools/engines/ui_smoke_spec_generator.py",
+        "tools/inspect_target.py",
+        "tools/validate_merge_intelligence_regression.py"
+      ]
+    },
+    "variation_analysis.json": {
+      "producer": "tools/engines/variation_manager.py",
+      "hot_consumers": [
+        "tools/engines/variation_manager.py"
+      ]
+    }
+  },
+  "large_allowed_reference_files": {
+    "codemaps.py": "CLI step catalog declares artifact dependencies without loading runtime payloads",
+    "tools/core/artifact_contracts.py": "central artifact contract constants, not runtime payload loading",
+    "tools/core/artifact_store.py": "storage-layer alias metadata and recovery boundary",
+    "tools/core/artifact_validator.py": "artifact registry metadata, not runtime payload loading",
+    "tools/core/contextos_mcp.py": "agent packet provenance labels source artifacts without loading runtime payloads",
+    "tools/generate_agent_harness_readiness.py": "readiness report lists expected artifacts without loading runtime payloads",
+    "tools/generate_nexora_agent_contract.py": "agent contract lists evidence artifacts without loading runtime payloads",
+    "tools/generate_nexora_brief.py": "operator brief lists evidence artifacts without loading runtime payloads",
+    "tools/generate_sage_self_map.py": "self map lists source artifacts as provenance metadata",
+    "tools/generate_ssot_optimization_plan.py": "SSOT optimization plan classifies large shadow artifacts",
+    "tools/generate_truth_seed.py": "ground-truth seed helper references artifact paths outside runtime hot path",
+    "tools/run_release_proof_bundle.py": "release proof declares raw_artifact metadata without loading runtime payloads",
+    "tools/tests/test_engine_contracts.py": "unit tests synthesize artifact fixtures and expected contract names",
+    "tools/tests/test_agent_semantic_contract_smoke.py": "semantic smoke tests synthesize isolated circular dependency fixtures without consuming production runtime shadows",
+    "tools/tests/test_surgical_packet_inputs.py": "unit test synthesizes proxy-aware managed-artifact fixture mappings without consuming production runtime shadows",
+    "tools/tests/test_watchdog_runtime_contract.py": "watchdog regression tests reference managed artifact names as fixture and negative-contract evidence without consuming production runtime payloads",
+    "tools/tests/test_mcp_json_cache.py": "MCP cache tests synthesize isolated managed-artifact SQLite and JSON-shadow fixtures",
+    "tools/tests/test_nanometric_diff_engine.py": "nanometric diff regression test consumes an isolated managed-artifact fixture through the canonical SQLite-first loader",
+    "tools/tests/test_product_boundary_map.py": "product-boundary tests synthesize isolated generated prerequisite artifacts without consuming production runtime payloads",
+    "tools/validate_artifact_trust.py": "artifact trust validates required artifact payloads through indirect load_json_file mapping",
+    "tools/validate_atlas_genome_audit_integrity.py": "source contract validator searches code text for artifact ownership",
+    "tools/validate_contextos_contracts.py": "source contract validator asserts that scoped watchdog evidence excludes stale canonical broad artifact names; it does not consume those runtime payloads",
+    "tools/validate_doctrine_audit_quality_integrity.py": "source contract validator asserts audit_report helper boundaries",
+    "tools/validate_external_target_smoke.py": "external target smoke builds isolated fixture artifacts and checks fail-closed messages",
+    "tools/validate_large_artifact_sqlite_first_access.py": "this validator",
+    "tools/validate_mcp_agent_surface.py": "source contract validator asserts MCP agent surface artifact isolation",
+    "tools/validate_react_analysis_chain_integrity.py": "react chain validator loads artifact paths through an indirect artifact map",
+    "tools/validate_react_fixtures.py": "fixture validator names expected evidence artifacts",
+    "tools/validate_signal_regression.py": "signal regression validator references dead-code artifact path as validation input",
+    "tools/validate_source_contracts.py": "source contract validator checks central policy coverage, not runtime payload truth",
+    "tools/validate_step_isolation.py": "validator hashes tracked shadow files to assert step isolation, not runtime artifact truth",
+    "tools/validate_test_impact_change_integrity.py": "test-impact validator checks declared evidence-artifact messaging"
+  }
+}

@@ -1,0 +1,1964 @@
+{
+  "meta": {
+    "kind": "artifact_registry",
+    "version": "v1",
+    "purpose": "Canonical declarative schema, path, availability and storage ownership for SAGE artifacts.",
+    "reload_behavior": "Shared readers refresh when this registry mtime changes; malformed or incomplete registry data fails closed."
+  },
+  "path_contract": {
+    "format": "relative_posix_path",
+    "schema_root": "config/schemas",
+    "storage_roots": {
+      "managed_runtime_artifact": "output/.raw/",
+      "managed_report_artifact": "output/reports/",
+      "managed_config_artifact": "config/"
+    }
+  },
+  "row_contract": {
+    "required_fields": [
+      "id",
+      "schema",
+      "path",
+      "availability",
+      "storage_class"
+    ],
+    "availability_values": [
+      "mandatory",
+      "optional"
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "a11y_i18n_contracts",
+      "schema": "config/schemas/a11y_i18n_contracts.schema.json",
+      "path": "output/.raw/a11y_i18n_contracts.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "a11y_i18n_contracts_full",
+      "schema": "config/schemas/a11y_i18n_contracts_full.schema.json",
+      "path": "output/.raw/a11y_i18n_contracts_full.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "adapter_registry",
+      "schema": "config/schemas/adapter_registry.schema.json",
+      "path": "output/.raw/adapter_registry.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_context_payload_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_context_payload_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_harness_readiness",
+      "schema": "config/schemas/agent_harness_readiness.schema.json",
+      "path": "output/.raw/agent_harness_readiness.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_packet_chain_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_packet_chain_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_semantic_contract_smoke",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_semantic_contract_smoke.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_manual_seal_pack",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_manual_seal_pack.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_quality_review",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_quality_review.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_review_tracker",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_review_tracker.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_review_tracker_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_review_tracker_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_seal_matrix",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_seal_matrix.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_snippet_range_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_snippet_range_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "agent_surface_source_grounding_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/agent_surface_source_grounding_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ai_agent_readiness_report",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/ai_agent_readiness_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ai_task_packs",
+      "schema": "config/schemas/ai_task_packs.schema.json",
+      "path": "output/.raw/ai_task_packs.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "architecture_oracle",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/architecture_oracle.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "architecture_oracle_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/architecture_oracle_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "artifact_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/artifact_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "artifact_freshness_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/artifact_freshness_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "artifact_provenance_index",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/artifact_provenance_index.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "artifact_trust_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/artifact_trust_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "atlas",
+      "schema": "config/schemas/atlas.schema.json",
+      "path": "output/.raw/atlas.json",
+      "availability": "mandatory",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "atlas_commit",
+      "schema": "config/schemas/atlas_commit.schema.json",
+      "path": "output/.raw/atlas_commit.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "atlas_genome_audit_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/atlas_genome_audit_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "atlas_sqlite_first_access_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/atlas_sqlite_first_access_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "audit_lesson_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/audit_lesson_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "audit_report",
+      "schema": "config/schemas/audit_report.schema.json",
+      "path": "output/.raw/audit_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "cage_mvp_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/cage_mvp_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "capability_activation_plan",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/capability_activation_plan.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "capability_activation_plan_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/capability_activation_plan_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "capability_pipeline_graph",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/capability_pipeline_graph.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "capability_registry",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/capability_registry.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "capability_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/capability_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "capability_roadmap",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/capability_roadmap.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "central_decision_contracts_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/central_decision_contracts_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "circular_deps",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/circular_deps.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "claim_guard_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/claim_guard_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "cli_command_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/cli_command_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "closure_walker_readiness",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/closure_walker_readiness.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "codemaps_adapters",
+      "schema": "config/schemas/codemaps.adapters.schema.json",
+      "path": "config/codemaps.adapters.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "codemaps_config",
+      "schema": "config/schemas/codemaps.config.schema.json",
+      "path": "config/codemaps.config.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "codemaps_discovery",
+      "schema": "config/schemas/codemaps.discovery.schema.json",
+      "path": "config/codemaps.discovery.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "codemaps_suppressions",
+      "schema": "config/schemas/codemaps.suppressions.schema.json",
+      "path": "config/codemaps.suppressions.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "confidence_risk_report",
+      "schema": "config/schemas/confidence_risk_report.schema.json",
+      "path": "output/reports/confidence_risk_report.json",
+      "availability": "optional",
+      "storage_class": "managed_report_artifact"
+    },
+    {
+      "id": "contextos_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/contextos_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "contextos_signal_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/contextos_signal_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "contribution_trust_foundation_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/contribution_trust_foundation_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "data_lineage_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/data_lineage_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "dead_code",
+      "schema": "config/schemas/dead_code.schema.json",
+      "path": "output/.raw/dead_code.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "dead_code_groundtruth",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/dead_code_groundtruth.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "dead_code_language_agnostic_core_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/dead_code_language_agnostic_core_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "dead_code_public_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/dead_code_public_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "dead_code_tuning",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/dead_code_tuning.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "decision_domain_classification",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/decision_domain_classification.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "derived_graph_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/derived_graph_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "discovery_universality_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/discovery_universality_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "distribution_hardening_validation",
+      "schema": "config/schemas/distribution_hardening_validation.schema.json",
+      "path": "output/.raw/distribution_hardening_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "doctrine_audit_quality_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/doctrine_audit_quality_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "doctrine_rule_lineage_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/doctrine_rule_lineage_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "engine_data_access_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/engine_data_access_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "engine_governance_input_lineage",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/engine_governance_input_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "engine_signal_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/engine_signal_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "engine_source_content_boundary_inventory",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/engine_source_content_boundary_inventory.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "entrypoint_failure_validation",
+      "schema": "config/schemas/entrypoint_failure_validation.schema.json",
+      "path": "output/.raw/entrypoint_failure_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "exception_honesty_validation",
+      "schema": "config/schemas/exception_honesty_validation.schema.json",
+      "path": "output/.raw/exception_honesty_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "external_polyglot_smoke_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/external_polyglot_smoke_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "external_react_smoke_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/external_react_smoke_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "external_target_agent_surface_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/external_target_agent_surface_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "external_target_retention_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/external_target_retention_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "final_consistency_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/final_consistency_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "final_suspicion_audit",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/final_suspicion_audit.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "final_suspicion_audit_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/final_suspicion_audit_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "fixture_isolation_validation",
+      "schema": "config/schemas/fixture_isolation_validation.schema.json",
+      "path": "output/.raw/fixture_isolation_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "fractal_map",
+      "schema": "config/schemas/fractal_map.schema.json",
+      "path": "output/.raw/fractal_map.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "fractal_sqlite_first_access_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/fractal_sqlite_first_access_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "framework_capability_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/framework_capability_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "framework_routes",
+      "schema": "config/schemas/framework_routes.schema.json",
+      "path": "output/.raw/framework_routes.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "genome",
+      "schema": "config/schemas/genome.schema.json",
+      "path": "output/.raw/genome.json",
+      "availability": "mandatory",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "genome_sqlite_first_access_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/genome_sqlite_first_access_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "governance_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/governance_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "governance_trace_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/governance_trace_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "actor_interaction_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/actor_interaction_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "work_package_evidence_proposal",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/work_package_evidence_proposal.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "hardcoded_decision_inventory_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/hardcoded_decision_inventory_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "health_score",
+      "schema": "config/schemas/health_score.schema.json",
+      "path": "output/.raw/health_score.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "hitl_approval_ledger",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/hitl_approval_ledger.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "hitl_decision_requests",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/hitl_decision_requests.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "hitl_governance_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/hitl_governance_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "hitl_lifecycle_smoke",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/hitl_lifecycle_smoke.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "honesty_telemetry",
+      "schema": "config/schemas/honesty_telemetry.schema.json",
+      "path": "output/.raw/honesty_telemetry.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "installation_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/installation_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "installation_preflight",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/installation_preflight.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "installation_proof",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/installation_proof.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "keyword_scanner_cache_meta",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/keyword_scanner_cache_meta.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "l4_policy_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/l4_policy_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "language_agnostic_symbol_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/language_agnostic_symbol_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "language_agnostic_symbols",
+      "schema": "config/schemas/language_agnostic_symbols.schema.json",
+      "path": "config/language_agnostic_symbols.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "large_artifact_sqlite_first_access_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/large_artifact_sqlite_first_access_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "layer_import_boundary_validation",
+      "schema": "config/schemas/layer_import_boundary_validation.schema.json",
+      "path": "output/.raw/layer_import_boundary_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "layer_release_matrix",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/layer_release_matrix.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "lifecycle_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/lifecycle_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "live_surface_findings",
+      "schema": "config/schemas/live_surface_findings.schema.json",
+      "path": "output/.raw/live_surface_findings.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "live_surface_priority_pack",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/live_surface_priority_pack.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "local_telemetry_analysis",
+      "schema": "config/schemas/local_telemetry_analysis.schema.json",
+      "path": "output/reports/local_telemetry_analysis.json",
+      "availability": "optional",
+      "storage_class": "managed_report_artifact"
+    },
+    {
+      "id": "manual_adversarial_audit_checklist_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/manual_adversarial_audit_checklist_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "manual_adversarial_audit_progress_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/manual_adversarial_audit_progress_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "manual_validator_execution_plan_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/manual_validator_execution_plan_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "mcp_agent_surface_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/mcp_agent_surface_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "mcp_surface_command_matrix",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/mcp_surface_command_matrix.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "mcp_surface_command_matrix_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/mcp_surface_command_matrix_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_decision_cockpit",
+      "schema": "config/schemas/merge_decision_cockpit.schema.json",
+      "path": "output/.raw/merge_decision_cockpit.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_dependency_packages",
+      "schema": "config/schemas/merge_dependency_packages.schema.json",
+      "path": "output/.raw/merge_dependency_packages.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_intelligence_regression",
+      "schema": "config/schemas/merge_intelligence_regression.schema.json",
+      "path": "output/.raw/merge_intelligence_regression.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_simulation",
+      "schema": "config/schemas/merge_simulation.schema.json",
+      "path": "output/.raw/merge_simulation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "modular_doctrine_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/modular_doctrine_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "module_risk_matrix",
+      "schema": "config/schemas/module_risk_matrix.schema.json",
+      "path": "output/.raw/module_risk_matrix.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "naming_transition_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/naming_transition_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_agent_contract",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_agent_contract.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_agent_handoff",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_agent_handoff.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_agent_response_ledger",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_agent_response_ledger.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_agent_response_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_agent_response_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_brief",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_brief.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_operator_packet",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_operator_packet.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "nexora_surface_inventory",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/nexora_surface_inventory.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "next_boundary_analysis",
+      "schema": "config/schemas/next_boundary_analysis.schema.json",
+      "path": "output/.raw/next_boundary_analysis.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "next_boundary_analysis_full",
+      "schema": "config/schemas/next_boundary_analysis_full.schema.json",
+      "path": "output/.raw/next_boundary_analysis_full.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "next_boundary_policy_core_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/next_boundary_policy_core_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "non_python_decision_inventory_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/non_python_decision_inventory_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "operational_parity_validation",
+      "schema": "config/schemas/operational_parity_validation.schema.json",
+      "path": "output/.raw/operational_parity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "optional_feature_smokes",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/optional_feature_smokes.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "oracle_doctrine_hitl_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/oracle_doctrine_hitl_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "performance_bottlenecks",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/performance_bottlenecks.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "performance_budget_validation",
+      "schema": "config/schemas/performance_budget_validation.schema.json",
+      "path": "output/.raw/performance_budget_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "performance_ledger",
+      "schema": "config/schemas/performance_ledger.schema.json",
+      "path": "output/.raw/performance_ledger.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "performance_n_plus_one_cage",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/performance_n_plus_one_cage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "performance_n_plus_one_cage_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/performance_n_plus_one_cage_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "performance_profile_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/performance_profile_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "pipeline_execution_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/pipeline_execution_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "pipeline_layer_chain_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/pipeline_layer_chain_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "pipeline_step_registry",
+      "schema": "config/schemas/pipeline_step_registry.schema.json",
+      "path": "output/.raw/pipeline_step_registry.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "plugin_manifest_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/plugin_manifest_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "polyglot_capability_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/polyglot_capability_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "principle_pack_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/principle_pack_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "product_boundary_map",
+      "schema": "config/schemas/product_boundary_map.schema.json",
+      "path": "output/.raw/product_boundary_map.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "product_reports_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/product_reports_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "project_dna_profile",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/project_dna_profile.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "project_dna_profile_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/project_dna_profile_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "proof_obligations",
+      "schema": "config/schemas/proof_obligations.schema.json",
+      "path": "output/.raw/proof_obligations.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "quality_gate",
+      "schema": "config/schemas/quality_gate.schema.json",
+      "path": "output/.raw/quality_gate.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "quality_gate_policy_core_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/quality_gate_policy_core_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "quality_review",
+      "schema": "config/schemas/quality_review.schema.json",
+      "path": "output/.raw/quality_review.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_analysis_chain_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_analysis_chain_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_capability_probe",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_capability_probe.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_compiler_readiness",
+      "schema": "config/schemas/react_compiler_readiness.schema.json",
+      "path": "output/.raw/react_compiler_readiness.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_corpus_saturation_report",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_corpus_saturation_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_corpus_semantic_audit",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_corpus_semantic_audit.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_ecosystem_analysis",
+      "schema": "config/schemas/react_ecosystem_analysis.schema.json",
+      "path": "output/.raw/react_ecosystem_analysis.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_ecosystem_findings_full",
+      "schema": "config/schemas/react_ecosystem_findings_full.schema.json",
+      "path": "output/.raw/react_ecosystem_findings_full.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_ecosystem_policy_core_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_ecosystem_policy_core_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_edge_case_matrix",
+      "schema": "config/schemas/react_edge_case_matrix.schema.json",
+      "path": "config/react_edge_case_matrix.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "react_edge_case_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_edge_case_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_fixture_family_taxonomy_report",
+      "schema": "config/schemas/react_fixture_family_taxonomy_report.schema.json",
+      "path": "output/.raw/react_fixture_family_taxonomy_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_fixture_matrix_validation",
+      "schema": "config/schemas/react_fixture_matrix_validation.schema.json",
+      "path": "output/.raw/react_fixture_matrix_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_frontier_evidence_readiness",
+      "schema": "config/schemas/react_frontier_evidence_readiness.schema.json",
+      "path": "output/.raw/react_frontier_evidence_readiness.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_frontier_intelligence",
+      "schema": "config/schemas/react_frontier_intelligence.schema.json",
+      "path": "output/.raw/react_frontier_intelligence.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_frontier_intelligence_full",
+      "schema": "config/schemas/react_frontier_intelligence_full.schema.json",
+      "path": "output/.raw/react_frontier_intelligence_full.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_frontier_policy_core_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_frontier_policy_core_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_immutability_purity_cage",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_immutability_purity_cage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_immutability_purity_cage_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_immutability_purity_cage_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_runtime_intelligence",
+      "schema": "config/schemas/react_runtime_intelligence.schema.json",
+      "path": "output/.raw/react_runtime_intelligence.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_runtime_intelligence_full",
+      "schema": "config/schemas/react_runtime_intelligence_full.schema.json",
+      "path": "output/.raw/react_runtime_intelligence_full.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_runtime_policy_core_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_runtime_policy_core_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_support_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/react_support_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_universal_readiness",
+      "schema": "config/schemas/react_universal_readiness.schema.json",
+      "path": "output/.raw/react_universal_readiness.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "react_v11_contract_validation",
+      "schema": "config/schemas/react_v11_contract_validation.schema.json",
+      "path": "output/.raw/react_v11_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "registry_foundation_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/registry_foundation_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_agent_surface_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_agent_surface_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_artifact_registry_alignment_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_artifact_registry_alignment_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_claim_profiles",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "config/release_claim_profiles.json",
+      "availability": "optional",
+      "storage_class": "managed_config_artifact"
+    },
+    {
+      "id": "release_claim_profiles_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_claim_profiles_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_identity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_identity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_language_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_language_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_phase_status",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_phase_status.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_readiness",
+      "schema": "config/schemas/release_readiness.schema.json",
+      "path": "output/.raw/release_readiness.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_seal_remaining_actions",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_seal_remaining_actions.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "release_seal_remaining_actions_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/release_seal_remaining_actions_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "repeated_acquisition_projection_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/repeated_acquisition_projection_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "report_freshness_index",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/report_freshness_index.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "resilience_error_handling_cage",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/resilience_error_handling_cage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "resilience_error_handling_cage_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/resilience_error_handling_cage_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "roadmap_phase_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/roadmap_phase_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "runtime_honesty_review",
+      "schema": "config/schemas/runtime_honesty_review.schema.json",
+      "path": "output/.raw/runtime_honesty_review.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "runtime_honesty_validation",
+      "schema": "config/schemas/runtime_honesty_validation.schema.json",
+      "path": "output/.raw/runtime_honesty_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "runtime_output_retention_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/runtime_output_retention_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sage_active_work_package_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sage_active_work_package_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sage_self_audit_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sage_self_audit_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sage_self_map",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sage_self_map.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sage_work_item_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sage_work_item_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sage_work_item_report",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sage_work_item_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sage_work_package_closure_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sage_work_package_closure_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "seal_impact_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/seal_impact_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "security_boundary_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/security_boundary_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "self_architecture_hygiene_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/self_architecture_hygiene_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "semantic_diff_impacted_lesson_projection",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/semantic_diff_impacted_lesson_projection.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "semantic_diff_lesson_projection_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/semantic_diff_lesson_projection_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "signal_regression_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/signal_regression_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "signals",
+      "schema": "config/schemas/signals.schema.json",
+      "path": "output/.raw/signals.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "clone_detector",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/clone_detector.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "source_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/source_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "source_layer_classification_policy_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/source_layer_classification_policy_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "source_layer_inventory",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/source_layer_inventory.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "source_snapshot_store_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/source_snapshot_store_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sqlite_artifact_parity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sqlite_artifact_parity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "sqlite_proxy_coverage_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/sqlite_proxy_coverage_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ssot_optimization_plan",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/ssot_optimization_plan.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "stale_remediation_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/stale_remediation_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "state_data_graph",
+      "schema": "config/schemas/state_data_graph.schema.json",
+      "path": "output/.raw/state_data_graph.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "symbol_span_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/symbol_span_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "system_connectivity_map",
+      "schema": "config/schemas/system_connectivity_map.schema.json",
+      "path": "output/.raw/system_connectivity_map.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "system_connectivity_map_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/system_connectivity_map_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "system_health_check",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/system_health_check.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "system_health_check_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/system_health_check_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "system_spine_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/system_spine_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repo_lineage_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/target_repo_lineage_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repository_action_memory",
+      "schema": "config/schemas/target_repository_action_memory.schema.json",
+      "path": "output/.raw/target_repository_action_memory.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repository_action_memory_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/target_repository_action_memory_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repository_lesson_projection",
+      "schema": "config/schemas/target_repository_lesson_projection.schema.json",
+      "path": "output/.raw/target_repository_lesson_projection.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repository_lesson_projection_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/target_repository_lesson_projection_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repository_proof_bundle",
+      "schema": "config/schemas/target_repository_proof_bundle.schema.json",
+      "path": "output/.raw/target_repository_proof_bundle.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "target_repository_proof_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/target_repository_proof_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "telemetry_traces",
+      "schema": "config/schemas/telemetry_traces.schema.json",
+      "path": "output/.raw/telemetry_traces.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_gap_report",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_gap_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_impact_change_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_impact_change_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_impact_profile_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_impact_profile_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_impact_report",
+      "schema": "config/schemas/test_impact_report.schema.json",
+      "path": "output/.raw/test_impact_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "text_surface_integrity_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/text_surface_integrity_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ui_runtime_contracts",
+      "schema": "config/schemas/ui_runtime_contracts.schema.json",
+      "path": "output/.raw/ui_runtime_contracts.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ui_smoke_execution",
+      "schema": "config/schemas/ui_smoke_execution.schema.json",
+      "path": "output/.raw/ui_smoke_execution.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ui_smoke_specs",
+      "schema": "config/schemas/ui_smoke_specs.schema.json",
+      "path": "output/.raw/ui_smoke_specs.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "universal_proof_validation",
+      "schema": "config/schemas/universal_proof_validation.schema.json",
+      "path": "output/.raw/universal_proof_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "v1_quality_scorecard",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/v1_quality_scorecard.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "v1_system_health_check",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/v1_system_health_check.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "watchdog_audit_report",
+      "schema": "config/schemas/audit_report.schema.json",
+      "path": "output/.raw/watchdog_audit_report.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "watchdog_graph_advisories",
+      "schema": "config/schemas/watchdog_graph_advisories.schema.json",
+      "path": "output/.raw/watchdog_graph_advisories.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "watchdog_pulse_ledger",
+      "schema": "config/schemas/watchdog_pulse_ledger.schema.json",
+      "path": "output/.raw/watchdog_pulse_ledger.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "watchdog_snapshot_freshness_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/watchdog_snapshot_freshness_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "watchdog_stress_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/watchdog_stress_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "workload_profile",
+      "schema": "config/schemas/workload_profile.schema.json",
+      "path": "output/.raw/workload_profile.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "artifact_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/artifact_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "validator_policy_registry_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/validator_policy_registry_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "setup_wizard_plan_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/setup_wizard_plan_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "derived_layer_contract_coverage_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/derived_layer_contract_coverage_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "external_repository_evaluation_contract_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/external_repository_evaluation_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "pre_seal_stabilization_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/pre_seal_stabilization_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "genome_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/genome_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "audit_report_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/audit_report_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "quality_gate_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/quality_gate_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "dead_code_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/dead_code_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "circular_deps_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/circular_deps_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_impact_report_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/test_impact_report_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "signals_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/signals_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "clone_detector_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/clone_detector_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "live_surface_priority_pack_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/live_surface_priority_pack_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "surgical_discovery",
+      "schema": "config/schemas/generic_array.schema.json",
+      "path": "output/.raw/surgical_discovery.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "host_merge_intelligence",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/host_merge_intelligence.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "surgical_discovery_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/surgical_discovery_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "fractal_map_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/fractal_map_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "framework_routes_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/framework_routes_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "host_merge_intelligence_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/host_merge_intelligence_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ui_runtime_contracts_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/ui_runtime_contracts_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ui_smoke_specs_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/ui_smoke_specs_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "ui_smoke_execution_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/ui_smoke_execution_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_dependency_packages_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/merge_dependency_packages_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_simulation_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/merge_simulation_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "merge_decision_cockpit_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/merge_decision_cockpit_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    }
+  ]
+}

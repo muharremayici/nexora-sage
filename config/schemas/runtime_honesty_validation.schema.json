@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "checks"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "total_checks",
+        "passed_checks",
+        "failed_checks"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "passed",
+          "details"
+        ]
+      }
+    }
+  }
+}

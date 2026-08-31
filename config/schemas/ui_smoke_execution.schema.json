@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "runs"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "specs",
+        "ready_to_run",
+        "generated_not_executed",
+        "playwright_config_detected"
+      ],
+      "properties": {
+        "specs": {
+          "type": "integer"
+        },
+        "ready_to_run": {
+          "type": "integer"
+        },
+        "generated_not_executed": {
+          "type": "integer"
+        },
+        "playwright_config_detected": {
+          "type": "boolean"
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "route",
+          "spec_path",
+          "spec_exists",
+          "status",
+          "reason"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "candidate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "target_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_contract_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "route": {
+            "type": "string"
+          },
+          "spec_path": {
+            "type": "string"
+          },
+          "spec_exists": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

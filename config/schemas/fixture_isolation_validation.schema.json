@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "policy",
+    "references",
+    "violations"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "fixture_isolation_validation"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "protected_files",
+        "references",
+        "allowed_references",
+        "violations"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "protected_files": {
+          "type": "integer"
+        },
+        "references": {
+          "type": "integer"
+        },
+        "allowed_references": {
+          "type": "integer"
+        },
+        "violations": {
+          "type": "integer"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "protected_paths",
+        "fixture_markers"
+      ],
+      "properties": {
+        "protected_paths": {
+          "type": "array"
+        },
+        "fixture_markers": {
+          "type": "array"
+        }
+      }
+    },
+    "references": {
+      "type": "array"
+    },
+    "violations": {
+      "type": "array"
+    }
+  }
+}

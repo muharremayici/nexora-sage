@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "meta",
+    "subject",
+    "claim_boundary",
+    "summary",
+    "evidence",
+    "statistics",
+    "unknowns",
+    "human_decisions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator",
+        "contract_identity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "target_repository_proof_bundle"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "const": "tools.generate_target_repository_proof_bundle"
+        },
+        "contract_identity": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "required": [
+        "scope",
+        "root",
+        "analysis_snapshot_kind",
+        "analysis_snapshot_id",
+        "root_binding",
+        "repository_reference_kind",
+        "repository_reference_id",
+        "working_tree_status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "const": "target_repository"
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "analysis_snapshot_kind": {
+          "enum": [
+            "atlas_commit",
+            "unavailable"
+          ]
+        },
+        "analysis_snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "root_binding": {
+          "enum": [
+            "BOUND",
+            "MISMATCH",
+            "UNAVAILABLE"
+          ]
+        },
+        "repository_reference_kind": {
+          "enum": [
+            "git_commit",
+            "explicit",
+            "unavailable"
+          ]
+        },
+        "repository_reference_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "working_tree_status": {
+          "enum": [
+            "clean",
+            "dirty",
+            "not_applicable",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "mode",
+        "verdict",
+        "required_evidence",
+        "required_ready",
+        "optional_evidence",
+        "optional_ready"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "baseline",
+            "change",
+            "merge"
+          ]
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "REVIEW_REQUIRED",
+            "BLOCKED",
+            "UNKNOWN"
+          ]
+        },
+        "required_evidence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "required_ready": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "optional_evidence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "optional_ready": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "required",
+          "path",
+          "availability",
+          "freshness",
+          "snapshot_binding",
+          "bound_snapshot_id",
+          "content_sha256",
+          "source_verdict",
+          "human_decision"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "availability": {
+            "enum": [
+              "PRESENT",
+              "MISSING",
+              "INVALID"
+            ]
+          },
+          "freshness": {
+            "enum": [
+              "CURRENT",
+              "STALE",
+              "UNKNOWN",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "snapshot_binding": {
+            "enum": [
+              "BOUND",
+              "MISMATCH",
+              "UNAVAILABLE"
+            ]
+          },
+          "bound_snapshot_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_verdict": {
+            "enum": [
+              "PASS",
+              "BLOCKED",
+              "PRESENT",
+              "UNKNOWN"
+            ]
+          },
+          "human_decision": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "statistics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "artifact_id",
+          "value",
+          "decision_use",
+          "scope",
+          "denominator",
+          "claim_boundary"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "artifact_id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "decision_use": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "const": "target_analysis_snapshot"
+          },
+          "denominator": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "claim_boundary": {
+            "const": "absolute_count_not_rate_or_quality_score"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "human_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

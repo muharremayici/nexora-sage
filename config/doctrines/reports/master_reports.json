@@ -1,0 +1,259 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "reports.master_reports",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "master_report_sections": [
+    {
+      "title": "1. Architecture Audit (Doctrine v13.0)",
+      "file": "audit_report.txt"
+    },
+    {
+      "title": "2. Architecture Decision Evidence",
+      "file": "decision_evidence.md"
+    },
+    {
+      "title": "3. Fractal Capability Map",
+      "file": "fractal_map.md"
+    },
+    {
+      "title": "4. System Landscape",
+      "file": "landscape_map.md"
+    },
+    {
+      "title": "5. UI Component Map",
+      "file": "ui_architecture_map.md"
+    },
+    {
+      "title": "6. Dead Code Analysis",
+      "file": "dead_code_report.md"
+    },
+    {
+      "title": "7. Circular Dependencies & Import Graph",
+      "file": "circular_deps_report.md"
+    },
+    {
+      "title": "8. Health Score",
+      "file": "health_score.md"
+    },
+    {
+      "title": "9. Module Risk Matrix",
+      "file": "module_risk_matrix.md"
+    },
+    {
+      "title": "10. Temporal Diff",
+      "file": "temporal_diff.md"
+    },
+    {
+      "title": "11. Hexagonal Port-Adapter Bindings",
+      "file": "hexagonal_bindings.md"
+    },
+    {
+      "title": "12. State Flow & Data Mapping",
+      "file": "state_flow.md"
+    },
+    {
+      "title": "13. Semantic Code Clones",
+      "file": "clone_detector.md"
+    },
+    {
+      "title": "14. Blast Radius (Impact Analysis)",
+      "file": "blast_radius.md"
+    },
+    {
+      "title": "15. Pipeline Quality Gates",
+      "file": "quality_gate.md"
+    },
+    {
+      "title": "16. Host Merge Intelligence",
+      "file": "host_merge_intelligence.md"
+    }
+  ],
+  "master_report_evidence_default": {
+    "type": "heuristic",
+    "trust": "medium"
+  },
+  "master_report_evidence_profiles": {
+    "audit_report.txt": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "decision_evidence.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "fractal_map.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "landscape_map.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "ui_architecture_map.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "dead_code_report.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "circular_deps_report.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "health_score.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "module_risk_matrix.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "temporal_diff.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "hexagonal_bindings.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "state_flow.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "clone_detector.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "blast_radius.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "quality_gate.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "host_merge_intelligence.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "framework_routes.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "merge_dependency_packages.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "merge_simulation.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "merge_decision_cockpit.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "ai_task_packs.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "adapter_registry.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "merge_intelligence_regression.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "release_readiness.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "distribution_hardening_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "entrypoint_failure_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "operational_parity_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "performance_budget_validation.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "performance_ledger.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "ui_runtime_contracts.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "ui_smoke_specs.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "ui_smoke_execution.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "optional_feature_smokes.md": {
+      "type": "mechanical",
+      "trust": "high"
+    },
+    "next_boundary_analysis.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "state_data_graph.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "a11y_i18n_contracts.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_ecosystem_analysis.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_runtime_intelligence.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_compiler_readiness.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "react_frontier_intelligence.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "live_surface_findings.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    },
+    "live_surface_priority_pack.md": {
+      "type": "heuristic",
+      "trust": "medium"
+    }
+  },
+  "visualization_policy": {
+    "circular_dep_mermaid": {
+      "max_edges_per_node": 10,
+      "directory_bucket_depth": 2
+    },
+    "cycle_classification": {
+      "mutual_len": 2,
+      "long_cycle_min_len": 3
+    }
+  }
+}

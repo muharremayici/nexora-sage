@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "kind": "react_analysis_chain_integrity_contract",
+    "version": "1.0.0",
+    "description": "Machine-readable scope contract for React analysis-chain integrity validation. It owns the primary/full artifact pairs and runtime-sensitive dimensions that must remain proof-gated."
+  },
+  "primary_artifacts": [
+    {
+      "id": "react_ecosystem_analysis",
+      "primary": "react_ecosystem_analysis.json",
+      "full": "react_ecosystem_findings_full.json"
+    },
+    {
+      "id": "react_runtime_intelligence",
+      "primary": "react_runtime_intelligence.json",
+      "full": "react_runtime_intelligence_full.json"
+    },
+    {
+      "id": "react_compiler_readiness",
+      "primary": "react_compiler_readiness.json",
+      "full": "react_compiler_readiness_full.json"
+    },
+    {
+      "id": "react_frontier_intelligence",
+      "primary": "react_frontier_intelligence.json",
+      "full": "react_frontier_intelligence_full.json"
+    }
+  ],
+  "runtime_sensitive_dimensions": [
+    "bundle_boundary",
+    "browser_permission_contract",
+    "css_token_intelligence",
+    "feature_flag_runtime_branch",
+    "hydration_boundary",
+    "runtime_evidence",
+    "test_coverage_intent"
+  ]
+}

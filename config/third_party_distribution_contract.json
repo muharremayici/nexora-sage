@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "kind": "sage.third_party_distribution_contract",
+    "version": "1.0.0",
+    "purpose": "Canonical provenance and notice-integrity contract for third-party code installed into the locally validated SAGE runtime."
+  },
+  "distribution": {
+    "mode": "source_checkout_with_install_time_controlled_runtime",
+    "public_source_checkout_includes_runtime_directory": false,
+    "installed_runtime_validation_required_for_release_proof": true,
+    "third_party_terms_remain_authoritative": true,
+    "sage_license_does_not_relicense_third_party_code": true
+  },
+  "vendored_dependencies": [
+    {
+      "id": "typescript",
+      "manifest_path": "tools/engines/package.json",
+      "lockfile_path": "tools/engines/package-lock.json",
+      "lockfile_sha256": "99611e4256c514d7a2a07c644b53b7fad30e0e4b25d7e0282bb5ea9a7df0dca6",
+      "lockfile_package_key": "node_modules/typescript",
+      "locked_version": "5.9.3",
+      "license_expression": "Apache-2.0",
+      "runtime_package_path": "tools/engines/node_modules/typescript/package.json",
+      "required_notice_files": [
+        {
+          "path": "tools/engines/node_modules/typescript/LICENSE.txt",
+          "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+        },
+        {
+          "path": "tools/engines/node_modules/typescript/ThirdPartyNoticeText.txt",
+          "sha256": "1af3c68039c57e539422da82a4faada506ce6d0ea6f90e0b699d02dbcdb7a90c"
+        }
+      ],
+      "human_documentation": "docs/VENDORED_TYPESCRIPT_RUNTIME.md"
+    }
+  ],
+  "non_vendored_dependency_manifests": [
+    {
+      "path": "requirements.txt",
+      "installation_model": "resolved_by_user_environment_package_manager",
+      "license_boundary": "dependency_packages_are_not_relicensed_by_sage"
+    }
+  ],
+  "claim_boundary": "This contract proves the declared install-time runtime version, license metadata, lockfile identity and installed notice-file integrity. The public source checkout does not include node_modules. This is not a legal compatibility opinion and does not replace the dependency license texts."
+}

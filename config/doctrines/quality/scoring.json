@@ -1,0 +1,201 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "quality.scoring",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "safety_gate_policy": {
+    "penalties": {
+      "member_dynamic_high": {
+        "threshold": 5,
+        "penalty": 3.0
+      },
+      "member_dynamic_med": {
+        "threshold": 2,
+        "penalty": 1.5
+      },
+      "side_effect_high": {
+        "threshold": 12,
+        "penalty": 5.0
+      },
+      "side_effect_med": {
+        "threshold": 4,
+        "penalty": 2.5
+      },
+      "provider_high": {
+        "threshold": 5,
+        "penalty": 4.0
+      },
+      "provider_med": {
+        "threshold": 2,
+        "penalty": 2.0
+      }
+    }
+  },
+  "quality_gate_heuristics": {
+    "validation_contract": {
+      "dead_code_ratio_scaling_min_rule_counts": {
+        "high": 3,
+        "medium": 5
+      }
+    },
+    "atlas_symbol_scaling": [
+      {
+        "max_files": 5,
+        "min_ratio": 0.6
+      },
+      {
+        "max_files": 10,
+        "min_ratio": 0.75
+      }
+    ],
+    "dead_code_ratio_scaling": {
+      "high": [
+        {
+          "max_export_universe": 10,
+          "min_ratio": 0.25
+        },
+        {
+          "max_export_universe": 25,
+          "min_ratio": 0.12
+        },
+        {
+          "max_export_universe": 50,
+          "min_ratio": 0.08
+        }
+      ],
+      "medium": [
+        {
+          "min_export_universe": 10000,
+          "min_ratio": 0.055
+        },
+        {
+          "min_export_universe": 5000,
+          "min_ratio": 0.05
+        },
+        {
+          "max_export_universe": 10,
+          "min_ratio": 0.3
+        },
+        {
+          "max_export_universe": 25,
+          "min_ratio": 0.2
+        },
+        {
+          "max_export_universe": 50,
+          "min_ratio": 0.12
+        }
+      ]
+    }
+  },
+  "health_scoring_policy": {
+    "fallback": 50,
+    "weights": {
+      "architecture_purity": 0.3,
+      "dead_code_ratio": 0.2,
+      "circular_deps": 0.15,
+      "coupling_health": 0.25,
+      "keyword_coverage": 0.1
+    },
+    "penalties": {
+      "per_architecture_violation": 2.0,
+      "per_circular_dep": 15.0,
+      "per_module_violation": 5.0
+    },
+    "mode_penalty_multipliers": {
+      "enforced": 1.0,
+      "heal": 0.12,
+      "advisory": 0.04,
+      "disabled": 0.0,
+      "unknown": 0.2
+    },
+    "rule_weights": {
+      "hexagonal_layer_violation": 2.5,
+      "deep_imports": 5.0,
+      "impure_entities": 8.0,
+      "domain_ui_leaks": 6.0,
+      "domain_platform_leaks": 6.0,
+      "relative_imports_no_alias": 0.1,
+      "loc_limits_hook": 1.0,
+      "loc_limits_component": 1.0,
+      "loc_limits_symbol": 1.0,
+      "loc_limits_service": 2.0
+    },
+    "rule_caps": {
+      "relative_imports_no_alias": 8.0,
+      "loc_limits_hook": 8.0,
+      "loc_limits_component": 10.0,
+      "loc_limits_symbol": 10.0,
+      "loc_limits_service": 10.0,
+      "domain_ui_leaks": 25.0,
+      "domain_platform_leaks": 25.0,
+      "impure_entities": 25.0
+    },
+    "default_rule_cap": 30.0,
+    "grading_bounds": [
+      {
+        "min": 90,
+        "grade": "A+"
+      },
+      {
+        "min": 80,
+        "grade": "A"
+      },
+      {
+        "min": 70,
+        "grade": "B"
+      },
+      {
+        "min": 60,
+        "grade": "C"
+      },
+      {
+        "min": 50,
+        "grade": "D"
+      }
+    ],
+    "fallback_grade": "F"
+  },
+  "dashboard_risk_policy": {
+    "quarantine_threshold": 400.0,
+    "readiness_bounds": [
+      {
+        "min": 70,
+        "risk": "LOW",
+        "recommendation": "AUTO_READY"
+      }
+    ],
+    "fallback_risk": "MEDIUM",
+    "fallback_recommendation": "MANUAL_ORCHESTRATION",
+    "penalty_coefficients": {
+      "decoupling": 1.0,
+      "leaks": 12.0,
+      "coupling": 2.0,
+      "confidence": 30.0
+    }
+  },
+  "scoring_config": {
+    "coupling_penalties": {
+      "domain/logic": 1.25,
+      "shared": 1.25,
+      "entities": 1.25,
+      "default": 0.15
+    },
+    "test_bonus": 20.0,
+    "leaks_penalty_weight": 4.0,
+    "density_weight": 1.8,
+    "decoupling_weight": 0.7,
+    "semantic_weight": 0.35
+  },
+  "confidence_policy": {
+    "base_dead_confidence": 0.97,
+    "magic_factor_degrade": 0.15,
+    "critical_dep_threshold": 10,
+    "low_dep_threshold": 5,
+    "loc_complexity_threshold": 400,
+    "drift_base": 0.1,
+    "drift_relative_factor": 0.15
+  }
+}

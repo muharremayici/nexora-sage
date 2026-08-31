@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "meta",
+    "policy",
+    "latest_pulse",
+    "summary",
+    "proof_debt_state",
+    "entries"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator"
+      ],
+      "properties": {
+        "kind": {
+          "const": "watchdog_pulse_ledger"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "generated_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generator": {
+          "const": "tools.orchestrators.watchdog"
+        }
+      }
+    },
+    "policy": {
+      "type": "object"
+    },
+    "latest_pulse": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "entries",
+        "unresolved_unread_count",
+        "current_violation_count"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "HAS_UNRESOLVED",
+            "CLEAR"
+          ]
+        },
+        "entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_unread_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "current_violation_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "proof_debt_state": {
+      "type": "object"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "violation_hash",
+          "status",
+          "first_seen_at",
+          "last_seen_at",
+          "target_ref",
+          "repo_relative_path",
+          "rule",
+          "detail"
+        ],
+        "properties": {
+          "violation_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "first_seen_at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "last_seen_at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_ref": {
+            "type": "string"
+          },
+          "repo_relative_path": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

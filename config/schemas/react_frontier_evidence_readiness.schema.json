@@ -1,0 +1,139 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "expected_artifacts",
+    "how_to_generate",
+    "projects"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "projects",
+        "ready_projects",
+        "partial_projects",
+        "needs_evidence_projects",
+        "bundle_evidence_files",
+        "profiler_evidence_files",
+        "typescript_collector_status",
+        "typescript_diagnostics_total"
+      ],
+      "properties": {
+        "projects": {
+          "type": "integer"
+        },
+        "ready_projects": {
+          "type": "integer"
+        },
+        "partial_projects": {
+          "type": "integer"
+        },
+        "needs_evidence_projects": {
+          "type": "integer"
+        },
+        "bundle_evidence_files": {
+          "type": "integer"
+        },
+        "profiler_evidence_files": {
+          "type": "integer"
+        },
+        "typescript_collector_status": {
+          "type": "string"
+        },
+        "typescript_diagnostics_total": {
+          "type": "integer"
+        }
+      }
+    },
+    "expected_artifacts": {
+      "type": "object",
+      "required": [
+        "bundle_stats_names",
+        "react_profiler_names",
+        "search_scope",
+        "recommended_locations"
+      ],
+      "properties": {
+        "bundle_stats_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "react_profiler_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "search_scope": {
+          "type": "string"
+        },
+        "recommended_locations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "how_to_generate": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "status",
+          "bundle_stats_found",
+          "react_profiler_found",
+          "missing"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "PARTIAL",
+              "NEEDS_EVIDENCE"
+            ]
+          },
+          "bundle_stats_found": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "react_profiler_found": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

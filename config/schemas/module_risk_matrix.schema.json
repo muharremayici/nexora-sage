@@ -1,0 +1,180 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "rows",
+    "by_project"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "scope_mode",
+        "project_scoped"
+      ],
+      "properties": {
+        "scope_mode": {
+          "type": "string"
+        },
+        "project_scoped": {
+          "type": "boolean"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_modules",
+        "high_risk",
+        "medium_risk",
+        "low_risk"
+      ],
+      "properties": {
+        "total_modules": {
+          "type": "number"
+        },
+        "high_risk": {
+          "type": "number"
+        },
+        "medium_risk": {
+          "type": "number"
+        },
+        "low_risk": {
+          "type": "number"
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "module",
+          "files",
+          "dead_code",
+          "dead_pct",
+          "avg_coupling",
+          "circular_deps",
+          "audit_violations",
+          "risk_score",
+          "risk_level"
+        ],
+        "properties": {
+          "module": {
+            "type": "string"
+          },
+          "files": {
+            "type": "number"
+          },
+          "dead_code": {
+            "type": "number"
+          },
+          "dead_pct": {
+            "type": "number"
+          },
+          "avg_coupling": {
+            "type": "number"
+          },
+          "circular_deps": {
+            "type": "number"
+          },
+          "audit_violations": {
+            "type": "number"
+          },
+          "risk_score": {
+            "type": "number"
+          },
+          "risk_level": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "by_project": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "display_name",
+          "summary",
+          "rows"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "total_modules",
+              "high_risk",
+              "medium_risk",
+              "low_risk"
+            ],
+            "properties": {
+              "total_modules": {
+                "type": "number"
+              },
+              "high_risk": {
+                "type": "number"
+              },
+              "medium_risk": {
+                "type": "number"
+              },
+              "low_risk": {
+                "type": "number"
+              }
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "module",
+                "files",
+                "dead_code",
+                "dead_pct",
+                "avg_coupling",
+                "circular_deps",
+                "audit_violations",
+                "risk_score",
+                "risk_level"
+              ],
+              "properties": {
+                "module": {
+                  "type": "string"
+                },
+                "files": {
+                  "type": "number"
+                },
+                "dead_code": {
+                  "type": "number"
+                },
+                "dead_pct": {
+                  "type": "number"
+                },
+                "avg_coupling": {
+                  "type": "number"
+                },
+                "circular_deps": {
+                  "type": "number"
+                },
+                "audit_violations": {
+                  "type": "number"
+                },
+                "risk_score": {
+                  "type": "number"
+                },
+                "risk_level": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

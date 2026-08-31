@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "kind": "merge_intelligence_regression_contract",
+    "version": "1.0.0",
+    "description": "Machine-readable scope contract for merge intelligence regression validation. It owns the direct artifact chain validated by the regression gate."
+  },
+  "artifact_inputs": [
+    {
+      "id": "framework_routes",
+      "path": "framework_routes.json"
+    },
+    {
+      "id": "ui_runtime_contracts",
+      "path": "ui_runtime_contracts.json"
+    },
+    {
+      "id": "ui_smoke_specs",
+      "path": "ui_smoke_specs.json"
+    },
+    {
+      "id": "merge_dependency_packages",
+      "path": "merge_dependency_packages.json"
+    },
+    {
+      "id": "merge_simulation",
+      "path": "merge_simulation.json"
+    },
+    {
+      "id": "merge_decision_cockpit",
+      "path": "merge_decision_cockpit.json"
+    },
+    {
+      "id": "ai_task_packs",
+      "path": "ai_task_packs.json"
+    }
+  ]
+}

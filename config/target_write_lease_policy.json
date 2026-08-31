@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "kind": "target_write_lease_policy",
+    "version": "v1",
+    "purpose": "Coordinate cooperating agents that edit the same analyzed repository without serializing read-only SAGE inspection."
+  },
+  "scope": {
+    "lease_key": "canonical_analysis_root + normalized_repo_relative_target_file",
+    "storage": "target analysis SQLite codemaps.db",
+    "guarantee": "Coordinates agents that use the same SAGE target-analysis database. It does not claim a distributed filesystem lock across disconnected SAGE installations.",
+    "read_only_behavior": "Parallel-safe; inspection, graph queries, and packet reads do not acquire a write lease."
+  },
+  "lease": {
+    "allowed_actions": [
+      "acquire",
+      "release"
+    ],
+    "default_ttl_seconds": 300,
+    "minimum_ttl_seconds": 30,
+    "maximum_ttl_seconds": 1800,
+    "renew_on_same_actor_acquire": true,
+    "required_source_grounding": [
+      "target_exists",
+      "target_indexed",
+      "source_snapshot_status_ok",
+      "drift_check_status_match"
+    ],
+    "conflict_behavior": "fail_closed_with_retry_guidance",
+    "expired_lease_behavior": "reclaim_atomically"
+  },
+  "agent_protocol": {
+    "steps": [
+      "Acquire a target write lease after selecting one grounded target file.",
+      "Validate the proposed bounded patch while the lease is active.",
+      "Apply the patch outside SAGE only after validation passes and required human approval is present.",
+      "Release the lease immediately after the external write attempt, whether it succeeds or fails.",
+      "Refresh or wait for the watchdog/source snapshot before using a pre-write packet for a subsequent mutation."
+    ],
+    "busy_instruction": "Do not edit the target file. Wait until retry_after_seconds, then reacquire and refresh source grounding before retrying."
+  }
+}

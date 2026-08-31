@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "watchdog_graph_advisories.schema.json",
+  "title": "SAGE Watchdog Scoped Graph Advisories",
+  "type": "object",
+  "required": [
+    "meta",
+    "artifact_identity",
+    "summary",
+    "requested_nodes",
+    "advisories"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "generated_at",
+        "generator"
+      ],
+      "properties": {
+        "kind": {
+          "const": "watchdog_graph_advisories"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "generated_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generator": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "artifact_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "artifact_root",
+        "atlas_snapshot_id",
+        "target_descriptor"
+      ],
+      "properties": {
+        "status": {
+          "const": "BOUND"
+        },
+        "artifact_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "atlas_snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_descriptor": {
+          "type": "object",
+          "required": [
+            "system_scope",
+            "acquisition_mode",
+            "profile_id",
+            "subject_root",
+            "analysis_root",
+            "artifact_strategy",
+            "external_target"
+          ],
+          "properties": {
+            "system_scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "acquisition_mode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "profile_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "subject_root": {
+              "type": "string",
+              "minLength": 1
+            },
+            "analysis_root": {
+              "type": "string",
+              "minLength": 1
+            },
+            "artifact_strategy": {
+              "type": "string",
+              "minLength": 1
+            },
+            "external_target": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "requested_nodes",
+        "available_nodes",
+        "cycle_members",
+        "dead_code_candidates",
+        "evidence_scope",
+        "full_repository_claim",
+        "canonical_artifacts_overwritten"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "PARTIAL"
+          ]
+        },
+        "requested_nodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "available_nodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cycle_members": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dead_code_candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidence_scope": {
+          "const": "changed_nodes_projected_from_current_global_atlas"
+        },
+        "full_repository_claim": {
+          "const": false
+        },
+        "canonical_artifacts_overwritten": {
+          "const": false
+        }
+      }
+    },
+    "requested_nodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^:]+::.+"
+      }
+    },
+    "advisories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_key",
+          "target_ref",
+          "status"
+        ],
+        "properties": {
+          "node_key": {
+            "type": "string",
+            "pattern": "^[^:]+::.+"
+          },
+          "target_ref": {
+            "type": "string",
+            "pattern": "^[^:]+::.+"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "cycle_membership": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "component_size",
+              "component_nodes",
+              "component_nodes_omitted",
+              "witness_chain",
+              "witness_edges",
+              "claim_boundary"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "member",
+                  "not_member"
+                ]
+              },
+              "component_size": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "component_nodes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "component_nodes_omitted": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "witness_chain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "witness_edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "source",
+                    "target"
+                  ],
+                  "properties": {
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "claim_boundary": {
+                "const": "current_global_atlas_strongly_connected_component"
+              }
+            }
+          },
+          "impact_advisory": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "direct_dependents",
+              "transitive_dependents",
+              "dependency_score",
+              "formula_weights",
+              "boundary_bonus_status",
+              "claim_boundary"
+            ],
+            "properties": {
+              "status": {
+                "const": "available_dependency_only_lower_bound"
+              },
+              "direct_dependents": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "transitive_dependents": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "dependency_score": {
+                "type": "number",
+                "minimum": 0
+              },
+              "formula_weights": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "direct_dependent",
+                  "transitive_dependent"
+                ],
+                "properties": {
+                  "direct_dependent": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "transitive_dependent": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              },
+              "boundary_bonus_status": {
+                "const": "deferred_to_full_blast_radius"
+              },
+              "claim_boundary": {
+                "const": "dependency_score_is_lower_bound_not_canonical_blast_score"
+              }
+            }
+          },
+          "dead_code_advisory": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "candidate_count",
+              "candidates",
+              "claim_boundary",
+              "required_follow_up"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "candidates_available",
+                  "no_static_candidate_in_scope"
+                ]
+              },
+              "candidate_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "candidates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "symbol",
+                    "symbol_type",
+                    "status",
+                    "confidence",
+                    "reason"
+                  ],
+                  "properties": {
+                    "symbol": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "symbol_type": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "start_line": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "end_line": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "const": "candidate_for_full_dead_code_review"
+                    },
+                    "confidence": {
+                      "const": "low"
+                    },
+                    "reason": {
+                      "const": "no_static_named_import_observed_in_current_atlas"
+                    }
+                  }
+                }
+              },
+              "claim_boundary": {
+                "const": "candidate_only_not_dead_code_proof_or_absence_claim"
+              },
+              "required_follow_up": {
+                "const": "full_dead_code_engine_before_removal"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

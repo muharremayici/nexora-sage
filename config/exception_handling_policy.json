@@ -1,0 +1,384 @@
+{
+  "version": "1.0.0",
+  "principles": {
+    "critical_rule": "critical pipeline layers must not silently suppress generic exceptions without logging or honesty telemetry",
+    "optional_rule": "optional dependency and console encoding fallbacks may remain quiet when they do not change analysis claims",
+    "claim_rule": "fallbacks that can change analysis completeness must emit honesty telemetry"
+  },
+  "validation_contract": {
+    "scan_roots": [
+      "tools/engines",
+      "tools/orchestrators",
+      "tools/core"
+    ],
+    "observable_call_names": [
+      "record_honesty_event",
+      "_record_raw_artifact_fallback",
+      "_record_store_degradation",
+      "_record_store_freshness_event",
+      "log",
+      "print"
+    ],
+    "observable_return_keys": [
+      "status",
+      "violations",
+      "error",
+      "errors",
+      "recommended_action"
+    ]
+  },
+  "critical_files": [
+    "tools/core/artifact_store.py",
+    "tools/core/json_io.py",
+    "tools/core/config.py",
+    "tools/orchestrators/watchdog.py",
+    "tools/orchestrators/orchestrator.py",
+    "tools/orchestrators/discovery.py",
+    "tools/engines/generate_atlas.py",
+    "tools/engines/nuclear_processor.py",
+    "tools/engines/fractal_mapper.py",
+    "tools/engines/validation_oracle.py"
+  ],
+  "allowed_quiet_categories": [
+    "optional_console_encoding",
+    "optional_import_fallback",
+    "path_normalization_probe",
+    "pure_predicate_false",
+    "bounded_validation_skip"
+  ],
+  "allowed_quiet_semantic_handlers": [
+    {
+      "file": "tools/core/bootstrap_env.py",
+      "function": "module_available",
+      "exception_type": "ModuleNotFoundError",
+      "pass_only": false,
+      "body_fingerprint": "11b6d7b81fcbac53",
+      "try_context_fingerprint": "34d7386b8866e7c2",
+      "purpose": "Optional module availability probe returns false when the module cannot be resolved."
+    },
+    {
+      "file": "tools/core/bootstrap_env.py",
+      "function": "import_target_available",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "11b6d7b81fcbac53",
+      "try_context_fingerprint": "5f991daf185443ee",
+      "purpose": "Optional import capability probe returns false without claiming the target is available."
+    },
+    {
+      "file": "tools/core/bootstrap_env.py",
+      "function": "find_vendor_access_issues",
+      "exception_type": "PermissionError",
+      "pass_only": false,
+      "body_fingerprint": "571fd8932c4fdd12",
+      "try_context_fingerprint": "436ade2df271d732",
+      "purpose": "Vendor access probe records inaccessible locations while continuing the inventory."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "save_text_atomic",
+      "exception_type": "PermissionError",
+      "pass_only": false,
+      "body_fingerprint": "17d1261c7a0c9edc",
+      "try_context_fingerprint": "bd6afc85f5c3033e",
+      "purpose": "Atomic write retries a bounded number of lock conflicts before raising the captured error."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "save_text_atomic",
+      "exception_type": "OSError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "cbc04f9117520b48",
+      "purpose": "Best-effort temporary-file cleanup runs only while re-raising the original atomic-write failure."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "save_json_atomic",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "5afd37fcf5b3efe9",
+      "try_context_fingerprint": "e051c3c6e5de3d88",
+      "purpose": "Managed raw-artifact predicate falls back to false; it does not suppress the subsequent write path."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "_load_package_manifest",
+      "exception_type": "(OSError, UnicodeDecodeError, json.JSONDecodeError)",
+      "pass_only": false,
+      "body_fingerprint": "5760edb1d05d94ae",
+      "try_context_fingerprint": "ab43605b2030c2b0",
+      "purpose": "Missing or malformed optional target manifest yields an empty dependency view."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "_target_has_source_ext",
+      "exception_type": "OSError",
+      "pass_only": false,
+      "body_fingerprint": "11b6d7b81fcbac53",
+      "try_context_fingerprint": "aec25647acda40ee",
+      "purpose": "Bounded target source-extension probe returns false when filesystem traversal is unavailable."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "_infer_target_path_aliases",
+      "exception_type": "(OSError, UnicodeDecodeError, json.JSONDecodeError)",
+      "pass_only": false,
+      "body_fingerprint": "ceeb1ad03572550e",
+      "try_context_fingerprint": "39564ad08fdd5a79",
+      "purpose": "Unreadable or invalid JSONC alias candidate falls through to the next declared config candidate."
+    },
+    {
+      "file": "tools/core/json_io.py",
+      "function": "_is_managed_raw_artifact",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "11b6d7b81fcbac53",
+      "try_context_fingerprint": "c09e45109a45c5df",
+      "purpose": "Raw-artifact path predicate returns false when path resolution cannot establish managed ownership."
+    },
+    {
+      "file": "tools/core/json_io.py",
+      "function": "load_json_file",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "2d5ae6f15bdc520e",
+      "purpose": "Best-effort raw-artifact fallback telemetry cannot mask the primary JSON load result."
+    },
+    {
+      "file": "tools/core/json_io.py",
+      "function": "load_json_file",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "d1666864a0d02f75",
+      "try_context_fingerprint": "d7ab7457e3ad7310",
+      "purpose": "Non-strict JSON loader returns its explicit default for missing or malformed optional JSON."
+    },
+    {
+      "file": "tools/core/config.py",
+      "function": "_observe_target_path_aliases",
+      "exception_type": "OSError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "8fce95875586f260",
+      "purpose": "Unreadable optional alias configuration is represented by the existing empty observation set and does not create a positive path claim."
+    },
+    {
+      "file": "tools/core/target_repository_proof.py",
+      "function": "_artifact_timestamp",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "1a10eee896cead16",
+      "purpose": "Unavailable managed-store metadata falls through to the explicit filesystem timestamp or UNKNOWN freshness path."
+    },
+    {
+      "file": "tools/core/target_repository_proof.py",
+      "function": "build_target_repository_proof",
+      "exception_type": "FileNotFoundError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "61219d1ab5ff3ccd",
+      "purpose": "Missing target evidence remains explicitly MISSING and blocks required proof rather than being treated as present."
+    },
+    {
+      "file": "tools/core/target_repository_lesson_projection.py",
+      "function": "build_target_repository_lesson_projection",
+      "exception_type": "FileNotFoundError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "6e9d6272dda94782",
+      "purpose": "Missing target binding evidence remains explicitly MISSING and makes the projection PARTIAL rather than fabricating an empty or complete lesson state."
+    },
+    {
+      "file": "tools/core/language_registry.py",
+      "function": "_fallback_registry",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "d0d871da354377df",
+      "purpose": "Invalid optional language registry falls back to the explicit built-in bootstrap registry."
+    },
+    {
+      "file": "tools/core/logger.py",
+      "function": "<module>",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "16a1982a44c64501",
+      "purpose": "Optional console encoding configuration leaves logger initialization available."
+    },
+    {
+      "file": "tools/core/subprocess_telemetry.py",
+      "function": "run_observed_subprocess",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "b6debbf4b29c5030",
+      "purpose": "Best-effort stream flush occurs after subprocess result and timeout evidence have been captured."
+    },
+    {
+      "file": "tools/engines/audit.py",
+      "function": "analyze_project",
+      "exception_type": "(KeyError, TypeError, ValueError)",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "86713ddc341d7019",
+      "purpose": "Malformed optional finding metadata skips only that derived audit metric."
+    },
+    {
+      "file": "tools/engines/clone_detector.py",
+      "function": "run_clone_detector",
+      "exception_type": "(ValueError, IndexError)",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "bd87b4356103af01",
+      "purpose": "Malformed detector range retains the original detector metric rather than fabricating a replacement."
+    },
+    {
+      "file": "tools/engines/dashboard.py",
+      "function": "run_dashboard",
+      "exception_type": "KeyboardInterrupt",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "96554578c2836633",
+      "purpose": "Operator cancellation stops the display loop without changing analysis claims."
+    },
+    {
+      "file": "tools/engines/master_report_generator.py",
+      "function": "render_keyword_heatmap",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "fbd3cfdba03f5485",
+      "try_context_fingerprint": "4c6dd2e297aae37d",
+      "purpose": "Master report renders an explicit keyword-data error row instead of suppressing the failure."
+    },
+    {
+      "file": "tools/engines/master_report_generator.py",
+      "function": "render_coupling_appendix",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "7870b5f21567edc5",
+      "try_context_fingerprint": "b80e8a8c13d53424",
+      "purpose": "Master report renders an explicit surgical-data error row instead of suppressing the failure."
+    },
+    {
+      "file": "tools/engines/master_report_generator.py",
+      "function": "render_structural_contract_appendix",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "2e5808a660744ad0",
+      "try_context_fingerprint": "55caf721f348234b",
+      "purpose": "Master report renders an explicit structural-contract error row instead of suppressing the failure."
+    },
+    {
+      "file": "tools/engines/master_report_generator.py",
+      "function": "render_remediation_backlog_appendix",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "992e6e5ed9628b9f",
+      "try_context_fingerprint": "4b9cbde891f57ae9",
+      "purpose": "Master report renders an explicit remediation-backlog error row instead of suppressing the failure."
+    },
+    {
+      "file": "tools/engines/master_report_generator.py",
+      "function": "render_project_audit_totals_appendix",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "8e45aba608ef2d34",
+      "try_context_fingerprint": "ba29134efe0593d9",
+      "purpose": "Master report renders an explicit project-audit-totals error row instead of suppressing the failure."
+    },
+    {
+      "file": "tools/engines/mcp_governance_engine.py",
+      "function": "validate_proposed_patch",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "3d85951c181d9671",
+      "purpose": "Best-effort temporary-file cleanup runs after patch semantics are captured."
+    },
+    {
+      "file": "tools/engines/merge_script_generator.py",
+      "function": "_safe_join",
+      "exception_type": "ValueError",
+      "pass_only": false,
+      "body_fingerprint": "29ba67ed4d919132",
+      "try_context_fingerprint": "164080653b634e8c",
+      "purpose": "Path guard returns no candidate when a requested path escapes the declared root."
+    },
+    {
+      "file": "tools/engines/merge_script_generator.py",
+      "function": "_verify_source_semantics",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "2f02f1cd7dcfd316",
+      "try_context_fingerprint": "f66fdd753d654257",
+      "purpose": "Source semantic verification retries only with an explicit latin-1 recovery read."
+    },
+    {
+      "file": "tools/engines/merge_script_generator.py",
+      "function": "_verify_source_semantics",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "d374dc217652b02f",
+      "try_context_fingerprint": "313902af00c38642",
+      "purpose": "Unreadable source returns an explicit failed verification result."
+    },
+    {
+      "file": "tools/engines/quant_engine.py",
+      "function": "_signal_kind",
+      "exception_type": "ValueError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "d1fa3365a9c2b38f",
+      "purpose": "Path scope probe falls through to remaining deterministic signal classifiers."
+    },
+    {
+      "file": "tools/engines/react_runtime_intelligence.py",
+      "function": "_load_runtime_policy",
+      "exception_type": "(TypeError, ValueError)",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "48af0b774aa03e0d",
+      "purpose": "Invalid optional runtime threshold retains the centrally compiled default value."
+    },
+    {
+      "file": "tools/engines/self_healing_generator.py",
+      "function": "_resolve_alias_for_file",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "96b5f7562b63e8b4",
+      "purpose": "Alias resolution falls through to the documented structural path heuristic."
+    },
+    {
+      "file": "tools/engines/validation_oracle.py",
+      "function": "_run_tsc_validation",
+      "exception_type": "OSError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "42c78bee40ad6e0a",
+      "purpose": "Best-effort temporary tsconfig cleanup occurs only after validation result capture."
+    },
+    {
+      "file": "tools/orchestrators/orchestrator.py",
+      "function": "<module>",
+      "exception_type": "Exception",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "59495af29c79f95f",
+      "purpose": "Optional console encoding configuration does not change pipeline analysis claims."
+    },
+    {
+      "file": "tools/orchestrators/watchdog.py",
+      "function": "_shorten_path",
+      "exception_type": "ValueError",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "3387113b3c3a4dfc",
+      "purpose": "Display-only path shortening falls back to the normalized original label."
+    }
+  ]
+}

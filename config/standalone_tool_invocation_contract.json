@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "kind": "standalone_tool_invocation_contract",
+    "version": "v1",
+    "purpose": "Declare which Python tool entrypoints support direct-file execution and which require module-mode invocation."
+  },
+  "scope": {
+    "engine_glob": "tools/engines/*.py",
+    "entrypoint_marker": "if __name__ == \"__main__\"",
+    "package_import_markers": [
+      "from tools.",
+      "import tools."
+    ],
+    "repo_root_bootstrap_marker": "sys.path.insert"
+  },
+  "invocation_modes": {
+    "module_only": {
+      "canonical_command_template": "python -m tools.engines.{module}",
+      "direct_file_invocation": "unsupported",
+      "reason": "The entrypoint imports the tools package but does not bootstrap the SAGE repository root."
+    },
+    "direct_file_supported": {
+      "direct_file_invocation": "supported",
+      "reason": "The entrypoint bootstraps the SAGE repository root before package imports."
+    }
+  },
+  "policy": {
+    "unknown_mode_is_failure": true,
+    "public_docs_must_use_canonical_invocation": true,
+    "cross_platform_path_policy": "python_module_mode_uses_dot_separated_module_names_and_never_shell_specific_path_syntax"
+  }
+}

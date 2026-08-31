@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "signals",
+    "proof_ladder",
+    "findings",
+    "oracle",
+    "by_project"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "version",
+        "generated_by",
+        "runtime_seconds"
+      ],
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "runtime_seconds": {
+          "type": "number"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "score",
+        "grade",
+        "proof_ladder_level",
+        "proof_ladder_label",
+        "mathematical_proof_status",
+        "blockers",
+        "warnings",
+        "findings_total"
+      ],
+      "properties": {
+        "score": {
+          "type": "number"
+        },
+        "grade": {
+          "type": "string"
+        },
+        "proof_ladder_level": {
+          "type": "number"
+        },
+        "proof_ladder_label": {
+          "type": "string"
+        },
+        "mathematical_proof_status": {
+          "type": "string"
+        },
+        "blockers": {
+          "type": "number"
+        },
+        "warnings": {
+          "type": "number"
+        },
+        "findings_total": {
+          "type": "number"
+        }
+      }
+    },
+    "signals": {
+      "type": "object"
+    },
+    "proof_ladder": {
+      "type": "object"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "message"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "oracle": {
+      "type": "object"
+    },
+    "by_project": {
+      "type": "object"
+    },
+    "quality_gate_snapshot": {
+      "type": "object"
+    }
+  }
+}

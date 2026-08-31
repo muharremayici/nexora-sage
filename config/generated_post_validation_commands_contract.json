@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "kind": "nexora.generated_post_validation_commands_contract",
+    "version": "v1",
+    "purpose": "Canonical post-validation command identities for generated merge and self-healing scripts."
+  },
+  "validation": {
+    "required_command_ids": [
+      "engine_contract_smoke"
+    ],
+    "required_full_release_step_ids": [
+      "engine_contract_tests"
+    ]
+  },
+  "commands": [
+    {
+      "id": "engine_contract_smoke",
+      "command": "python -B -m unittest tools.tests.test_engine_contracts",
+      "execution_scope": "narrow_generated_script_regression",
+      "proof_boundary": "This validates the generated-script engine contract family only; it is not complete release proof.",
+      "full_release_step_id": "engine_contract_tests"
+    }
+  ]
+}

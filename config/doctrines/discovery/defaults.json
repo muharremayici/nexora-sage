@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "discovery.defaults",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "discovery_host_intelligence_defaults": {
+    "host_locked_patterns": [
+      "**/api/index.*",
+      "**/api/ports.*",
+      "**/ports.*"
+    ],
+    "compose_preferred_patterns": [
+      "**/application/**/*",
+      "**/services/**/*",
+      "**/entities/**/*Store*",
+      "**/shared/hooks/**/*",
+      "**/widgets/**/*"
+    ],
+    "manual_review_patterns": [
+      "**/pages/**/*",
+      "**/features/**/*",
+      "**/widgets/**/*",
+      "**/components/**/*"
+    ],
+    "public_boundary_patterns": [
+      "**/api/index.*",
+      "**/exports.*",
+      "**/index.*"
+    ],
+    "integration_seam_patterns": [
+      "**/Dispatcher*",
+      "**/eventBus.*",
+      "**/Pipeline*"
+    ]
+  },
+  "discovery_project_role_markers": {
+    "host_aliases": [
+      "MAIN",
+      "HOST",
+      "CORE",
+      "BASE"
+    ],
+    "variant_containers": [
+      "variations",
+      "variation",
+      "variants",
+      "forks",
+      "donors"
+    ],
+    "variant_leaf_tokens": [
+      "legacy",
+      "fork",
+      "variant"
+    ],
+    "companion_containers": [
+      "apps",
+      "packages",
+      "modules",
+      "extensions",
+      "extension",
+      "plugins",
+      "plugin",
+      "browser",
+      "examples"
+    ],
+    "companion_path_tokens": [
+      "lifecycle-modules"
+    ]
+  }
+}

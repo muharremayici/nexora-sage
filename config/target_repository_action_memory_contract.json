@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "kind": "target_repository_action_memory_contract",
+    "version": "v1",
+    "purpose": "Define a derived, target-scoped routing projection over existing action authorities without creating a second debt ledger."
+  },
+  "authority": {
+    "scope": "target_repository",
+    "projection_kind": "derived_read_only_snapshot",
+    "claim_boundary": "This projection routes target-repository actions from existing authorities. It does not authorize mutation, prove that missing sources are clean, or move target findings into SAGE product debt.",
+    "forbidden_inputs": [
+      "sage_work_item_registry",
+      "sage_roadmap",
+      "sage_execution_waves"
+    ],
+    "missing_source_status": "PARTIAL",
+    "all_sources_present_without_actions_status": "EMPTY"
+  },
+  "deduplication": {
+    "mode": "exact_source_identity_only",
+    "cross_source_deduplication": false,
+    "rule": "Rows may be deduplicated only when the same source authority emits the same explicit or deterministically derived source identity. Similar text across authorities remains separate evidence."
+  },
+  "freshness": {
+    "declared_timestamp_status": "DECLARED",
+    "missing_or_invalid_timestamp_status": "UNKNOWN",
+    "rule": "A producer timestamp is preserved as a declared observation only. It does not establish currentness without snapshot lineage or a caller freshness basis."
+  },
+  "sources": [
+    {
+      "id": "audit_violations",
+      "artifact_id": "audit_report",
+      "row_pointer": "/violations",
+      "lifecycle": "OPEN",
+      "human_approval_required": false
+    },
+    {
+      "id": "watchdog_proof_debt",
+      "artifact_id": "watchdog_pulse_ledger",
+      "row_pointer": "/entries",
+      "aggregate_pointer": "/proof_debt_state",
+      "lifecycle_from_policy": true,
+      "human_approval_required": false
+    },
+    {
+      "id": "merge_review",
+      "artifact_id": "merge_decision_cockpit",
+      "row_pointer": "/decisions",
+      "human_approval_required": true,
+      "action_lifecycle": {
+        "Import Now": "READY_FOR_AUTHORIZATION",
+        "Import With Review": "REVIEW_REQUIRED",
+        "Do Not Import Yet": "BLOCKED"
+      }
+    }
+  ]
+}

@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system_connectivity_map.schema.json",
+  "title": "SAGE System Connectivity Map",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "connectivity",
+    "attention"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generator",
+        "source_artifacts"
+      ],
+      "properties": {
+        "kind": {
+          "const": "system_connectivity_map"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generator": {
+          "const": "tools.generate_system_connectivity_map"
+        },
+        "source_artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "critical_failures",
+        "source_layers",
+        "pipeline_steps",
+        "spine_nodes",
+        "artifact_writers",
+        "artifact_consumers",
+        "external_input_artifacts",
+        "consumed_external_inputs",
+        "broader_consumed_external_inputs",
+        "declared_but_unconsumed_anywhere",
+        "writer_conflicts",
+        "layer_attention_items",
+        "spine_attention_items",
+        "unowned_consumed_artifacts"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "critical_failures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "source_layers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pipeline_steps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spine_nodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact_writers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact_consumers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "external_input_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_external_inputs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "broader_consumed_external_inputs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_but_unconsumed_anywhere": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "writer_conflicts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layer_attention_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spine_attention_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unowned_consumed_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "connectivity": {
+      "type": "object",
+      "required": [
+        "spine_nodes",
+        "source_layers",
+        "pipeline_steps",
+        "pipeline_artifacts"
+      ],
+      "properties": {
+        "spine_nodes": {
+          "type": "array"
+        },
+        "source_layers": {
+          "type": "array"
+        },
+        "pipeline_steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "reads_artifacts",
+              "writes_artifacts"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reads_artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "writes_artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "pipeline_artifacts": {
+          "type": "object",
+          "required": [
+            "writers",
+            "consumers",
+            "writer_conflicts",
+            "external_inputs",
+            "declared_but_unconsumed_anywhere",
+            "invalid_broader_system_consumers",
+            "unowned_consumed_artifacts"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "attention": {
+      "type": "object",
+      "required": [
+        "layers",
+        "spine",
+        "unowned_consumed_artifacts_sample",
+        "consumed_external_inputs",
+        "broader_consumed_external_inputs",
+        "declared_but_unconsumed_anywhere",
+        "invalid_broader_system_consumers"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

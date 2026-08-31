@@ -1,0 +1,668 @@
+{
+  "meta": {
+    "kind": "data_lineage_contract",
+    "version": "v1"
+  },
+  "purpose": "Machine-readable producer/consumer contract for SAGE artifacts and agent-facing critical fields. This prevents generated facts from being orphaned and prevents consumers from depending on unproduced or stale facts.",
+  "default_policy": {
+    "artifact_graph_source": "tools.core.pipeline_registry.ARTIFACT_OWNERSHIP",
+    "unknown_producer_behavior": "fail",
+    "unknown_consumer_behavior": "fail_unless_terminal_or_shadow_export",
+    "field_lineage_behavior": "fail_when_required_marker_missing",
+    "ssot_preference": "sqlite_first_json_shadow_fallback"
+  },
+  "external_inputs": {
+    "artifacts": [
+      "architecture_doctrine",
+      "capability_activation_plan",
+      "capability_registry",
+      "codemaps_adapters",
+      "codemaps_suppressions",
+      "discovery",
+      "atlas_bound_source",
+      "engine_signal_contract_validation",
+      "hitl_approval_ledger",
+      "hitl_decision_requests",
+      "hitl_governance_validation",
+      "hitl_lifecycle_smoke",
+      "mcp_agent_surface_validation",
+      "nexora_agent_contract",
+      "nexora_agent_handoff",
+      "nexora_agent_response_ledger",
+      "nexora_agent_response_validation",
+      "nexora_brief",
+      "nexora_surface_inventory",
+      "operational_parity_validation",
+      "package_json",
+      "performance_budget_validation",
+      "performance_ledger",
+      "pipeline_execution_contract_validation",
+      "react_fixture_matrix_validation",
+      "react_universal_readiness",
+      "release_identity",
+      "release_proof_bundle",
+      "report_freshness_index",
+      "source_snapshot_store",
+      "telemetry_traces",
+      "ts_diagnostics",
+      "universal_proof_validation",
+      "watchdog_session"
+    ],
+    "reason": "These are environmental, discovery, or live-session inputs rather than artifacts produced by a prior SAGE pipeline step."
+  },
+  "terminal_outputs": {
+    "artifacts": [
+      "adapter_registry",
+      "ai_context",
+      "architecture_oracle",
+      "artifact_contract_validation",
+      "cmo_dashboard",
+      "confidence_risk_report",
+      "dead_code_tuning",
+      "decision_evidence",
+      "distribution_hardening_validation",
+      "entrypoint_failure_validation",
+      "generated_merge_scripts",
+      "honesty_telemetry",
+      "host_merge_intelligence",
+      "landscape_map",
+      "live_surface_findings",
+      "live_surface_priority_pack",
+      "local_telemetry_analysis",
+      "master_report",
+      "merge_intelligence_regression",
+      "merge_decision_cockpit_analysis_snapshot_lineage",
+      "merge_plan_summary",
+      "module_risk_matrix",
+      "nanometric_diff",
+      "next_boundary_analysis",
+      "oracle_validation_reports",
+      "a11y_i18n_contracts",
+      "react_capability_probe",
+      "react_compiler_readiness",
+      "react_frontier_evidence_readiness",
+      "react_frontier_intelligence",
+      "react_support_validation",
+      "release_readiness",
+      "scoped_host_analysis",
+      "state_data_graph",
+      "generated_self_healing_scripts",
+      "clone_detector",
+      "closure_walker_readiness",
+      "surgical_readiness",
+      "temporal_diff",
+      "test_impact_report",
+      "variation_analysis",
+      "watchdog_graph_advisories",
+      "workload_profile"
+    ],
+    "reason": "These are public reports, validation ledgers, compatibility exports, or human/operator surfaces that may be consumed outside the pipeline graph.",
+    "classifications": {
+      "adapter_registry": {
+        "category": "public_registry",
+        "reason": "Adapter inventory is a registry/report surface consumed by humans, validators, and future plugin wiring rather than a strict downstream pipeline step."
+      },
+      "ai_context": {
+        "category": "agent_context_surface",
+        "reason": "Final AI context export is a terminal agent-facing compatibility surface."
+      },
+      "architecture_oracle": {
+        "category": "advisory_governance_surface",
+        "reason": "Architecture Oracle is post-Atlas advisory evidence consumed through MCP, claim guard, and human seal workflows rather than a mandatory downstream transform."
+      },
+      "artifact_contract_validation": {
+        "category": "validation_ledger",
+        "reason": "Artifact contract validation is a release/quality proof ledger."
+      },
+      "cmo_dashboard": {
+        "category": "human_report",
+        "reason": "CMO dashboard is a terminal human-facing dashboard."
+      },
+      "confidence_risk_report": {
+        "category": "agent_support_surface",
+        "reason": "Confidence risk report is exposed through confidence/test-impact agent tools and reports rather than a required pipeline input."
+      },
+      "dead_code_tuning": {
+        "category": "human_review_support",
+        "reason": "Dead-code tuning suggestions are a human-review support surface generated beside dead_code.json, not a downstream pipeline dependency."
+      },
+      "decision_evidence": {
+        "category": "human_and_merge_evidence",
+        "reason": "Decision evidence is a merge/human proof surface and golden truth source, with downstream use outside the strict pipeline ownership map."
+      },
+      "distribution_hardening_validation": {
+        "category": "validation_ledger",
+        "reason": "Distribution hardening validation is a clean-package proof ledger."
+      },
+      "entrypoint_failure_validation": {
+        "category": "validation_ledger",
+        "reason": "Entrypoint failure validation is a release proof ledger."
+      },
+      "generated_merge_scripts": {
+        "category": "generated_operator_output",
+        "reason": "Generated merge scripts are operator artifacts, not inputs to another automatic SAGE step."
+      },
+      "honesty_telemetry": {
+        "category": "telemetry_ledger",
+        "reason": "Honesty telemetry is an observability ledger for humans and validators."
+      },
+      "host_merge_intelligence": {
+        "category": "merge_report",
+        "reason": "Host merge intelligence is a report and ContextOS/AI-context evidence surface."
+      },
+      "landscape_map": {
+        "category": "human_report",
+        "reason": "Landscape map is a human/AI context report; strict downstream consumers may load it outside pipeline ownership with wildcard report assembly."
+      },
+      "live_surface_findings": {
+        "category": "agent_support_surface",
+        "reason": "Live surface findings are exposed to AI context and humans as a support surface."
+      },
+      "live_surface_priority_pack": {
+        "category": "agent_support_surface",
+        "reason": "Live surface priority pack is exposed through ContextOS/MCP as a focused duplicate-live review surface."
+      },
+      "local_telemetry_analysis": {
+        "category": "telemetry_report",
+        "reason": "Local telemetry analysis is a report/ledger surface."
+      },
+      "master_report": {
+        "category": "human_report",
+        "reason": "Master report is a terminal human-facing aggregate."
+      },
+      "merge_intelligence_regression": {
+        "category": "validation_ledger",
+        "reason": "Merge intelligence regression is a validation proof ledger."
+      },
+      "merge_decision_cockpit_analysis_snapshot_lineage": {
+        "category": "provenance_receipt",
+        "reason": "The merge cockpit lineage receipt is consumed on demand by target-repository proof construction outside the static pipeline step graph."
+      },
+      "merge_plan_summary": {
+        "category": "merge_operator_report",
+        "reason": "Merge plan summary is an operator and agent-facing merge proposal report, not a strict downstream pipeline dependency."
+      },
+      "module_risk_matrix": {
+        "category": "human_and_agent_report",
+        "reason": "Module risk matrix is consumed by reports and AI context as risk evidence, not by a strict next pipeline step."
+      },
+      "nanometric_diff": {
+        "category": "comparison_report",
+        "reason": "Nanometric diff is a terminal comparison report unless a variation workflow explicitly consumes it."
+      },
+      "next_boundary_analysis": {
+        "category": "react_report",
+        "reason": "Next boundary analysis is a React/Next advisory report consumed by AI context, master reports and humans."
+      },
+      "oracle_validation_reports": {
+        "category": "validation_ledger",
+        "reason": "Oracle validation reports are HITL/governance proof artifacts."
+      },
+      "a11y_i18n_contracts": {
+        "category": "react_report",
+        "reason": "A11y/i18n contracts are React advisory evidence consumed by AI context, master reports and humans."
+      },
+      "react_capability_probe": {
+        "category": "capability_probe",
+        "reason": "React capability probe is a compatibility/capability report consumed by lifecycle and AI context outside strict pipeline ownership."
+      },
+      "react_compiler_readiness": {
+        "category": "react_report",
+        "reason": "React compiler readiness is an advisory React report consumed by AI context, master reports and humans."
+      },
+      "react_frontier_evidence_readiness": {
+        "category": "react_report",
+        "reason": "React frontier evidence readiness is an advisory evidence-readiness report consumed by React frontier review surfaces."
+      },
+      "react_frontier_intelligence": {
+        "category": "react_report",
+        "reason": "React frontier intelligence is a frontier evidence report and AI-context surface."
+      },
+      "react_support_validation": {
+        "category": "validation_ledger",
+        "reason": "React support validation is a React coverage proof ledger."
+      },
+      "release_readiness": {
+        "category": "release_claim_surface",
+        "reason": "Release readiness is the terminal release claim evidence surface."
+      },
+      "scoped_host_analysis": {
+        "category": "operator_report",
+        "reason": "Scoped host analysis is a focused operator report."
+      },
+      "state_data_graph": {
+        "category": "react_report",
+        "reason": "State/data graph is React state-flow advisory evidence consumed by AI context, master reports and humans."
+      },
+      "generated_self_healing_scripts": {
+        "category": "operator_plan",
+        "reason": "Generated self-healing scripts and manifests are operator/action proposals, not automatic downstream dependencies."
+      },
+      "clone_detector": {
+        "category": "analysis_report",
+        "reason": "Clone detector findings are an analysis report consumed by humans/AI context when needed."
+      },
+      "closure_walker_readiness": {
+        "category": "service_readiness",
+        "reason": "Closure Walker readiness confirms the on-demand symbolic closure service can load Genome and project scope; target-specific closure_* files are produced only when a symbol target is supplied."
+      },
+      "surgical_readiness": {
+        "category": "safety_gate_surface",
+        "reason": "Surgical readiness is a terminal safety gate verdict."
+      },
+      "temporal_diff": {
+        "category": "comparison_report",
+        "reason": "Temporal diff is a terminal comparison report."
+      },
+      "test_impact_report": {
+        "category": "agent_support_surface",
+        "reason": "Test impact report is exposed through agent tools and reports as validation guidance."
+      },
+      "variation_analysis": {
+        "category": "variation_report",
+        "reason": "Variation analysis is a terminal variation report unless a merge workflow explicitly consumes it."
+      },
+      "watchdog_graph_advisories": {
+        "category": "agent_validation_evidence",
+        "reason": "Scoped watchdog graph advisories are cross-checked against ContextOS signals and exposed as bounded agent evidence; they do not feed or impersonate canonical full-repository graph producers."
+      },
+      "workload_profile": {
+        "category": "runtime_profile",
+        "reason": "Workload profile is read opportunistically by timeout/performance helpers outside the static pipeline ownership graph."
+      }
+    }
+  },
+  "pattern_outputs": {
+    "artifacts": [
+      "closure_*"
+    ],
+    "reason": "Wildcard artifact families are validated by their owning engine and not expanded into individual static names here."
+  },
+  "critical_field_lineage": [
+    {
+      "id": "sqlite_source_snapshot_content",
+      "producer_markers": [
+        {
+          "file": "tools/core/artifact_store.py",
+          "contains": "INSERT INTO source_snapshots"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/source_snapshot_reader.py",
+          "contains": "FROM source_snapshots"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "FROM source_snapshots"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_source_snippets"
+        }
+      ]
+    },
+    {
+      "id": "agent_target_spans",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_spans.append"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_spans_shown"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "target_spans:"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_spans:"
+        }
+      ]
+    },
+    {
+      "id": "agent_target_source_snippets",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "_bounded_source_snippets"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_source_snippets_shown"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "target_source_snippets:"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "snippet_status"
+        }
+      ]
+    },
+    {
+      "id": "agent_source_snapshot_freshness_fields",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"source_snapshot_status\": snapshot_status"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"drift_check_status\": drift_status"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "source_snapshot_hash_prefix"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "drift_check_status"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "source_snapshot_status:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "source_snapshot_hash_prefix:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "drift_check_status:"
+        }
+      ]
+    },
+    {
+      "id": "agent_target_grounding_fields",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"target_exists\": bool(public.get(\"exists\"))"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"target_indexed\": bool(public.get(\"indexed\"))"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_grounding_status"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "target_grounding_status"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_exists:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_indexed:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_grounding_status:"
+        }
+      ]
+    },
+    {
+      "id": "agent_line_and_snippet_status_fields",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"line_status\": \"available\" if line else \"not_available\""
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"snippet_status\": \"included\""
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "line_status:"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "snippet_status:"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "line_status:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "snippet_status:"
+        }
+      ]
+    },
+    {
+      "id": "agent_analysis_root",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "def _analysis_root_display"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "\"analysis_root\": packet.get(\"analysis_root\")"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "analysis_root:"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "analysis_root:"
+        }
+      ]
+    },
+    {
+      "id": "agent_target_file_and_ref",
+      "producer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "def _target_path_status"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "\"target_ref\": target_ref"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_ref_usage"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "target_ref_usage:"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_file:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "target_ref:"
+        }
+      ]
+    },
+    {
+      "id": "agent_rule_identity",
+      "producer_markers": [
+        {
+          "file": "tools/engines/audit.py",
+          "contains": "_add_violation(violations"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "def _rule_explanation"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "item.get(\"rule\")"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "rule:"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "\"rule\""
+        }
+      ]
+    },
+    {
+      "id": "agent_validation_commands",
+      "producer_markers": [
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "validation_commands"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "validation_commands"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "commands:"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "validate_patch(target_file, patch_content)"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "validation:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "commands:"
+        }
+      ]
+    },
+    {
+      "id": "agent_blast_radius_direct_dependents",
+      "producer_markers": [
+        {
+          "file": "tools/engines/blast_radius_engine.py",
+          "contains": "direct_dependents"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "def _impact_radius_from_raw"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "direct_dependents_omitted"
+        },
+        {
+          "file": "tools/validate_agent_context_payloads.py",
+          "contains": "direct_dependents_omitted:"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "direct_dependents:"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "radius_depth:"
+        }
+      ]
+    },
+    {
+      "id": "audit_violation_backlog_to_agent_surface",
+      "producer_markers": [
+        {
+          "file": "tools/engines/audit.py",
+          "contains": "remediation_backlog"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "get_violation_work_queue"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "get_surgical_operation_packet"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/validate_agent_packet_chain_integrity.py",
+          "contains": "work_queue_refreshes_or_fails_closed_on_stale_chain"
+        }
+      ]
+    },
+    {
+      "id": "artifact_freshness_to_agent_fail_closed",
+      "producer_markers": [
+        {
+          "file": "tools/core/artifact_trust.py",
+          "contains": "build_artifact_trust_summary"
+        },
+        {
+          "file": "tools/core/artifact_freshness_contract.py",
+          "contains": "evaluate_artifact_freshness_contract"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "_ensure_agent_artifact_chain_current"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "config/artifact_freshness_contract.json",
+          "contains": "fail_closed_for_agent_action"
+        }
+      ]
+    }
+  ]
+}

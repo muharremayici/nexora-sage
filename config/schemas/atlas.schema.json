@@ -1,0 +1,445 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Atlas Artifact",
+  "description": "JSON Schema contract for the Atlas artifact produced by AST Sequencers and Orchestrators.",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": [
+      "project",
+      "structure",
+      "files",
+      "dependencies",
+      "symbols",
+      "features",
+      "clusters",
+      "public_contracts"
+    ],
+    "properties": {
+      "project": {
+        "type": "object",
+        "required": [
+          "name",
+          "language",
+          "framework",
+          "root",
+          "sequencer_evidence"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "framework": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "ast_contract_version": {
+            "type": "string"
+          },
+          "sequencer_evidence": {
+            "type": "object",
+            "required": [
+              "scope",
+              "repository_wide_claim",
+              "claim_boundary",
+              "coverage"
+            ],
+            "properties": {
+              "scope": {
+                "type": "string"
+              },
+              "repository_wide_claim": {
+                "type": "boolean"
+              },
+              "claim_boundary": {
+                "type": "string"
+              },
+              "coverage": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "structure": {
+        "type": "object",
+        "description": "Nested object representing the directory structure."
+      },
+      "files": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": [
+            "type",
+            "exports",
+            "imports",
+            "symbols"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "exports": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "imports": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "mtime": {
+              "type": "number"
+            },
+            "size": {
+              "type": "number"
+            },
+            "fingerprint": {
+              "type": "string"
+            },
+            "hash": {
+              "type": "string"
+            },
+            "ast_contract_version": {
+              "type": "string"
+            },
+            "symbols": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "type",
+                  "start",
+                  "end",
+                  "signature",
+                  "dna",
+                  "dependencies",
+                  "features"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "Variable",
+                      "Hook",
+                      "Arrow",
+                      "Component",
+                      "Class",
+                      "Function",
+                      "DefaultExport",
+                      "Interface",
+                      "TypeDefinition",
+                      "ReExportedSymbol",
+                      "ProxyExport",
+                      "LocalReExport",
+                      "Meta"
+                    ]
+                  },
+                  "start": {
+                    "type": "number"
+                  },
+                  "end": {
+                    "type": "number"
+                  },
+                  "line": {
+                    "type": "number"
+                  },
+                  "end_line": {
+                    "type": "number"
+                  },
+                  "char": {
+                    "type": "number"
+                  },
+                  "source_lines": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "dna": {
+                    "type": "string"
+                  },
+                  "logic_dna": {
+                    "type": "string"
+                  },
+                  "logic_dna_short": {
+                    "type": "string"
+                  },
+                  "semantic_signature": {
+                    "type": "string"
+                  },
+                  "canonical_symbol_type": {
+                    "type": "string"
+                  },
+                  "framework_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "normalization_profile": {
+                    "type": "string"
+                  },
+                  "semantic_depth": {
+                    "type": "string",
+                    "enum": [
+                      "logic_normalized",
+                      "ast_normalized",
+                      "signature_only",
+                      "unavailable"
+                    ]
+                  },
+                  "logic_dna_kind": {
+                    "type": "string",
+                    "enum": [
+                      "normalized_body",
+                      "normalized_ast_body",
+                      "structural_signature",
+                      "unavailable"
+                    ]
+                  },
+                  "normalization_confidence": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low",
+                      "none"
+                    ]
+                  },
+                  "parser_kind": {
+                    "type": "string"
+                  },
+                  "parser_version": {
+                    "type": "string"
+                  },
+                  "dependencies": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "features": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "exported": {
+                    "type": "boolean"
+                  },
+                  "exportKind": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "named",
+                      "local",
+                      "type",
+                      "reexport"
+                    ]
+                  },
+                  "modifiers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "extends": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "implements": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "memberDetails": {
+                    "type": "array"
+                  },
+                  "moduleSpecifier": {
+                    "type": "string"
+                  },
+                  "exportedNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "dependencyImports": {
+                    "type": "array"
+                  },
+                  "dynamicImports": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "uiDependencies": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "architecturalMarkers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "runtimeContract": {
+                    "type": "boolean"
+                  },
+                  "contractKind": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependencies": {
+        "type": "object",
+        "description": "File-level dependency graph.",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "symbols": {
+        "type": "array",
+        "description": "Collision-preserving global symbol occurrence registry. Symbol names are not unique identities; file and source span provide scope.",
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "type",
+            "file",
+            "dependencies"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer"
+            },
+            "char": {
+              "type": "integer"
+            },
+            "end_line": {
+              "type": "integer"
+            },
+            "source_lines": {
+              "type": "string"
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "features": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "clusters": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "public_contracts": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "package_manifests"
+            ]
+          },
+          "entry_patterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "packages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "manifest",
+                "package_root",
+                "name",
+                "entry_patterns"
+              ],
+              "properties": {
+                "manifest": {
+                  "type": "string"
+                },
+                "package_root": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "entry_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

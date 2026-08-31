@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_honesty_review_policy.schema.json",
+  "type": "object",
+  "required": [
+    "meta",
+    "default_review_class",
+    "default_operator_action",
+    "classes",
+    "storage_self_healed_review"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "const": "runtime_honesty_review_policy"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "default_review_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_operator_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "classes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "operator_action",
+          "match_any"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operator_action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "match_any": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "minProperties": 1,
+              "properties": {
+                "component_in": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "subject_prefix_in": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "subject_contains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "category": {
+                  "type": "string"
+                },
+                "claim_impact": {
+                  "type": "string"
+                },
+                "claim_impact_not_in": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "fallback": {
+                  "type": "string"
+                },
+                "detail_reason_in": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "storage_self_healed_review": {
+      "type": "object",
+      "required": [
+        "id",
+        "operator_action"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operator_action": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

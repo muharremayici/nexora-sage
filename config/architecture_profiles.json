@@ -1,0 +1,418 @@
+{
+  "_meta": {
+    "kind": "architecture_profiles",
+    "version": "2.0",
+    "description": "Universal DNA markers and rule sets for automated architectural governance"
+  },
+  "blueprint_contract": {
+    "axes": {
+      "topology": [
+        "minimal",
+        "modular",
+        "feature_sliced",
+        "clean_hexagonal",
+        "sovereign_hybrid",
+        "mixed"
+      ],
+      "runtime": [
+        "runtime_agnostic",
+        "react_spa",
+        "next_app_router",
+        "next_pages_router",
+        "next_hybrid"
+      ],
+      "repository_shape": [
+        "single_app",
+        "modular_monolith",
+        "workspace_monorepo",
+        "package_library",
+        "plugin_platform",
+        "mixed"
+      ],
+      "composition_model": [
+        "flat",
+        "layered",
+        "vertical_slices",
+        "fractal_recursive",
+        "mixed"
+      ]
+    },
+    "aliases": {
+      "NEXTJS_APP": "NEXTJS_APP_ROUTER",
+      "FSD_STANDARD": "FSD_STRICT",
+      "HEXAGONAL_PURE": "CLEAN_ARCHITECTURE",
+      "FRACTAL_SOVEREIGN_MONOLITH": "SOVEREIGN_ELITE"
+    },
+    "canonical_profiles": {
+      "SOVEREIGN_ELITE": {
+        "topology": "sovereign_hybrid",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "modular_monolith",
+        "composition_model": "fractal_recursive",
+        "implies": [
+          "FSD_STRICT",
+          "CLEAN_ARCHITECTURE"
+        ],
+        "evidence_status": "proven_fixture_and_external",
+        "seal_policy": "human_review_required"
+      },
+      "FSD_STRICT": {
+        "topology": "feature_sliced",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "single_app",
+        "composition_model": "vertical_slices",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "human_review_required"
+      },
+      "CLEAN_ARCHITECTURE": {
+        "topology": "clean_hexagonal",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "modular_monolith",
+        "composition_model": "layered",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "human_review_required"
+      },
+      "MODULAR_FLAT": {
+        "topology": "modular",
+        "runtime": "react_spa",
+        "repository_shape": "single_app",
+        "composition_model": "flat",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "advisory_only"
+      },
+      "NEXTJS_APP_ROUTER": {
+        "topology": "modular",
+        "runtime": "next_app_router",
+        "repository_shape": "single_app",
+        "composition_model": "vertical_slices",
+        "implies": [],
+        "legacy_rule_families": [
+          "FSD_STANDARD"
+        ],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "human_review_required"
+      },
+      "MONOREPO_TURBOREPO": {
+        "topology": "modular",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "workspace_monorepo",
+        "composition_model": "vertical_slices",
+        "implies": [],
+        "legacy_rule_families": [
+          "FSD_STANDARD"
+        ],
+        "evidence_status": "operational",
+        "seal_policy": "human_review_required"
+      },
+      "MONOREPO_PACKAGE_LIBRARY": {
+        "topology": "modular",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "package_library",
+        "composition_model": "layered",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "human_review_required"
+      },
+      "TURBOREPO_SAAS": {
+        "topology": "modular",
+        "runtime": "next_app_router",
+        "repository_shape": "workspace_monorepo",
+        "composition_model": "vertical_slices",
+        "implies": [
+          "NEXTJS_APP_ROUTER",
+          "MONOREPO_TURBOREPO"
+        ],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "human_review_required"
+      },
+      "PLUGIN_PLATFORM": {
+        "topology": "modular",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "plugin_platform",
+        "composition_model": "layered",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "human_review_required"
+      },
+      "MIXED_ARCHITECTURE": {
+        "topology": "mixed",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "mixed",
+        "composition_model": "mixed",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "advisory_only"
+      },
+      "MINIMAL": {
+        "topology": "minimal",
+        "runtime": "runtime_agnostic",
+        "repository_shape": "single_app",
+        "composition_model": "flat",
+        "implies": [],
+        "evidence_status": "proven_fixture",
+        "seal_policy": "advisory_only"
+      }
+    },
+    "runtime_traits": {
+      "next_pages_router": {
+        "evidence_status": "proven_analysis",
+        "claim_boundary": "Runtime/framework trait; not a standalone global doctrine."
+      },
+      "next_hybrid": {
+        "evidence_status": "proven_analysis",
+        "claim_boundary": "Combined App and Pages Router trait; not a standalone global doctrine."
+      },
+      "react_router_data": {
+        "evidence_status": "proven_analysis",
+        "claim_boundary": "Router/data trait; not a standalone global doctrine."
+      },
+      "tanstack_router": {
+        "evidence_status": "proven_analysis",
+        "claim_boundary": "Router trait; not a standalone global doctrine."
+      }
+    }
+  },
+  "profiles": {
+    "SOVEREIGN_ELITE": {
+      "display_name": "Sovereign Elite (Hybrid)",
+      "markers": [
+        "domain",
+        "infra",
+        "application",
+        "features",
+        "entities",
+        "shared"
+      ],
+      "threshold": 0.6,
+      "description": "Fractal Modular Monolith with Hexagonal Domain Isolation and recursive Vertical FSD Slicing.",
+      "enabled_rules": [
+        "domain_ui_leaks",
+        "domain_platform_leaks",
+        "fsd_shared_features",
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes"
+      ]
+    },
+    "FSD_STANDARD": {
+      "display_name": "Feature-Sliced Design (Standard)",
+      "markers": [
+        "features",
+        "entities",
+        "shared",
+        "widgets",
+        "pages",
+        "app"
+      ],
+      "threshold": 0.5,
+      "description": "Classic Feature-Sliced Design with strict layer hierarchy.",
+      "enabled_rules": [
+        "fsd_shared_features",
+        "deep_imports"
+      ]
+    },
+    "HEXAGONAL_PURE": {
+      "display_name": "Hexagonal (Pure)",
+      "markers": [
+        "domain",
+        "infra",
+        "application",
+        "ports",
+        "adapters"
+      ],
+      "threshold": 0.4,
+      "description": "Domain-Driven Design with strict decoupling of business logic from infrastructure.",
+      "enabled_rules": [
+        "domain_ui_leaks",
+        "domain_platform_leaks"
+      ]
+    },
+    "MODULAR_FLAT": {
+      "display_name": "Modular SPA (Flat)",
+      "markers": [
+        "components",
+        "hooks",
+        "utils",
+        "services",
+        "contexts",
+        "types"
+      ],
+      "threshold": 0.3,
+      "description": "Standard modular React application without strict architectural layers.",
+      "enabled_rules": [
+        "relative_imports_no_alias",
+        "loc_limits_hook",
+        "loc_limits_component"
+      ]
+    },
+    "NEXTJS_APP": {
+      "display_name": "Next.js (App Router)",
+      "markers": [
+        "app",
+        "components",
+        "lib",
+        "actions",
+        "middleware",
+        "next.config.js"
+      ],
+      "threshold": 0.5,
+      "description": "Next.js application using the contemporary App Router and Server Actions paradigm.",
+      "enabled_rules": [
+        "relative_imports_no_alias"
+      ]
+    },
+    "MONOREPO_TURBOREPO": {
+      "display_name": "Monorepo / Turborepo",
+      "markers": [
+        "apps",
+        "packages",
+        "turbo.json",
+        "pnpm-workspace.yaml",
+        "package.json"
+      ],
+      "threshold": 0.45,
+      "description": "Workspace-style repository with app/package boundaries and shared package contracts.",
+      "enabled_rules": [
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes"
+      ]
+    },
+    "MONOREPO_PACKAGE_LIBRARY": {
+      "display_name": "Monorepo Package Library",
+      "markers": [
+        "packages",
+        "index.ts",
+        "exports",
+        "package.json"
+      ],
+      "threshold": 0.55,
+      "description": "Package-oriented library monorepo with public API barrel/export surfaces.",
+      "enabled_rules": [
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes"
+      ]
+    },
+    "TURBOREPO_SAAS": {
+      "display_name": "Turborepo SaaS",
+      "markers": [
+        "apps",
+        "packages",
+        "turbo.json",
+        "pnpm-workspace.yaml",
+        "app",
+        "route.ts"
+      ],
+      "threshold": 0.55,
+      "description": "App/package workspace repository with SaaS-style web app and shared packages.",
+      "enabled_rules": [
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes",
+        "relative_imports_no_alias"
+      ]
+    },
+    "PLUGIN_PLATFORM": {
+      "display_name": "Plugin Platform",
+      "markers": [
+        "plugins",
+        "extensions",
+        "adapters",
+        "providers",
+        "integrations"
+      ],
+      "threshold": 0.55,
+      "description": "Extensible host platform with plugin, provider, adapter or integration surfaces.",
+      "enabled_rules": [
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes"
+      ]
+    },
+    "MIXED_ARCHITECTURE": {
+      "display_name": "Mixed Architecture",
+      "markers": [
+        "apps",
+        "packages",
+        "features",
+        "domain",
+        "plugins",
+        "adapters"
+      ],
+      "threshold": 0.55,
+      "description": "Repository with multiple strong architecture families where one global doctrine would be misleading.",
+      "enabled_rules": [
+        "deep_imports",
+        "own_api_imports",
+        "relative_module_escapes"
+      ]
+    },
+    "NEXTJS_APP_ROUTER": {
+      "display_name": "Next.js App Router",
+      "markers": [
+        "app",
+        "layout.tsx",
+        "page.tsx",
+        "route.ts",
+        "middleware.ts",
+        "next.config.js"
+      ],
+      "threshold": 0.45,
+      "description": "Next.js App Router repository with RSC, route handlers and server action boundaries.",
+      "enabled_rules": [
+        "relative_imports_no_alias",
+        "deep_imports"
+      ]
+    },
+    "FSD_STRICT": {
+      "display_name": "Feature-Sliced Design Strict",
+      "markers": [
+        "app",
+        "pages",
+        "widgets",
+        "features",
+        "entities",
+        "shared"
+      ],
+      "threshold": 0.55,
+      "description": "Strict Feature-Sliced Design hierarchy with public API boundary enforcement.",
+      "enabled_rules": [
+        "fsd_shared_features",
+        "deep_imports",
+        "own_api_imports"
+      ]
+    },
+    "CLEAN_ARCHITECTURE": {
+      "display_name": "Clean Architecture",
+      "markers": [
+        "domain",
+        "application",
+        "infra",
+        "adapters",
+        "ports",
+        "ui"
+      ],
+      "threshold": 0.45,
+      "description": "Clean architecture / ports-adapters repository with inward dependency constraints.",
+      "enabled_rules": [
+        "domain_ui_leaks",
+        "domain_platform_leaks",
+        "deep_imports"
+      ]
+    },
+    "MINIMAL": {
+      "display_name": "Minimal Governance",
+      "markers": [
+        "src",
+        "package.json"
+      ],
+      "threshold": 0.2,
+      "description": "Lightweight fallback profile for quick dead-code, circular dependency and health checks.",
+      "enabled_rules": []
+    }
+  }
+}

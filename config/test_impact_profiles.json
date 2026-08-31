@@ -1,0 +1,118 @@
+{
+  "_meta": {
+    "kind": "test_impact_profiles",
+    "version": "1.0",
+    "description": "Polyglot test naming and command profiles for Nexora SAGE test-impact matching."
+  },
+  "ignored_path_fragments": [
+    "node_modules/",
+    ".gemini/"
+  ],
+  "confidence": {
+    "direct_static_import": 1.0,
+    "transitive_static_dependency": 0.6,
+    "semantic_convention_match": 0.8,
+    "dual_vector_match": 1.0
+  },
+  "languages": {
+    "typescript": {
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "path_fragments": [
+        "/__tests__/",
+        "/__test__/",
+        "/tests/",
+        "/test/"
+      ],
+      "filename_contains": [
+        ".test.",
+        ".spec."
+      ],
+      "base_cleanup": [
+        {
+          "pattern": "(\\.test|\\.spec)$",
+          "replacement": ""
+        }
+      ],
+      "command": "pnpm test {test_path}"
+    },
+    "python": {
+      "extensions": [
+        ".py"
+      ],
+      "filename_prefixes": [
+        "test_"
+      ],
+      "filename_suffixes": [
+        "_test.py"
+      ],
+      "base_cleanup": [
+        {
+          "pattern": "^test_",
+          "replacement": ""
+        },
+        {
+          "pattern": "_test$",
+          "replacement": ""
+        }
+      ],
+      "command": "pytest {test_path}"
+    },
+    "go": {
+      "extensions": [
+        ".go"
+      ],
+      "filename_suffixes": [
+        "_test.go"
+      ],
+      "base_cleanup": [
+        {
+          "pattern": "_test$",
+          "replacement": ""
+        }
+      ],
+      "command": "go test -v ./{test_dir}"
+    },
+    "java": {
+      "extensions": [
+        ".java"
+      ],
+      "filename_suffixes": [
+        "Test.java",
+        "Tests.java"
+      ],
+      "base_cleanup": [
+        {
+          "pattern": "tests?$",
+          "replacement": ""
+        }
+      ],
+      "command": "mvn test -Dtest={class_name}"
+    },
+    "csharp": {
+      "extensions": [
+        ".cs"
+      ],
+      "filename_suffixes": [
+        "Test.cs",
+        "Tests.cs"
+      ],
+      "base_cleanup": [
+        {
+          "pattern": "tests?$",
+          "replacement": ""
+        }
+      ],
+      "command": "dotnet test --filter Name={class_name}"
+    }
+  },
+  "fallback_command": "run-test {test_path}"
+}

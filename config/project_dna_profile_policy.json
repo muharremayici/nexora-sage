@@ -1,0 +1,262 @@
+{
+  "meta": {
+    "kind": "nexora.project_dna_profile_policy",
+    "version": "v1",
+    "purpose": "Policy-backed repository DNA signals used to summarize project shape before capability activation planning."
+  },
+  "confidence_weights": {
+    "package_dependency": 0.9,
+    "config_file": 0.85,
+    "source_extension": 0.7,
+    "atlas_feature": 0.95,
+    "workspace_marker": 0.85
+  },
+  "language_extensions": {
+    "typescript": [
+      ".ts",
+      ".tsx"
+    ],
+    "javascript": [
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs"
+    ],
+    "python": [
+      ".py"
+    ],
+    "go": [
+      ".go"
+    ],
+    "java": [
+      ".java"
+    ],
+    "csharp": [
+      ".cs"
+    ]
+  },
+  "package_managers": {
+    "pnpm": [
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml"
+    ],
+    "yarn": [
+      "yarn.lock"
+    ],
+    "npm": [
+      "package-lock.json"
+    ],
+    "bun": [
+      "bun.lockb",
+      "bun.lock"
+    ]
+  },
+  "dependency_manifest_signals": {
+    "javascript": [
+      "package.json"
+    ],
+    "python": [
+      "pyproject.toml",
+      "requirements*.txt",
+      "poetry.lock",
+      "uv.lock"
+    ],
+    "go": [
+      "go.mod",
+      "go.sum",
+      "go.work"
+    ],
+    "java": [
+      "pom.xml",
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "csharp": [
+      "*.csproj",
+      "*.sln",
+      "Directory.Build.props",
+      "Directory.Packages.props"
+    ]
+  },
+  "framework_package_signals": {
+    "react": [
+      "react",
+      "react-dom"
+    ],
+    "nextjs": [
+      "next"
+    ],
+    "vite": [
+      "vite",
+      "@vitejs/plugin-react"
+    ],
+    "storybook": [
+      "storybook",
+      "@storybook/react",
+      "@storybook/nextjs",
+      "@storybook/builder-vite"
+    ],
+    "zustand": [
+      "zustand"
+    ],
+    "tanstack_query": [
+      "@tanstack/react-query"
+    ],
+    "react_router": [
+      "react-router",
+      "react-router-dom"
+    ],
+    "tanstack_router": [
+      "@tanstack/react-router"
+    ],
+    "trpc": [
+      "@trpc/client",
+      "@trpc/server",
+      "@trpc/react-query"
+    ],
+    "apollo": [
+      "@apollo/client",
+      "graphql"
+    ],
+    "swr": [
+      "swr"
+    ],
+    "prisma": [
+      "prisma",
+      "@prisma/client"
+    ],
+    "tailwind": [
+      "tailwindcss"
+    ],
+    "mui": [
+      "@mui/material",
+      "@mui/system"
+    ],
+    "react_hook_form": [
+      "react-hook-form"
+    ],
+    "zod": [
+      "zod"
+    ]
+  },
+  "framework_config_signals": {
+    "nextjs": [
+      "next.config.js",
+      "next.config.mjs",
+      "next.config.ts"
+    ],
+    "vite": [
+      "vite.config.js",
+      "vite.config.mjs",
+      "vite.config.ts"
+    ],
+    "storybook": [
+      ".storybook/main.js",
+      ".storybook/main.ts",
+      ".storybook/main.mjs"
+    ],
+    "tailwind": [
+      "tailwind.config.js",
+      "tailwind.config.ts",
+      "tailwind.config.mjs"
+    ],
+    "typescript": [
+      "tsconfig.json",
+      "tsconfig.base.json"
+    ],
+    "workspace": [
+      "pnpm-workspace.yaml",
+      "turbo.json",
+      "nx.json",
+      "lerna.json"
+    ]
+  },
+  "infrastructure_file_signals": {
+    "docker": [
+      "Dockerfile",
+      "docker-compose.yml",
+      "compose.yml",
+      "compose.yaml"
+    ],
+    "openapi": [
+      "openapi.json",
+      "openapi.yaml",
+      "swagger.json",
+      "swagger.yaml"
+    ],
+    "graphql_schema": [
+      "schema.graphql",
+      "graphql.schema"
+    ],
+    "protobuf": [
+      "buf.yaml",
+      "proto"
+    ]
+  },
+  "repo_shape_markers": {
+    "monorepo": [
+      "apps",
+      "packages",
+      "libs",
+      "services"
+    ],
+    "single_app": [
+      "src",
+      "app",
+      "pages"
+    ]
+  },
+  "activation_intent": {
+    "atlas_sequencing": [
+      "typescript",
+      "javascript",
+      "python",
+      "go",
+      "java",
+      "csharp"
+    ],
+    "react_surgical_intelligence": [
+      "react",
+      "nextjs",
+      "vite",
+      "react_router",
+      "tanstack_router"
+    ],
+    "immutability_purity_cage": [
+      "react",
+      "zustand"
+    ],
+    "contextos": [
+      "typescript",
+      "javascript",
+      "python",
+      "go",
+      "java",
+      "csharp"
+    ],
+    "distributed_service_governance": [
+      "docker",
+      "openapi",
+      "graphql_schema",
+      "protobuf"
+    ],
+    "performance_n_plus_one_cage": [
+      "typescript",
+      "javascript",
+      "python"
+    ],
+    "resilience_error_handling_cage": [
+      "typescript",
+      "javascript",
+      "python"
+    ],
+    "tree_sitter_polyglot_driver": [
+      "python",
+      "go",
+      "java",
+      "csharp"
+    ]
+  }
+}

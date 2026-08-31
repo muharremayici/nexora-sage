@@ -1,0 +1,327 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "files",
+    "merge_candidates"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ui_runtime_contracts"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "files_analyzed",
+        "risk_tiers",
+        "candidate_risk_tiers",
+        "by_project"
+      ],
+      "properties": {
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "risk_tiers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "top_risk_reasons": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "candidate_risk_tiers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "by_project": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "scoped_file",
+          "risk_points",
+          "risk_tier",
+          "risk_reasons"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "scoped_file": {
+            "type": "string"
+          },
+          "loc": {
+            "type": "integer"
+          },
+          "risk_points": {
+            "type": "integer"
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "risk_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "context_hooks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "store_hooks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "router_hooks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "route_components": {
+            "type": "boolean"
+          },
+          "i18n_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_i18n_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "css_imports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "css_variables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "relative_imports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "service_imports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "browser_apis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "merge_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "target_path",
+          "ui_surface",
+          "risk_points",
+          "risk_tier",
+          "risk_reasons",
+          "recommended_gate",
+          "dependency_closure_plan",
+          "smoke_plan"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "studio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_path": {
+            "type": "string"
+          },
+          "target_layer": {
+            "type": "string"
+          },
+          "ui_surface": {
+            "type": "boolean"
+          },
+          "risk_points": {
+            "type": "integer"
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "risk_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommended_gate": {
+            "type": "string",
+            "enum": [
+              "browser_smoke_required",
+              "static_gate_sufficient"
+            ]
+          },
+          "contract_origin": {
+            "type": "string",
+            "enum": [
+              "none",
+              "target_path",
+              "source_symbol"
+            ]
+          },
+          "source_contract_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_contract_risk_tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dependency_closure_plan": {
+            "type": "object",
+            "required": [
+              "required_contracts"
+            ],
+            "properties": {
+              "required_contracts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          },
+          "smoke_plan": {
+            "type": "object",
+            "required": [
+              "required",
+              "suggested_route",
+              "setup",
+              "assertions"
+            ],
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "suggested_route": {
+                "type": "string"
+              },
+              "setup": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "assertions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,107 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "core.base",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "low_signal_tokens": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "i",
+    "j",
+    "k",
+    "n",
+    "p",
+    "r",
+    "t",
+    "as",
+    "of",
+    "ui",
+    "wb",
+    "fn",
+    "el",
+    "id",
+    "ix",
+    "it",
+    "is",
+    "to",
+    "the",
+    "now",
+    "row",
+    "map",
+    "raw",
+    "ref",
+    "def",
+    "opt",
+    "cmd",
+    "but",
+    "ai",
+    "num",
+    "key",
+    "val",
+    "nav",
+    "mod",
+    "idx",
+    "end",
+    "url",
+    "__file_meta__"
+  ],
+  "clone_detection": {
+    "min_lines": 5
+  },
+  "circular_deps": {
+    "classification": {
+      "massive_cycle_threshold": 10
+    }
+  },
+  "platform_structural_families": [
+    "services/",
+    "workers/",
+    "hooks/",
+    "contexts/",
+    "components/",
+    "infra/",
+    "application/",
+    "domain/",
+    "api/"
+  ],
+  "required_artifacts": [
+    "atlas.json",
+    "circular_deps.json",
+    "dead_code.json",
+    "dead_code_tuning.json",
+    "health_score.json",
+    "quality_gate.json",
+    "merge_plan_summary.json",
+    "react_support_matrix.json",
+    "state_flow.json",
+    "decision_evidence.json",
+    "host_merge_intelligence.json"
+  ],
+  "validation_oracle_settings": {
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx"
+    ],
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "src/**/*.js",
+      "src/**/*.jsx"
+    ],
+    "exclude": [
+      "node_modules",
+      ".next",
+      "dist",
+      "build"
+    ]
+  }
+}

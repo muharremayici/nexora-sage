@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "local_telemetry_analysis.schema.json",
+  "title": "Local Telemetry Analysis",
+  "type": "object",
+  "required": [
+    "mapped_hotpaths",
+    "untriggered_nodes_count",
+    "untriggered_nodes_sample",
+    "total_captured_traces",
+    "trace_origin_summary",
+    "coverage_gap_label"
+  ],
+  "properties": {
+    "mapped_hotpaths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "identifier",
+          "mapped_node",
+          "hits",
+          "avg_ms"
+        ],
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "mapped_node": {
+            "type": "string"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "avg_ms": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "untriggered_nodes_count": {
+      "type": "integer"
+    },
+    "untriggered_nodes_sample": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "total_captured_traces": {
+      "type": "integer"
+    },
+    "trace_origin_summary": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "coverage_gap_label": {
+      "type": "string"
+    }
+  }
+}

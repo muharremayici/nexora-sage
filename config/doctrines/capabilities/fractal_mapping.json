@@ -1,0 +1,341 @@
+{
+  "_meta": {
+    "kind": "nexora.doctrine_pack",
+    "version": "1.0",
+    "source": "config/architecture_doctrine.json",
+    "namespace": "capabilities.fractal_mapping",
+    "merge_strategy": "deep_merge_top_level"
+  },
+  "studio_definitions": {
+    "presentation": [
+      "presentation",
+      "ui",
+      "view",
+      "page",
+      "screen",
+      "component",
+      "widget"
+    ],
+    "application": [
+      "application",
+      "usecase",
+      "use-case",
+      "workflow",
+      "orchestrator",
+      "service"
+    ],
+    "domain": [
+      "domain",
+      "entity",
+      "aggregate",
+      "valueobject",
+      "value-object",
+      "business"
+    ],
+    "infrastructure": [
+      "infrastructure",
+      "infra",
+      "adapter",
+      "repository",
+      "persistence",
+      "database",
+      "network"
+    ],
+    "shared": [
+      "shared",
+      "common",
+      "lib",
+      "utils",
+      "hooks",
+      "types"
+    ],
+    "platform_core": [
+      "platform",
+      "lifecycle",
+      "sync",
+      "auth",
+      "telemetry",
+      "worker",
+      "servicecontainer",
+      "migration",
+      "pipeline"
+    ]
+  },
+  "studio_to_module_map": {
+    "presentation": "presentation",
+    "application": "application",
+    "domain": "domain",
+    "infrastructure": "infrastructure",
+    "shared": "shared"
+  },
+  "capability_to_studio_map": {
+    "user_interface": "presentation",
+    "business_logic": "domain",
+    "persistence": "infrastructure",
+    "shared_utility": "shared",
+    "platform_core": "platform_core"
+  },
+  "capability_discovery": {
+    "user_interface": [
+      "component",
+      "page",
+      "view",
+      "screen",
+      "widget",
+      "route"
+    ],
+    "business_logic": [
+      "domain",
+      "entity",
+      "aggregate",
+      "usecase",
+      "workflow"
+    ],
+    "persistence": [
+      "repository",
+      "database",
+      "storage",
+      "adapter",
+      "migration"
+    ],
+    "shared_utility": [
+      "shared",
+      "common",
+      "utility",
+      "helper",
+      "hook"
+    ],
+    "collaboration": [
+      "crdt",
+      "yjs",
+      "sync",
+      "presence",
+      "awareness"
+    ],
+    "state_management": [
+      "zustand",
+      "store",
+      "persist",
+      "subscribe",
+      "shallow"
+    ],
+    "pwa": [
+      "indexeddb",
+      "dexie",
+      "worker",
+      "offline",
+      "serviceWorker"
+    ],
+    "ai": [
+      "agent",
+      "prompt",
+      "inference",
+      "embedding",
+      "genai"
+    ],
+    "routing": [
+      "useNavigate",
+      "Route",
+      "useParams",
+      "Outlet"
+    ]
+  },
+  "main_first_domain_overrides": {
+    "agent_orchestration": [
+      "agent orchestrator",
+      "workflow orchestrator",
+      "pipeline orchestrator",
+      "service container"
+    ],
+    "project_lifecycle": [
+      "migration",
+      "bootstrap",
+      "initializer",
+      "lifecycle"
+    ]
+  },
+  "generic_path_hints": [
+    [
+      "(^|[/\\\\])(presentation|ui|views?|pages?|screens?|components?|widgets?)([/\\\\]|$)",
+      "presentation"
+    ],
+    [
+      "(^|[/\\\\])(application|use-?cases?|workflows?|orchestrators?|services?)([/\\\\]|$)",
+      "application"
+    ],
+    [
+      "(^|[/\\\\])(domain|entities|aggregates|value-?objects?)([/\\\\]|$)",
+      "domain"
+    ],
+    [
+      "(^|[/\\\\])(infrastructure|infra|adapters?|repositories|persistence|database|storage|network)([/\\\\]|$)",
+      "infrastructure"
+    ],
+    [
+      "(^|[/\\\\])(shared|common|lib|utils?|hooks?|types?)([/\\\\]|$)",
+      "shared"
+    ],
+    [
+      "(^|[/\\\\])(platform|runtime|core)[/\\\\](auth|sync|telemetry|migration|lifecycle|worker|pipeline|bootstrap)",
+      "platform_core"
+    ],
+    [
+      "(^|[/\\\\])src[/\\\\](platform|runtime|core)([/\\\\]|$)",
+      "platform_core"
+    ]
+  ],
+  "project_path_hints": {},
+  "layer_rules": [
+    {
+      "layer": "shared/hooks",
+      "conditions": {
+        "name_prefix": "use",
+        "path_fragments": [
+          "/hooks/"
+        ]
+      }
+    },
+    {
+      "layer": "entities",
+      "conditions": {
+        "name_suffix": [
+          "store",
+          "slice"
+        ],
+        "path_fragments": [
+          "/stores/",
+          "/entities/"
+        ]
+      }
+    },
+    {
+      "layer": "domain/logic",
+      "conditions": {
+        "path_fragments": [
+          "domain"
+        ],
+        "hexagonal_meta": [
+          "Domain"
+        ]
+      }
+    },
+    {
+      "layer": "infra",
+      "conditions": {
+        "hexagonal_meta": [
+          "Infrastructure"
+        ],
+        "path_fragments": [
+          "/infra/"
+        ],
+        "name_suffix": [
+          "adapter",
+          "repository"
+        ]
+      }
+    },
+    {
+      "layer": "application",
+      "conditions": {
+        "type_match": "Service",
+        "name_suffix": [
+          "service",
+          "manager"
+        ],
+        "hexagonal_meta": [
+          "Application"
+        ]
+      }
+    },
+    {
+      "layer": "pages",
+      "conditions": {
+        "path_fragments": [
+          "/pages/"
+        ]
+      }
+    },
+    {
+      "layer": "widgets",
+      "conditions": {
+        "path_fragments": [
+          "/widgets/"
+        ],
+        "name_suffix": [
+          "widget"
+        ]
+      }
+    },
+    {
+      "layer": "api",
+      "conditions": {
+        "name_suffix": [
+          "route"
+        ]
+      }
+    }
+  ],
+  "platform_mapping": [
+    {
+      "keyword": "auth",
+      "path": "src/platform/auth/"
+    },
+    {
+      "keyword": "sync",
+      "path": "src/platform/sync/"
+    },
+    {
+      "keyword": "telemetry",
+      "path": "src/platform/analysis/"
+    },
+    {
+      "keyword": "analytics",
+      "path": "src/platform/analysis/"
+    },
+    {
+      "keyword": "worker",
+      "path": "src/platform/workers/"
+    },
+    {
+      "keyword": "storage",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "db",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "repository",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "persistence",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "adapter",
+      "path": "src/platform/storage/"
+    },
+    {
+      "keyword": "network",
+      "path": "src/platform/networking/"
+    },
+    {
+      "keyword": "export",
+      "path": "src/platform/export/"
+    },
+    {
+      "keyword": "lifecycle",
+      "path": "src/platform/lifecycle/"
+    },
+    {
+      "keyword": "bootstrap",
+      "path": "src/platform/lifecycle/"
+    },
+    {
+      "keyword": "initializer",
+      "path": "src/platform/lifecycle/"
+    }
+  ],
+  "platform_default_path": "src/platform/core/"
+}

@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "kind": "nexora.principle_manifest",
+    "version": "1.0.0",
+    "description": "Advisory engineering principle packs. These are not binding doctrine, cages, or quality gates."
+  },
+  "contract": {
+    "status": "advisory_only",
+    "runtime_effect": "context_guidance",
+    "doctrine_compilation": "excluded",
+    "quality_gate_effect": "none",
+    "active_path_prefixes": [
+      "universal/"
+    ],
+    "required_principle_fields": [
+      "id",
+      "label",
+      "applies_to",
+      "rationale",
+      "directive_hint",
+      "enforcement"
+    ],
+    "claim_boundary": "Principle packs explain why a directive is safer; they do not create enforceable repository violations in 1.0.0."
+  },
+  "active_principles": [
+    {
+      "id": "principles.scope_control",
+      "path": "universal/scope_control.json",
+      "required": true
+    },
+    {
+      "id": "principles.error_handling",
+      "path": "universal/error_handling.json",
+      "required": true
+    },
+    {
+      "id": "principles.cognitive_load",
+      "path": "universal/cognitive_load.json",
+      "required": true
+    },
+    {
+      "id": "principles.epistemic_operating_loop",
+      "path": "universal/epistemic_operating_loop.json",
+      "required": true
+    }
+  ]
+}

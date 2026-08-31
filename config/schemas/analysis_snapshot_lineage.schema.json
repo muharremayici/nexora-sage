@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SAGE Analysis Snapshot Lineage Receipt",
+  "type": "object",
+  "required": [
+    "meta",
+    "artifact_id",
+    "producer",
+    "status",
+    "atlas_snapshot_id",
+    "artifact_sha256",
+    "atlas_sha256",
+    "dependencies",
+    "errors"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generated_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "analysis_snapshot_lineage"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "generated_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "COMPLETE",
+        "BLOCKED"
+      ]
+    },
+    "atlas_snapshot_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifact_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "atlas_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "artifact_sha256",
+          "snapshot_binding"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "snapshot_binding": {
+            "enum": [
+              "BOUND",
+              "UNAVAILABLE",
+              "MISMATCH"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

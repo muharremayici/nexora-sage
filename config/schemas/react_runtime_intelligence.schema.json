@@ -1,0 +1,248 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "calibration",
+    "files",
+    "findings"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "files_analyzed",
+        "findings",
+        "dimension_counts",
+        "confidence_counts",
+        "calibration_counts",
+        "false_positive_risk_counts",
+        "risk_tiers",
+        "high_risk",
+        "medium_risk",
+        "confirmed_or_likely",
+        "act_now",
+        "review_next",
+        "needs_runtime_probe",
+        "by_project"
+      ],
+      "properties": {
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "findings": {
+          "type": "integer"
+        },
+        "dimension_counts": {
+          "type": "object"
+        },
+        "confidence_counts": {
+          "type": "object"
+        },
+        "calibration_counts": {
+          "type": "object"
+        },
+        "false_positive_risk_counts": {
+          "type": "object"
+        },
+        "risk_tiers": {
+          "type": "object"
+        },
+        "high_risk": {
+          "type": "integer"
+        },
+        "medium_risk": {
+          "type": "integer"
+        },
+        "confirmed_or_likely": {
+          "type": "integer"
+        },
+        "act_now": {
+          "type": "integer"
+        },
+        "review_next": {
+          "type": "integer"
+        },
+        "needs_runtime_probe": {
+          "type": "integer"
+        },
+        "by_project": {
+          "type": "object"
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "required": [
+        "policy",
+        "lane_counts",
+        "top_act_now",
+        "top_runtime_probe"
+      ],
+      "properties": {
+        "policy": {
+          "type": "object",
+          "required": [
+            "source",
+            "meta",
+            "calibration_lanes",
+            "actionable_dimensions",
+            "false_positive_policy"
+          ],
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "meta": {
+              "type": "object"
+            },
+            "calibration_lanes": {
+              "type": "object"
+            },
+            "actionable_dimensions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "false_positive_policy": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": true
+        },
+        "lane_counts": {
+          "type": "object"
+        },
+        "top_act_now": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "top_runtime_probe": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "signals"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "signals": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "line",
+          "dimension",
+          "risk",
+          "risk_tier",
+          "confidence",
+          "calibration_lane",
+          "false_positive_risk",
+          "score",
+          "evidence_kinds",
+          "evidence",
+          "recommended_action"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string"
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "likely",
+              "probable",
+              "needs_runtime_proof"
+            ]
+          },
+          "calibration_lane": {
+            "type": "string",
+            "enum": [
+              "act_now",
+              "review_next",
+              "observe",
+              "needs_runtime_probe"
+            ]
+          },
+          "false_positive_risk": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "score": {
+            "type": "integer"
+          },
+          "evidence_kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

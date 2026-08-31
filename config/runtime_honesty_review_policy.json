@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "kind": "runtime_honesty_review_policy",
+    "version": "v1",
+    "purpose": "Classify honesty telemetry events for operator and agent-manual review without hiding raw events."
+  },
+  "default_review_class": "non_blocking_runtime_noise",
+  "default_operator_action": "No blocking action; retain for observability.",
+  "classes": [
+    {
+      "id": "expected_validation_probe",
+      "operator_action": "No target-code action; keep visible as proof that fail-closed/probe paths speak.",
+      "match_any": [
+        {
+          "component_in": [
+            "test",
+            "watchdog_snapshot_freshness_validation"
+          ]
+        },
+        {
+          "subject_prefix_in": [
+            "TEST::",
+            "PROBE::"
+          ]
+        },
+        {
+          "subject_contains": [
+            "NO_SUCH_FILE"
+          ]
+        },
+        {
+          "detail_reason_in": [
+            "fixture",
+            "freshness validator stale source probe"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expected_performance_probe",
+      "operator_action": "No target-code action; keep visible as proof that fail-closed/probe paths speak.",
+      "match_any": [
+        {
+          "subject_contains": [
+            "AppData\\Local\\Temp"
+          ],
+          "fallback": "scan_without_metadata_lift"
+        }
+      ]
+    },
+    {
+      "id": "target_repo_input_attention",
+      "operator_action": "Inspect the named target/variation input before making claims about that project scope.",
+      "match_any": [
+        {
+          "subject_contains": [
+            "\\Variations\\",
+            "/Variations/"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stale_evidence_attention",
+      "operator_action": "Refresh Atlas/source snapshots before trusting downstream findings for this subject.",
+      "match_any": [
+        {
+          "category": "stale_evidence"
+        },
+        {
+          "claim_impact": "finding_suppressed"
+        }
+      ]
+    },
+    {
+      "id": "claim_affecting_attention",
+      "operator_action": "Review the event before expanding release or target-repository claims.",
+      "match_any": [
+        {
+          "claim_impact_not_in": [
+            "",
+            "none",
+            "performance_only"
+          ]
+        }
+      ]
+    }
+  ],
+  "storage_self_healed_review": {
+    "id": "storage_self_healed_review",
+    "operator_action": "Inspect repeated SQLite self-heal events; rerun artifact producer if the same row remains missing."
+  }
+}

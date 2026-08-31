@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "layer_import_boundary_validation.schema.json",
+  "title": "Layer Import Boundary Validation",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "validation_scope",
+    "scope_errors",
+    "violations",
+    "findings",
+    "repository_cycle_no_worsening"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "layer_import_boundary_validation"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "protected_files",
+        "imports_checked",
+        "allowed_imports",
+        "violations",
+        "scope_errors"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "protected_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "imports_checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowed_imports": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scope_errors": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "validation_scope": {
+      "type": "object"
+    },
+    "scope_errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "repository_cycle_no_worsening": {
+      "type": "object",
+      "required": [
+        "status",
+        "scope",
+        "internal_edges",
+        "cyclic_modules",
+        "components",
+        "known_components",
+        "unexpected_components",
+        "baseline_drift",
+        "parse_errors",
+        "scope_errors"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "eligible_python_files",
+            "inspected_python_files",
+            "excluded_python_files",
+            "scan_roots",
+            "excluded_globs",
+            "explicit_non_claims",
+            "algorithm",
+            "edge_semantics",
+            "baseline_update_rule",
+            "module_collisions"
+          ],
+          "properties": {
+            "eligible_python_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inspected_python_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "excluded_python_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scan_roots": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "excluded_globs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explicit_non_claims": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "algorithm": {
+              "type": "string",
+              "enum": [
+                "python_ast_static_import_scc_v1"
+              ]
+            },
+            "edge_semantics": {
+              "type": "string",
+              "minLength": 1
+            },
+            "baseline_update_rule": {
+              "type": "string",
+              "minLength": 1
+            },
+            "module_collisions": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": true
+        },
+        "internal_edges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cyclic_modules": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "known_components": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "modules",
+              "maximum_internal_edges",
+              "edges"
+            ],
+            "properties": {
+              "modules": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "maximum_internal_edges": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "edges": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "unexpected_components": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "baseline_drift": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "parse_errors": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "scope_errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "component": {
+      "type": "object",
+      "required": [
+        "modules",
+        "internal_edges",
+        "edges"
+      ],
+      "properties": {
+        "modules": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "internal_edges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edges": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

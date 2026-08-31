@@ -1,0 +1,99 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "readiness",
+    "summary",
+    "checks",
+    "evidence"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "release_readiness"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "readiness": {
+      "type": "string",
+      "enum": [
+        "PRODUCTION_READY",
+        "NOT_READY"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "checks",
+        "passed",
+        "failed",
+        "artifact_error_count"
+      ],
+      "properties": {
+        "checks": {
+          "type": "integer"
+        },
+        "passed": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "ecosystem_signal_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifact_error_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "passed",
+          "enforced",
+          "details"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "enforced": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "evidence": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

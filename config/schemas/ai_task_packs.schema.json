@@ -1,0 +1,181 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "taskpacks"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ai_task_packs"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "generated",
+        "actions",
+        "taskpack_dir",
+        "source_artifact"
+      ],
+      "properties": {
+        "generated": {
+          "type": "integer"
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "taskpack_dir": {
+          "type": "string"
+        },
+        "source_artifact": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "taskpacks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate",
+          "source",
+          "action",
+          "intent",
+          "target_path",
+          "taskpack_path",
+          "required_actions",
+          "reasons",
+          "proof_contract"
+        ],
+        "properties": {
+          "candidate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "Import Now",
+              "Import With Review",
+              "Do Not Import Yet"
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "safe_import",
+              "reviewed_import",
+              "blocker_resolution"
+            ]
+          },
+          "target_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "taskpack_path": {
+            "type": "string"
+          },
+          "required_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_contract_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "copy_files_sample": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "copy_files_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "proof_contract": {
+            "type": "object",
+            "required": [
+              "required_proof_commands",
+              "expected_artifacts",
+              "rollback_criteria",
+              "human_review_checklist"
+            ],
+            "properties": {
+              "required_proof_commands": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "expected_artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rollback_criteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "human_review_checklist": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "confidence_components": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

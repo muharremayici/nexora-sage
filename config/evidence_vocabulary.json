@@ -1,0 +1,104 @@
+{
+  "_meta": {
+    "kind": "nexora.evidence_vocabulary",
+    "version": "1.0",
+    "description": "Shared evidence, confidence, runtime-proof and decision-authority vocabulary for engine/plugin contracts."
+  },
+  "confidence_levels": [
+    {
+      "id": "confirmed",
+      "meaning": "Direct static or artifact-backed evidence is present inside the supported claim scope.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "probable",
+      "meaning": "Strong but incomplete evidence. Useful for ranking and warnings, not standalone destructive action.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "likely",
+      "meaning": "A calibrated signal stronger than probable but still below confirmed proof.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "candidate",
+      "meaning": "A detector found a possible signal that needs calibration or additional evidence.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "needs_parent_boundary_proof",
+      "meaning": "The local signal depends on a parent route, package, module or ownership boundary proof.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "needs_runtime_proof",
+      "meaning": "The behavior cannot be proven statically and requires runtime, browser, test or telemetry evidence.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "needs_transitive_helper_proof",
+      "meaning": "The local signal depends on helper/wrapper propagation through another symbol or module.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "reference_only",
+      "meaning": "The surface is documentation, demo, story, fixture, generated reference or intentionally non-production.",
+      "may_block_without_human": false
+    },
+    {
+      "id": "not_v1_scope",
+      "meaning": "The signal belongs to a roadmap capability and must not be used as a v1 release claim.",
+      "may_block_without_human": false
+    }
+  ],
+  "evidence_kinds": [
+    "atlas_feature",
+    "ast_span",
+    "static_policy",
+    "compiled_config",
+    "doctrine_rule",
+    "artifact_contract",
+    "schema_validation",
+    "release_proof",
+    "manual_corpus",
+    "fixture_regression",
+    "react_state_signal",
+    "route_surface",
+    "public_contract",
+    "barrel_chain",
+    "type_augmentation",
+    "runtime_trace",
+    "telemetry_trace",
+    "git_signal",
+    "watchdog_signal",
+    "contextos_signal",
+    "human_approval",
+    "claim_guard"
+  ],
+  "runtime_proof_statuses": [
+    "not_required",
+    "needs_runtime_proof",
+    "runtime_supported",
+    "runtime_confirmed"
+  ],
+  "actionability_levels": [
+    "observe",
+    "advisory",
+    "warn",
+    "block",
+    "human_review",
+    "roadmap"
+  ],
+  "decision_authorities": [
+    "engine_signal_only",
+    "evidence_calibrated",
+    "governance_decides",
+    "human_approval_required"
+  ],
+  "guardrails": {
+    "engine_signal_only_must_not_block": true,
+    "runtime_sensitive_static_only_findings_must_use_needs_runtime_proof": true,
+    "roadmap_capabilities_must_use_not_v1_scope": true,
+    "destructive_or_code_mutating_actions_require_human_approval": true
+  }
+}

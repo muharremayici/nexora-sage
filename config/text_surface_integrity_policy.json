@@ -1,0 +1,98 @@
+{
+  "_meta": {
+    "kind": "text_surface_integrity_policy",
+    "version": "1.0.0",
+    "purpose": "Defines UTF-8 and mojibake integrity checks for SAGE-owned source, config, docs and agent-facing text surfaces."
+  },
+  "source_clean_scope": {
+    "include_roots": [
+      "README.md",
+      "SKILL.md",
+      "CONTRIBUTING.md",
+      "THREAT_MODEL.md",
+      "CLEAN_INSTALL_NOTES.md",
+      "docs",
+      "config",
+      "tools",
+      "codemaps.py",
+      "sage.py",
+      "pyproject.toml",
+      "LICENSE"
+    ],
+    "include_suffixes": [
+      ".cjs",
+      ".js",
+      ".json",
+      ".md",
+      ".py",
+      ".toml",
+      ".txt"
+    ],
+    "exclude_path_prefixes": [
+      "docs/archive",
+      "output",
+      ".git"
+    ],
+    "exclude_path_parts": [
+      ".git",
+      ".pytest_cache",
+      "__pycache__",
+      ".mypy_cache",
+      "node_modules",
+      "vendor_runtime",
+      ".vendor"
+    ]
+  },
+  "release_language_scope": {
+    "include_roots": [
+      "README.md",
+      "SKILL.md",
+      "CONTRIBUTING.md",
+      "THREAT_MODEL.md",
+      "CLEAN_INSTALL_NOTES.md",
+      "docs"
+    ],
+    "include_suffixes": [
+      ".md"
+    ],
+    "exclude_path_prefixes": [
+      "docs/archive"
+    ],
+    "disallowed_character_sets": {
+      "turkish_chars": [
+        "ğ",
+        "Ğ",
+        "ı",
+        "İ",
+        "ş",
+        "Ş",
+        "ü",
+        "Ü",
+        "ö",
+        "Ö",
+        "ç",
+        "Ç"
+      ]
+    }
+  },
+  "checks": {
+    "strict_utf8_decode": true,
+    "replacement_character": true,
+    "mojibake_marker_visibility": true
+  },
+  "mojibake_markers": [
+    "Ã",
+    "Ä",
+    "Å",
+    "Â",
+    "â€",
+    "â€™",
+    "â€œ",
+    "â€�"
+  ],
+  "mojibake_marker_allowed_files": {
+    "tools/core/text_normalizer.py": "Defines detection and repair markers for text normalization.",
+    "tools/generate_runtime_honesty_review.py": "Defines detection markers for runtime honesty telemetry review."
+  },
+  "terminal_rendering_note": "PowerShell or terminal codepage rendering can display UTF-8 text incorrectly; this policy validates source bytes and decoded text, not terminal glyph rendering."
+}

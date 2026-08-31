@@ -1,0 +1,962 @@
+{
+  "_meta": {
+    "kind": "nexora.manual_adversarial_audit_checklist",
+    "version": "1.0.0",
+    "purpose": "Machine-readable checklist for skeptical layer-by-layer manual audit before release sealing. It guides human/agent eye review from upstream truth to downstream agent and release surfaces.",
+    "rule": "Checklist items are not proof by themselves. They define where to look, which invariants to test, which evidence artifacts to compare, and which failure families to sweep when a defect is found."
+  },
+  "validation": {
+    "required_layer_fields": [
+      "id",
+      "order",
+      "layer_phase",
+      "purpose",
+      "evidence_artifacts",
+      "invariants",
+      "lineage_checks",
+      "adversarial_cases",
+      "failure_family_sweeps",
+      "manual_review_prompts",
+      "exit_criteria"
+    ],
+    "required_invariant_ids": [
+      "target_root_identity",
+      "sqlite_first_or_declared_fallback",
+      "freshness_and_staleness_visible",
+      "line_span_source_grounded",
+      "main_variation_external_scope_separated",
+      "doctrine_policy_seal_propagated",
+      "agent_surface_audience_boundary",
+      "fail_closed_and_non_silent",
+      "positive_path_proof_uses_authoritative_source",
+      "evidence_verdict_is_canonically_normalized",
+      "execution_order_declared",
+      "human_seal_currentness",
+      "manual_review_requires_current_manual_evidence",
+      "work_package_lessons_captured",
+      "lessons_generalized_before_recording"
+    ],
+    "minimum_layers": 10,
+    "minimum_adversarial_cases_per_layer": 2,
+    "minimum_lineage_checks_per_layer": 2,
+    "required_source_layer_coverage_fields": [
+      "source_layer_id",
+      "risk_tier",
+      "macro_audit_layer_ids",
+      "sample_policy"
+    ],
+    "required_micro_walkthrough_scopes": [
+      "pipeline_steps",
+      "release_proof_steps",
+      "artifact_connectivity"
+    ],
+    "required_micro_scope_fields": [
+      "scope",
+      "order_source",
+      "sample_policy",
+      "checks",
+      "failure_family_sweeps",
+      "positive_pattern_sweeps",
+      "triage_rule",
+      "exit_criteria"
+    ],
+    "required_pipeline_step_check_ids": [
+      "dependency_contract",
+      "artifact_io_contract",
+      "execution_policy",
+      "invocation_contract",
+      "source_linkage",
+      "ssot_and_fallback",
+      "telemetry_and_non_silence",
+      "downstream_surface_impact"
+    ],
+    "allowed_source_layer_risk_tiers": [
+      "critical",
+      "high",
+      "medium",
+      "low"
+    ],
+    "allowed_progress_statuses": [
+      "pending",
+      "in_progress",
+      "reviewed_with_closed_followups",
+      "cross_layer_excursion_closed",
+      "blocked"
+    ],
+    "allowed_source_layer_coverage_statuses": [
+      "macro_reviewed",
+      "inventory_connectivity_checked",
+      "pending_manual_review",
+      "reviewed_with_closed_followups",
+      "blocked"
+    ],
+    "source_layer_completion_statuses": [
+      "macro_reviewed",
+      "reviewed_with_closed_followups",
+      "blocked"
+    ]
+  },
+  "global_invariants": [
+    {
+      "id": "target_root_identity",
+      "question": "Can this layer confuse SAGE source root, analyzed MAIN root, variation root, or external target root?",
+      "expected_signal": "analysis_root, target_project, target_file and target_ref are explicit where the layer affects agent or repo decisions."
+    },
+    {
+      "id": "sqlite_first_or_declared_fallback",
+      "question": "Does this layer prefer SQLite/source snapshots where available and label JSON as shadow/fallback instead of SSOT?",
+      "expected_signal": "SQLite-first validators pass or the artifact declares why JSON/file content is the correct source."
+    },
+    {
+      "id": "freshness_and_staleness_visible",
+      "question": "If upstream truth changed, can this layer detect stale downstream artifacts and say so?",
+      "expected_signal": "freshness, trust, snapshot hash, mtime/git, or proof debt status is visible."
+    },
+    {
+      "id": "line_span_source_grounded",
+      "question": "Are file, symbol, line_start and line_end produced at the source of truth and preserved downstream?",
+      "expected_signal": "Source-grounded spans match current source snapshots or clearly say unavailable/partial."
+    },
+    {
+      "id": "main_variation_external_scope_separated",
+      "question": "Does this layer keep MAIN edit context separate from variation/merge and external-target context?",
+      "expected_signal": "Variation data appears only in merge/review surfaces unless explicitly requested."
+    },
+    {
+      "id": "doctrine_policy_seal_propagated",
+      "question": "Do doctrine, policy, principle, cage, capability and HITL decisions travel to consumers that rely on them?",
+      "expected_signal": "Lineage/registry artifacts show produced and consumed decisions instead of hidden local duplication."
+    },
+    {
+      "id": "agent_surface_audience_boundary",
+      "question": "Does target-repo agent output avoid SAGE-internal implementation noise and provide actionable target-repo facts?",
+      "expected_signal": "Agent packets contain target file/symbol/span/evidence/follow-up, not internal debug assumptions."
+    },
+    {
+      "id": "fail_closed_and_non_silent",
+      "question": "When this layer cannot know something, does it fail closed or speak with explicit unknown/fallback telemetry?",
+      "expected_signal": "No silent exception, empty-success, or ambiguous PASS for missing evidence."
+    },
+    {
+      "id": "positive_path_proof_uses_authoritative_source",
+      "question": "Does a positive-path validator exercise the declared authoritative source rather than succeeding only through a fallback or shadow representation?",
+      "expected_signal": "Primary-path fixtures seed and verify authoritative truth; fallback behavior is tested separately and explicitly labeled as degraded evidence."
+    },
+    {
+      "id": "evidence_verdict_is_canonically_normalized",
+      "question": "Do cross-artifact consumers derive PASS, FAIL and UNKNOWN through the canonical evidence-status contract across supported producer schemas?",
+      "expected_signal": "No local partial status reader can turn valid evidence into false UNKNOWN or missing evidence into false PASS."
+    },
+    {
+      "id": "execution_order_declared",
+      "question": "If this layer consumes another artifact, is ordering declared in a contract rather than remembered by the operator?",
+      "expected_signal": "release_proof_steps_contract, pipeline execution contract, or profile policy declares the dependency."
+    },
+    {
+      "id": "human_seal_currentness",
+      "question": "Can this layer invalidate or require review for a human seal after relevant changes?",
+      "expected_signal": "Seal impact policy or HITL artifact shows whether seal is current, review-required, or reseal-required."
+    },
+    {
+      "id": "manual_review_requires_current_manual_evidence",
+      "question": "Is any manual or agent-eye reviewed status derived only from automated PASS rather than a current review evidence record?",
+      "expected_signal": "Manual review status requires an explicit reviewer record tied to the current packet fingerprint and source comparison; automated checks remain separately labeled."
+    },
+    {
+      "id": "work_package_lessons_captured",
+      "question": "Before closing this work package, did the operator check whether a reusable lesson, failure family, P1/P2 debt, or checklist update was discovered?",
+      "expected_signal": "P0/P0.5 lessons are converted to guards/checklist entries when applicable; deferred P1/P2 items are recorded in the work item registry instead of chat context."
+    },
+    {
+      "id": "lessons_generalized_before_recording",
+      "question": "When a lesson is recorded, is the lesson written as a reusable failure-family rule rather than a one-off incident note?",
+      "expected_signal": "The lesson/title/risk class describes the general class of failure; the concrete step, file or artifact remains in evidence/source fields unless the lesson is inherently one-off."
+    }
+  ],
+  "micro_walkthrough_policy": {
+    "purpose": "Define the extra skeptical questions used after macro layers and source layers when the audit walks pipeline steps, release-proof steps and artifact connectivity one item at a time.",
+    "rule": "Micro walkthroughs must use existing registries as the order source. They must not create a second nervous system or duplicate pipeline/release/artifact truth.",
+    "scopes": [
+      {
+        "scope": "pipeline_steps",
+        "order_source": "output/.raw/pipeline_step_registry.json",
+        "sample_policy": "Inspect the current pipeline step in registry order. Compare registry fields to source/orchestrator behavior and downstream artifacts before advancing the micro cursor.",
+        "checks": [
+          {
+            "id": "dependency_contract",
+            "question": "Do depends_on and execution ordering match actual upstream artifact needs?",
+            "expected_signal": "Required producers appear in depends_on or execution policy; no operator-memory ordering is needed."
+          },
+          {
+            "id": "artifact_io_contract",
+            "question": "Do reads_artifacts and writes_artifacts match the real artifacts consumed and produced by the step?",
+            "expected_signal": "Pipeline registry, artifact provenance and source code agree on artifact IO."
+          },
+          {
+            "id": "execution_policy",
+            "question": "Is scheduler_class, sqlite_writer, heavy/full_only/profile guidance accurate for this step?",
+            "expected_signal": "Parallel/sequential/full-run behavior is declared and compatible with SQLite writes and generated artifact consumers."
+          },
+          {
+            "id": "invocation_contract",
+            "question": "Can an operator or agent run the step through the canonical public command without relying on a private file path?",
+            "expected_signal": "canonical_step_command exists; direct-file invocation is unsupported or has an explicit diagnostic-module contract."
+          },
+          {
+            "id": "source_linkage",
+            "question": "If the step has a diagnostic module or engine source file, has the audit compared the registry row to that source file?",
+            "expected_signal": "Diagnostic module/source linkage is present when applicable, and absence is intentional for orchestrator-owned steps."
+          },
+          {
+            "id": "ssot_and_fallback",
+            "question": "Does the step use SQLite/source snapshots/central contracts where applicable and speak when falling back to JSON or filesystem reads?",
+            "expected_signal": "SQLite-first or declared fallback behavior is visible in source, validators or telemetry."
+          },
+          {
+            "id": "telemetry_and_non_silence",
+            "question": "Does the step report meaningful progress, degraded evidence and exceptions without noisy filler?",
+            "expected_signal": "Logs/telemetry/validator output explain slow, skipped, fallback or failed subwork."
+          },
+          {
+            "id": "downstream_surface_impact",
+            "question": "If this step changes upstream truth, do downstream validators, agent surfaces or release artifacts know when to refresh or distrust stale data?",
+            "expected_signal": "Freshness, lineage, dependency or proof-debt surfaces show the downstream impact."
+          }
+        ],
+        "failure_family_sweeps": [
+          "If one step has undeclared artifact IO, scan all steps in the same category for missing reads_artifacts/writes_artifacts.",
+          "If one step's scheduler_class is wrong, scan SQLite-writing and mutating steps for parallel/sequential drift.",
+          "If one step lacks source linkage or telemetry, scan sibling engine/validator steps before closing the micro item."
+        ],
+        "positive_pattern_sweeps": [
+          "If one step has a strong execution_contract, check sibling steps in the same category for missing scheduler_class, sqlite_writer or profile guidance.",
+          "If one step has a clear invocation_contract and diagnostic_module boundary, check sibling engine-backed steps for the same public-command/diagnostic split.",
+          "If one step reports useful telemetry or fallback honesty, check sibling long/heavy steps for equivalent non-silent reporting."
+        ],
+        "triage_rule": "P0/P0.5 findings found during this micro step must be fixed before advancing the cursor when feasible. P1/P2 findings must be recorded in config/sage_work_item_registry.json before advancing.",
+        "exit_criteria": [
+          "Registry row was compared to source/orchestrator behavior or explicit orchestrator-owned absence was documented.",
+          "Dependency, artifact IO, execution policy and invocation contract were checked against current generated evidence.",
+          "Failure-family and positive-pattern sibling sweeps were performed or explicitly scoped out with evidence.",
+          "P0/P0.5 fixes are closed; P1/P2 follow-ups are in the work item registry; micro cursor can advance without relying on chat memory.",
+          "New audit lessons are generalized to the reusable failure family when possible; incident-specific details are kept in evidence fields."
+        ]
+      },
+      {
+        "scope": "release_proof_steps",
+        "order_source": "config/release_proof_steps_contract.json",
+        "sample_policy": "Inspect release-proof steps in contract order after pipeline-step coverage. Compare command, raw_artifact, required flag and depends_on against generated evidence.",
+        "checks": [
+          {
+            "id": "dependency_contract",
+            "question": "Does depends_on point only to upstream proof producers that must finish before this step?",
+            "expected_signal": "No unknown ids, cycles, artifact-name pseudo-ids or downstream finalizer prerequisites."
+          },
+          {
+            "id": "artifact_io_contract",
+            "question": "Does raw_artifact match the validator or generator output, and is optional/missing evidence explicit?",
+            "expected_signal": "Raw artifact path exists when generated, or absence is an intentional optional/public-release gate."
+          },
+          {
+            "id": "execution_policy",
+            "question": "Is this proof step safe to run under its release-proof scheduling and mutating/finalizer profile?",
+            "expected_signal": "Mutating or environment-changing proof steps are serialized before readers."
+          }
+        ],
+        "failure_family_sweeps": [
+          "If one proof step hides a stale or missing raw artifact, scan sibling proof steps that summarize or consume generated artifacts.",
+          "If one proof dependency points the wrong direction, scan all finalizer/report dependencies.",
+          "If one positive-path fixture reaches PASS through JSON or another fallback, scan sibling fixtures for authoritative-store seeding and keep degradation tests explicit.",
+          "If one aggregate consumer reports a false PASS or false UNKNOWN, scan claim-bearing consumers for local status parsing instead of the canonical evidence normalizer."
+        ],
+        "positive_pattern_sweeps": [
+          "If one proof step has a precise dependency and raw artifact contract, check neighboring proof steps for the same command/raw_artifact/required clarity.",
+          "If one optional or public-release-gated proof step explains its boundary well, check sibling optional gates for equivalent explicitness."
+        ],
+        "triage_rule": "P0/P0.5 release-proof contract findings must be fixed before advancing when they can affect machine readiness. P1/P2 release ergonomics or future-proofing findings must be recorded in config/sage_work_item_registry.json.",
+        "exit_criteria": [
+          "Command, raw_artifact, required flag and depends_on semantics were compared to generated evidence or intentional gate status.",
+          "Failure-family and positive-pattern sibling sweeps were performed for dependency and artifact-contract drift.",
+          "Any machine-readiness blocker is closed; deferred public-release or ergonomics work is recorded centrally."
+        ]
+      },
+      {
+        "scope": "artifact_connectivity",
+        "order_source": "output/.raw/system_connectivity_map.json",
+        "sample_policy": "Inspect writer, consumer, conflict, external-input and unowned-consumer groups from the connectivity map after pipeline and release-proof contracts are checked.",
+        "checks": [
+          {
+            "id": "artifact_io_contract",
+            "question": "Does every consumed artifact have an owner, or is it explicitly classified as external input?",
+            "expected_signal": "writer_conflicts and unowned_consumed_artifacts stay empty unless explicitly justified."
+          },
+          {
+            "id": "downstream_surface_impact",
+            "question": "Do artifact writers and consumers expose enough lineage for downstream stale-data decisions?",
+            "expected_signal": "Connectivity map links writers, consumers and external inputs without hiding runtime-only assumptions."
+          }
+        ],
+        "failure_family_sweeps": [
+          "If one artifact is unowned, scan nearby generator/report validators for missing artifact ownership registration.",
+          "If one external input is consumed silently, scan all external input consumers for explicit classification."
+        ],
+        "positive_pattern_sweeps": [
+          "If one artifact group has clean writer/consumer/external-input classification, check sibling groups for the same explicit ownership vocabulary.",
+          "If one connectivity edge carries useful downstream stale-data context, check related artifact consumers for equivalent lineage clarity."
+        ],
+        "triage_rule": "P0/P0.5 ownership/conflict findings must be fixed before advancing because they can invalidate downstream trust. P1/P2 reporting or visualization improvements must be recorded in config/sage_work_item_registry.json.",
+        "exit_criteria": [
+          "Writers, consumers, conflicts, external inputs and unowned consumed artifacts were checked against system_connectivity_map.",
+          "Failure-family and positive-pattern sweeps were performed for ownership and lineage clarity.",
+          "No unowned/conflicting artifact edge remains unexplained; deferred improvements are registered centrally."
+        ]
+      }
+    ]
+  },
+  "source_layer_coverage_policy": {
+    "source": "config/source_layer_taxonomy.json",
+    "purpose": "Bridge the 11 macro manual/adversarial audit layers to the 24 source-layer taxonomy so source ownership, runtime responsibility and manual review coverage do not drift apart.",
+    "rule": "Every source layer in config/source_layer_taxonomy.json must have a coverage row. Critical and high-risk source layers require macro audit coverage plus source inventory/connectivity evidence before V1 sealing; medium/low layers may be inventory/connectivity checked unless a defect family pulls them into deeper review.",
+    "layers": [
+      {
+        "source_layer_id": "root_product_surface",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "10_release_health_human_seal",
+          "11_distribution_clean_install"
+        ],
+        "sample_policy": "Sample public entrypoints and product-facing root files when naming, CLI, release identity or packaging changes."
+      },
+      {
+        "source_layer_id": "installation_onboarding",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "11_distribution_clean_install"
+        ],
+        "sample_policy": "Sample clean install, bootstrap, dependency and mirror-sync files whenever distribution safety changes."
+      },
+      {
+        "source_layer_id": "configuration_doctrine_policy",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "01_governance_inputs",
+          "04_sqlite_artifact_truth",
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample one governing config from each changed decision domain and verify validator/release-proof consumption."
+      },
+      {
+        "source_layer_id": "schema_artifact_contracts",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "04_sqlite_artifact_truth",
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample schemas when artifact envelopes or generated reports change."
+      },
+      {
+        "source_layer_id": "golden_truth_fixtures",
+        "risk_tier": "medium",
+        "macro_audit_layer_ids": [
+          "06_react_surgical_claim"
+        ],
+        "sample_policy": "Sample fixtures when React claim, corpus or regression expectations change."
+      },
+      {
+        "source_layer_id": "documentation_claims_evidence",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample public claim docs when release identity, claim guard or roadmap wording changes."
+      },
+      {
+        "source_layer_id": "documentation_layer_audits",
+        "risk_tier": "low",
+        "macro_audit_layer_ids": [
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Inventory/connectivity check is sufficient unless historical audit text becomes release-facing evidence."
+      },
+      {
+        "source_layer_id": "core_runtime_services",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "04_sqlite_artifact_truth",
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample shared IO, path, registry, policy, artifact and telemetry helpers when any central contract changes."
+      },
+      {
+        "source_layer_id": "sqlite_artifact_store",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "04_sqlite_artifact_truth"
+        ],
+        "sample_policy": "Sample SQLite state payload, source snapshot and fallback paths whenever SSOT behavior changes."
+      },
+      {
+        "source_layer_id": "discovery_config_truth",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "02_discovery_target_identity"
+        ],
+        "sample_policy": "Sample target-root and project identity flows when discovery, external target or config compiler behavior changes."
+      },
+      {
+        "source_layer_id": "orchestration_pipeline",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "09_watchdog_live_loop",
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample scheduler, orchestrator and profile policy when execution order or parallelism changes."
+      },
+      {
+        "source_layer_id": "atlas_polyglot_sequencing",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "03_atlas_genome_symbol_truth"
+        ],
+        "sample_policy": "Sample source-to-symbol span generation and language boundaries when sequencers or Atlas/Genome contracts change."
+      },
+      {
+        "source_layer_id": "governance_audit_quality",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "05_engines_quality_cages"
+        ],
+        "sample_policy": "Sample real findings against source code when audit, dead-code, circular, quality or cage logic changes."
+      },
+      {
+        "source_layer_id": "react_surgical_intelligence",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "06_react_surgical_claim"
+        ],
+        "sample_policy": "Sample React/TS surgical findings, fixtures and claim boundaries when React intelligence changes."
+      },
+      {
+        "source_layer_id": "variation_merge_intelligence",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "07_merge_variation_boundary"
+        ],
+        "sample_policy": "Sample merge/review packets and variation boundaries when merge, task-pack or generated script behavior changes."
+      },
+      {
+        "source_layer_id": "contextos_watchdog_mcp",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "08_contextos_mcp_agent_surface",
+          "09_watchdog_live_loop"
+        ],
+        "sample_policy": "Sample agent-facing packets, watchdog currentness and MCP command contracts whenever this layer changes."
+      },
+      {
+        "source_layer_id": "hitl_agent_governance",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "01_governance_inputs",
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample HITL request/approval/response ledgers when seal, approval or agent-governance surfaces change."
+      },
+      {
+        "source_layer_id": "validation_release_gates",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample validators and release-proof dependency edges when release gates, finalizers or validation contracts change."
+      },
+      {
+        "source_layer_id": "reporting_product_readiness",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample reports when they influence product claims, health score, final suspicion, operator packet or public readiness."
+      },
+      {
+        "source_layer_id": "external_target_corpus",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "02_discovery_target_identity",
+          "08_contextos_mcp_agent_surface"
+        ],
+        "sample_policy": "Sample external target preflight and agent surfaces when external-repo behavior changes."
+      },
+      {
+        "source_layer_id": "tests_fixtures",
+        "risk_tier": "medium",
+        "macro_audit_layer_ids": [
+          "06_react_surgical_claim",
+          "10_release_health_human_seal"
+        ],
+        "sample_policy": "Sample tests/fixtures when they become release proof for a changed claim or regression family."
+      },
+      {
+        "source_layer_id": "package_runtime",
+        "risk_tier": "medium",
+        "macro_audit_layer_ids": [
+          "11_distribution_clean_install"
+        ],
+        "sample_policy": "Sample package/runtime manifests when installation, vendoring or cross-platform runtime changes."
+      },
+      {
+        "source_layer_id": "generated_runtime_artifact",
+        "risk_tier": "high",
+        "macro_audit_layer_ids": [
+          "11_distribution_clean_install"
+        ],
+        "sample_policy": "Sample generated/cache/output artifacts when clean mirror, retention, script generation or runtime-output policy changes."
+      },
+      {
+        "source_layer_id": "unknown_or_review",
+        "risk_tier": "critical",
+        "macro_audit_layer_ids": [
+          "11_distribution_clean_install"
+        ],
+        "sample_policy": "Must remain zero or be explicitly reviewed before release sealing."
+      }
+    ]
+  },
+  "audit_layers": [
+    {
+      "id": "01_governance_inputs",
+      "order": 1,
+      "layer_phase": "configuration_doctrine_policy",
+      "purpose": "Verify that doctrine, policy, principle, cage and capability inputs are explicit, separated, and seal-aware.",
+      "evidence_artifacts": [
+        "governance_registry_validation",
+        "modular_doctrine_registry_validation",
+        "capability_registry_validation",
+        "hitl_governance_validation",
+        "seal_impact_validation"
+      ],
+      "invariants": [
+        "doctrine_policy_seal_propagated",
+        "human_seal_currentness",
+        "fail_closed_and_non_silent"
+      ],
+      "lineage_checks": [
+        "Pick one doctrine/policy rule and trace it from config to validator/release proof.",
+        "Pick one human-sealed surface and verify seal-impact status after recent changes."
+      ],
+      "adversarial_cases": [
+        "Malformed or stale governance config must not become an empty PASS.",
+        "A roadmap/advisory principle must not become a V1 blocking doctrine without explicit promotion."
+      ],
+      "failure_family_sweeps": [
+        "If one governance rule is duplicated locally, scan for sibling hardcoded decision domains.",
+        "If one seal-aware surface is missing from seal impact policy, scan all claim/agent/doctrine surfaces."
+      ],
+      "manual_review_prompts": [
+        "Could a contributor add a new governance surface without registering validator and release proof?",
+        "Could SAGE keep running with stale human authority?"
+      ],
+      "exit_criteria": [
+        "Governance registry, HITL, seal impact and source contracts pass.",
+        "Any P1/P2 finding is recorded in the work item registry."
+      ]
+    },
+    {
+      "id": "02_discovery_target_identity",
+      "order": 2,
+      "layer_phase": "discovery_config_truth",
+      "purpose": "Verify that SAGE identifies the intended analyzed repository, MAIN project, variations and external targets without path confusion.",
+      "evidence_artifacts": [
+        "discovery_universality_validation",
+        "project_dna_profile_validation",
+        "target_repo_lineage_contract_validation"
+      ],
+      "invariants": [
+        "target_root_identity",
+        "main_variation_external_scope_separated",
+        "freshness_and_staleness_visible"
+      ],
+      "lineage_checks": [
+        "Trace one analyzed root from discovery config to target-repo lineage artifact.",
+        "Trace one external target or variation boundary to the agent surface that consumes it."
+      ],
+      "adversarial_cases": [
+        "Invalid external root must not fallback to SAGE source workspace.",
+        "Variation project must not be exposed as default MAIN edit target."
+      ],
+      "failure_family_sweeps": [
+        "If one tool has ambiguous root normalization, scan MCP, watchdog and external-target entrypoints.",
+        "If one path format is platform-specific, scan agent-facing path contracts."
+      ],
+      "manual_review_prompts": [
+        "Can a first-time user tell which repository SAGE is analyzing?",
+        "Can an agent open a target file using analysis_root plus repo-relative path?"
+      ],
+      "exit_criteria": [
+        "Target repo lineage validation passes.",
+        "Manual sample confirms path/root fields match actual filesystem."
+      ]
+    },
+    {
+      "id": "03_atlas_genome_symbol_truth",
+      "order": 3,
+      "layer_phase": "atlas_polyglot_sequencing",
+      "purpose": "Verify source files, symbols, imports and spans are captured once and carried downstream without line drift.",
+      "evidence_artifacts": [
+        "atlas_genome_audit_integrity_validation",
+        "language_agnostic_symbol_validation",
+        "symbol_span_integrity_validation",
+        "agent_surface_source_grounding_validation"
+      ],
+      "invariants": [
+        "line_span_source_grounded",
+        "target_root_identity",
+        "freshness_and_staleness_visible"
+      ],
+      "lineage_checks": [
+        "Pick one React component and trace source file, symbol, line_start and line_end into an agent-facing packet.",
+        "Pick one Python/polyglot symbol and verify language-agnostic symbol behavior stays advisory unless supported.",
+        "Pick one SQLite-backed symbol span and verify every inspection projection preserves line, end_line and source_lines instead of downgrading to null Atlas projection fields.",
+        "Pick one incremental Atlas change and verify its project-qualified node reaches every scoped downstream consumer unchanged."
+      ],
+      "adversarial_cases": [
+        "Renamed or shortened file must not keep stale old span.",
+        "Large symbol must mark partial snippet and give concrete follow-up.",
+        "A symbol span present in SQLite must not disappear when rendered through inspect_target, MCP or ContextOS agent-facing surfaces.",
+        "A non-empty Atlas must not yield a clean analyzer report when the effective project/file scope is empty."
+      ],
+      "failure_family_sweeps": [
+        "If a span mismatch appears in one packet, scan all packet families that consume spans.",
+        "If a SQLite span is dropped in one projection surface, scan sibling projection and packet renderers for the same line/end_line/source_lines loss.",
+        "If one language lacks span fields, classify whether it is V1 limitation or P1/P2 roadmap debt.",
+        "If one incremental consumer loses project scope, scan every producer and consumer of changed_files and DNA change nodes."
+      ],
+      "manual_review_prompts": [
+        "Can an agent edit without grep for the selected symbol?",
+        "Does source snippet match current source snapshot?"
+      ],
+      "exit_criteria": [
+        "Symbol/span validators pass.",
+        "Manual source-vs-packet sample matches current file."
+      ]
+    },
+    {
+      "id": "04_sqlite_artifact_truth",
+      "order": 4,
+      "layer_phase": "sqlite_artifact_store",
+      "purpose": "Verify SQLite/source snapshot truth is preferred where applicable and JSON shadows do not regain SSOT authority.",
+      "evidence_artifacts": [
+        "sqlite_artifact_parity_validation",
+        "sqlite_proxy_coverage_validation",
+        "atlas_sqlite_first_access_validation",
+        "genome_sqlite_first_access_validation",
+        "fractal_sqlite_first_access_validation",
+        "large_artifact_sqlite_first_access_validation"
+      ],
+      "invariants": [
+        "sqlite_first_or_declared_fallback",
+        "freshness_and_staleness_visible",
+        "fail_closed_and_non_silent"
+      ],
+      "lineage_checks": [
+        "Pick one hot consumer and verify it uses SQLite/proxy before JSON fallback.",
+        "Pick one fallback path and verify it is logged as fallback, not normal truth.",
+        "Pick one undeclared large-artifact reference candidate and classify it as hot consumer, allowed metadata reference, or real violation."
+      ],
+      "adversarial_cases": [
+        "Unreadable JSON must not create zero-artifact PASS.",
+        "Missing SQLite data must be explicit degraded/fallback evidence.",
+        "A proxy-loaded large artifact consumer must not remain unregistered merely because the load path is already SQLite-first."
+      ],
+      "failure_family_sweeps": [
+        "If one hot path reads atlas/genome/fractal JSON first, scan all large-artifact consumers.",
+        "If one fallback is silent, scan runtime honesty and exception honesty events.",
+        "If one undeclared large-artifact candidate appears, scan sibling report and connectivity generators before closing the family."
+      ],
+      "manual_review_prompts": [
+        "Is the source of truth obvious for this artifact?",
+        "Could stale JSON overwrite fresher SQLite-derived reality?"
+      ],
+      "exit_criteria": [
+        "SQLite-first validators pass.",
+        "Manual sample confirms fallback is visible."
+      ]
+    },
+    {
+      "id": "05_engines_quality_cages",
+      "order": 5,
+      "layer_phase": "governance_audit_quality",
+      "purpose": "Verify engines and cages produce evidence-backed findings without false release authority.",
+      "evidence_artifacts": [
+        "doctrine_audit_quality_integrity_validation",
+        "quality_gate_policy_core_validation",
+        "dead_code_public_contract_validation",
+        "cage_mvp_contract_validation",
+        "engine_signal_contract_validation"
+      ],
+      "invariants": [
+        "doctrine_policy_seal_propagated",
+        "fail_closed_and_non_silent",
+        "execution_order_declared"
+      ],
+      "lineage_checks": [
+        "Open one reported violation and compare rule, file and evidence against source.",
+        "Trace one engine signal to quality gate and claim boundary."
+      ],
+      "adversarial_cases": [
+        "Clean repo/no violation case must not hide artifact freshness debt.",
+        "Advisory cage signal must not become release blocker unless promoted by contract.",
+        "Bare package subpath imports such as react-dom/client or zustand/react/shallow must not be classified as target-repo relative alias violations."
+      ],
+      "failure_family_sweeps": [
+        "If one engine overclaims authority, scan engine_signal_contracts for sibling overclaims.",
+        "If one violation lacks actionable evidence, scan work queue and MCP packet projection.",
+        "If one slash-containing package import is misclassified as a local import, scan audit and MCP governance sibling classifiers."
+      ],
+      "manual_review_prompts": [
+        "Is this finding real in source code?",
+        "Does the packet tell an agent what to change or only quote SAGE internals?"
+      ],
+      "exit_criteria": [
+        "Engine signal and source contracts pass.",
+        "Manual violation sample is source-grounded."
+      ]
+    },
+    {
+      "id": "06_react_surgical_claim",
+      "order": 6,
+      "layer_phase": "react_surgical_intelligence",
+      "purpose": "Verify V1 React/TypeScript surgical claim remains evidence-bounded and does not leak into unsupported universal claims.",
+      "evidence_artifacts": [
+        "react_analysis_chain_integrity_validation",
+        "react_runtime_policy_core_validation",
+        "react_ecosystem_policy_core_validation",
+        "react_frontier_policy_core_validation",
+        "react_universal_readiness",
+        "react_fixture_matrix_validation"
+      ],
+      "invariants": [
+        "line_span_source_grounded",
+        "doctrine_policy_seal_propagated",
+        "fail_closed_and_non_silent"
+      ],
+      "lineage_checks": [
+        "Pick one React fixture-backed rule and trace fixture, engine output and agent packet.",
+        "Pick one unsupported/roadmap React frontier signal and verify claim boundary wording."
+      ],
+      "adversarial_cases": [
+        "React rule should not claim runtime proof when only static evidence exists.",
+        "Fixture PASS must not be used as universal real-world proof without corpus boundary."
+      ],
+      "failure_family_sweeps": [
+        "If one React claim overstates evidence, scan release claim profiles and docs.",
+        "If one fixture mapping is stale, scan family taxonomy and fixture isolation."
+      ],
+      "manual_review_prompts": [
+        "Does the React finding have enough source span for surgical action?",
+        "Is the V1 claim still scoped to React/TypeScript static governance?"
+      ],
+      "exit_criteria": [
+        "React chain validators pass.",
+        "Manual React sample maps to real source and fixture evidence."
+      ]
+    },
+    {
+      "id": "07_merge_variation_boundary",
+      "order": 7,
+      "layer_phase": "variation_merge_intelligence",
+      "purpose": "Verify merge/variation intelligence stays review-oriented and does not confuse normal MAIN agent edit context.",
+      "evidence_artifacts": [
+        "merge_intelligence_regression",
+        "agent_semantic_contract_smoke",
+        "mcp_surface_command_matrix_validation"
+      ],
+      "invariants": [
+        "main_variation_external_scope_separated",
+        "agent_surface_audience_boundary",
+        "fail_closed_and_non_silent"
+      ],
+      "lineage_checks": [
+        "Pick one merge review packet and verify target, source and review-only mutation policy.",
+        "Trace one variation-only fact and verify it appears only in merge/review surfaces."
+      ],
+      "adversarial_cases": [
+        "Review-only merge packet must not allow direct mutation.",
+        "Unknown target_file in merge review must explain why and what human should inspect."
+      ],
+      "failure_family_sweeps": [
+        "If one merge packet lacks target clarity, scan all merge package tiers.",
+        "If variation context leaks to MAIN directive, scan all agent-facing command families."
+      ],
+      "manual_review_prompts": [
+        "Could an agent accidentally edit a variation when asked to edit MAIN?",
+        "Does merge output provide enough target information for human review?"
+      ],
+      "exit_criteria": [
+        "Merge regression and semantic smoke pass.",
+        "Manual merge packet sample is review-only or clearly actionable."
+      ]
+    },
+    {
+      "id": "08_contextos_mcp_agent_surface",
+      "order": 8,
+      "layer_phase": "contextos_watchdog_mcp",
+      "purpose": "Verify target-repo agent surfaces provide bounded, actionable, audience-correct context.",
+      "evidence_artifacts": [
+        "mcp_agent_surface_validation",
+        "agent_context_payload_validation",
+        "agent_semantic_contract_smoke",
+        "agent_surface_quality_review",
+        "agent_surface_snippet_range_validation",
+        "agent_packet_chain_integrity_validation"
+      ],
+      "invariants": [
+        "agent_surface_audience_boundary",
+        "line_span_source_grounded",
+        "target_root_identity",
+        "fail_closed_and_non_silent"
+      ],
+      "lineage_checks": [
+        "Pick one surgical packet and trace target file, symbol, source snippet and validation command to source reality.",
+        "Pick one fail-closed packet and verify it tells the agent exactly what not to do.",
+        "Trace one ContextOS risk classification to every required dependency, blast-radius and audit input, including provenance and availability."
+      ],
+      "adversarial_cases": [
+        "Packet with target_ref must include path contract or explicit usage guidance.",
+        "Partial snippet must not pretend to be full edit context.",
+        "Missing or invalid upstream risk evidence must not become zero dependents, zero violations or a low-risk action lane."
+      ],
+      "failure_family_sweeps": [
+        "If one packet lacks actionability, scan all MCP command families and variants.",
+        "If one packet leaks SAGE internals to target-repo agent, scan skill and command matrix boundaries.",
+        "If one evidence aggregator treats missing input as an empty clean result, scan all decision-producing aggregators for the same false-confidence family."
+      ],
+      "manual_review_prompts": [
+        "Can a new agent use this packet without knowing SAGE internals?",
+        "Can the agent complete the task with bounded context and follow-up only when needed?"
+      ],
+      "exit_criteria": [
+        "Agent semantic smoke and MCP surface validators pass.",
+        "Manual packet sample is source-grounded and operational."
+      ]
+    },
+    {
+      "id": "09_watchdog_live_loop",
+      "order": 9,
+      "layer_phase": "contextos_watchdog_mcp",
+      "purpose": "Verify save-time scoped governance stays fast while preserving proof debt, unread findings and refresh guidance.",
+      "evidence_artifacts": [
+        "watchdog_snapshot_freshness_validation",
+        "watchdog_stress_validation",
+        "runtime_honesty_validation",
+        "performance_profile_integrity_validation"
+      ],
+      "invariants": [
+        "freshness_and_staleness_visible",
+        "fail_closed_and_non_silent",
+        "execution_order_declared"
+      ],
+      "lineage_checks": [
+        "Trace one changed file through watchdog pulse to session/debt artifact.",
+        "Trace one due deep-proof debt signal to agent/operator guidance."
+      ],
+      "adversarial_cases": [
+        "Watchdog pulse must not imply repo-wide release proof.",
+        "Unread findings must not disappear without acknowledgement/resolution."
+      ],
+      "failure_family_sweeps": [
+        "If one watchdog path defaults to host-specific root, scan all watch entrypoints.",
+        "If one pulse is silent on skipped heavy proof, scan pipeline execution profile messaging."
+      ],
+      "manual_review_prompts": [
+        "Does a save-time agent know whether it should wait, refresh, or proceed?",
+        "Does watchdog preserve old unresolved findings across later saves?"
+      ],
+      "exit_criteria": [
+        "Watchdog freshness/stress validators pass or debt is explicit.",
+        "Manual sample shows proof debt status and recommended refresh path."
+      ]
+    },
+    {
+      "id": "10_release_health_human_seal",
+      "order": 10,
+      "layer_phase": "validation_release_gates",
+      "purpose": "Verify release proof, system health, work items, audit lessons and human seal boundaries tell the same story.",
+      "evidence_artifacts": [
+        "system_health_check",
+        "system_health_check_validation",
+        "release_seal_remaining_actions",
+        "release_seal_remaining_actions_validation",
+        "audit_lesson_registry_validation",
+        "sage_work_item_registry_validation",
+        "final_suspicion_audit_validation"
+      ],
+      "invariants": [
+        "human_seal_currentness",
+        "execution_order_declared",
+        "fail_closed_and_non_silent"
+      ],
+      "lineage_checks": [
+        "Trace one release blocker from source validator to system health and remaining actions.",
+        "Trace one closed/manual lesson to audit lesson registry and release proof coverage.",
+        "Trace one release-proof dependency chain and verify it points from upstream validator to downstream finalizer without a reverse edge."
+      ],
+      "adversarial_cases": [
+        "Machine READY must not become human SEALED automatically.",
+        "Existing human seal must become review/reseal-required after protected changes.",
+        "Historical human seal evidence must not be summarized as effective current seal after protected changes.",
+        "An early registry or contract validator must not depend on system health, final suspicion, artifact alignment, or remaining-action finalizers that consume its output."
+      ],
+      "failure_family_sweeps": [
+        "If one blocker appears in one report but not another, scan release health/remaining/final audit consumers.",
+        "If one report exposes only historical human seal status, scan all release-facing consumers for missing effective human seal status.",
+        "If one lesson is not linked to guard/work item/roadmap, scan all audit lesson rows.",
+        "If one release-proof dependency points to a downstream finalizer, scan all release-proof dependency edges for unknown ids, artifact-name ids and cycles."
+      ],
+      "manual_review_prompts": [
+        "Do machine verdict, public release readiness and human seal status remain separate?",
+        "Are all deferred P1/P2 findings visible outside chat?"
+      ],
+      "exit_criteria": [
+        "Release closure validators pass.",
+        "Only expected human reseal/clean-install proof remains before public release."
+      ]
+    },
+    {
+      "id": "11_distribution_clean_install",
+      "order": 11,
+      "layer_phase": "generated_runtime_artifact",
+      "purpose": "Verify clean distribution is a reproducible package, not contaminated by runtime output or source-only state.",
+      "evidence_artifacts": [
+        "distribution_hardening_validation",
+        "installation_contract_validation",
+        "entrypoint_failure_validation"
+      ],
+      "invariants": [
+        "target_root_identity",
+        "fail_closed_and_non_silent",
+        "execution_order_declared"
+      ],
+      "lineage_checks": [
+        "Trace one synced source file from source SAGE to clean mirror.",
+        "Trace one runtime output generated by validation and confirm it is cleaned from mirror."
+      ],
+      "adversarial_cases": [
+        "Cleaner must not run destructively against active source workspace.",
+        "Clean mirror validation must not pass with output/cache artifacts present."
+      ],
+      "failure_family_sweeps": [
+        "If one generated artifact leaks into mirror, scan all runtime-output retention and clean-sync filters.",
+        "If one entrypoint works only on Windows, scan install/doctor/CLI commands for cross-platform assumptions."
+      ],
+      "manual_review_prompts": [
+        "Could a new user install and run without hidden local machine assumptions?",
+        "Is clean mirror free of source runtime artifacts after validation?"
+      ],
+      "exit_criteria": [
+        "Clean distribution validation passes after cleanup.",
+        "Final external clean install proof is requested only after V1 seal closure."
+      ]
+    }
+  ]
+}

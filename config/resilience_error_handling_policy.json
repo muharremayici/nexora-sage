@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "kind": "resilience_error_handling_policy",
+    "version": "v1",
+    "purpose": "Policy-backed resilience signals for naked external calls without visible error, timeout or fallback contracts."
+  },
+  "source_file_extensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".py"
+  ],
+  "external_call_markers": [
+    "fetch(",
+    "axios.",
+    "requests.get(",
+    "requests.post(",
+    "session.get(",
+    "session.post(",
+    "client.get(",
+    "client.post(",
+    "client.query(",
+    "connection.query("
+  ],
+  "required_contract_markers": [
+    "try",
+    "catch",
+    ".catch(",
+    "finally",
+    "AbortController",
+    "signal:",
+    "timeout",
+    "withTimeout",
+    "retry",
+    "fallback"
+  ],
+  "safe_wrapper_markers": [
+    "safeFetch",
+    "fetchWithRetry",
+    "withRetry",
+    "withFallback",
+    "apiClient",
+    "httpClient",
+    "resilientRequest"
+  ],
+  "context_window_lines": 8,
+  "risk_catalog": {
+    "external_call_without_visible_resilience_contract": {
+      "dimension": "resilience_error_handling",
+      "risk": "external_call_without_visible_error_timeout_or_fallback_contract",
+      "score": 7,
+      "recommended_action": "Wrap external calls with visible error handling, timeout/abort, retry or fallback contracts."
+    }
+  },
+  "false_positive_policy": {
+    "report_as_candidate_not_release_blocker": true,
+    "treat_named_safe_wrappers_as_contracts": true,
+    "requires_visible_local_or_wrapper_contract": true
+  }
+}

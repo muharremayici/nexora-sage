@@ -1,0 +1,13 @@
+# Nexora SAGE runtime dependencies
+#
+# Core analysis runs on the Python standard library (plus Node.js for AST).
+# These dependencies enable optional features:
+# - live `watch` mode (`watchdog`)
+# - rich terminal UI (`rich`)
+# - MCP server runtime (`mcp`)
+# - tolerant JSON repair for optional compatibility paths (`json-repair`)
+
+watchdog>=6.0.0
+rich>=14.3.0
+mcp>=1.26.0,<2
+json-repair>=0.30.0

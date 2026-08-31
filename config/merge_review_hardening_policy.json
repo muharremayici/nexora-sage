@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "kind": "merge_review_hardening_policy",
+    "version": "v1",
+    "purpose": "Policy-owned merge package risk adjustments and generated UI smoke safety controls."
+  },
+  "merge_dependency_packager": {
+    "dynamic_import": {
+      "pattern": "\\bimport\\s*\\(",
+      "risk_points": 15,
+      "scan_file_limit": 40,
+      "scan_bytes": 32000,
+      "reason": "Dynamic import calls can hide runtime dependency edges from static merge packaging."
+    },
+    "dynamic_route": {
+      "pattern": "\\[[A-Za-z_$][\\w$-]*\\]|:[A-Za-z_$][\\w$-]*",
+      "risk_points": 10,
+      "reason": "Dynamic smoke routes require seeded params or fixtures to avoid false-negative browser gates."
+    }
+  },
+  "ui_smoke_spec_generator": {
+    "retries": 1,
+    "block_outbound_network": true,
+    "allowed_hostnames": [
+      "localhost",
+      "127.0.0.1"
+    ],
+    "auth_redirect_pattern": ".*/(?:login|signin|auth).*",
+    "hidden_failure_text_pattern": "error boundary|uncaught|failed to render|something went wrong|system under maintenance|maintenance mode",
+    "purpose": "Generated UI smoke specs should stay side-effect bounded and fail when the intended component is bypassed by auth redirects or hidden runtime failure screens."
+  }
+}

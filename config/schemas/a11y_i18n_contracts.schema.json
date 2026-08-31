@@ -1,0 +1,141 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "files"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "files_analyzed",
+        "risk_counts",
+        "signal_counts",
+        "high_risk",
+        "medium_risk",
+        "by_project"
+      ],
+      "properties": {
+        "files_analyzed": {
+          "type": "integer"
+        },
+        "risk_counts": {
+          "type": "object"
+        },
+        "signal_counts": {
+          "type": "object"
+        },
+        "locale_completeness": {
+          "type": "object"
+        },
+        "high_risk": {
+          "type": "integer"
+        },
+        "medium_risk": {
+          "type": "integer"
+        },
+        "by_project": {
+          "type": "object"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "signals",
+          "risks",
+          "risk_tier",
+          "counts"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risk_tier": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "a11y_contract": {
+            "type": "object"
+          },
+          "i18n_contract": {
+            "type": "object"
+          },
+          "smoke_assertions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "required": [
+              "interactive",
+              "dialogs",
+              "aria",
+              "focus",
+              "raw_text",
+              "i18n_fallback"
+            ],
+            "properties": {
+              "interactive": {
+                "type": "integer"
+              },
+              "dialogs": {
+                "type": "integer"
+              },
+              "aria": {
+                "type": "integer"
+              },
+              "focus": {
+                "type": "integer"
+              },
+              "focus_trap": {
+                "type": "integer"
+              },
+              "aria_relations": {
+                "type": "integer"
+              },
+              "raw_text": {
+                "type": "integer"
+              },
+              "i18n_fallback": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

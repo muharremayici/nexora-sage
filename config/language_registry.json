@@ -1,0 +1,422 @@
+{
+  "_meta": {
+    "kind": "language_registry",
+    "version": "1.0",
+    "description": "Source extensions, index files and structure-scan extras for Nexora SAGE polyglot analysis."
+  },
+  "validation_contract": {
+    "required_polyglot_source_languages": [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "go",
+      "csharp"
+    ],
+    "required_observation_only_languages": [
+      "vue",
+      "svelte",
+      "rust"
+    ],
+    "required_react_data_stack_libraries": [
+      "@tanstack/react-query",
+      "@apollo/client",
+      "trpc",
+      "zustand"
+    ]
+  },
+  "languages": {
+    "typescript": {
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts"
+      ],
+      "index_files": [
+        "index.ts",
+        "index.tsx",
+        "index.mts",
+        "index.cts"
+      ],
+      "structure_extensions": [
+        ".css",
+        ".html"
+      ]
+    },
+    "javascript": {
+      "extensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "index_files": [
+        "index.js",
+        "index.jsx",
+        "index.mjs",
+        "index.cjs"
+      ],
+      "structure_extensions": [
+        ".css",
+        ".html"
+      ]
+    },
+    "python": {
+      "extensions": [
+        ".py",
+        ".pyi"
+      ],
+      "index_files": [
+        "__init__.py"
+      ]
+    },
+    "java": {
+      "extensions": [
+        ".java"
+      ],
+      "index_files": []
+    },
+    "csharp": {
+      "extensions": [
+        ".cs"
+      ],
+      "index_files": []
+    },
+    "go": {
+      "extensions": [
+        ".go"
+      ],
+      "index_files": [
+        "index.go",
+        "main.go"
+      ]
+    }
+  },
+  "observation_only_languages": {
+    "vue": {
+      "extensions": [
+        ".vue"
+      ],
+      "reason": "Vue source must remain visible in repository inventory while Vue SFC parsing is outside the active capability contract."
+    },
+    "svelte": {
+      "extensions": [
+        ".svelte"
+      ],
+      "reason": "Svelte source must remain visible in repository inventory while Svelte component parsing is outside the active capability contract."
+    },
+    "rust": {
+      "extensions": [
+        ".rs"
+      ],
+      "reason": "Rust source must remain visible in repository inventory while Rust AST and Cargo semantics are outside the active capability contract."
+    }
+  },
+  "non_source_template_extensions": [
+    ".ejs",
+    ".hbs",
+    ".handlebars",
+    ".mustache",
+    ".liquid",
+    ".njk",
+    ".twig",
+    ".html",
+    ".md",
+    ".mdx",
+    ".txt"
+  ],
+  "non_source_compound_suffixes": [
+    ".d.ts",
+    ".d.tsx"
+  ],
+  "watch_extra_extensions": [
+    ".json"
+  ],
+  "skip_dirs": [
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "__pycache__",
+    "venv",
+    ".idea",
+    ".vscode",
+    "output",
+    "external_fixture_seed"
+  ],
+  "root_level_app_markers": [
+    "app",
+    "pages",
+    "widgets",
+    "features",
+    "entities",
+    "shared",
+    "components",
+    "hooks",
+    "services",
+    "server",
+    "contexts",
+    "types",
+    "interfaces"
+  ],
+  "monorepo_root_markers": [
+    "apps",
+    "packages",
+    "libs",
+    "tooling",
+    "turbo",
+    "services"
+  ],
+  "monorepo_root_files": [
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    "nx.json",
+    "lerna.json"
+  ],
+  "config_file_markers": {
+    "javascript_typescript": [
+      "tsconfig.json",
+      "tsconfig.*.json",
+      "jsconfig.json",
+      "jsconfig.*.json"
+    ],
+    "java_maven": [
+      "jvm.config",
+      "maven.config"
+    ],
+    "vite": [
+      "vite.config.ts",
+      "vite.config.js",
+      "vite.config.mts",
+      "vite.config.mjs"
+    ],
+    "nextjs": [
+      "next.config.ts",
+      "next.config.js",
+      "next.config.mjs"
+    ],
+    "remix": [
+      "remix.config.js"
+    ],
+    "gatsby": [
+      "gatsby-config.js"
+    ],
+    "astro": [
+      "astro.config.mjs"
+    ],
+    "expo": [
+      "app.json",
+      "app.config.ts",
+      "app.config.js"
+    ],
+    "webpack": [
+      "webpack.config.ts",
+      "webpack.config.js",
+      "webpack.dev.ts",
+      "webpack.prod.ts"
+    ]
+  },
+  "manifest_file_markers": {
+    "javascript_node": [
+      "package.json",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "bun.lock",
+      "bun.lockb"
+    ],
+    "python": [
+      "pyproject.toml",
+      "requirements.txt",
+      "requirements-dev.txt",
+      "poetry.lock",
+      "uv.lock",
+      "Pipfile",
+      "Pipfile.lock"
+    ],
+    "java": [
+      "pom.xml",
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts",
+      "gradle.properties"
+    ],
+    "go": [
+      "go.mod",
+      "go.sum",
+      "go.work",
+      "go.work.sum"
+    ],
+    "csharp": [
+      "*.csproj",
+      "*.sln",
+      "*.slnx",
+      "Directory.Build.props",
+      "Directory.Build.targets",
+      "Directory.Packages.props",
+      "global.json",
+      "NuGet.Config"
+    ],
+    "rust": [
+      "Cargo.toml",
+      "Cargo.lock"
+    ]
+  },
+  "plugin_library_map": {
+    "react": [
+      "react",
+      "ui_react"
+    ],
+    "react-dom": [
+      "react",
+      "ui_react"
+    ],
+    "react-router-dom": [
+      "routing",
+      "router_react"
+    ],
+    "react-router": [
+      "routing",
+      "router_react"
+    ],
+    "expo": [
+      "expo",
+      "react",
+      "ui_react"
+    ],
+    "vite": [
+      "vite",
+      "bundler_vite"
+    ],
+    "webpack": [
+      "webpack",
+      "bundler_webpack"
+    ],
+    "@vitejs/plugin-react": [
+      "react",
+      "vite",
+      "bundler_vite"
+    ],
+    "typescript": [
+      "typescript"
+    ],
+    "zustand": [
+      "state_management",
+      "state_zustand",
+      "zustand"
+    ],
+    "redux": [
+      "state_management",
+      "state_redux"
+    ],
+    "@reduxjs/toolkit": [
+      "state_management",
+      "state_redux"
+    ],
+    "@tanstack/react-query": [
+      "data_fetching",
+      "data_tanstack",
+      "tanstack"
+    ],
+    "@apollo/client": [
+      "data_fetching",
+      "graphql",
+      "apollo_graphql"
+    ],
+    "trpc": [
+      "data_fetching",
+      "trpc"
+    ],
+    "i18next": [
+      "i18n",
+      "a11y_i18n"
+    ],
+    "react-intl": [
+      "i18n",
+      "a11y_i18n"
+    ],
+    "next-intl": [
+      "i18n",
+      "a11y_i18n"
+    ],
+    "yjs": [
+      "realtime_crdt",
+      "collaboration"
+    ],
+    "socket.io": [
+      "realtime_crdt",
+      "websockets"
+    ],
+    "tiptap": [
+      "rich_text_editor",
+      "content_editor"
+    ],
+    "prosemirror": [
+      "rich_text_editor",
+      "content_editor"
+    ],
+    "sentry": [
+      "error_observability",
+      "performance"
+    ],
+    "framer-motion": [
+      "animation"
+    ],
+    "tailwindcss": [
+      "styling"
+    ],
+    "vitest": [
+      "testing"
+    ],
+    "jest": [
+      "testing"
+    ],
+    "@playwright/test": [
+      "testing",
+      "e2e"
+    ],
+    "cypress": [
+      "testing",
+      "e2e"
+    ]
+  },
+  "plugin_substring_match_packages": [
+    "trpc",
+    "sentry",
+    "tiptap",
+    "prosemirror"
+  ],
+  "bundler_plugin_map": {
+    "nextjs": [
+      "nextjs",
+      "react",
+      "ui_react",
+      "routing"
+    ],
+    "vite": [
+      "vite",
+      "bundler_vite"
+    ],
+    "expo": [
+      "expo",
+      "react",
+      "ui_react"
+    ],
+    "webpack": [
+      "webpack",
+      "bundler_webpack"
+    ]
+  },
+  "legacy_path_shims": [
+    {
+      "from": "src/./",
+      "to": "src/lifecycle-modules/",
+      "enabled": false,
+      "reason": "Legacy host-path repair retained only as a disabled compatibility example."
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "kind": "nexora.agent_response_contract",
+    "version": "v1",
+    "purpose": "Machine-readable contract for validated SAGE/Nexora agent response envelopes."
+  },
+  "validation_contract": {
+    "required_fields": [
+      "verdict",
+      "evidence",
+      "confidence",
+      "risk",
+      "human_approval_required",
+      "suggested_next_action",
+      "source_artifacts"
+    ],
+    "valid_confidence": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "valid_risk": [
+      "low",
+      "medium",
+      "high",
+      "critical"
+    ],
+    "approval_requires_source_risk": [
+      "medium",
+      "high",
+      "critical"
+    ]
+  },
+  "template": {
+    "verdict": "State the answer or decision.",
+    "evidence": [
+      {
+        "claim": "Evidence-backed claim.",
+        "source": "output/.raw/nexora_operator_packet.json",
+        "kind": "artifact|file|report|inference"
+      }
+    ],
+    "confidence": "medium",
+    "risk": "medium",
+    "human_approval_required": true,
+    "suggested_next_action": "Ask the human to approve, reject, or defer.",
+    "source_artifacts": [
+      "output/.raw/nexora_operator_packet.json",
+      "output/.raw/nexora_agent_contract.json"
+    ]
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "decisions"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "merge_decision_cockpit"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "candidates",
+        "actions",
+        "by_source"
+      ],
+      "properties": {
+        "candidates": {
+          "type": "integer"
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "by_source": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate",
+          "source",
+          "target_path",
+          "action",
+          "decision",
+          "package_tier",
+          "closure_size",
+          "required_actions",
+          "reasons",
+          "route",
+          "evidence"
+        ],
+        "properties": {
+          "candidate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "Import Now",
+              "Import With Review",
+              "Do Not Import Yet"
+            ]
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "SAFE_TO_IMPORT",
+              "ASSISTED_IMPORT",
+              "DO_NOT_IMPORT_YET",
+              null
+            ]
+          },
+          "import_recommendation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "import-now",
+              "import-with-review",
+              "do-not-import-yet",
+              null
+            ]
+          },
+          "risk_tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "package_tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closure_size": {
+            "type": "integer"
+          },
+          "required_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "route": {
+            "type": "object",
+            "properties": {
+              "smoke_path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "framework": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "template": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": true
+          },
+          "evidence": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

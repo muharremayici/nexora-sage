@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "kind": "surgical_packet_input_contract",
+    "version": "v1"
+  },
+  "authority": {
+    "snapshot_source": "validated_atlas_commit",
+    "required_input_failure": "BLOCKED",
+    "optional_input_failure": "OMITTED",
+    "rule": "Only content-hash-bound producer output from the target Atlas snapshot may influence a surgical packet. Optional unbound inputs are omitted and reported; they are never silently reused.",
+    "forbidden_artifacts": [
+      "react_edge_case_validation"
+    ]
+  },
+  "inputs": {
+    "signals": {
+      "required": true,
+      "snapshot_binding": "producer_lineage_receipt",
+      "decision_use": [
+        "focus",
+        "halo",
+        "directives"
+      ]
+    },
+    "circular_deps": {
+      "required": false,
+      "snapshot_binding": "producer_lineage_receipt",
+      "decision_use": [
+        "upstream_trace"
+      ]
+    },
+    "live_surface_priority_pack": {
+      "required": false,
+      "snapshot_binding": "producer_lineage_receipt",
+      "decision_use": [
+        "priority_directives"
+      ]
+    }
+  }
+}

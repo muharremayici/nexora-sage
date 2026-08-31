@@ -1,0 +1,57 @@
+name: Nexora SAGE Quality Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python-runtime-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile distributed Python sources
+        run: python -B tools/validate_python_runtime_compatibility.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install product and test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Install TypeScript AST dependency
+        run: npm ci --prefix tools/engines --ignore-scripts
+      - name: Smoke public CLI
+        run: python -B sage.py --help
+      - name: Run runtime behavior suite
+        run: python -B tools/run_distribution_tests.py
+
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Install TypeScript AST dependency
+        run: npm ci --prefix tools/engines --ignore-scripts
+      - name: Validate installation and contracts
+        run: python sage.py doctor --include-validate --quick --max-seconds 45
+      - name: Run repository test contract
+        run: python -B tools/run_distribution_tests.py --profile public_target_repository --collect-only

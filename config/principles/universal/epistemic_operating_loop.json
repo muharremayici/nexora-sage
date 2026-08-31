@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "kind": "nexora.principle_pack",
+    "namespace": "principles.epistemic_operating_loop",
+    "version": "1.0.0",
+    "status": "advisory",
+    "description": "Universal SAGE operating-loop guidance for shared human-AI engineering reality."
+  },
+  "principles": [
+    {
+      "id": "principle.epistemic_loop.shared_reality_first",
+      "label": "Start from shared reality",
+      "applies_to": [
+        "agent_directive",
+        "human_review",
+        "release_proof",
+        "watchdog",
+        "contextos_packet"
+      ],
+      "rationale": "Human, AI agent and SAGE must reason from the same source-grounded truth before intent, decision or action is trusted.",
+      "directive_hint": "Before acting, identify the shared reality source: target root, SQLite/source snapshot evidence, doctrine/policy context, artifact freshness and known unknowns.",
+      "enforcement": "advisory"
+    },
+    {
+      "id": "principle.epistemic_loop.close_feedback_into_learning",
+      "label": "Close feedback into learning",
+      "applies_to": [
+        "manual_audit",
+        "failure_family_sweep",
+        "validator",
+        "audit_lesson",
+        "work_item_registry"
+      ],
+      "rationale": "A result only improves SAGE if feedback becomes durable system knowledge rather than transient chat memory.",
+      "directive_hint": "After validation, ask whether the result produced a reusable lesson, validator, source contract, checklist item or deferred work item.",
+      "enforcement": "advisory"
+    },
+    {
+      "id": "principle.epistemic_loop.capability_returns_to_shared_reality",
+      "label": "Capability returns to shared reality",
+      "applies_to": [
+        "capability_registry",
+        "system_health",
+        "release_claim",
+        "agent_surface",
+        "public_release"
+      ],
+      "rationale": "New capability is not a private implementation detail; it must update the shared map of what SAGE can prove, cannot prove and should not claim.",
+      "directive_hint": "When a capability changes, update the registry, evidence chain, claim boundary and agent-facing surface only to the extent supported by proof.",
+      "enforcement": "advisory"
+    }
+  ]
+}

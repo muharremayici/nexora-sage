@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "product_boundary_map.schema.json",
+  "title": "SAGE Product Boundary Map",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "decision_state",
+    "value_domains",
+    "ownership_zones",
+    "learning_asset_classes",
+    "packaging_candidates",
+    "license_state",
+    "coverage",
+    "attention"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "generator",
+        "source_contracts"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "value_domains",
+        "ownership_zones",
+        "packaging_candidates",
+        "known_source_layers",
+        "known_capabilities",
+        "known_agent_transfer_families",
+        "known_pipeline_steps",
+        "unmapped_source_layers",
+        "unmapped_capabilities",
+        "unmapped_agent_transfer_families",
+        "unmapped_pipeline_steps"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "PASS_WITH_ATTENTION",
+            "FAIL"
+          ]
+        },
+        "unmapped_source_layers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmapped_capabilities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmapped_agent_transfer_families": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmapped_pipeline_steps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mixed_ownership_source_layers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "current_license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license_detection_status": {
+          "type": "string",
+          "enum": [
+            "recognized",
+            "missing",
+            "ambiguous",
+            "unrecognized"
+          ]
+        },
+        "public_release_license_blocking": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "decision_state": {
+      "type": "object",
+      "required": [
+        "final_license_decision",
+        "human_decision_status",
+        "legal_review",
+        "current_release_packaging",
+        "rule"
+      ]
+    },
+    "value_domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "value_statement",
+          "source_layers",
+          "capabilities",
+          "agent_transfer_families",
+          "pipeline_steps"
+        ]
+      }
+    },
+    "ownership_zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner",
+          "boundary_kind",
+          "source_layers",
+          "file_count",
+          "rule"
+        ]
+      }
+    },
+    "learning_asset_classes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "default_owner",
+          "egress"
+        ]
+      }
+    },
+    "packaging_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "boundary_kind"
+        ]
+      }
+    },
+    "license_state": {
+      "type": "object",
+      "required": [
+        "license_path",
+        "detection_status",
+        "detected_license_id",
+        "matched_license_ids",
+        "license_files",
+        "final_license_decision",
+        "engineering_recommendation",
+        "candidate_models",
+        "contribution_rights_requirement",
+        "future_transition",
+        "public_release_blocking",
+        "blocker_reasons",
+        "effective_license_notice"
+      ]
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "attention": {
+      "type": "object",
+      "required": [
+        "pipeline_steps_without_value_domain",
+        "mixed_ownership_source_layers",
+        "license_blocker_reasons",
+        "interpretation"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

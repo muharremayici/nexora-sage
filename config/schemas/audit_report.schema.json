@@ -1,0 +1,315 @@
+{
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "audit_scope",
+    "atlas_project_count",
+    "audited_project_count",
+    "audited_projects",
+    "violation_project_count",
+    "violations",
+    "report_sections"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "audit_report",
+            "watchdog_audit_report"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total",
+        "by_rule",
+        "audit_scope",
+        "rule_taxonomy",
+        "remediation_backlog"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "by_rule": {
+          "type": "object"
+        },
+        "audit_scope": {
+          "type": "object"
+        },
+        "rule_taxonomy": {
+          "type": "object"
+        },
+        "remediation_backlog": {
+          "type": "array"
+        },
+        "profile_timings": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "audit_scope": {
+      "type": "object",
+      "required": [
+        "atlas_project_count",
+        "audited_project_count",
+        "audited_projects",
+        "violation_project_count"
+      ],
+      "properties": {
+        "scope_kind": {
+          "type": "string",
+          "enum": [
+            "full_repository",
+            "scoped_change"
+          ]
+        },
+        "full_repository_claim": {
+          "type": "boolean"
+        },
+        "atlas_project_count": {
+          "type": "integer"
+        },
+        "audited_project_count": {
+          "type": "integer"
+        },
+        "audited_projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "violation_project_count": {
+          "type": "integer"
+        },
+        "requested_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requested_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "audited_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audited_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolved_requested_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope_status": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "partial",
+            "empty"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "atlas_project_count": {
+      "type": "integer"
+    },
+    "audited_project_count": {
+      "type": "integer"
+    },
+    "audited_projects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "violation_project_count": {
+      "type": "integer"
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "file",
+          "rule",
+          "detail",
+          "recommended_action"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string"
+          },
+          "symbol_name": {
+            "type": "string"
+          },
+          "symbol_kind": {
+            "type": "string"
+          },
+          "threshold_kind": {
+            "type": "string"
+          },
+          "start_line": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "end_line": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "observed_loc": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "rule": {
+                  "pattern": "^loc_limits_"
+                }
+              },
+              "required": [
+                "rule"
+              ]
+            },
+            "then": {
+              "type": "object",
+              "required": [
+                "symbol_name",
+                "symbol_kind",
+                "threshold_kind",
+                "start_line",
+                "end_line",
+                "observed_loc",
+                "limit"
+              ]
+            }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "report_sections": {
+      "type": "array"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "meta": {
+            "properties": {
+              "kind": {
+                "const": "watchdog_audit_report"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "meta"
+        ]
+      },
+      "then": {
+        "required": [
+          "artifact_identity"
+        ],
+        "properties": {
+          "artifact_identity": {
+            "type": "object",
+            "required": [
+              "status",
+              "artifact_root",
+              "atlas_snapshot_id",
+              "target_descriptor"
+            ],
+            "properties": {
+              "status": {
+                "const": "BOUND"
+              },
+              "artifact_root": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atlas_snapshot_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_descriptor": {
+                "type": "object"
+              }
+            }
+          },
+          "audit_scope": {
+            "required": [
+              "scope_kind",
+              "full_repository_claim",
+              "requested_file_count",
+              "requested_files",
+              "audited_file_count",
+              "audited_files",
+              "unresolved_requested_files",
+              "scope_status"
+            ],
+            "properties": {
+              "scope_kind": {
+                "const": "scoped_change"
+              },
+              "full_repository_claim": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

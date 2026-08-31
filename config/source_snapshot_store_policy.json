@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "kind": "source_snapshot_store_policy",
+    "version": "v1"
+  },
+  "principles": {
+    "schema_truth": "The source_snapshots SQLite table is the source-content SSOT for downstream analyzers after live ingestion.",
+    "fail_closed": "Source snapshot validation must fail when the expected schema contract is missing or incomplete."
+  },
+  "validation_contract": {
+    "required_columns": [
+      "file_id",
+      "project_key",
+      "rel_path",
+      "content",
+      "content_hash",
+      "source_mtime",
+      "size_bytes",
+      "encoding",
+      "status",
+      "error",
+      "updated_at"
+    ],
+    "required_tables": [
+      "files",
+      "source_snapshots"
+    ]
+  }
+}

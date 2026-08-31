@@ -1,0 +1,546 @@
+{
+  "_meta": {
+    "kind": "nexora.governance_registry",
+    "version": "1.0.0",
+    "description": "V1 governance surface registry for doctrine, policy, principle, cage, capability, HITL, release-claim and agent-facing extension boundaries."
+  },
+  "default_rules": {
+    "paths": "repository_relative_only",
+    "claims": "no_public_claim_expansion_without_release_claim_profile_claim_guard_and_hard_hitl",
+    "separation": "doctrine_binds_principles_guide_cages_detect_capabilities_scope_contextos_directs",
+    "decision_authority": "engines_produce_signals_evidence_calibrates_truth_governance_decides_actions_humans_approve_risk",
+    "v1_boundary": "react_typescript_static_governance_is_active; runtime_full_sast_and_equal_depth_polyglot_claims_are_out_of_scope"
+  },
+  "validation": {
+    "required_surface_fields": [
+      "id",
+      "surface_kind",
+      "source",
+      "runtime_output",
+      "validator",
+      "release_proof_step",
+      "binding_level",
+      "claim_impact",
+      "human_seal_policy",
+      "seal_scope_kind"
+    ],
+    "required_surface_ids": [
+      "doctrine_registry",
+      "principle_registry",
+      "capability_registry",
+      "cage_registry",
+      "release_claim_profiles",
+      "hitl_policy",
+      "seal_impact_policy",
+      "audit_lesson_registry",
+      "sage_development_loop_contract",
+      "sage_active_work_package",
+      "sage_work_package_closure",
+      "sage_execution_wave_registry",
+      "sage_self_audit_contract",
+      "manual_adversarial_audit_checklist",
+      "agent_surface_roles",
+      "plugin_trust_policy",
+      "contributor_extension_contract",
+      "product_boundary_contract",
+      "source_role_obligation_contract",
+      "decision_ownership_registry",
+      "runtime_output_retention_policy",
+      "governance_trace_contract",
+      "actor_interaction_contract",
+      "external_repository_evaluation_contract",
+      "target_repository_proof_contract"
+    ],
+    "seal_scope_kinds": [
+      "target_repo_doctrine_policy",
+      "target_repo_advisory_principle",
+      "target_repo_cage_policy",
+      "target_repo_agent_surface",
+      "target_repository_governance",
+      "sage_self_release_claim",
+      "sage_self_learning_loop",
+      "sage_self_release_review",
+      "sage_self_extension_trust",
+      "sage_self_operator_safety",
+      "sage_product_and_license_boundary",
+      "shared_hitl_authority"
+    ],
+    "expected_seal_scope_kind_by_surface": {
+      "doctrine_registry": "target_repo_doctrine_policy",
+      "principle_registry": "target_repo_advisory_principle",
+      "cage_registry": "target_repo_cage_policy",
+      "agent_surface_roles": "target_repo_agent_surface",
+      "release_claim_profiles": "sage_self_release_claim",
+      "capability_registry": "sage_self_release_claim",
+      "audit_lesson_registry": "sage_self_learning_loop",
+      "sage_development_loop_contract": "sage_self_learning_loop",
+      "sage_active_work_package": "sage_self_learning_loop",
+      "sage_work_package_closure": "sage_self_learning_loop",
+      "sage_execution_wave_registry": "sage_self_learning_loop",
+      "sage_self_audit_contract": "sage_self_learning_loop",
+      "manual_adversarial_audit_checklist": "sage_self_release_review",
+      "manual_adversarial_audit_progress": "sage_self_release_review",
+      "plugin_trust_policy": "sage_self_extension_trust",
+      "contributor_extension_contract": "sage_self_extension_trust",
+      "product_boundary_contract": "sage_product_and_license_boundary",
+      "source_role_obligation_contract": "sage_self_extension_trust",
+      "decision_ownership_registry": "sage_self_learning_loop",
+      "runtime_output_retention_policy": "sage_self_operator_safety",
+      "governance_trace_contract": "sage_self_operator_safety",
+      "actor_interaction_contract": "shared_hitl_authority",
+      "target_repository_proof_contract": "target_repository_governance"
+    },
+    "governance_like_config_discovery": {
+      "description": "Detect governance/policy/registry/contract-like config files and require each candidate to have an explicit owner surface, contributor extension surface, or owner pattern family.",
+      "include_root": "config",
+      "include_suffixes": [
+        ".json"
+      ],
+      "exclude_path_prefixes": [
+        "config/schemas",
+        "config/golden"
+      ],
+      "candidate_path_tokens": [
+        "governance",
+        "policy",
+        "registry",
+        "contract",
+        "doctrine",
+        "principle",
+        "cage",
+        "capability",
+        "hitl",
+        "seal",
+        "claim",
+        "audit_lesson",
+        "manual_adversarial",
+        "plugin_trust",
+        "runtime_output_retention",
+        "agent_surface",
+        "agent_harness"
+      ],
+      "owner_patterns": [
+        {
+          "owner": "policy_contract_family",
+          "patterns": [
+            "config/*_policy.json"
+          ],
+          "rationale": "Policy files are governance-like and must remain covered by source contracts, release proof, or a specific capability/cage validator."
+        },
+        {
+          "owner": "registry_contract_family",
+          "patterns": [
+            "config/*_registry.json"
+          ],
+          "rationale": "Registry files are governance-like and must remain covered by registry validators or source contracts."
+        },
+        {
+          "owner": "contract_family",
+          "patterns": [
+            "config/*_contract.json"
+          ],
+          "rationale": "Contract files define machine-readable boundaries and must remain covered by source contracts or specific validators."
+        },
+        {
+          "owner": "derived_layer_contract_coverage",
+          "patterns": [
+            "config/derived_layer_contract_coverage_triage.json"
+          ],
+          "rationale": "Derived-layer contract triage records reviewed supporting-evidence decisions and is owned by the coverage validator and release-proof contract."
+        },
+        {
+          "owner": "doctrine_pack_family",
+          "patterns": [
+            "config/doctrines/**/*.json",
+            "config/doctrines/*.json"
+          ],
+          "rationale": "Doctrine pack files are owned by the modular doctrine manifest and validator."
+        },
+        {
+          "owner": "principle_pack_family",
+          "patterns": [
+            "config/principles/**/*.json",
+            "config/principles/*.json"
+          ],
+          "rationale": "Principle pack files are owned by the principles manifest and validator."
+        },
+        {
+          "owner": "plugin_manifest_family",
+          "patterns": [
+            "config/plugin_manifests/**/*.json",
+            "config/plugin_manifests/*.json"
+          ],
+          "rationale": "Declarative plugin manifests are owned by the plugin manifest contract validator."
+        },
+        {
+          "owner": "agent_surface_taxonomy_family",
+          "patterns": [
+            "config/agent_surface_taxonomy.json",
+            "config/agent_surface_manual_review_evidence.json"
+          ],
+          "rationale": "Agent surface taxonomy and manual review evidence are owned by MCP/agent-surface validation and seal review."
+        },
+        {
+          "owner": "compiled_doctrine_family",
+          "patterns": [
+            "config/architecture_doctrine.json",
+            "config/react_universal_analysis_doctrine.json"
+          ],
+          "rationale": "Compiled doctrine outputs are generated/validated through modular doctrine and React universal proof gates."
+        },
+        {
+          "owner": "bootstrap_doctrine_template_family",
+          "patterns": [
+            "config/auto_doctrine_templates.json"
+          ],
+          "rationale": "Auto doctrine templates seed blank workspaces and are owned by doctrine bootstrap and discovery/source contract validation."
+        },
+        {
+          "owner": "engine_signal_contract_family",
+          "patterns": [
+            "config/engine_signal_contracts.json"
+          ],
+          "rationale": "Engine signal contracts are owned by engine signal validation and release proof."
+        }
+      ]
+    }
+  },
+  "governance_surfaces": [
+    {
+      "id": "doctrine_registry",
+      "surface_kind": "binding_constitution",
+      "source": "config/doctrines/manifest.json",
+      "runtime_output": "config/architecture_doctrine.json",
+      "validator": "tools/validate_modular_doctrine_registry.py",
+      "release_proof_step": "modular_doctrine_registry",
+      "binding_level": "binding_after_human_seal",
+      "claim_impact": "can_affect_engine_findings_and_agent_directives",
+      "human_seal_policy": "hard_for_seal_or_claim_expansion",
+      "seal_scope_kind": "target_repo_doctrine_policy"
+    },
+    {
+      "id": "principle_registry",
+      "surface_kind": "advisory_engineering_wisdom",
+      "source": "config/principles/manifest.json",
+      "runtime_output": "agent_directive_context_guidance",
+      "validator": "tools/validate_principle_packs.py",
+      "release_proof_step": "principle_pack_contracts",
+      "binding_level": "advisory_only",
+      "claim_impact": "must_not_create_v1_violations_or_quality_gates",
+      "human_seal_policy": "soft_for_advisory_text_hard_if_promoted",
+      "seal_scope_kind": "target_repo_advisory_principle"
+    },
+    {
+      "id": "capability_registry",
+      "surface_kind": "capability_and_claim_scope",
+      "source": "config/capability_registry.json",
+      "runtime_output": "output/.raw/capability_registry.json",
+      "validator": "tools/validate_capability_registry.py",
+      "release_proof_step": "capability_registry_validation",
+      "binding_level": "release_claim_scope",
+      "claim_impact": "defines_capability_evidence_artifacts_validators_and_claim_boundaries",
+      "human_seal_policy": "hard_for_public_claim_or_release_gate_changes",
+      "seal_scope_kind": "sage_self_release_claim"
+    },
+    {
+      "id": "cage_registry",
+      "surface_kind": "policy_backed_detection_cages",
+      "source": "config/cage_mvp_contracts.json",
+      "runtime_output": "output/.raw/cage_mvp_contract_validation.json",
+      "validator": "tools/validate_cage_mvp_contracts.py",
+      "release_proof_step": "cage_mvp_contracts",
+      "binding_level": "advisory_candidate_signal_in_v1",
+      "claim_impact": "must_not_be_release_blocking_in_v1_unless_promoted_by_contract_and_proof",
+      "human_seal_policy": "hard_for_release_blocking_or_mutating_enforcement",
+      "seal_scope_kind": "target_repo_cage_policy"
+    },
+    {
+      "id": "release_claim_profiles",
+      "surface_kind": "release_claim_boundary",
+      "source": "config/release_claim_profiles.json",
+      "runtime_output": "output/.raw/release_claim_profiles_validation.json",
+      "validator": "tools/validate_release_claim_profiles.py",
+      "release_proof_step": "release_claim_profiles",
+      "binding_level": "public_claim_gate",
+      "claim_impact": "controls_active_release_claim_and_roadmap_non_claims",
+      "human_seal_policy": "hard_for_claim_boundary_expansion",
+      "seal_scope_kind": "sage_self_release_claim"
+    },
+    {
+      "id": "hitl_policy",
+      "surface_kind": "human_authority_policy",
+      "source": "config/hitl_policy.json",
+      "runtime_output": "output/.raw/hitl_governance_validation.json",
+      "validator": "tools/validate_hitl_governance.py",
+      "release_proof_step": "hitl_governance",
+      "binding_level": "approval_gate",
+      "claim_impact": "defines_soft_and_hard_human_approval_requirements",
+      "human_seal_policy": "hard_for_ledger_backed_approval_gates",
+      "seal_scope_kind": "shared_hitl_authority"
+    },
+    {
+      "id": "hitl_governance_contract",
+      "surface_kind": "human_authority_contract",
+      "source": "config/hitl_governance_contract.json",
+      "runtime_output": "output/.raw/hitl_governance_validation.json",
+      "validator": "tools/validate_hitl_governance.py",
+      "release_proof_step": "hitl_governance",
+      "binding_level": "approval_vocabulary_and_gate_contract",
+      "claim_impact": "defines_ledger_decision_vocabulary_and_required_agent_approval_gate_coverage",
+      "human_seal_policy": "hard_for_ledger_backed_approval_gates",
+      "seal_scope_kind": "shared_hitl_authority"
+    },
+    {
+      "id": "seal_impact_policy",
+      "surface_kind": "human_seal_validity_boundary",
+      "source": "config/seal_impact_policy.json",
+      "runtime_output": "output/.raw/seal_impact_validation.json",
+      "validator": "tools/validate_seal_impact.py",
+      "release_proof_step": "seal_impact_validation",
+      "binding_level": "approval_validity_gate",
+      "claim_impact": "classifies_whether_active_human_seals_remain_current_after_source_changes",
+      "human_seal_policy": "hard_for_reseal_required_or_claim_affecting_changes",
+      "seal_scope_kind": "shared_hitl_authority"
+    },
+    {
+      "id": "audit_lesson_registry",
+      "surface_kind": "manual_audit_learning_loop",
+      "source": "config/audit_lesson_registry.json",
+      "runtime_output": "output/.raw/audit_lesson_registry_validation.json",
+      "validator": "tools/validate_audit_lesson_registry.py",
+      "release_proof_step": "audit_lesson_registry_validation",
+      "binding_level": "release_hardening_memory",
+      "claim_impact": "prevents_known_manual_audit_lessons_from_remaining_unvalidated_chat_context",
+      "human_seal_policy": "hard_for_blocking_lessons_or_release_guard_changes",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "sage_development_loop_contract",
+      "surface_kind": "session_independent_sage_development_operating_contract",
+      "source": "config/sage_development_loop_contract.json",
+      "runtime_output": "output/.raw/source_contract_validation.json",
+      "validator": "tools/validate_source_contracts.py",
+      "release_proof_step": "source_contracts",
+      "binding_level": "sage_developer_bootstrap_and_work_package_contract",
+      "claim_impact": "keeps fresh-agent bootstrap priority routing manual review learning and package closure independent of chat or individual-agent memory",
+      "human_seal_policy": "hard_for_bootstrap_priority_or_package_closure_rule_changes",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "sage_active_work_package",
+      "surface_kind": "resumable_sage_development_checkpoint",
+      "source": "config/sage_active_work_package.json",
+      "runtime_output": "output/.raw/sage_active_work_package_validation.json",
+      "validator": "tools/validate_sage_active_work_package.py",
+      "release_proof_step": "sage_active_work_package_validation",
+      "binding_level": "sage_developer_session_resume_contract",
+      "claim_impact": "keeps the current SAGE work checkpoint independent of chat while preserving separate debt lesson and approval truth",
+      "human_seal_policy": "soft_for_checkpoint_updates_hard_for_truth_boundary_or_lifecycle_rule_changes",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "sage_work_package_closure",
+      "surface_kind": "active_sage_work_package_closure_evidence",
+      "source": "config/sage_active_work_package.json",
+      "runtime_output": "output/.raw/sage_work_package_closure_validation.json",
+      "validator": "tools/validate_sage_work_package_closure.py",
+      "release_proof_step": "sage_work_package_closure_validation",
+      "binding_level": "sage_developer_package_closure_contract",
+      "claim_impact": "makes package readiness explicit without treating a validator PASS as a distribution claim or human seal",
+      "human_seal_policy": "soft_for_evidence_checkpoint_updates_hard_for_closure_semantics_or_truth_boundary_changes",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "sage_execution_wave_registry",
+      "surface_kind": "ordered_sage_development_execution_projection",
+      "source": "config/sage_execution_wave_registry.json",
+      "runtime_output": "output/.raw/sage_work_item_registry_validation.json",
+      "validator": "tools/validate_sage_work_item_registry.py",
+      "release_proof_step": "sage_work_item_registry_validation",
+      "binding_level": "sage_developer_execution_order_contract",
+      "claim_impact": "prevents_open_debt_from_becoming_orphaned_or_executed_out_of_dependency_order",
+      "human_seal_policy": "hard_for_wave_order_or_release_closure_boundary_changes",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "manual_adversarial_audit_checklist",
+      "surface_kind": "manual_pipeline_audit_contract",
+      "source": "config/manual_adversarial_audit_checklist.json",
+      "runtime_output": "output/.raw/manual_adversarial_audit_checklist_validation.json",
+      "validator": "tools/validate_manual_adversarial_audit_checklist.py",
+      "release_proof_step": "manual_adversarial_audit_checklist_validation",
+      "binding_level": "release_hardening_review_contract",
+      "claim_impact": "defines_skeptical_layer_by_layer_manual_review_before_release_seal",
+      "human_seal_policy": "hard_for_v1_final_manual_audit_scope_changes",
+      "seal_scope_kind": "sage_self_release_review"
+    },
+    {
+      "id": "manual_adversarial_audit_progress",
+      "surface_kind": "manual_pipeline_audit_progress",
+      "source": "config/manual_adversarial_audit_progress.json",
+      "runtime_output": "output/.raw/manual_adversarial_audit_progress_validation.json",
+      "validator": "tools/validate_manual_adversarial_audit_progress.py",
+      "release_proof_step": "manual_adversarial_audit_progress_validation",
+      "binding_level": "release_hardening_review_state",
+      "claim_impact": "records current manual audit layer, closed cross-layer excursions and return point so final review does not rely on chat memory",
+      "human_seal_policy": "hard_for_v1_final_manual_audit_scope_changes",
+      "seal_scope_kind": "sage_self_release_review"
+    },
+    {
+      "id": "sage_self_audit_contract",
+      "surface_kind": "sage_self_governance_audit_trigger",
+      "source": "config/sage_self_audit_contract.json",
+      "runtime_output": "output/.raw/sage_self_audit_contract_validation.json",
+      "validator": "tools/validate_sage_self_audit_contract.py",
+      "release_proof_step": "sage_self_audit_contract",
+      "binding_level": "developer_auditor_execution_contract",
+      "claim_impact": "automates_scoped_sage_self_governance_without_implying_target_repo_release_or_human_seal",
+      "human_seal_policy": "not_a_seal_machine_results_remain_progressive_hitl_input",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "agent_surface_roles",
+      "surface_kind": "contextos_mcp_agent_boundary",
+      "source": "config/mcp_tool_roles.json",
+      "runtime_output": "output/.raw/mcp_surface_validation.json",
+      "validator": "tools/validate_mcp_agent_surface.py",
+      "release_proof_step": "mcp_agent_surface",
+      "binding_level": "agent_context_contract",
+      "claim_impact": "controls_which_surfaces_are_target_repo_directives_debug_or_internal",
+      "human_seal_policy": "hard_for_mutating_or_claim_affecting_agent_surfaces",
+      "seal_scope_kind": "target_repo_agent_surface"
+    },
+    {
+      "id": "plugin_trust_policy",
+      "surface_kind": "plugin_trust_boundary",
+      "source": "config/plugin_trust_policy.json",
+      "runtime_output": "output/.raw/contribution_trust_foundation_validation.json",
+      "validator": "tools/validate_contribution_trust_foundation.py",
+      "release_proof_step": "contribution_trust_foundation",
+      "binding_level": "contract_only_in_v1",
+      "claim_impact": "forbids_executable_third_party_plugin_runtime_in_v1",
+      "human_seal_policy": "hard_before_activation_or_runtime_execution",
+      "seal_scope_kind": "sage_self_extension_trust"
+    },
+    {
+      "id": "contributor_extension_contract",
+      "surface_kind": "contributor_extension_boundary",
+      "source": "config/contributor_extension_contract.json",
+      "runtime_output": "output/.raw/contribution_trust_foundation_validation.json",
+      "validator": "tools/validate_contribution_trust_foundation.py",
+      "release_proof_step": "contribution_trust_foundation",
+      "binding_level": "contribution_guardrail",
+      "claim_impact": "prevents_new_contribution_surfaces_from_splitting_truth_or_bypassing_validators",
+      "human_seal_policy": "hard_for_new_mutating_or_claim_affecting_surface",
+      "seal_scope_kind": "sage_self_extension_trust"
+    },
+    {
+      "id": "product_boundary_contract",
+      "surface_kind": "product_value_ownership_and_license_boundary_decision_support",
+      "source": "config/product_boundary_contract.json",
+      "runtime_output": "output/.raw/product_boundary_map.json",
+      "validator": "tools/generate_product_boundary_map.py",
+      "release_proof_step": "product_boundary_map",
+      "binding_level": "human_governed_product_boundary_contract",
+      "claim_impact": "maps existing evidence to product value and ownership boundaries without selecting a license or expanding release claims",
+      "human_seal_policy": "hard_for_final_license_or_ownership_changes_soft_for_evidence_projection_updates",
+      "seal_scope_kind": "sage_product_and_license_boundary"
+    },
+    {
+      "id": "source_role_obligation_contract",
+      "surface_kind": "executable_source_role_integration_boundary",
+      "source": "config/source_role_obligation_contract.json",
+      "runtime_output": "output/.raw/source_layer_inventory.json",
+      "validator": "tools/generate_source_layer_inventory.py",
+      "release_proof_step": "source_layer_inventory",
+      "binding_level": "contributor_integration_guardrail",
+      "claim_impact": "detects_undeclared_executable_roles_without_auto_activation_or_claim_expansion",
+      "human_seal_policy": "hard_if_role_inference_can_activate_or_expand_claims",
+      "seal_scope_kind": "sage_self_extension_trust"
+    },
+    {
+      "id": "source_layer_classification_policy",
+      "surface_kind": "declarative_source_layer_extension_policy",
+      "source": "config/source_layer_classification_policy.json",
+      "runtime_output": "output/.raw/source_layer_classification_policy_validation.json",
+      "validator": "tools/validate_source_layer_classification_policy.py",
+      "release_proof_step": "source_layer_classification_policy_validation",
+      "binding_level": "source_layer_governance_contract",
+      "claim_impact": "keeps exact source-layer extensions reviewable and prevents newly added support tools from silently remaining unknown_or_review",
+      "human_seal_policy": "soft_for_rule_additions_hard_for_precedence_or_disallowed_layer_changes",
+      "seal_scope_kind": "sage_self_extension_trust"
+    },
+    {
+      "id": "decision_ownership_registry",
+      "surface_kind": "central_decision_owner_pointer_contract",
+      "source": "config/decision_ownership_registry.json",
+      "runtime_output": "output/.raw/central_decision_contracts_validation.json",
+      "validator": "tools/validate_central_decision_contracts.py",
+      "release_proof_step": "central_decision_contracts",
+      "binding_level": "sage_self_save_time_guard",
+      "claim_impact": "prevents_local_reconstruction_of_registered_canonical_decision_sets_without_expanding_customer_repository_claims",
+      "human_seal_policy": "hard_if_owner_pointer_or_enforcement_scope_changes",
+      "seal_scope_kind": "sage_self_learning_loop"
+    },
+    {
+      "id": "runtime_output_retention_policy",
+      "surface_kind": "runtime_output_and_log_retention",
+      "source": "config/runtime_output_retention_policy.json",
+      "runtime_output": "output/.raw/runtime_output_retention_validation.json",
+      "validator": "tools/validate_runtime_output_retention.py",
+      "release_proof_step": "runtime_output_retention",
+      "binding_level": "operator_safety_guardrail",
+      "claim_impact": "keeps_runtime_logs_and_telemetry_observable_without_unbounded_disk_growth",
+      "human_seal_policy": "soft_for_limit_adjustments_hard_if_retention_is_disabled",
+      "seal_scope_kind": "sage_self_operator_safety"
+    },
+    {
+      "id": "governance_trace_contract",
+      "surface_kind": "local_trace_attribution_contract",
+      "source": "config/governance_trace_contract.json",
+      "runtime_output": "output/.raw/governance_trace_contract_validation.json",
+      "validator": "tools/validate_governance_trace_contract.py",
+      "release_proof_step": "governance_trace_contract",
+      "binding_level": "local_observability_contract",
+      "claim_impact": "records bounded local handoffs and explicit unknowns without asserting repository correctness or causal root cause",
+      "human_seal_policy": "soft_for_retention_or_schema adjustments_hard_if_remote_egress_or_claim_boundary_changes",
+      "seal_scope_kind": "sage_self_operator_safety"
+    },
+    {
+      "id": "actor_interaction_contract",
+      "surface_kind": "channel_independent_external_actor_boundary",
+      "source": "config/actor_interaction_contract.json",
+      "runtime_output": "output/.raw/actor_interaction_contract_validation.json",
+      "validator": "tools/validate_actor_interaction_contract.py",
+      "release_proof_step": "actor_interaction_contract",
+      "binding_level": "normative_draft_below_constitution_and_canonical_governance",
+      "claim_impact": "prevents_actor_adapter_authority_scope_and_validation_semantics_from_drifting_across_cli_mcp_ci_hooks_and_future_surfaces",
+      "human_seal_policy": "hard_before_normative_activation_or_authority_semantic_change",
+      "seal_scope_kind": "shared_hitl_authority"
+    },
+    {
+      "id": "external_repository_evaluation_contract",
+      "surface_kind": "external_corpus_role_and_claim_authority_boundary",
+      "source": "config/external_repository_evaluation_contract.json",
+      "runtime_output": "output/.raw/external_repository_evaluation_contract_validation.json",
+      "validator": "tools/validate_external_repository_evaluation_contract.py",
+      "release_proof_step": "external_repository_evaluation_contract",
+      "binding_level": "evaluation_design_and_public_claim_guard",
+      "claim_impact": "prevents_calibration_regression_holdout_and_language_depth_evidence_from_being_conflated_or_promoted_beyond_the_active_claim",
+      "human_seal_policy": "hard_if_corpus_authority_language_claim_mapping_or_public_claim_promotion_semantics_change",
+      "seal_scope_kind": "sage_self_release_claim"
+    },
+    {
+      "id": "target_repository_proof_contract",
+      "surface_kind": "target_repository_scoped_proof_envelope",
+      "source": "config/target_repository_proof_contract.json",
+      "runtime_output": "output/.raw/target_repository_proof_contract_validation.json",
+      "validator": "tools/validate_target_repository_proof_contract.py",
+      "release_proof_step": "target_repository_proof_contract",
+      "binding_level": "target_evidence_authority_and_human_decision_boundary",
+      "claim_impact": "keeps target repository evidence freshness statistics verdicts and human decisions separate from SAGE product release proof",
+      "human_seal_policy": "hard_if_target_verdict_authority_required_evidence_or_human_decision_semantics_change",
+      "seal_scope_kind": "target_repository_governance"
+    }
+  ]
+}

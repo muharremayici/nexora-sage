@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "kind": "derived_layer_contract_coverage_policy",
+    "version": "v1",
+    "purpose": "Derive advisory layer-coverage drift candidates from existing release, spine and governance contracts without duplicating ownership truth or changing claims."
+  },
+  "inputs": {
+    "layer_matrix_contract": "config/layer_release_matrix_contract.json",
+    "release_proof_contract": "config/release_proof_steps_contract.json",
+    "system_spine_registry": "config/system_spine_registry.json",
+    "governance_registry": "config/governance_registry.json",
+    "triage_contract": "config/derived_layer_contract_coverage_triage.json"
+  },
+  "policy": {
+    "mode": "advisory_only",
+    "automatic_matrix_mutation": false,
+    "automatic_claim_or_seal_expansion": false,
+    "source_layer_exclusions": [
+      "generated_runtime_artifact",
+      "unknown_or_review"
+    ],
+    "background_only_source_layers": [
+      "validation_release_gates",
+      "reporting_product_readiness"
+    ],
+    "required_suggestion_categories": [
+      "release_step_missing_layer_proof",
+      "spine_node_missing_layer_proof",
+      "governance_surface_missing_layer_proof"
+    ],
+    "category_priority": [
+      "release_step_missing_layer_proof",
+      "spine_node_missing_layer_proof",
+      "governance_surface_missing_layer_proof"
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "kind": "nexora.decision_ownership_registry",
+    "version": "v1",
+    "purpose": "Canonical ownership index for narrow save-time detection of locally reconstructed machine-readable decision sets."
+  },
+  "guard_policy": {
+    "supported_source_suffixes": [
+      ".py"
+    ],
+    "minimum_local_collection_size": 2,
+    "minimum_overlap_values": 2,
+    "relationships": [
+      "exact_copy",
+      "owned_subset"
+    ],
+    "excluded_path_parts": [
+      "tests",
+      "fixtures",
+      "output",
+      "node_modules",
+      "__pycache__"
+    ],
+    "owner_files_are_exempt": true
+  },
+  "domains": [
+    {
+      "id": "product_boundary_required_ids",
+      "owner_file": "config/product_boundary_contract.json",
+      "owner_pointers": [
+        "validation_contract.required_value_domain_ids",
+        "validation_contract.required_ownership_zone_ids",
+        "validation_contract.required_packaging_candidate_ids"
+      ],
+      "value_mode": "list_values",
+      "consumer_rule": "Consumers must read boundary identities from the product boundary contract rather than reconstructing value, ownership or packaging sets."
+    },
+    {
+      "id": "reality_projection_capability_scopes",
+      "owner_file": "config/agent_surface_taxonomy.json",
+      "owner_pointers": [
+        "canonical_registry_projection_policy.sage_developer.capability_scopes",
+        "canonical_registry_projection_policy.target_repository.capability_scopes"
+      ],
+      "value_mode": "list_values",
+      "consumer_rule": "Consumers must call projection_capability_scopes instead of reconstructing scope sets."
+    },
+    {
+      "id": "sage_self_required_tools",
+      "owner_file": "config/reality_target_profiles.json",
+      "owner_pointers": [
+        "validation_contract.required_sage_self_tools"
+      ],
+      "value_mode": "list_values",
+      "consumer_rule": "Consumers must load and validate the explicit sage_self profile rather than copying its required tool set."
+    },
+    {
+      "id": "required_target_agent_tools",
+      "owner_file": "config/agent_surface_contract.json",
+      "owner_pointers": [
+        "required_agent_tools"
+      ],
+      "value_mode": "list_values",
+      "consumer_rule": "Consumers must read required target-agent tools from the agent-surface contract."
+    }
+  ],
+  "validation_contract": {
+    "required_domain_fields": [
+      "id",
+      "owner_file",
+      "owner_pointers",
+      "value_mode",
+      "consumer_rule"
+    ],
+    "allowed_value_modes": [
+      "list_values",
+      "object_keys"
+    ],
+    "required_domain_ids": [
+      "product_boundary_required_ids",
+      "reality_projection_capability_scopes",
+      "sage_self_required_tools",
+      "required_target_agent_tools"
+    ]
+  }
+}

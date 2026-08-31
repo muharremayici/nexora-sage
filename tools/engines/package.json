@@ -1,0 +1,8 @@
+{
+  "name": "nexora-sage-engines",
+  "version": "13.0.0",
+  "description": "AST and hybrid analysis engines for Nexora SAGE",
+  "dependencies": {
+    "typescript": "5.9.3"
+  }
+}

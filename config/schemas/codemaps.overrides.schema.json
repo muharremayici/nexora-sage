@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Human Overrides",
+  "type": "object",
+  "required": [
+    "_meta"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "codemaps.overrides"
+          ]
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "workspace_root": {
+      "type": "string"
+    },
+    "source_extensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skip_dirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variation_aliases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "discovery_key": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "variations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "module_root": {
+          "type": "string"
+        },
+        "module_container": {
+          "type": "string"
+        },
+        "hexagonal_ports": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hexagonal_adapters": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "bundler": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path_aliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "styling": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "linting": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "host_intelligence": {
+      "type": "object",
+      "properties": {
+        "host_locked_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compose_preferred_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "manual_review_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "public_boundary_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "integration_seam_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "audit": {
+      "type": "object"
+    },
+    "quality_gates": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Genome Artifact",
+  "type": "object",
+  "additionalProperties": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "dna",
+        "dna_short",
+        "density",
+        "decoupling",
+        "coupling",
+        "deps",
+        "leaks",
+        "signature",
+        "symbols_referenced",
+        "meta",
+        "source_lines",
+        "target_path_prediction",
+        "imports_at_source",
+        "project",
+        "file"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "dna": {
+          "type": "string"
+        },
+        "dna_short": {
+          "type": "string"
+        },
+        "logic_dna": {
+          "type": "string"
+        },
+        "logic_dna_short": {
+          "type": "string"
+        },
+        "semantic_signature": {
+          "type": "string"
+        },
+        "canonical_symbol_type": {
+          "type": "string"
+        },
+        "framework_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "normalization_profile": {
+          "type": "string"
+        },
+        "semantic_depth": {
+          "type": "string"
+        },
+        "logic_dna_kind": {
+          "type": "string"
+        },
+        "normalization_confidence": {
+          "type": "string"
+        },
+        "parser_kind": {
+          "type": "string"
+        },
+        "parser_version": {
+          "type": "string"
+        },
+        "density": {
+          "type": "number"
+        },
+        "decoupling": {
+          "type": "number"
+        },
+        "coupling": {
+          "type": "number"
+        },
+        "deps": {
+          "type": "object",
+          "required": [
+            "external",
+            "internal",
+            "studio"
+          ],
+          "properties": {
+            "external": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "internal": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "studio": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "leaks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "signature": {
+          "type": "string"
+        },
+        "symbols_referenced": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": [
+            "studio",
+            "fsd",
+            "hexagonal"
+          ],
+          "properties": {
+            "studio": {
+              "type": "string"
+            },
+            "fsd": {
+              "type": "string"
+            },
+            "hexagonal": {
+              "type": "string"
+            }
+          }
+        },
+        "source_lines": {
+          "type": "string"
+        },
+        "target_path_prediction": {
+          "type": "string"
+        },
+        "imports_at_source": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "project": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

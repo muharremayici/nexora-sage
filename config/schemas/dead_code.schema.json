@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nexora SAGE Dead Code Artifact",
+  "type": "object",
+  "required": [
+    "meta",
+    "summary",
+    "items",
+    "by_project",
+    "compatibility_exclusions",
+    "legacy_boundary_exclusions",
+    "contract_surface_exclusions",
+    "constant_surface_exclusions",
+    "type_surface_exclusions"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "version",
+        "generated_by",
+        "runtime_seconds",
+        "imported_file_edges",
+        "consumed_symbol_edges",
+        "proxy_edges",
+        "classification_reason_counts"
+      ],
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "runtime_seconds": {
+          "type": "number"
+        },
+        "imported_file_edges": {
+          "type": "number"
+        },
+        "consumed_symbol_edges": {
+          "type": "number"
+        },
+        "proxy_edges": {
+          "type": "number"
+        },
+        "classification_reason_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total",
+        "high",
+        "medium",
+        "low"
+      ],
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "medium": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/deadItem"
+      }
+    },
+    "by_project": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "display_name",
+          "summary",
+          "items"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "total",
+              "high",
+              "medium",
+              "low"
+            ],
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              },
+              "medium": {
+                "type": "number"
+              },
+              "low": {
+                "type": "number"
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/deadItem"
+            }
+          }
+        }
+      }
+    },
+    "compatibility_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusionItem"
+      }
+    },
+    "legacy_boundary_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusionItem"
+      }
+    },
+    "contract_surface_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusionItem"
+      }
+    },
+    "constant_surface_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusionItem"
+      }
+    },
+    "type_surface_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusionItem"
+      }
+    }
+  },
+  "$defs": {
+    "deadItem": {
+      "type": "object",
+      "required": [
+        "project",
+        "file",
+        "symbol",
+        "confidence",
+        "reason",
+        "evidence",
+        "actionability"
+      ],
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "actionability": {
+          "$ref": "#/$defs/actionability"
+        },
+        "evidence": {
+          "type": "object",
+          "required": [
+            "file_imported",
+            "symbol_seen_globally",
+            "local_symbol_usage",
+            "proxy_resolution_enabled"
+          ],
+          "properties": {
+            "file_imported": {
+              "type": "boolean"
+            },
+            "symbol_seen_globally": {
+              "type": "boolean"
+            },
+            "local_symbol_usage": {
+              "type": "boolean"
+            },
+            "proxy_resolution_enabled": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "actionability": {
+      "type": "object",
+      "required": [
+        "level",
+        "score",
+        "policy",
+        "unusedness_confidence",
+        "remediation_confidence",
+        "intent_decision_required",
+        "mutation_proposed",
+        "allowed_outcomes",
+        "why"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "actionable",
+            "manual_intent_decision",
+            "review"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "policy": {
+          "type": "string"
+        },
+        "unusedness_confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "remediation_confidence": {
+          "type": "string",
+          "enum": [
+            "conditional",
+            "unknown"
+          ]
+        },
+        "intent_decision_required": {
+          "type": "boolean"
+        },
+        "mutation_proposed": {
+          "const": false
+        },
+        "allowed_outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "delete",
+              "complete_integration",
+              "retain_contract",
+              "unknown"
+            ]
+          }
+        },
+        "why": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "exclusionItem": {
+      "type": "object",
+      "required": [
+        "project",
+        "file",
+        "symbol",
+        "reason"
+      ],
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

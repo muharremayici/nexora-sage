@@ -1,0 +1,296 @@
+{
+  "_meta": {
+    "numeric_constraints": [
+      {
+        "path": "proof_obligations.thresholds.atlas_contract_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.97
+      },
+      {
+        "path": "proof_obligations.thresholds.genome_contract_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.97
+      },
+      {
+        "path": "proof_obligations.thresholds.health_score_min",
+        "min": 0.0,
+        "max": 100.0,
+        "integer": true,
+        "default": 75
+      },
+      {
+        "path": "proof_obligations.thresholds.dead_high_max",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 140
+      },
+      {
+        "path": "proof_obligations.thresholds.dead_high_ratio_max",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.02
+      },
+      {
+        "path": "proof_obligations.thresholds.cycle_count_max",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 80
+      },
+      {
+        "path": "proof_obligations.thresholds.cycle_file_ratio_max",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.015
+      },
+      {
+        "path": "proof_obligations.thresholds.react_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.95
+      },
+      {
+        "path": "proof_obligations.thresholds.transition_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.8
+      },
+      {
+        "path": "proof_obligations.thresholds.property_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.65
+      },
+      {
+        "path": "proof_obligations.thresholds.project_transition_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.8
+      },
+      {
+        "path": "proof_obligations.thresholds.state_projects_pass_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 1.0
+      },
+      {
+        "path": "proof_obligations.thresholds.project_property_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.6
+      },
+      {
+        "path": "proof_obligations.thresholds.state_projects_property_pass_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.9
+      },
+      {
+        "path": "proof_obligations.thresholds.property_ratio_strong_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.55
+      },
+      {
+        "path": "proof_obligations.thresholds.project_property_ratio_strong_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.35
+      },
+      {
+        "path": "proof_obligations.thresholds.state_projects_property_strong_pass_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.8
+      },
+      {
+        "path": "proof_obligations.thresholds.strict_property_min_projects",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 4
+      },
+      {
+        "path": "quality_review.ladder.l0_health_score_min",
+        "min": 0.0,
+        "max": 100.0,
+        "integer": true,
+        "default": 70
+      },
+      {
+        "path": "quality_review.ladder.l1_contract_file_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.97
+      },
+      {
+        "path": "quality_review.ladder.l1_contract_genome_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.97
+      },
+      {
+        "path": "quality_review.ladder.l2_react_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.95
+      },
+      {
+        "path": "quality_review.ladder.l2_state_flow_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.9
+      },
+      {
+        "path": "quality_review.ladder.l3_dead_high_ratio_max",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.08
+      },
+      {
+        "path": "quality_review.ladder.l3_cycle_count_max",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 80
+      },
+      {
+        "path": "quality_review.ladder.l4_proof_ratio_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.95
+      },
+      {
+        "path": "quality_review.ladder.l4_quality_score_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.8
+      },
+      {
+        "path": "quality_review.ladder.l4_dead_high_ratio_max",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.1
+      },
+      {
+        "path": "quality_review.ladder.l4_cycle_count_max",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 80
+      },
+      {
+        "path": "quality_review.advisory.health_score_warning_min",
+        "min": 0.0,
+        "max": 100.0,
+        "integer": true,
+        "default": 75
+      },
+      {
+        "path": "quality_review.advisory.cycle_warning_max",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 80
+      },
+      {
+        "path": "quality_review.advisory.dead_high_warning_max",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 120
+      },
+      {
+        "path": "quality_review.advisory.state_property_strict_warning_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.2
+      },
+      {
+        "path": "quality_review.advisory.oracle_coverage_warning_min",
+        "min": 0.0,
+        "max": 1.0,
+        "integer": false,
+        "default": 0.5
+      },
+      {
+        "path": "quality_review.advisory.oracle_coverage_warning_expected_min",
+        "min": 0.0,
+        "max": null,
+        "integer": true,
+        "default": 5
+      }
+    ]
+  },
+  "proof_obligations": {
+    "thresholds": {
+      "atlas_contract_ratio_min": 0.97,
+      "genome_contract_ratio_min": 0.97,
+      "health_score_min": 75,
+      "dead_high_max": 140,
+      "dead_high_ratio_max": 0.02,
+      "cycle_count_max": 80,
+      "cycle_file_ratio_max": 0.015,
+      "react_ratio_min": 0.95,
+      "transition_ratio_min": 0.8,
+      "property_ratio_min": 0.65,
+      "project_transition_ratio_min": 0.8,
+      "state_projects_pass_ratio_min": 1.0,
+      "project_property_ratio_min": 0.6,
+      "state_projects_property_pass_ratio_min": 0.9,
+      "property_ratio_strong_min": 0.55,
+      "project_property_ratio_strong_min": 0.35,
+      "state_projects_property_strong_pass_ratio_min": 0.8,
+      "strict_property_min_projects": 4
+    }
+  },
+  "quality_review": {
+    "ladder": {
+      "l0_health_score_min": 70,
+      "l1_contract_file_ratio_min": 0.97,
+      "l1_contract_genome_ratio_min": 0.97,
+      "l2_react_ratio_min": 0.95,
+      "l2_state_flow_ratio_min": 0.9,
+      "l3_dead_high_ratio_max": 0.08,
+      "l3_cycle_count_max": 80,
+      "l4_proof_ratio_min": 0.95,
+      "l4_quality_score_min": 0.8,
+      "l4_dead_high_ratio_max": 0.1,
+      "l4_cycle_count_max": 80
+    },
+    "advisory": {
+      "health_score_warning_min": 75,
+      "cycle_warning_max": 80,
+      "dead_high_warning_max": 120,
+      "state_property_strict_warning_min": 0.2,
+      "oracle_coverage_warning_min": 0.5,
+      "oracle_coverage_warning_expected_min": 5
+    }
+  }
+}

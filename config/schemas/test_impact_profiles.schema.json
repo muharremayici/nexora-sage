@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "test_impact_profiles.schema.json",
+  "title": "Nexora SAGE Test Impact Profiles",
+  "type": "object",
+  "required": [
+    "_meta",
+    "languages",
+    "confidence",
+    "fallback_command"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object"
+    },
+    "ignored_path_fragments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": [
+        "direct_static_import",
+        "transitive_static_dependency",
+        "semantic_convention_match",
+        "dual_vector_match"
+      ],
+      "properties": {
+        "direct_static_import": {
+          "type": "number"
+        },
+        "transitive_static_dependency": {
+          "type": "number"
+        },
+        "semantic_convention_match": {
+          "type": "number"
+        },
+        "dual_vector_match": {
+          "type": "number"
+        }
+      }
+    },
+    "languages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "extensions",
+          "command"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "path_fragments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filename_contains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filename_prefixes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filename_suffixes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "base_cleanup": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "pattern",
+                "replacement"
+              ],
+              "properties": {
+                "pattern": {
+                  "type": "string"
+                },
+                "replacement": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "command": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "fallback_command": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

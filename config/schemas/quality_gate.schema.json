@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "required": [
+    "passed",
+    "release_gate_status",
+    "ecosystem_signal_status",
+    "ecosystem_warning_signals",
+    "audit_enforcement_authority",
+    "checks"
+  ],
+  "properties": {
+    "passed": {
+      "type": "boolean"
+    },
+    "release_gate_status": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL"
+      ]
+    },
+    "ecosystem_signal_status": {
+      "type": "string"
+    },
+    "ecosystem_warning_signals": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "audit_enforcement_authority": {
+      "type": "object",
+      "required": [
+        "native_enforcement",
+        "target_native_enforcement",
+        "combined_verdict",
+        "claim_boundary"
+      ],
+      "properties": {
+        "native_enforcement": {
+          "const": "sage_native_audit_taxonomy"
+        },
+        "target_native_enforcement": {
+          "enum": [
+            "not_ingested",
+            "ingested"
+          ]
+        },
+        "combined_verdict": {
+          "enum": [
+            "not_available",
+            "available"
+          ]
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "actual",
+          "expected",
+          "operator",
+          "passed"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "actual": {
+            "type": "number"
+          },
+          "expected": {
+            "type": "number"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "array"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

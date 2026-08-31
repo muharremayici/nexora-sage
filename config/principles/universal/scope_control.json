@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "kind": "nexora.principle_pack",
+    "namespace": "principles.scope_control",
+    "version": "1.0.0",
+    "status": "advisory",
+    "description": "Universal scope-control guidance for AI-assisted changes."
+  },
+  "principles": [
+    {
+      "id": "principle.scope.smallest_safe_patch",
+      "label": "Use the smallest safe patch",
+      "applies_to": [
+        "agent_directive",
+        "architecture_violation",
+        "refactor",
+        "bug_fix"
+      ],
+      "rationale": "Small, evidence-linked edits are easier to validate and less likely to create hidden architectural drift.",
+      "directive_hint": "Patch only the cited target or directly related files unless the evidence proves a wider dependency chain.",
+      "enforcement": "advisory"
+    },
+    {
+      "id": "principle.scope.no_unasked_cleanup",
+      "label": "Do not invent cleanup work",
+      "applies_to": [
+        "agent_directive",
+        "quality_attention",
+        "contextos_active_focus"
+      ],
+      "rationale": "Broad cleanup from summaries creates noise and can hide the actual evidence-backed task.",
+      "directive_hint": "Do not refactor unrelated code from broad summaries; derive a concrete target first.",
+      "enforcement": "advisory"
+    }
+  ]
+}
