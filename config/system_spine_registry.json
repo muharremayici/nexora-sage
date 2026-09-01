@@ -258,7 +258,7 @@
       "validator": "tools/validate_seal_impact.py",
       "release_proof_step": "seal_impact_validation",
       "raw_artifact": "output/.raw/seal_impact_validation.json",
-      "contract_guarantee": "classifies whether every active human seal still stands after committed or working-tree source changes"
+      "contract_guarantee": "classifies whether the current release gate-and-scope human seal still stands after committed or working-tree source changes while preserving historical and unrelated approvals as non-authoritative evidence"
     },
     {
       "id": "hitl_governance_contract",

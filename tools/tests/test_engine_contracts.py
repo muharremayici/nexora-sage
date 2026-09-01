@@ -3430,7 +3430,10 @@ class ProjectRegistryContractTests(unittest.TestCase):
 
 class MergeScriptPathContractTests(unittest.TestCase):
     def test_safe_relative_path_rejects_workspace_escape_shapes(self):
-        self.assertEqual(_safe_relative_path("src/components/Card.tsx"), "src\\components\\Card.tsx")
+        self.assertEqual(
+            _safe_relative_path("src/components/Card.tsx"),
+            str(Path("src/components/Card.tsx")),
+        )
         self.assertIsNone(_safe_relative_path("../outside.ts"))
         self.assertIsNone(_safe_relative_path("/tmp/outside.ts"))
         self.assertIsNone(_safe_relative_path("C:\\tmp\\outside.ts"))

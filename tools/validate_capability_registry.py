@@ -20,6 +20,7 @@ from tools.core.roadmap_phase_registry import (
     current_product_release,
     load_roadmap_phase_registry,
     phases_by_capability_domain,
+    production_release_history,
 )
 
 
@@ -97,6 +98,7 @@ def build_validation() -> dict[str, Any]:
     phase_registry = load_roadmap_phase_registry()
     active_release = current_product_release(phase_registry)
     allowed_releases = allowed_roadmap_releases(phase_registry)
+    released_or_active_releases = production_release_history(phase_registry)
     polyglot_releases = phases_by_capability_domain(phase_registry, "polyglot")
     summary = summarize_capabilities(registry)
     capabilities = summary.get("capabilities", [])
@@ -192,7 +194,7 @@ def build_validation() -> dict[str, Any]:
         str(capability.get("id") or "<missing-id>")
         for capability in capabilities
         if capability.get("maturity") == "production_candidate"
-        and capability.get("introduced_in") != active_release
+        and capability.get("introduced_in") not in released_or_active_releases
     )
     v2_non_polyglot = sorted(
         str(capability.get("id") or "<missing-id>")
@@ -277,10 +279,11 @@ def build_validation() -> dict[str, Any]:
             },
         ),
         _check(
-            "production_capabilities_are_locked_to_product_1_0_0",
+            "production_capabilities_have_released_introduction",
             not production_release_violations,
             {
                 "current_product_release": active_release,
+                "released_or_active_releases": sorted(released_or_active_releases),
                 "violations": production_release_violations,
             },
         ),

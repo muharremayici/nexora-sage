@@ -33,6 +33,18 @@ def current_product_release(registry: dict[str, Any] | None = None) -> str:
     return str(value).strip()
 
 
+def production_release_history(registry: dict[str, Any] | None = None) -> set[str]:
+    doc = registry if registry is not None else load_roadmap_phase_registry()
+    contract = doc.get("validation_contract", {}) if isinstance(doc, dict) else {}
+    statuses = contract.get("production_release_statuses", []) if isinstance(contract, dict) else []
+    allowed_statuses = {str(value) for value in statuses if str(value).strip()}
+    return {
+        str(row.get("release") or "")
+        for row in roadmap_phase_rows(doc)
+        if row.get("status") in allowed_statuses and str(row.get("release") or "").strip()
+    }
+
+
 def active_phase(registry: dict[str, Any] | None = None) -> dict[str, Any]:
     rows = [
         row

@@ -298,7 +298,7 @@
       "validator": "tools/validate_seal_impact.py",
       "release_proof_step": "seal_impact_validation",
       "binding_level": "approval_validity_gate",
-      "claim_impact": "classifies_whether_active_human_seals_remain_current_after_source_changes",
+      "claim_impact": "classifies_whether_the_current_release_gate_and_scope_human_seal_remains_current_after_source_changes_without_borrowing_historical_or_unrelated_authority",
       "human_seal_policy": "hard_for_reseal_required_or_claim_affecting_changes",
       "seal_scope_kind": "shared_hitl_authority"
     },

@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
 from tools.core.operational_limits import react_v11_fixture_ast_timeout_seconds
-from tools.core.roadmap_phase_registry import current_product_release, load_roadmap_phase_registry
 from tools.engines.framework_route_analyzer import analyze_project_routes
 from tools.engines.react_ecosystem_analyzer import analyze_react_ecosystem_file
 from tools.engines.react_runtime_intelligence import analyze_runtime_intelligence_file
@@ -67,8 +66,12 @@ def _sequence_fixture() -> dict[str, set[str]]:
 
 def _taxonomy_check() -> dict[str, Any]:
     payload = load_json_file(TAXONOMY, {})
-    phase_registry = load_roadmap_phase_registry()
-    active_release = current_product_release(phase_registry)
+    release_policy = payload.get("release_policy", {}) if isinstance(payload, dict) else {}
+    included_releases = {
+        str(item)
+        for item in (release_policy.get("included_releases") or [])
+        if str(item).strip()
+    }
     validation_contract = payload.get("validation_contract", {}) if isinstance(payload, dict) else {}
     contract = validation_contract.get(REACT_V11_CONTRACT_ID, {}) if isinstance(validation_contract, dict) else {}
     required_family_ids = {
@@ -80,7 +83,7 @@ def _taxonomy_check() -> dict[str, Any]:
         str(item.get("id")): item
         for item in payload.get("families", [])
         if isinstance(item, dict)
-        and item.get("target_release") == active_release
+        and str(item.get("target_release") or "") in included_releases
     }
     linked = {
         family_id
@@ -100,6 +103,7 @@ def _taxonomy_check() -> dict[str, Any]:
     undeclared_linked = sorted(linked - required_family_ids)
     return {
         "contract_declared": bool(required_family_ids),
+        "included_releases": sorted(included_releases),
         "expected_families": sorted(required_family_ids),
         "missing": missing,
         "not_proven": not_proven,

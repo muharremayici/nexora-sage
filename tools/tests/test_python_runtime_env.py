@@ -102,7 +102,10 @@ def test_mcp_print_config_exposes_the_deduplicated_runtime_path(monkeypatch, cap
     monkeypatch.setattr(
         codemaps.os,
         "environ",
-        {"PYTHONPATH": f"{root};;", "API_TOKEN": "must-not-enter-client-config"},
+        {
+            "PYTHONPATH": f"{root}{os.pathsep}{os.pathsep}",
+            "API_TOKEN": "must-not-enter-client-config",
+        },
     )
     monkeypatch.setattr(codemaps, "VENDOR_PATHS", [])
 

@@ -51,7 +51,11 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: Install TypeScript AST dependency
         run: npm ci --prefix tools/engines --ignore-scripts
+      - name: Prepare explicit CI target repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/sage-ci-target/src"
+          printf 'export const ciTarget = true;\n' > "$RUNNER_TEMP/sage-ci-target/src/index.ts"
       - name: Validate installation and contracts
-        run: python sage.py doctor --include-validate --quick --max-seconds 45
+        run: CODEMAPS_TARGET_ROOT="$RUNNER_TEMP/sage-ci-target" python sage.py doctor --include-validate --quick --max-seconds 45
       - name: Run repository test contract
         run: python -B tools/run_distribution_tests.py --profile public_target_repository --collect-only

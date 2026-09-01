@@ -18,6 +18,7 @@ from tools.core.roadmap_phase_registry import (
     allowed_roadmap_releases,
     current_product_release,
     load_roadmap_phase_registry,
+    production_release_history,
     required_roadmap_profile_ids,
 )
 
@@ -82,6 +83,7 @@ def build_validation() -> dict[str, Any]:
     allowed_release_policy_artifact_exceptions = _contract_set(validation_contract, "allowed_release_policy_artifact_exceptions")
     phase_registry = load_roadmap_phase_registry()
     active_release = current_product_release(phase_registry)
+    release_history = production_release_history(phase_registry)
     allowed_releases = allowed_roadmap_releases(phase_registry)
     required_profile_ids = required_roadmap_profile_ids(phase_registry)
     release_identity = load_json_object_strict(RELEASE_IDENTITY_PATH, label="Release identity")
@@ -117,6 +119,9 @@ def build_validation() -> dict[str, Any]:
     )
     identity_claim = str(identity_release_claim.get("allowed") or "")
     active_allowed_claim = str(active_profile.get("allowed_claim") or "") if isinstance(active_profile, dict) else ""
+    active_claim_origin_release = (
+        str(active_profile.get("claim_origin_release") or "") if isinstance(active_profile, dict) else ""
+    )
 
     profile_ids = [str(profile.get("id") or "") for profile in profile_rows]
     duplicate_profile_ids = sorted({profile_id for profile_id in profile_ids if profile_id and profile_ids.count(profile_id) > 1})
@@ -226,6 +231,15 @@ def build_validation() -> dict[str, Any]:
             "active_allowed_claim_matches_release_identity",
             bool(identity_claim) and active_allowed_claim == identity_claim,
             {"active_allowed_claim": active_allowed_claim, "release_identity_claim": identity_claim},
+        ),
+        _check(
+            "active_claim_origin_release_is_released",
+            bool(active_claim_origin_release) and active_claim_origin_release in release_history,
+            {
+                "active_release": active_release,
+                "claim_origin_release": active_claim_origin_release,
+                "production_release_history": sorted(release_history),
+            },
         ),
         _check("profile_statuses_are_known", not invalid_statuses, {"invalid_statuses": invalid_statuses}),
         _check(
