@@ -128,6 +128,46 @@ def _ci_node_install_surfaces_match(
     return bool(command) and all(_file_contains(path, command) for path in paths), command
 
 
+CI_TARGET_PREPARE_COMMAND = 'mkdir -p "$RUNNER_TEMP/sage-ci-target/src"'
+CI_TARGET_INIT_COMMAND = (
+    'python sage.py init --skip-deps --target-root "$RUNNER_TEMP/sage-ci-target"'
+)
+CI_TARGET_DOCTOR_COMMAND = (
+    'CODEMAPS_TARGET_ROOT="$RUNNER_TEMP/sage-ci-target" '
+    "python sage.py doctor --include-validate --quick --max-seconds 45"
+)
+
+
+def _ci_target_lifecycle_surfaces_match(
+    paths: list[Path],
+) -> tuple[bool, dict[str, dict[str, Any]]]:
+    details: dict[str, dict[str, Any]] = {}
+    all_match = True
+    for path in paths:
+        try:
+            path_identity = path.relative_to(CODE_MAPS_DIR).as_posix()
+        except ValueError:
+            path_identity = path.as_posix()
+        if not path.exists():
+            details[path_identity] = {"passed": False, "reason": "missing"}
+            all_match = False
+            continue
+
+        text = path.read_text(encoding="utf-8", errors="replace")
+        positions = {
+            "prepare": text.find(CI_TARGET_PREPARE_COMMAND),
+            "init": text.find(CI_TARGET_INIT_COMMAND),
+            "doctor": text.find(CI_TARGET_DOCTOR_COMMAND),
+        }
+        passed = (
+            min(positions.values()) >= 0
+            and positions["prepare"] < positions["init"] < positions["doctor"]
+        )
+        details[path_identity] = {"passed": passed, "positions": positions}
+        all_match = all_match and passed
+    return all_match and bool(paths), details
+
+
 def _files_without_legacy_cli_examples(paths: list[Path]) -> tuple[bool, list[str]]:
     legacy_patterns = ("python codemaps.py", "python .\\codemaps.py", "python nexora.py", "python .\\nexora.py")
     offenders: list[str] = []
@@ -190,6 +230,9 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
     ci_node_install_surfaces_match, ci_node_install_command = _ci_node_install_surfaces_match(
         installation_node_contract,
         [quality_gate_workflow, quality_gate_doc],
+    )
+    ci_target_lifecycle_surfaces_match, ci_target_lifecycle_details = (
+        _ci_target_lifecycle_surfaces_match([quality_gate_workflow, quality_gate_doc])
     )
     clean_mirror_forbidden_paths = {
         str(path).replace("\\", "/")
@@ -494,6 +537,11 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
                 "workflow": quality_gate_workflow.relative_to(CODE_MAPS_DIR).as_posix(),
                 "operator_doc": quality_gate_doc.relative_to(CODE_MAPS_DIR).as_posix(),
             },
+        ),
+        _check(
+            "ci_fresh_target_lifecycle_is_explicit_and_ordered",
+            ci_target_lifecycle_surfaces_match,
+            ci_target_lifecycle_details,
         ),
         _check(
             "active_operator_docs_prefer_sage_cli",

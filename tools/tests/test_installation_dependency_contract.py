@@ -7,10 +7,14 @@ import pytest
 
 import tools.validate_installation_contract as installation_contract
 from tools.validate_installation_contract import (
+    CI_TARGET_DOCTOR_COMMAND,
+    CI_TARGET_INIT_COMMAND,
+    CI_TARGET_PREPARE_COMMAND,
     PRIVATE_MAINTAINER_PROFILE,
     PUBLIC_TARGET_REPOSITORY_PROFILE,
     _ci_node_install_command,
     _ci_node_install_surfaces_match,
+    _ci_target_lifecycle_surfaces_match,
     _has_exclusive_major_upper_bound,
     _installation_authority_profile,
     _installation_profile_omissions,
@@ -70,6 +74,37 @@ def test_ci_node_install_surface_parity_fails_when_operator_doc_omits_command(
     assert matched is False
 
 
+def test_ci_initializes_explicit_target_before_doctor_validation() -> None:
+    paths = [
+        installation_contract.CODE_MAPS_DIR / ".github" / "workflows" / "quality-gate.yml",
+        installation_contract.CODE_MAPS_DIR / "docs" / "CI_GITHUB_ACTIONS.md",
+    ]
+
+    matched, details = _ci_target_lifecycle_surfaces_match(paths)
+
+    assert matched is True
+    assert all(detail["passed"] is True for detail in details.values())
+
+
+def test_ci_target_lifecycle_rejects_doctor_before_init(tmp_path: Path) -> None:
+    invalid_surface = tmp_path / "quality-gate.yml"
+    invalid_surface.write_text(
+        "\n".join(
+            [
+                CI_TARGET_PREPARE_COMMAND,
+                CI_TARGET_DOCTOR_COMMAND,
+                CI_TARGET_INIT_COMMAND,
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    matched, details = _ci_target_lifecycle_surfaces_match([invalid_surface])
+
+    assert matched is False
+    assert next(iter(details.values()))["passed"] is False
+
+
 def test_current_installation_manifests_preserve_mcp_v1_compatibility() -> None:
     payload = run_validation()
     checks = {check["name"]: check for check in payload["checks"]}
@@ -106,7 +141,7 @@ def test_public_installation_profile_keeps_product_checks_and_omits_maintainer_c
 
     assert payload["summary"]["authority_profile"] == PUBLIC_TARGET_REPOSITORY_PROFILE
     assert payload["summary"]["failed_checks"] == 0
-    assert payload["summary"]["total_checks"] == 21
+    assert payload["summary"]["total_checks"] == 22
     assert set(payload["summary"]["omitted_maintainer_checks"]) == EXPECTED_MAINTAINER_ONLY_CHECKS
     assert not (names & EXPECTED_MAINTAINER_ONLY_CHECKS)
     assert {
@@ -114,6 +149,7 @@ def test_public_installation_profile_keeps_product_checks_and_omits_maintainer_c
         "dependency_manifest_parity",
         "init_command_is_publicly_documented",
         "doctor_command_is_publicly_documented",
+        "ci_fresh_target_lifecycle_is_explicit_and_ordered",
         "target_aware_installation_contract_is_explicit",
         "default_profile_keeps_mcp_and_watchdog_first_class",
         "setup_only_init_is_public_and_install_proof_avoids_duplicate_analysis",
@@ -125,7 +161,7 @@ def test_private_installation_profile_retains_maintainer_checks() -> None:
     names = {str(check["name"]) for check in payload["checks"]}
 
     assert payload["summary"]["authority_profile"] == PRIVATE_MAINTAINER_PROFILE
-    assert payload["summary"]["total_checks"] == 25
+    assert payload["summary"]["total_checks"] == 26
     assert payload["summary"]["omitted_maintainer_checks"] == []
     assert EXPECTED_MAINTAINER_ONLY_CHECKS <= names
 

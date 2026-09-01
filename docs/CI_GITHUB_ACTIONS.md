@@ -8,8 +8,11 @@ two separate proof responsibilities:
   active distribution test profile on Python 3.11, 3.12, 3.13 and 3.14 with
   Node.js 20.
 - `contracts` installs the product and development dependencies on Python 3.12,
-  runs quick doctor/validation, and proves that the target-repository test
-  profile collects without importing private maintainer authority.
+  initializes an explicit disposable target, runs quick doctor/validation, and
+  proves that the target-repository test profile collects without importing
+  private maintainer authority. Initialization precedes doctor because a
+  successful first-run self-heal still reports the missing initial state as
+  attention rather than rewriting that observation into a clean PASS.
 
 `tools/run_distribution_tests.py` is the single test entry point. Canonical and
 clean-install development deliveries run both `public_target_repository` and
@@ -56,7 +59,11 @@ jobs:
           node-version: '20'
       - run: python -m pip install -e ".[dev]"
       - run: npm ci --prefix tools/engines --ignore-scripts
-      - run: python sage.py doctor --include-validate --quick --max-seconds 45
+      - run: |
+          mkdir -p "$RUNNER_TEMP/sage-ci-target/src"
+          printf 'export const ciTarget = true;\n' > "$RUNNER_TEMP/sage-ci-target/src/index.ts"
+      - run: python sage.py init --skip-deps --target-root "$RUNNER_TEMP/sage-ci-target"
+      - run: CODEMAPS_TARGET_ROOT="$RUNNER_TEMP/sage-ci-target" python sage.py doctor --include-validate --quick --max-seconds 45
       - run: python -B tools/run_distribution_tests.py --profile public_target_repository --collect-only
 ```
 
@@ -64,7 +71,7 @@ jobs:
 
 - Any shipped Python source that cannot compile, install, start the public CLI, or
   pass the tools behavior suite on a tested runtime fails that runtime's matrix job.
-- Installation/contract validation and the authority-scoped public test
-  collection must pass.
+- Explicit target initialization, installation/contract validation and the
+  authority-scoped public test collection must pass in that order.
 - A runtime matrix PASS must not be represented as Windows/macOS or full
   pipeline parity evidence.

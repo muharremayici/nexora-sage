@@ -1,27 +1,27 @@
 {
   "meta": {
     "kind": "nexora_sage_public_release_manifest",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "authority": "human_authorized_public_release_projection"
   },
   "source": {
     "role": "clean_install_delivery_repository",
     "lineage_contract": "development_to_clean_install_to_public_candidate",
-    "canonical_source_git_commit": "2842eea4ffeda9da4839194e66422ab3bb4fcc6c",
+    "canonical_source_git_commit": "f450fcb122429f5908a80c5c0a23fa960609740f",
     "clean_delivery_identity": {
       "authority": "generated_by_clean_distribution_sync",
-      "canonical_source_git_commit": "2842eea4ffeda9da4839194e66422ab3bb4fcc6c",
+      "canonical_source_git_commit": "f450fcb122429f5908a80c5c0a23fa960609740f",
       "projection_files": 990,
-      "projection_sha256": "0d10c833adccc66bdf28136ac2002e209080c87e1b34d91c20b1e57105060579"
+      "projection_sha256": "25a65bf3488cb65fdd40096c256980ec41c45edb7953342d7882f7f9164d0777"
     },
     "source_files_considered": 802,
     "projection_input_files": 802,
-    "projection_input_sha256": "103c2286a5353e37243d54760907b539c0ae734725d689f65b8fd1b6c31b7921",
-    "git_commit": "af2b90e72592fe7dce55378695a5ee79a245766b",
+    "projection_input_sha256": "fa73b2584ffeeace4dde52fe61553879dcd3a91ade13e5cf373b7d7585074573",
+    "git_commit": "9e81d3c2d590ca386e81b71ab8891a3447d783d3",
     "git_dirty": false
   },
   "projection": {
-    "destination_name": "Nexora SAGE - v1.0.2-public-candidate",
+    "destination_name": "Nexora SAGE - v1.0.3-public-candidate",
     "git_metadata_included": false,
     "private_legal_drafts_included": false,
     "internal_work_memory_included": false,
@@ -269,8 +269,8 @@
       "bytes": 813
     },
     ".github/workflows/quality-gate.yml": {
-      "sha256": "020fcb3d9235b6594965c76b5f9a0bc481a6df8006825199a73aa1b4fa8035ee",
-      "bytes": 2062
+      "sha256": "0661c345e2d67d21ee36d8a81805551eb2e51ed01a6227d02956b8b412a499d6",
+      "bytes": 2206
     },
     ".gitignore": {
       "sha256": "fa2305811238afe37070a9470cd1b25df6bada0f8ed439d9eed766b3d9750783",
@@ -281,7 +281,7 @@
       "bytes": 360
     },
     "CLEAN_INSTALL_NOTES.md": {
-      "sha256": "b9ecdf74adab9e1491cecd503296268f87d516abb4df5291d8835adc8c7e7c53",
+      "sha256": "834c11f8298c2d6390abdb86feabd8145433b7d9b40f1019642f10c408e9927e",
       "bytes": 1582
     },
     "codemaps.py": {
@@ -345,7 +345,7 @@
       "bytes": 3372
     },
     "config/capability_registry.json": {
-      "sha256": "7bbcf17787720aca240b8b846b0d10c1871251107e46781a7fc25eca667fc7c1",
+      "sha256": "4e421d85072616578bf54608adf1b4259543214d01b4bd01e3064da74cd9bded",
       "bytes": 69593
     },
     "config/claim_guard_policy.json": {
@@ -705,11 +705,11 @@
       "bytes": 2838
     },
     "config/release_claim_profiles.json": {
-      "sha256": "328f1820da5e9782a023167323535ec8b5fa514abfb40c578b4841ef33153ce8",
+      "sha256": "916d1c4622c8f1c150d2165ddf0770fc2d209be7ea9d420f10897be74598f52a",
       "bytes": 15319
     },
     "config/release_identity.json": {
-      "sha256": "06d3d18aca76dbdfdc8e3ce0b5c2fe01a4f9d628b34c5cd7be082b8ced611d45",
+      "sha256": "958d384095ef795e85a6c6c09b1eb117cbad98a1ce9be3cd13bd18885540e595",
       "bytes": 1866
     },
     "config/resilience_error_handling_policy.json": {
@@ -1209,8 +1209,8 @@
       "bytes": 5843
     },
     "docs/CI_GITHUB_ACTIONS.md": {
-      "sha256": "77604f7a9496d75940a89a348458d4098a579549c3a3aba1d2b98daf48f5ebcd",
-      "bytes": 3023
+      "sha256": "3a0b1a82d363143f671b0d265f6a7ebc37d85bd9842e393a2819d79486296df1",
+      "bytes": 3612
     },
     "docs/CLAIMS_EVIDENCE_MATRIX.md": {
       "sha256": "681b089d78c9cfec860abbf5c1d4f27289ad27118d8638076cd7b9a09da16abc",
@@ -1361,7 +1361,7 @@
       "bytes": 4563
     },
     "LICENSING.md": {
-      "sha256": "82f6238324d647e64911622b641b76807a8f9cc64fe829ed83121b19cbe90cf7",
+      "sha256": "ee765532645f1a46fb80be4997ddc42e628979b8315f274e3a951a3304b960ba",
       "bytes": 2006
     },
     "NOTICE.md": {
@@ -1369,15 +1369,15 @@
       "bytes": 2310
     },
     "PUBLICATION_STATUS.md": {
-      "sha256": "9d6bd937f32caada2348cec3d10da0c9ec282d6c49a0e7b3572c8637373abce7",
+      "sha256": "fa85e404d38c978cdbfbcf484dae84e5c68c489c85734f7d9e4325041b5957e2",
       "bytes": 577
     },
     "pyproject.toml": {
-      "sha256": "f27627451934e28e9f9cb53071fa70a7a1ef52a4c5d3bc5d1d26a4793c0b6b20",
+      "sha256": "2db6ceebb3dec38ad3c0923da7739767f7f828f8e1dc768e4dd4ed3a5e0b3bff",
       "bytes": 1636
     },
     "README.md": {
-      "sha256": "1e672b336b82d7df37a9d5829167f25f355106aa42d107a944e3b4a7ba83a569",
+      "sha256": "03cd1c5ada51ed21e4dab8e47a4921ee472c446b0699b9bb8259f8c6b182f056",
       "bytes": 11339
     },
     "requirements.txt": {
@@ -2713,8 +2713,8 @@
       "bytes": 15516
     },
     "tools/tests/test_installation_dependency_contract.py": {
-      "sha256": "2bc53924e54c832e2e7cc614a163e16b5b7f7e80c2b8255479a40d56f461a014",
-      "bytes": 8232
+      "sha256": "278f4641098ea2ef8a0aeeaef46cb0d5080924c2e1a427e8c1559b9ae3aed43c",
+      "bytes": 9444
     },
     "tools/tests/test_installation_preflight.py": {
       "sha256": "7402166116a8499dbc9c68f18609985461453432d92bdc668c23a1ce48f17953",
@@ -3157,8 +3157,8 @@
       "bytes": 8565
     },
     "tools/validate_installation_contract.py": {
-      "sha256": "d425168e19c85efcb825b13ae419d64947c69874bef8165efe498fda09812862",
-      "bytes": 26087
+      "sha256": "77dcf12d58505449f5e1669fe0b013ec7682e18731061cef0d84040ecc9bf133",
+      "bytes": 27925
     },
     "tools/validate_l4_policy.py": {
       "sha256": "b9cef85756c3f6cf930993edbc1cdd53511751f6d1c8a9b6a695f0ad7179a755",
@@ -3479,11 +3479,11 @@
   },
   "publication": {
     "release_kind": "patch_release",
-    "previous_version": "1.0.1",
+    "previous_version": "1.0.2",
     "release_date": "2026-09-01",
-    "scope": "nexora-sage:v1.0.2:patch-release",
-    "request_sha256": "770a7fb637d7222eb081d1d4e395f770a3779b221409a09999a48fa55efed796",
-    "authority_receipt_sha256": "44bbe727c7d7addbd38b0f66a198ec5a2c6f4bf7bbc4d339d778d5a9ee0b7716",
+    "scope": "nexora-sage:v1.0.3:patch-release",
+    "request_sha256": "e1ffcb5ea1d331e6f80d5823de5d2020e5b93d996fe0317c87009896b1e2034d",
+    "authority_receipt_sha256": "c7cc8c47b694f2857f442bdad8917362f3b766cd0b057bcb63ca6770ad498e19",
     "public_notice_identity": "Nexora SAGE Project",
     "license_boundary": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
     "public_git_release_authorized": true,
