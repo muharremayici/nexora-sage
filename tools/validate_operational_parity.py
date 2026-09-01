@@ -107,7 +107,7 @@ def _semantic_snapshot() -> dict[str, Any]:
 
 def _run_cached_full_pipeline() -> None:
     result, _duration = run_observed_subprocess(
-        ["python", ".\\sage.py", "run", "--full"],
+        [sys.executable, str(CODE_MAPS_DIR / "sage.py"), "run", "--full"],
         cwd=str(CODE_MAPS_DIR),
         label="operational parity cached full pipeline",
         timeout=cli_pipeline_refresh_timeout_seconds(),
@@ -119,7 +119,7 @@ def _run_cached_full_pipeline() -> None:
 
 def _refresh_lifecycle_evidence(stage: str) -> dict[str, Any]:
     result, duration_seconds = run_observed_subprocess(
-        ["python", ".\\tools\\validate_lifecycle.py"],
+        [sys.executable, str(CODE_MAPS_DIR / "tools" / "validate_lifecycle.py")],
         cwd=str(CODE_MAPS_DIR),
         label=f"operational parity lifecycle validation {stage}",
         timeout=cli_command_timeout_seconds(),

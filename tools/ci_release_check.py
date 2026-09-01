@@ -48,12 +48,23 @@ def run_ci_release_check(skip_release_check: bool = False) -> dict[str, Any]:
     steps = [
         _run(
             "repository_test_contract",
-            [sys.executable, "-B", "tools/run_release_proof_bundle.py", "--only", "engine_contract_tests"],
+            [
+                sys.executable,
+                "-B",
+                str(CODE_MAPS_DIR / "tools" / "run_release_proof_bundle.py"),
+                "--only",
+                "engine_contract_tests",
+            ],
         ),
     ]
     if not skip_release_check:
-        steps.append(_run("release_check", ["python", ".\\sage.py", "release-check"]))
-    steps.append(_run("phase_status", ["python", ".\\sage.py", "phase-status"]))
+        steps.append(
+            _run(
+                "release_check",
+                [sys.executable, str(CODE_MAPS_DIR / "sage.py"), "release-check"],
+            )
+        )
+    steps.append(_run("phase_status", [sys.executable, str(CODE_MAPS_DIR / "sage.py"), "phase-status"]))
 
     readiness = load_json_file(RAW_DIR / "release_readiness.json", {})
     phase_status = load_json_file(RAW_DIR / "release_phase_status.json", {})

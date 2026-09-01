@@ -52,7 +52,7 @@ def _run_step(step_slug: str) -> None:
 
     print(f"[step-isolation] START {step_slug}", flush=True)
     result, duration = run_observed_subprocess(
-        ["python", ".\\sage.py", "run", "--step", step_slug],
+        [sys.executable, str(CODE_MAPS_DIR / "sage.py"), "run", "--step", step_slug],
         cwd=CODE_MAPS_DIR,
         label=f"step_isolation_{step_slug}",
         timeout=get_adaptive_timeout(180),

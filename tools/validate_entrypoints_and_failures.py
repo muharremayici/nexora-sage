@@ -242,7 +242,7 @@ def run_validation() -> dict[str, Any]:
     discovery_proc, discovery_seconds = _run(
         [
             sys.executable,
-            ".\\tools\\orchestrators\\discovery.py",
+            str(CODE_MAPS_DIR / "tools" / "orchestrators" / "discovery.py"),
             "--profile",
             "entrypoint-smoke",
             "--output",
@@ -278,12 +278,29 @@ def run_validation() -> dict[str, Any]:
     _log("START config_compiler_entrypoint")
     preview_path = RAW_DIR / "codemaps.config.compiler.preview.validation.json"
     compile_proc, compile_seconds = _run(
-        [sys.executable, ".\\tools\\config_compiler.py", "--output", str(preview_path)],
+        [
+            sys.executable,
+            str(CODE_MAPS_DIR / "tools" / "config_compiler.py"),
+            "--output",
+            str(preview_path),
+        ],
         CODE_MAPS_DIR,
         label="config_compiler_entrypoint",
     )
-    preview = load_json_strict(preview_path)
-    live_config = load_json_strict(CONFIG_FILE)
+    preview, preview_diagnostic = _load_subprocess_json_output(
+        preview_path,
+        compile_proc,
+        label="config_compiler_entrypoint",
+    )
+    live_config_diagnostic = {"path": str(CONFIG_FILE), "read_error": ""}
+    try:
+        live_config_payload = load_json_strict(CONFIG_FILE)
+    except Exception as exc:
+        live_config_payload = {}
+        live_config_diagnostic["read_error"] = f"{type(exc).__name__}: {exc}"
+    live_config = live_config_payload if isinstance(live_config_payload, dict) else {}
+    if not isinstance(live_config_payload, dict):
+        live_config_diagnostic["read_error"] = "expected_object_payload"
     config_compiler_passed = (
         compile_proc.returncode == 0
         and preview.get("_meta", {}).get("kind") == "codemaps.config"
@@ -299,13 +316,19 @@ def run_validation() -> dict[str, Any]:
                 "preview_kind": preview.get("_meta", {}).get("kind"),
                 "preview_projects": sorted((preview.get("variations") or {}).keys()),
                 "runtime_seconds": compile_seconds,
+                "preview_diagnostic": preview_diagnostic,
+                "live_config_diagnostic": live_config_diagnostic,
             },
         }
     )
 
     _log("START pipeline_list_steps_entrypoint")
     list_steps_proc, list_steps_seconds = _run(
-        [sys.executable, ".\\tools\\orchestrators\\orchestrator.py", "--list-steps"],
+        [
+            sys.executable,
+            str(CODE_MAPS_DIR / "tools" / "orchestrators" / "orchestrator.py"),
+            "--list-steps",
+        ],
         CODE_MAPS_DIR,
         label="pipeline_list_steps_entrypoint",
     )

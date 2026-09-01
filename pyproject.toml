@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexora-sage"
-version = "1.0.1"
+version = "1.0.2"
 description = "Nexora SAGE: polyglot architectural governance with deep TypeScript/React analysis."
 readme = "README.md"
 requires-python = ">=3.11"

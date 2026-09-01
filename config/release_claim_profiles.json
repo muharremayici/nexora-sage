@@ -4,7 +4,7 @@
     "version": "v1",
     "description": "Machine-readable release claim boundaries. Active profiles define what the current release may claim; roadmap profiles preserve future work without expanding V1 claims."
   },
-  "current_product_release": "1.0.1",
+  "current_product_release": "1.0.2",
   "active_profile_id": "v1_react_architecture_governance",
   "validation_contract": {
     "allowed_profile_statuses": [
@@ -130,11 +130,11 @@
     {
       "id": "v1_react_architecture_governance",
       "status": "active",
-      "target_release": "1.0.1",
+      "target_release": "1.0.2",
       "claim_origin_release": "1.0.0",
       "execution_mode": "release_deep",
       "allowed_claim": "evidence_backed_universal_react_web_static_governance",
-      "claim_boundary": "V1.0.1 preserves the evidence-backed V1.0.0 scope for React/TypeScript static architectural governance, ContextOS agent-surface readiness, SQLite-first managed artifact discipline and SAGE release self-governance. It does not expand that scope or claim full SAST replacement, runtime observability, universal polyglot semantic depth or distributed service governance.",
+      "claim_boundary": "V1.0.2 preserves the evidence-backed V1.0.0 scope for React/TypeScript static architectural governance, ContextOS agent-surface readiness, SQLite-first managed artifact discipline and SAGE release self-governance. It does not expand that scope or claim full SAST replacement, runtime observability, universal polyglot semantic depth or distributed service governance.",
       "capability_ids": [
         "react_surgical_intelligence",
         "sqlite_artifact_store",

@@ -1467,6 +1467,26 @@ class ArtifactStoreSQLiteContractTests(unittest.TestCase):
         self.assertEqual(diagnostic["stdout"], "quality stdout")
         self.assertEqual(diagnostic["stderr"], "quality stderr")
 
+    def test_python_subprocess_entrypoints_are_platform_neutral_and_failure_observable(self):
+        launcher_paths = [
+            Path("tools/validate_entrypoints_and_failures.py"),
+            Path("tools/validate_operational_parity.py"),
+            Path("tools/validate_step_isolation.py"),
+            Path("tools/ci_release_check.py"),
+        ]
+        for relative_path in launcher_paths:
+            text = (CODE_MAPS_DIR / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn('".\\\\sage.py"', text, str(relative_path))
+            self.assertNotIn('".\\\\tools\\\\', text, str(relative_path))
+            self.assertNotIn('"tools/run_release_proof_bundle.py"', text, str(relative_path))
+            self.assertIn("sys.executable", text, str(relative_path))
+
+        entrypoint_text = (CODE_MAPS_DIR / launcher_paths[0]).read_text(encoding="utf-8")
+        self.assertIn(
+            "preview, preview_diagnostic = _load_subprocess_json_output(",
+            entrypoint_text,
+        )
+
     def test_import_cycle_no_worsening_rejects_new_topology_and_requires_immediate_baseline_shrink(self):
         from tools.validate_layer_import_boundaries import (
             _cycle_baseline_drift,
