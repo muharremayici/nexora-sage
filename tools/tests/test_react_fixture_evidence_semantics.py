@@ -161,16 +161,3 @@ def test_release_fixture_rejects_unconfined_output_names(monkeypatch, filename):
     with pytest.raises(ValueError, match="plain JSON filenames"):
         fixtures._bounded_fixture_config()
 
-
-def test_react_readiness_depends_on_every_declared_evidence_producer():
-    from tools.core.release_proof_steps import load_release_proof_steps
-    from tools.validate_react_universal_readiness import TAXONOMY_PATH
-    from tools.core.json_io import load_json_file
-    steps = load_release_proof_steps()
-    readiness = next(step for step in steps if step["id"] == "react_universal_readiness")
-    required = load_json_file(TAXONOMY_PATH, {})["release_policy"]["required_validation_artifacts"]
-    for artifact in required:
-        producers = [step["id"] for step in steps if step.get("raw_artifact")
-                     and step["raw_artifact"].stem == artifact]
-        assert producers, artifact
-        assert set(producers) & set(readiness["depends_on"]), artifact

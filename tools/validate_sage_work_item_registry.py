@@ -15,7 +15,7 @@ from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic
 from tools.core.agent_surface_seal_contract import load_agent_surface_seal_contract
 from tools.core.distribution_policy import is_clean_install_root
 from tools.core.execution_waves import release_scope_matches_wave
-from tools.core.json_io import load_json_object_strict
+from tools.core.json_io import load_json_object_strict, load_raw_artifact_path
 from tools.core.roadmap_phase_registry import current_product_release, roadmap_phase_rows
 from tools.generate_sage_work_item_report import run as generate_work_item_report
 from tools.core.work_package_receipts import record_work_package_operation_safely
@@ -476,7 +476,7 @@ def run_validation() -> dict[str, Any]:
                 "completed_waves_without_evidence": completed_waves_without_evidence,
                 "completed_waves_missing_local_evidence": completed_waves_missing_local_evidence,
                 "evidence_check_scope": evidence_check_scope,
-                "self_output_presence_check": "after_atomic_write" if self_output_referenced else "not_referenced",
+                "self_output_presence_check": "after_primary_write_readback" if self_output_referenced else "not_referenced",
                 "state_source": "config/sage_work_item_registry.json",
             },
         ),
@@ -509,7 +509,7 @@ def run_validation() -> dict[str, Any]:
         "checks": checks,
     }
     save_json_atomic(VALIDATION_RAW, payload)
-    if self_output_referenced and not VALIDATION_RAW.is_file():
+    if self_output_referenced and load_raw_artifact_path(VALIDATION_RAW) != payload:
         raise OSError(f"Validation output was not materialized: {VALIDATION_RAW}")
     save_text_atomic(VALIDATION_REPORT, _render_report(payload))
     return payload

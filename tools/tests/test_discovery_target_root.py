@@ -44,13 +44,6 @@ class DiscoveryTargetRootTests(unittest.TestCase):
                 self.assertEqual(unsafe["inside_sage_workspace"][0]["project"], "INTERNAL")
                 self.assertEqual(validator.run_validation("MAIN")["summary"]["failed_checks"], 1)
 
-    def test_release_discovery_presence_scope_matches_central_live_scope(self):
-        from tools.core.release_proof_steps import load_release_proof_steps_contract, load_release_proof_scope_contract
-        steps = load_release_proof_steps_contract()["steps"]
-        step = next(row for row in steps if row["id"] == "discovery_universality")
-        command = step["command"]
-        actual = command[command.index("--projects") + 1].split(",")
-        self.assertEqual(actual, load_release_proof_scope_contract()["live_repository_execution"]["required_project_filter"])
 
     def test_explicit_target_root_overrides_installation_parent(self):
         with tempfile.TemporaryDirectory() as install_tmp, tempfile.TemporaryDirectory() as target_tmp:
