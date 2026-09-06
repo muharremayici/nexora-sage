@@ -24,7 +24,7 @@
     ]
   },
   "release_policy": {
-    "allowed_claim": "evidence_backed_universal_react_web_static_governance",
+    "allowed_claim": "evidence_backed_bounded_react_typescript_static_governance",
     "runtime_boundary": "Runtime-only behavior remains explicitly marked needs_runtime_proof and is not claimed as statically proven.",
     "required_validation_artifacts": [
       "react_fixture_matrix_validation",

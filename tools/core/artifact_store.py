@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import logging
 import hashlib
+import io
 import json
 import os
+import tempfile
 import threading
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from tools.core.config import CONFIG_DIR, DYNAMIC_CONFIG, RAW_DIR, REPORTS_DIR, ROOT, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file, load_text_file
+from tools.core.persistence_limits import load_persistence_limits
 from tools.core.db import SQLiteManager
 from tools.core.path_identity import strip_current_directory_prefix
 from tools.core.stdio import best_effort_print
@@ -19,9 +24,13 @@ logger = logging.getLogger("SAGE.ArtifactStore")
 
 _write_locks: dict[str, threading.Lock] = {}
 _write_threads: dict[str, list[threading.Thread]] = {}
+_shadow_worker_ids: dict[threading.Thread, str] = {}
+_shadow_worker_records: dict[str, dict[str, Any]] = {}
+_active_shadow_run_id = ""
 _locks_mutex = threading.Lock()
 _PROFILED_ARTIFACTS = {"atlas", "genome", "fractal_map", "audit_report", "quality_gate", "state_flow"}
 _PROFILE_LOG_THRESHOLD_SECONDS = 0.25
+_SHADOW_LIFECYCLE_IDENTITY_LIMIT = 50
 
 
 class UnsafeScopedAtlasProjectionError(RuntimeError):
@@ -30,6 +39,10 @@ class UnsafeScopedAtlasProjectionError(RuntimeError):
 
 class ArtifactPrimaryWriteError(RuntimeError):
     """Raised when the authoritative artifact store cannot commit a payload."""
+
+
+class CorruptPartitionedPayloadError(RuntimeError):
+    """Raised when a partitioned state payload cannot prove complete byte identity."""
 
 
 def _artifact_profile_log(profile_timings: dict[str, Any]) -> None:
@@ -136,13 +149,195 @@ def _candidate_violation_paths(violation: dict[str, Any], project_path: str = ""
     return candidates
 
 
-def _bg_write_worker(lock: threading.Lock, path: Path, payload: Any, indent: int) -> None:
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def activate_shadow_write_run(run_id: str) -> None:
+    """Bind asynchronous compatibility shadows to one process-local pipeline run."""
+
+    normalized = str(run_id or "").strip()
+    if not normalized:
+        raise ValueError("Shadow-write run identity must be non-empty.")
+    global _active_shadow_run_id
+    with _locks_mutex:
+        if _active_shadow_run_id and _active_shadow_run_id != normalized:
+            raise RuntimeError(
+                f"Shadow writes are already bound to another run: {_active_shadow_run_id}"
+            )
+        _active_shadow_run_id = normalized
+
+
+def current_shadow_write_run_id() -> str:
+    with _locks_mutex:
+        return _active_shadow_run_id
+
+
+def _shadow_lifecycle_snapshot_locked(run_id: str = "") -> dict[str, Any]:
+    selected = [
+        dict(record)
+        for record in _shadow_worker_records.values()
+        if not run_id or str(record.get("run_id") or "") == run_id
+    ]
+    selected.sort(key=lambda record: (float(record.get("started_monotonic") or 0.0), str(record.get("worker_id") or "")))
+    public_workers = [
+        {
+            "worker_id": str(record.get("worker_id") or "not_available"),
+            "run_id": str(record.get("run_id") or "not_available"),
+            "artifact": str(record.get("artifact") or "not_available"),
+            "thread_name": str(record.get("thread_name") or "not_available"),
+            "status": str(record.get("status") or "unknown"),
+            "started_at": str(record.get("started_at") or "not_available"),
+            "completed_at": str(record.get("completed_at") or "not_available"),
+            "error_type": str(record.get("error_type") or "none"),
+        }
+        for record in selected
+    ]
+    pending = [worker for worker in public_workers if worker["status"] == "running"]
+    failed = [worker for worker in public_workers if worker["status"] == "failed"]
+    artifacts = sorted({worker["artifact"] for worker in public_workers})
+    identities_truncated = (
+        len(public_workers) > _SHADOW_LIFECYCLE_IDENTITY_LIMIT
+        or len(artifacts) > _SHADOW_LIFECYCLE_IDENTITY_LIMIT
+    )
+    return {
+        "run_id": run_id or "all",
+        "started_count": len(public_workers),
+        "completed_count": sum(1 for worker in public_workers if worker["status"] == "completed"),
+        "failed_count": len(failed),
+        "pending_count": len(pending),
+        "worker_ids": [
+            worker["worker_id"] for worker in public_workers[:_SHADOW_LIFECYCLE_IDENTITY_LIMIT]
+        ],
+        "artifacts": artifacts[:_SHADOW_LIFECYCLE_IDENTITY_LIMIT],
+        "pending_worker_ids": [
+            worker["worker_id"] for worker in pending[:_SHADOW_LIFECYCLE_IDENTITY_LIMIT]
+        ],
+        "workers": public_workers[:_SHADOW_LIFECYCLE_IDENTITY_LIMIT],
+        "identity_limit": _SHADOW_LIFECYCLE_IDENTITY_LIMIT,
+        "identities_truncated": identities_truncated,
+    }
+
+
+def shadow_write_lifecycle_snapshot(run_id: str = "") -> dict[str, Any]:
+    """Return bounded in-process lifecycle metadata without paths or payload content."""
+
+    with _locks_mutex:
+        return _shadow_lifecycle_snapshot_locked(str(run_id or "").strip())
+
+
+def release_shadow_write_run(run_id: str) -> dict[str, Any]:
+    """Release one run only after all of its compatibility shadows are terminal."""
+
+    normalized = str(run_id or "").strip()
+    global _active_shadow_run_id
+    with _locks_mutex:
+        snapshot = _shadow_lifecycle_snapshot_locked(normalized)
+        if snapshot["pending_count"]:
+            raise RuntimeError(
+                f"Cannot release shadow-write run {normalized}; "
+                f"{snapshot['pending_count']} worker(s) remain active."
+            )
+        for worker_id in list(_shadow_worker_records):
+            if str(_shadow_worker_records[worker_id].get("run_id") or "") == normalized:
+                del _shadow_worker_records[worker_id]
+        if _active_shadow_run_id == normalized:
+            _active_shadow_run_id = ""
+        return snapshot
+
+
+def _complete_shadow_worker(worker_id: str, *, status: str, error_type: str = "none") -> None:
+    if not worker_id:
+        return
+    with _locks_mutex:
+        record = _shadow_worker_records.get(worker_id)
+        if record is None:
+            return
+        record["status"] = status
+        record["completed_at"] = _utc_now()
+        record["error_type"] = str(error_type or "none")
+
+
+def _prune_finished_shadow_workers_locked() -> None:
+    for name in list(_write_threads):
+        _write_threads[name] = [thread for thread in _write_threads[name] if thread.is_alive()]
+        if not _write_threads[name]:
+            del _write_threads[name]
+    for thread in list(_shadow_worker_ids):
+        if not thread.is_alive():
+            worker_id = _shadow_worker_ids.pop(thread)
+            record = _shadow_worker_records.get(worker_id)
+            if record is not None and str(record.get("status") or "") == "running":
+                record["status"] = "failed"
+                record["completed_at"] = _utc_now()
+                record["error_type"] = "WorkerExitedWithoutTerminalRecord"
+    for worker_id in list(_shadow_worker_records):
+        record = _shadow_worker_records[worker_id]
+        if (
+            str(record.get("status") or "") != "running"
+            and str(record.get("run_id") or "") != _active_shadow_run_id
+        ):
+            del _shadow_worker_records[worker_id]
+
+
+def _bg_write_worker(
+    lock: threading.Lock,
+    path: Path,
+    payload: Any,
+    indent: int,
+    worker_id: str = "",
+) -> None:
     with lock:
         try:
             save_json_atomic(path, payload, indent=indent, bypass_proxy=True)
-        except Exception as e:
+        except BaseException as e:
             import sys
             print(f"[SQLITE] Background backup write failed for {path.name}: {e}", file=sys.stderr)
+            _complete_shadow_worker(worker_id, status="failed", error_type=type(e).__name__)
+        else:
+            _complete_shadow_worker(worker_id, status="completed")
+
+
+def flush_shadow_writes_report(timeout: float | None = 10.0, *, run_id: str = "") -> dict[str, Any]:
+    """Join selected shadow workers and return privacy-bounded lifecycle evidence."""
+
+    normalized = str(run_id or "").strip()
+    started = time.perf_counter()
+    with _locks_mutex:
+        threads = []
+        for bucket in _write_threads.values():
+            for thread in bucket:
+                if not thread.is_alive():
+                    continue
+                worker_id = _shadow_worker_ids.get(thread, "")
+                record = _shadow_worker_records.get(worker_id, {})
+                if normalized and str(record.get("run_id") or "") != normalized:
+                    continue
+                threads.append(thread)
+
+    if timeout is None:
+        for thread in threads:
+            thread.join()
+    else:
+        deadline = time.monotonic() + max(float(timeout), 0.0)
+        for thread in threads:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            thread.join(remaining)
+
+    with _locks_mutex:
+        _prune_finished_shadow_workers_locked()
+        snapshot = _shadow_lifecycle_snapshot_locked(normalized)
+        snapshot["global_pending_count"] = sum(
+            1
+            for record in _shadow_worker_records.values()
+            if str(record.get("status") or "") == "running"
+        )
+    snapshot["complete"] = snapshot["pending_count"] == 0
+    snapshot["timed_out"] = bool(timeout is not None and snapshot["pending_count"])
+    snapshot["wait_seconds"] = round(time.perf_counter() - started, 3)
+    return snapshot
 
 
 def flush_shadow_writes(timeout: float | None = 10.0) -> bool:
@@ -154,28 +349,13 @@ def flush_shadow_writes(timeout: float | None = 10.0) -> bool:
     engine block on disk I/O.
     """
 
-    with _locks_mutex:
-        threads = [thread for bucket in _write_threads.values() for thread in bucket if thread.is_alive()]
-
-    if timeout is None:
-        for thread in threads:
-            thread.join()
-    else:
-        import time
-
-        deadline = time.monotonic() + max(float(timeout), 0.0)
-        for thread in threads:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                break
-            thread.join(remaining)
-
-    with _locks_mutex:
-        for name in list(_write_threads):
-            _write_threads[name] = [thread for thread in _write_threads[name] if thread.is_alive()]
-            if not _write_threads[name]:
-                del _write_threads[name]
-        return not any(_write_threads.values())
+    report = flush_shadow_writes_report(timeout=timeout)
+    if report["complete"]:
+        with _locks_mutex:
+            for worker_id in list(_shadow_worker_records):
+                if str(_shadow_worker_records[worker_id].get("run_id") or "") == "not_available":
+                    del _shadow_worker_records[worker_id]
+    return bool(report["complete"])
 
 _RAW_ALIASES = {
     "atlas": "atlas.json",
@@ -221,6 +401,11 @@ class ArtifactStore:
         self.backend = "hybrid_sqlite" if self.use_sqlite else "json"
         self.db_manager = SQLiteManager(self._raw_dir / "codemaps.db")
         self._schema_initialized = False
+        limits = load_persistence_limits(CONFIG_DIR / "pipeline_execution_policy.json")
+        self.state_payload_inline_limit_bytes = limits["state_payload_inline_limit_bytes"]
+        self.state_payload_part_size_bytes = limits["state_payload_part_size_bytes"]
+        self.atlas_staging_batch_size = limits["atlas_staging_batch_size"]
+        self.atlas_staging_file_payload_limit_bytes = limits["atlas_staging_file_payload_limit_bytes"]
 
     def initialize_schema(self) -> None:
         """Initialize SQLite database schema if enabled."""
@@ -263,6 +448,68 @@ class ArtifactStore:
         filename = name if name.endswith(suffix) else f"{name}{suffix}"
         return _safe_resolve(base, filename)
 
+    def _load_state_payload_row(self, conn, row) -> Any:
+        row_keys = set(row.keys())
+        storage_mode = str(row["storage_mode"] or "inline_json") if "storage_mode" in row_keys else "inline_json"
+        if storage_mode == "inline_json":
+            return json.loads(row["payload"])
+        if storage_mode != "partitioned_json_v1":
+            raise CorruptPartitionedPayloadError(f"Unsupported state payload storage mode: {storage_mode}")
+
+        manifest = json.loads(row["payload"])
+        descriptor = manifest.get("__sage_partitioned_payload__") if isinstance(manifest, dict) else None
+        if not isinstance(descriptor, dict) or descriptor.get("format") != "partitioned_json_v1":
+            raise CorruptPartitionedPayloadError("Partitioned state payload manifest is missing or invalid.")
+        generation_id = str(row["generation_id"] or descriptor.get("generation_id") or "")
+        expected_parts = int(row["part_count"] or descriptor.get("part_count") or 0)
+        expected_bytes = int(row["payload_bytes"] or descriptor.get("payload_bytes") or 0)
+        expected_sha = str(row["payload_sha"] or descriptor.get("payload_sha256") or "")
+        if not generation_id or expected_parts < 1 or expected_bytes < 1 or not expected_sha:
+            raise CorruptPartitionedPayloadError("Partitioned state payload identity is incomplete.")
+
+        digest = hashlib.sha256()
+        actual_bytes = 0
+        actual_parts = 0
+        spool = tempfile.SpooledTemporaryFile(
+            max_size=max(self.state_payload_inline_limit_bytes, self.state_payload_part_size_bytes),
+            mode="w+b",
+        )
+        try:
+            cursor = conn.execute(
+                """
+                SELECT part_index, payload, payload_bytes, payload_sha
+                FROM state_payload_parts
+                WHERE name = ? AND generation_id = ?
+                ORDER BY part_index;
+                """,
+                (str(row["name"]), generation_id),
+            )
+            try:
+                for part in cursor:
+                    if int(part["part_index"]) != actual_parts:
+                        raise CorruptPartitionedPayloadError("Partitioned state payload sequence is not contiguous.")
+                    part_bytes = bytes(part["payload"])
+                    if len(part_bytes) != int(part["payload_bytes"] or 0):
+                        raise CorruptPartitionedPayloadError("Partitioned state payload part length mismatch.")
+                    if _payload_sha(part_bytes) != str(part["payload_sha"] or ""):
+                        raise CorruptPartitionedPayloadError("Partitioned state payload part checksum mismatch.")
+                    spool.write(part_bytes)
+                    digest.update(part_bytes)
+                    actual_bytes += len(part_bytes)
+                    actual_parts += 1
+            finally:
+                cursor.close()
+            if actual_parts != expected_parts or actual_bytes != expected_bytes:
+                raise CorruptPartitionedPayloadError("Partitioned state payload is incomplete.")
+            if digest.hexdigest() != expected_sha:
+                raise CorruptPartitionedPayloadError("Partitioned state payload checksum mismatch.")
+            spool.seek(0)
+            with io.TextIOWrapper(spool, encoding="utf-8") as text_stream:
+                return json.load(text_stream)
+        finally:
+            if not spool.closed:
+                spool.close()
+
     def load_raw(self, name: str, default: Any = None) -> Any:
         # Trigger path resolution/validation first to prevent path traversal bypass!
         json_path = self.raw_path(name)
@@ -270,20 +517,30 @@ class ArtifactStore:
         if self.use_sqlite:
             try:
                 self._ensure_schema()
+                sqlite_payload = None
+                sqlite_row_found = False
+                sqlite_payload_needs_sha = False
+                sqlite_source_mtime = None
                 with self.db_manager.get_connection() as conn:
                     row = conn.execute(
-                        "SELECT payload, payload_sha, source_mtime FROM state_payloads WHERE name = ?;",
+                        "SELECT * FROM state_payloads WHERE name = ?;",
                         (name,),
                     ).fetchone()
                     if row:
-                        row_payload = json.loads(row["payload"])
-                        # Hot runtime reads trust SQLite as the primary store.
-                        # Full payload SHA parity is validated by release/parity gates,
-                        # not recomputed on every agent-facing artifact read.
-                        if not row["payload_sha"]:
-                            row_sha = _payload_digest(row_payload)
-                            self._save_payload_to_state_table(name, row_payload, source_mtime=row["source_mtime"])
-                        return row_payload
+                        sqlite_payload = self._load_state_payload_row(conn, row)
+                        sqlite_row_found = True
+                        sqlite_payload_needs_sha = not bool(row["payload_sha"])
+                        sqlite_source_mtime = row["source_mtime"]
+                if sqlite_row_found:
+                    # Close the read connection before a legacy-row self-heal opens
+                    # its write transaction; Windows otherwise may retain a DB lock.
+                    if sqlite_payload_needs_sha:
+                        self._save_payload_to_state_table(
+                            name,
+                            sqlite_payload,
+                            source_mtime=sqlite_source_mtime,
+                        )
+                    return sqlite_payload
             except Exception as exc:
                 logger.warning("[SQLITE] Failed to load raw payload %s from database: %s. Falling back to JSON.", name, exc)
                 _record_store_degradation("load_raw", name, exc, "shadow_json_read_and_sqlite_self_heal")
@@ -294,9 +551,12 @@ class ArtifactStore:
         value = load_json_file(json_path, default, bypass_proxy=True)
         if self.use_sqlite and value is not None and not (isinstance(value, dict) and value.get("placeholder")):
             try:
-                self._save_payload_to_state_table(name, value, source_mtime=float(json_path.stat().st_mtime))
                 if name == "atlas" and isinstance(value, dict):
-                    self._save_atlas_to_sqlite(value)
+                    with self.db_manager.transaction():
+                        self._save_payload_to_state_table(name, value, source_mtime=float(json_path.stat().st_mtime))
+                        self._save_atlas_to_sqlite(value)
+                else:
+                    self._save_payload_to_state_table(name, value, source_mtime=float(json_path.stat().st_mtime))
                 if name == "audit_report" and isinstance(value, dict):
                     self._save_audit_findings_to_sqlite(value)
                     self._save_artifact_facts_to_sqlite(name, value)
@@ -321,13 +581,17 @@ class ArtifactStore:
                 self._ensure_schema()
                 with self.db_manager.get_connection() as conn:
                     row = conn.execute(
-                        "SELECT payload_sha, source_mtime, updated_at FROM state_payloads WHERE name = ?;",
+                        "SELECT payload_sha, payload_bytes, storage_mode, generation_id, part_count, source_mtime, updated_at FROM state_payloads WHERE name = ?;",
                         (name,),
                     ).fetchone()
                 if row:
                     return {
                         "truth_source": "sqlite_state_payloads",
                         "payload_sha": str(row["payload_sha"] or ""),
+                        "payload_bytes": int(row["payload_bytes"] or 0),
+                        "storage_mode": str(row["storage_mode"] or "inline_json"),
+                        "generation_id": str(row["generation_id"] or ""),
+                        "part_count": int(row["part_count"] or 0),
                         "source_mtime": float(row["source_mtime"] or 0.0),
                         "updated_at": str(row["updated_at"] or ""),
                     }
@@ -356,17 +620,15 @@ class ArtifactStore:
             if self.use_sqlite and name == "atlas" and isinstance(payload, dict)
             else None
         )
-        scoped_atlas_persisted = False
         if self.use_sqlite:
             try:
                 schema_start = time.perf_counter()
                 self._ensure_schema()
                 state_start = time.perf_counter()
-                if snapshot_scope:
+                if name == "atlas" and isinstance(payload, dict):
                     with self.db_manager.transaction():
                         state_profile = self._save_payload_to_state_table(name, payload)
                         projection_profile = self._save_atlas_to_sqlite(payload)
-                    scoped_atlas_persisted = True
                     if isinstance(projection_profile, dict):
                         profile_timings.update(projection_profile)
                 else:
@@ -385,19 +647,6 @@ class ArtifactStore:
                 raise ArtifactPrimaryWriteError(
                     f"SQLite primary artifact write failed for {name}."
                 ) from exc
-
-        if self.use_sqlite and name == "atlas" and isinstance(payload, dict) and not scoped_atlas_persisted:
-            try:
-                atlas_index_start = time.perf_counter()
-                projection_profile = self._save_atlas_to_sqlite(payload)
-                if isinstance(projection_profile, dict):
-                    profile_timings.update(projection_profile)
-                profile_timings["atlas_relational_index_seconds"] = round(time.perf_counter() - atlas_index_start, 3)
-                logger.info("[SQLITE] Atlas payload successfully indexed in database.")
-            except UnsafeScopedAtlasProjectionError:
-                raise
-            except Exception as e:
-                logger.error(f"[SQLITE] Failed to populate relational database tables: {e}", exc_info=True)
 
         if self.use_sqlite and name == "audit_report" and isinstance(payload, dict):
             try:
@@ -440,17 +689,44 @@ class ArtifactStore:
             profile_timings["shadow_thread_started"] = False
             profile_timings["shadow_write_mode"] = "synchronous_bounded_process"
         else:
+            worker_id = f"shadow-{uuid.uuid4().hex[:16]}"
+            run_id = current_shadow_write_run_id() or "not_available"
+            thread_name = f"SAGE.SaveBackup.{name}.{worker_id[-6:]}"
             thread = threading.Thread(
                 target=_bg_write_worker,
-                args=(file_lock, self.raw_path(name), payload, indent),
-                name=f"SAGE.SaveBackup.{name}"
+                args=(file_lock, self.raw_path(name), payload, indent, worker_id),
+                name=thread_name,
             )
             thread.daemon = False
             with _locks_mutex:
+                _prune_finished_shadow_workers_locked()
+                _shadow_worker_records[worker_id] = {
+                    "worker_id": worker_id,
+                    "run_id": run_id,
+                    "artifact": str(name),
+                    "thread_name": thread_name,
+                    "status": "running",
+                    "started_at": _utc_now(),
+                    "started_monotonic": time.perf_counter(),
+                    "completed_at": "not_available",
+                    "error_type": "none",
+                }
                 _write_threads.setdefault(name, []).append(thread)
-            thread.start()
+                _shadow_worker_ids[thread] = worker_id
+            try:
+                thread.start()
+            except Exception as exc:
+                _complete_shadow_worker(worker_id, status="failed", error_type=type(exc).__name__)
+                with _locks_mutex:
+                    _write_threads[name] = [item for item in _write_threads.get(name, []) if item is not thread]
+                    if not _write_threads[name]:
+                        del _write_threads[name]
+                    _shadow_worker_ids.pop(thread, None)
+                raise
             profile_timings["shadow_thread_started"] = True
             profile_timings["shadow_write_mode"] = "asynchronous"
+            profile_timings["shadow_worker_id"] = worker_id
+            profile_timings["shadow_run_id"] = run_id
         total_seconds = round(time.perf_counter() - profile_start, 3)
         profile_timings["total_save_raw_seconds"] = total_seconds
         if name in _PROFILED_ARTIFACTS or total_seconds >= _PROFILE_LOG_THRESHOLD_SECONDS:
@@ -464,43 +740,314 @@ class ArtifactStore:
         source_mtime: float | None = None,
     ) -> dict[str, float | int | str]:
         serialize_start = time.perf_counter()
-        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        serialize_seconds = time.perf_counter() - serialize_start
+        encoder = json.JSONEncoder(ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        inline_limit = max(1, int(self.state_payload_inline_limit_bytes))
+        part_size = max(1, int(self.state_payload_part_size_bytes))
+        text_slice_size = max(1, part_size // 4)
+        spool = tempfile.SpooledTemporaryFile(max_size=inline_limit, mode="w+b")
+        payload_digest = hashlib.sha256()
+        serialized_chars = 0
+        serialized_bytes_count = 0
+        encode_seconds = 0.0
+        for text_piece in encoder.iterencode(payload):
+            serialized_chars += len(text_piece)
+            for offset in range(0, len(text_piece), text_slice_size):
+                encode_start = time.perf_counter()
+                encoded_piece = text_piece[offset:offset + text_slice_size].encode("utf-8", errors="replace")
+                encode_seconds += time.perf_counter() - encode_start
+                spool.write(encoded_piece)
+                payload_digest.update(encoded_piece)
+                serialized_bytes_count += len(encoded_piece)
+        serialize_seconds = max(0.0, time.perf_counter() - serialize_start - encode_seconds)
         source_mtime = float(source_mtime if source_mtime is not None else time.time())
-        encode_start = time.perf_counter()
-        serialized_bytes = serialized.encode("utf-8", errors="replace")
-        encode_seconds = time.perf_counter() - encode_start
         hash_start = time.perf_counter()
-        payload_sha = _payload_sha(serialized_bytes)
+        payload_sha = payload_digest.hexdigest()
         hash_seconds = time.perf_counter() - hash_start
         sqlite_start = time.perf_counter()
-        with self.db_manager.get_connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO state_payloads (name, payload, payload_sha, source_mtime, updated_at)
-                VALUES (?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
-                ON CONFLICT(name) DO UPDATE SET
-                    payload = excluded.payload,
-                    payload_sha = excluded.payload_sha,
-                    source_mtime = CASE
-                        WHEN state_payloads.payload_sha = excluded.payload_sha
-                        THEN state_payloads.source_mtime
-                        ELSE excluded.source_mtime
-                    END,
-                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now');
-                """,
-                (name, serialized, payload_sha, source_mtime),
-            )
+        storage_mode = "inline_json" if serialized_bytes_count <= inline_limit else "partitioned_json_v1"
+        generation_id = "" if storage_mode == "inline_json" else f"payload-{uuid.uuid4().hex}"
+        part_count = 0
+        try:
+            spool.seek(0)
+            with self.db_manager.get_connection() as conn:
+                if storage_mode == "inline_json":
+                    stored_payload = spool.read().decode("utf-8")
+                else:
+                    part_count = (serialized_bytes_count + part_size - 1) // part_size
+                    stored_payload = _compact_json({
+                        "__sage_partitioned_payload__": {
+                            "format": storage_mode,
+                            "generation_id": generation_id,
+                            "part_count": part_count,
+                            "part_size_bytes": part_size,
+                            "payload_bytes": serialized_bytes_count,
+                            "payload_sha256": payload_sha,
+                        }
+                    })
+                conn.execute(
+                    """
+                    INSERT INTO state_payloads (
+                        name, payload, payload_sha, payload_bytes, storage_mode,
+                        generation_id, part_count, source_mtime, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                    ON CONFLICT(name) DO UPDATE SET
+                        payload = excluded.payload,
+                        payload_sha = excluded.payload_sha,
+                        payload_bytes = excluded.payload_bytes,
+                        storage_mode = excluded.storage_mode,
+                        generation_id = excluded.generation_id,
+                        part_count = excluded.part_count,
+                        source_mtime = CASE
+                            WHEN state_payloads.payload_sha = excluded.payload_sha
+                            THEN state_payloads.source_mtime
+                            ELSE excluded.source_mtime
+                        END,
+                        updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now');
+                    """,
+                    (
+                        name,
+                        stored_payload,
+                        payload_sha,
+                        serialized_bytes_count,
+                        storage_mode,
+                        generation_id or None,
+                        part_count,
+                        source_mtime,
+                    ),
+                )
+                if storage_mode == "inline_json":
+                    conn.execute("DELETE FROM state_payload_parts WHERE name = ?;", (name,))
+                else:
+                    spool.seek(0)
+                    for part_index in range(part_count):
+                        part_bytes = spool.read(part_size)
+                        if not part_bytes:
+                            raise ArtifactPrimaryWriteError("Partitioned payload ended before the declared part count.")
+                        conn.execute(
+                            """
+                            INSERT INTO state_payload_parts (
+                                name, generation_id, part_index, payload, payload_bytes, payload_sha
+                            ) VALUES (?, ?, ?, ?, ?, ?);
+                            """,
+                            (
+                                name,
+                                generation_id,
+                                part_index,
+                                part_bytes,
+                                len(part_bytes),
+                                _payload_sha(part_bytes),
+                            ),
+                        )
+                    if spool.read(1):
+                        raise ArtifactPrimaryWriteError("Partitioned payload exceeded the declared part count.")
+                    conn.execute(
+                        "DELETE FROM state_payload_parts WHERE name = ? AND generation_id <> ?;",
+                        (name, generation_id),
+                    )
+        finally:
+            spool.close()
         sqlite_seconds = time.perf_counter() - sqlite_start
         return {
-            "state_payload_chars": len(serialized),
-            "state_payload_bytes": len(serialized_bytes),
+            "state_payload_chars": serialized_chars,
+            "state_payload_bytes": serialized_bytes_count,
             "state_payload_serialize_seconds": round(serialize_seconds, 3),
             "state_payload_encode_seconds": round(encode_seconds, 3),
             "state_payload_hash_seconds": round(hash_seconds, 3),
             "state_payload_sqlite_seconds": round(sqlite_seconds, 3),
             "state_payload_sha256": payload_sha,
+            "state_payload_storage_mode": storage_mode,
+            "state_payload_part_count": part_count,
+            "state_payload_part_size_bytes": part_size if part_count else 0,
         }
+
+    def begin_atlas_staging_run(self, producer_contract: str) -> str:
+        """Open a resumable, non-canonical Atlas generation receipt."""
+        if not self.use_sqlite:
+            return ""
+        self._ensure_schema()
+        run_id = f"atlas-stage-{uuid.uuid4().hex}"
+        normalized_contract = str(producer_contract)
+        with self.db_manager.transaction() as conn:
+            # One SQLite authority cannot safely host concurrent canonical Atlas
+            # writers. Opening a new writer therefore supersedes every receipt
+            # that never reached a terminal state, including older producer
+            # contracts left behind by a hard process stop.
+            abandoned_runs = conn.execute(
+                """
+                UPDATE atlas_staging_runs
+                SET status = 'FAILED',
+                    error_type = 'superseded_interrupted_run',
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE status = 'IN_PROGRESS';
+                """
+            ).rowcount
+            conn.execute(
+                """
+                INSERT INTO atlas_staging_runs (run_id, status, producer_contract)
+                VALUES (?, 'IN_PROGRESS', ?);
+                """,
+                (run_id, normalized_contract),
+            )
+        if abandoned_runs:
+            logger.warning(
+                "[ATLAS_STAGING] Recovered %s interrupted run receipt(s); reusable checkpoints were preserved.",
+                abandoned_runs,
+            )
+        return run_id
+
+    def load_atlas_staging_files(
+        self,
+        producer_contract: str,
+        *,
+        stage_kind: str = "atlas_file",
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """Load only checksum-valid provisional files for the current producer contract."""
+        if not self.use_sqlite:
+            return {}
+        self._ensure_schema()
+        staged: dict[tuple[str, str], dict[str, Any]] = {}
+        with self.db_manager.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT project_key, rel_path, payload, payload_sha
+                FROM atlas_staging_files
+                WHERE producer_contract = ? AND stage_kind = ?
+                ORDER BY project_key, rel_path;
+                """,
+                (str(producer_contract), str(stage_kind)),
+            ).fetchall()
+        for row in rows:
+            serialized = str(row["payload"])
+            if _payload_sha(serialized) != str(row["payload_sha"] or ""):
+                logger.warning(
+                    "[ATLAS_STAGING] Ignoring corrupt provisional file %s::%s.",
+                    row["project_key"],
+                    row["rel_path"],
+                )
+                continue
+            try:
+                payload = json.loads(serialized)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "[ATLAS_STAGING] Ignoring invalid provisional JSON %s::%s.",
+                    row["project_key"],
+                    row["rel_path"],
+                )
+                continue
+            if isinstance(payload, dict):
+                staged[(str(row["project_key"]), str(row["rel_path"]))] = payload
+        return staged
+
+    def save_atlas_staging_batch(
+        self,
+        run_id: str,
+        producer_contract: str,
+        project_key: str,
+        entries: list[tuple[str, dict[str, Any]]],
+        *,
+        stage_kind: str = "atlas_file",
+    ) -> dict[str, int]:
+        """Checkpoint completed Atlas files in a bounded SQLite transaction."""
+        if not self.use_sqlite or not run_id or not entries:
+            return {"persisted": 0, "skipped_oversize": 0}
+        self._ensure_schema()
+        max_payload_bytes = max(1, int(self.atlas_staging_file_payload_limit_bytes))
+        max_batch_size = max(1, int(self.atlas_staging_batch_size))
+        if len(entries) > max_batch_size:
+            raise ValueError(
+                f"Atlas staging batch exceeds configured bound: {len(entries)} > {max_batch_size}"
+            )
+        rows = []
+        skipped_oversize = 0
+        for rel_path, payload in entries:
+            serialized = _compact_json(payload)
+            payload_bytes = len(serialized.encode("utf-8", errors="replace"))
+            if payload_bytes > max_payload_bytes:
+                skipped_oversize += 1
+                continue
+            rows.append(
+                (
+                    str(project_key),
+                    str(rel_path),
+                    str(stage_kind),
+                    str(run_id),
+                    str(producer_contract),
+                    serialized,
+                    _payload_sha(serialized),
+                    float(payload.get("mtime") or 0.0),
+                    int(payload.get("size") or 0),
+                )
+            )
+
+        with _locks_mutex:
+            staging_lock = _write_locks.setdefault("atlas_staging", threading.Lock())
+        with staging_lock, self.db_manager.transaction() as conn:
+            if rows:
+                conn.executemany(
+                    """
+                    INSERT INTO atlas_staging_files (
+                        project_key, rel_path, stage_kind, run_id, producer_contract, payload,
+                        payload_sha, source_mtime, size_bytes, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                    ON CONFLICT(project_key, rel_path, stage_kind) DO UPDATE SET
+                        run_id = excluded.run_id,
+                        producer_contract = excluded.producer_contract,
+                        payload = excluded.payload,
+                        payload_sha = excluded.payload_sha,
+                        source_mtime = excluded.source_mtime,
+                        size_bytes = excluded.size_bytes,
+                        updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now');
+                    """,
+                    rows,
+                )
+            conn.execute(
+                """
+                UPDATE atlas_staging_runs
+                SET processed_files = processed_files + ?,
+                    skipped_oversize_files = skipped_oversize_files + ?,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE run_id = ?;
+                """,
+                (len(rows), skipped_oversize, str(run_id)),
+            )
+        return {"persisted": len(rows), "skipped_oversize": skipped_oversize}
+
+    def record_atlas_staging_reuse(self, run_id: str, reused_files: int) -> None:
+        if not self.use_sqlite or not run_id or reused_files <= 0:
+            return
+        with self.db_manager.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE atlas_staging_runs
+                SET reused_files = reused_files + ?,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE run_id = ?;
+                """,
+                (int(reused_files), str(run_id)),
+            )
+
+    def finish_atlas_staging_run(self, run_id: str, producer_contract: str, *, status: str, error_type: str = "none") -> None:
+        """Finalize a staging receipt; only a completed canonical commit clears provisional files."""
+        if not self.use_sqlite or not run_id:
+            return
+        normalized_status = str(status or "").upper()
+        if normalized_status not in {"COMPLETED", "FAILED"}:
+            raise ValueError(f"Unsupported Atlas staging terminal status: {status}")
+        with self.db_manager.transaction() as conn:
+            conn.execute(
+                """
+                UPDATE atlas_staging_runs
+                SET status = ?, error_type = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE run_id = ?;
+                """,
+                (normalized_status, str(error_type or "none"), str(run_id)),
+            )
+            if normalized_status == "COMPLETED":
+                conn.execute(
+                    "DELETE FROM atlas_staging_files WHERE producer_contract = ?;",
+                    (str(producer_contract),),
+                )
 
     def _save_artifact_facts_to_sqlite(self, name: str, payload: dict[str, Any]) -> None:
         facts: dict[str, Any] = {}
@@ -1296,9 +1843,11 @@ class ArtifactStore:
             try:
                 self._ensure_schema()
                 with self.db_manager.get_connection() as conn:
-                    rows = conn.execute("SELECT name, payload FROM state_payloads;").fetchall()
-                for row in rows:
-                    (temp_path / f"{row['name']}.json").write_text(row["payload"], encoding="utf-8")
+                    rows = conn.execute("SELECT * FROM state_payloads;").fetchall()
+                    for row in rows:
+                        payload = self._load_state_payload_row(conn, row)
+                        with (temp_path / f"{row['name']}.json").open("w", encoding="utf-8") as stream:
+                            json.dump(payload, stream, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
             except Exception as exc:
                 logger.error("[BACKUP] SQLite read failed, falling back to output/.raw JSON files: %s", exc)
                 for src_file in self._raw_dir.glob("*.json"):
@@ -1351,9 +1900,12 @@ class ArtifactStore:
         for json_file in folder.glob("*.json"):
             try:
                 payload = json.loads(json_file.read_text(encoding="utf-8"))
-                self._save_payload_to_state_table(json_file.stem, payload)
                 if json_file.stem == "atlas" and isinstance(payload, dict):
-                    self._save_atlas_to_sqlite(payload)
+                    with self.db_manager.transaction():
+                        self._save_payload_to_state_table(json_file.stem, payload)
+                        self._save_atlas_to_sqlite(payload)
+                else:
+                    self._save_payload_to_state_table(json_file.stem, payload)
             except Exception as exc:
                 logger.error("[RESTORE] Failed to restore payload %s: %s", json_file.name, exc)
                 success = False

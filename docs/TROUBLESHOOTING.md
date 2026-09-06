@@ -47,10 +47,16 @@ Symptoms:
 Fix:
 
 ```powershell
+python sage.py run-status --run-id "sage-run-..."
 python sage.py doctor --include-validate --quick --max-seconds 180
 ```
 
-The orchestrator writes PID and heartbeat metadata and recovers stale locks when safe.
+Use the `run_id` printed when the command started. For an external target, add
+`--target-root "C:\path\to\repository"` to the status query. `ACTIVE`,
+`ACTIVE_STALE_HEARTBEAT`, `UNKNOWN` and a caller timeout do not authorize a
+duplicate run or manual lock deletion. The orchestrator writes PID, run identity
+and heartbeat metadata; doctor may recover a stale lock only when the process
+and receipt state permit it.
 
 ## PowerShell Shows INFO as NativeCommandError
 

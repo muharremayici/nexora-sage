@@ -44,13 +44,19 @@ def validator_execution_contract(validator_id: str) -> dict[str, Any]:
 
 
 ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
-    "Atlas": {"reads": ["atlas"], "writes": ["atlas", "atlas_commit", "workload_profile"]},
+    "Atlas": {
+        "reads": ["atlas", "external_target_preflight", "discovery"],
+        "writes": ["atlas", "atlas_commit", "workload_profile", "analysis_scope_authority", "analysis_scope_authority_analysis_snapshot_lineage"],
+    },
     "Project DNA Profile": {"reads": ["atlas", "discovery", "package_json"], "writes": ["project_dna_profile"]},
     "Nuclear Sequencing": {
         "reads": ["atlas", "atlas_commit", "genome"],
         "writes": ["genome", "genome_analysis_snapshot_lineage", "surgical_discovery", "surgical_discovery_analysis_snapshot_lineage"],
     },
-    "Architecture Oracle": {"reads": ["atlas", "discovery"], "writes": ["architecture_oracle"]},
+    "Architecture Oracle": {
+        "reads": ["atlas", "discovery", "analysis_scope_authority"],
+        "writes": ["architecture_oracle"],
+    },
     "Fractal Mapping": {
         "reads": ["atlas", "atlas_commit", "genome", "genome_analysis_snapshot_lineage", "surgical_discovery", "surgical_discovery_analysis_snapshot_lineage", "fractal_map"],
         "writes": ["fractal_map", "fractal_map_analysis_snapshot_lineage"],
@@ -86,7 +92,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     "Dead Code Detector": {"reads": ["atlas"], "writes": ["dead_code", "dead_code_tuning"]},
     "Circular Dependency Finder": {"reads": ["atlas"], "writes": ["circular_deps"]},
     "Audit": {
-        "reads": ["atlas"],
+        "reads": ["atlas", "analysis_scope_authority"],
         "writes": ["audit_report", "watchdog_audit_report"],
         "display_name": "Architectural Audit",
     },
@@ -106,7 +112,10 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
         "reads": ["fractal_map", "audit_report", "genome", "blast_radius"],
         "writes": ["merge_plan_summary", "generated_merge_scripts"],
     },
-    "Oracle Validation Gate": {"reads": ["workload_profile", "atlas"], "writes": ["oracle_validation_reports"]},
+    "Oracle Validation Gate": {
+        "reads": ["workload_profile", "atlas", "analysis_scope_authority"],
+        "writes": ["oracle_validation_reports", "validation_oracle_scope"],
+    },
     "Blast Radius Engine": {"reads": ["atlas", "circular_deps"], "writes": ["blast_radius"]},
     "Self-Healing Generator": {"reads": ["audit_report"], "writes": ["generated_self_healing_scripts"]},
     "Health Score": {
@@ -197,6 +206,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     "Quality Gates": {
         "reads": [
             "*",
+            "analysis_scope_authority",
             "atlas",
             "genome",
             "audit_report",
@@ -226,6 +236,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
             "atlas",
             "genome",
             "quality_gate",
+            "analysis_scope_authority",
             "merge_intelligence_regression",
             "adapter_registry",
             "distribution_hardening_validation",
@@ -246,6 +257,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     },
     "Nexora Operator Packet": {
         "reads": [
+            "analysis_scope_authority",
             "nexora_brief",
             "nexora_agent_contract",
             "watchdog_session",
@@ -258,7 +270,6 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
             "nexora_agent_response_validation",
             "nexora_agent_response_ledger",
             "nexora_agent_handoff",
-            "nexora_surface_inventory",
             "pipeline_execution_contract_validation",
             "engine_signal_contract_validation",
             "architecture_oracle",
@@ -273,6 +284,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     "Artifact Contract Validation": {"reads": ["*"], "writes": ["artifact_contract_validation"]},
     "Master Report Generation": {
         "reads": [
+            "analysis_scope_authority",
             "quality_gate",
             "release_readiness",
             "health_score",
@@ -283,7 +295,10 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
         ],
         "writes": ["master_report"],
     },
-    "AI Context Generator": {"reads": ["*", "nexora_operator_packet", "signals"], "writes": ["ai_context"]},
+    "AI Context Generator": {
+        "reads": ["*", "analysis_scope_authority", "quality_gate", "nexora_operator_packet", "signals"],
+        "writes": ["ai_context"],
+    },
     "Surgical Safety Gate": {"reads": ["module_risk_matrix", "genome", "host_merge_intelligence"], "writes": ["surgical_readiness"]},
     "CMO Dashboard": {
         "reads": ["decision_evidence", "host_merge_intelligence", "health_score", "blast_radius", "architecture_doctrine"],

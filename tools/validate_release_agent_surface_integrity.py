@@ -84,7 +84,7 @@ def run_validation() -> dict[str, Any]:
             "release_proof_bundle_keeps_claim_guard_in_status",
             "claim_guard_ready" in proof_surface
             and "scoped_react_ready" in proof_surface
-            and "evidence_backed_universal_react_web_static_governance" in proof_surface,
+            and "matches_current_release_claim(allowed_claim)" in proof_source,
             str(proof_path.relative_to(ROOT)),
         ),
         _check(

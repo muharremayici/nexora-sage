@@ -24,6 +24,7 @@ from tools.core.json_io import load_json_file
 CONTRACT_PATH = CONFIG_DIR / "governance_trace_contract.json"
 UNKNOWN_VALUE = "not_available"
 _ACTIVE_TRACE_ID: ContextVar[str | None] = ContextVar("sage_governance_trace_id", default=None)
+_ACTIVE_TRACE_DB_PATH: ContextVar[Path | None] = ContextVar("sage_governance_trace_db_path", default=None)
 
 
 def _contract() -> dict[str, Any]:
@@ -69,6 +70,21 @@ def reset_trace(token: Token[str | None]) -> None:
     _ACTIVE_TRACE_ID.reset(token)
 
 
+def activate_trace_storage(db_path: Path) -> Token[Path | None]:
+    """Bind nested trace events to one call-local SQLite authority."""
+    return _ACTIVE_TRACE_DB_PATH.set(Path(db_path).resolve())
+
+
+def current_trace_storage() -> Path | None:
+    """Return the call-local trace database, if one is active."""
+    return _ACTIVE_TRACE_DB_PATH.get()
+
+
+def reset_trace_storage(token: Token[Path | None]) -> None:
+    """Restore the previous call-local trace storage authority."""
+    _ACTIVE_TRACE_DB_PATH.reset(token)
+
+
 def _required_enum(event: dict[str, Any], key: str, value: str) -> str:
     allowed = {str(item) for item in event.get(key, []) if str(item)}
     if value not in allowed:
@@ -89,6 +105,8 @@ def _sanitized_details(event: dict[str, Any], event_type: str, details: dict[str
     allowed = {str(key) for key in allowed_by_type.get(event_type, []) if str(key)}
     sanitized: dict[str, Any] = {}
     for key in sorted(allowed):
+        if key not in source:
+            continue
         value = source.get(key)
         if isinstance(value, list):
             sanitized[key] = [_bounded_text(item, limit=120) for item in value[:50]]
@@ -118,6 +136,7 @@ def record_trace_event(
     details: dict[str, Any] | None = None,
     trace_id: str | None = None,
     db_path: Path | None = None,
+    max_events: int | None = None,
 ) -> dict[str, Any]:
     """Persist one observed event in the active local/tenant SQLite database."""
     contract = _contract()
@@ -144,10 +163,13 @@ def record_trace_event(
         "claim_boundary": str(contract.get("scope", {}).get("claim_boundary") or UNKNOWN_VALUE),
         "details": _sanitized_details(event, event_type, details),
     }
-    manager = SQLiteManager(db_path or (RAW_DIR / "codemaps.db"))
+    manager = SQLiteManager(db_path or current_trace_storage() or (RAW_DIR / "codemaps.db"))
     manager.initialize_schema()
     retention = contract.get("retention") if isinstance(contract.get("retention"), dict) else {}
-    max_events = max(1, int(retention.get("max_events_per_tenant") or 1000))
+    retained_events = max(
+        1,
+        int(max_events if max_events is not None else retention.get("max_events_per_tenant") or 1000),
+    )
     with manager.get_connection() as conn:
         conn.execute(
             """
@@ -165,17 +187,31 @@ def record_trace_event(
                 payload["claim_boundary"], json.dumps(payload["details"], ensure_ascii=False, sort_keys=True),
             ),
         )
-        conn.execute(
-            """
-            DELETE FROM governance_trace_events
-            WHERE event_id IN (
-                SELECT event_id FROM governance_trace_events
-                ORDER BY event_id DESC
-                LIMIT -1 OFFSET ?
-            );
-            """,
-            (max_events,),
-        )
+        if max_events is None:
+            conn.execute(
+                """
+                DELETE FROM governance_trace_events
+                WHERE event_id IN (
+                    SELECT event_id FROM governance_trace_events
+                    ORDER BY event_id DESC
+                    LIMIT -1 OFFSET ?
+                );
+                """,
+                (retained_events,),
+            )
+        else:
+            conn.execute(
+                """
+                DELETE FROM governance_trace_events
+                WHERE event_id IN (
+                    SELECT event_id FROM governance_trace_events
+                    WHERE event_type = ?
+                    ORDER BY event_id DESC
+                    LIMIT -1 OFFSET ?
+                );
+                """,
+                (event_type, retained_events),
+            )
     return payload
 
 
@@ -188,6 +224,12 @@ def record_mcp_tool_trace(
     outcome: str,
     failure_layer: str = "none",
     trace_id: str | None = None,
+    payload_chars: int = 0,
+    result_status: str = "unknown",
+    fail_closed_reason: str = "",
+    target_mode: str = "default_repository",
+    db_path: Path | None = None,
+    max_events: int | None = None,
 ) -> dict[str, Any]:
     """Record a bounded MCP call handoff without persisting raw arguments."""
     return record_trace_event(
@@ -201,8 +243,16 @@ def record_mcp_tool_trace(
         latency_ms=(time.perf_counter() - started) * 1000,
         outcome=outcome,
         failure_layer=failure_layer,
-        details={"argument_keys": sorted(str(key) for key in arguments)},
+        details={
+            "argument_keys": sorted(str(key) for key in arguments),
+            "payload_chars": max(0, int(payload_chars or 0)),
+            "result_status": _bounded_text(result_status, limit=80),
+            "fail_closed_reason": _bounded_text(fail_closed_reason or "none", limit=120),
+            "target_mode": _bounded_text(target_mode, limit=80),
+        },
         trace_id=trace_id,
+        db_path=db_path,
+        max_events=max_events,
     )
 
 
@@ -297,16 +347,33 @@ def record_agent_handoff_trace(packet: dict[str, Any], *, trace_id: str | None =
     )
 
 
-def load_trace_events(*, trace_id: str = "", limit: int = 50, db_path: Path | None = None) -> list[dict[str, Any]]:
+def load_trace_events(
+    *,
+    trace_id: str = "",
+    event_type: str = "",
+    limit: int = 50,
+    db_path: Path | None = None,
+    initialize_schema: bool = True,
+) -> list[dict[str, Any]]:
     """Read bounded local trace events for diagnostics; never infer root cause."""
-    manager = SQLiteManager(db_path or (RAW_DIR / "codemaps.db"))
-    manager.initialize_schema()
+    resolved_db_path = db_path or current_trace_storage() or (RAW_DIR / "codemaps.db")
+    if not initialize_schema and not Path(resolved_db_path).exists():
+        return []
+    manager = SQLiteManager(resolved_db_path)
+    if initialize_schema:
+        manager.initialize_schema()
     bounded_limit = max(1, min(200, int(limit or 50)))
     query = "SELECT * FROM governance_trace_events"
     values: list[Any] = []
+    clauses: list[str] = []
     if trace_id:
-        query += " WHERE trace_id = ?"
+        clauses.append("trace_id = ?")
         values.append(trace_id)
+    if event_type:
+        clauses.append("event_type = ?")
+        values.append(event_type)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
     query += " ORDER BY event_id DESC LIMIT ?"
     values.append(bounded_limit)
     with manager.get_connection() as conn:

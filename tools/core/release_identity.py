@@ -2,22 +2,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from tools.core.config import CONFIG_DIR, RAW_DIR
-from tools.core.json_io import load_json_file, load_json_object_strict
+from tools.core.config import CONFIG_DIR
+from tools.core.json_io import load_json_object_strict
 
 
 def current_release_version() -> str:
-    validation = load_json_file(RAW_DIR / "release_identity_validation.json", {})
-    if isinstance(validation, dict):
-        summary = validation.get("summary", {})
-        if isinstance(summary, dict) and summary.get("product_version"):
-            return str(summary["product_version"])
-
+    """Read source-owned identity; generated validation is evidence, not authority."""
     identity = load_json_object_strict(CONFIG_DIR / "release_identity.json", label="Release identity")
     product = identity.get("product", {})
     if isinstance(product, dict) and product.get("public_version"):
         return str(product["public_version"])
     return "unknown"
+
+
+def matches_current_release_claim(value: Any) -> bool:
+    """Compare evidence to source-owned claim; missing claims cannot become PASS."""
+    identity = load_json_object_strict(CONFIG_DIR / "release_identity.json", label="Release identity")
+    claim = identity.get("release_claim", {})
+    expected = claim.get("allowed") if isinstance(claim, dict) else None
+    return isinstance(expected, str) and bool(expected.strip()) and value == expected
 
 
 def release_agent_surface_human_seal_scope(version: str | None = None) -> str:

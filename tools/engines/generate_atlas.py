@@ -14,7 +14,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tools.core.config import ROOT, RAW_DIR, SOURCE_EXTENSIONS, SKIP_DIRS, normalize_path, ensure_output_dir, save_json_atomic, DYNAMIC_CONFIG
+from tools.core.config import CONFIG_FILE, ROOT, RAW_DIR, SOURCE_EXTENSIONS, SKIP_DIRS, normalize_path, ensure_output_dir, save_json_atomic, DYNAMIC_CONFIG
 from tools.core.artifact_validator import ensure_valid_payload
 from tools.core.json_io import load_json_file
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
@@ -94,6 +94,45 @@ DYNAMIC_MEMBER_RE = re.compile(
     re.DOTALL
 )
 FINGERPRINT_CHUNK_SIZE = 4096
+
+
+class AtlasStagingWriteError(RuntimeError):
+    """Raised when resumable Atlas checkpoints cannot be persisted safely."""
+
+
+def atlas_staging_producer_contract() -> str:
+    """Fingerprint every producer/config surface that can change staged AST semantics."""
+    digest = hashlib.sha256()
+    digest.update(AST_CONTRACT_VERSION.encode("utf-8"))
+    producer_paths = [
+        Path(__file__),
+        CODE_MAPS_DIR / "tools" / "engines" / "ast_sequencer.cjs",
+        PYTHON_SEQUENCER,
+        JAVA_SEQUENCER,
+        CS_SEQUENCER,
+        GO_SEQUENCER,
+        CODE_MAPS_DIR / "tools" / "core" / "config.py",
+        CODE_MAPS_DIR / "tools" / "core" / "source_files.py",
+        CODE_MAPS_DIR / "tools" / "core" / "language_registry.py",
+        CODE_MAPS_DIR / "tools" / "core" / "language_agnostic_symbols.py",
+        CODE_MAPS_DIR / "tools" / "core" / "polyglot_imports.py",
+        CODE_MAPS_DIR / "tools" / "core" / "path_engine.py",
+        CODE_MAPS_DIR / "tools" / "core" / "state_flow.py",
+        CODE_MAPS_DIR / "tools" / "core" / "repository_topology.py",
+        CODE_MAPS_DIR / "tools" / "core" / "projects_registry.py",
+        Path(CONFIG_FILE),
+        Path(CONFIG_FILE).parent / "architecture_doctrine.json",
+        Path(CONFIG_FILE).parent / "language_registry.json",
+        Path(CONFIG_FILE).parent / "language_agnostic_symbols.json",
+    ]
+    for producer_path in producer_paths:
+        resolved = producer_path.resolve()
+        digest.update(resolved.as_posix().encode("utf-8", errors="replace"))
+        if resolved.exists():
+            digest.update(resolved.read_bytes())
+        else:
+            digest.update(b"<missing>")
+    return f"atlas-staging-v1:{digest.hexdigest()}"
 
 
 def scoped_change_ref(project_key: str, rel_path: str) -> str:
@@ -189,6 +228,21 @@ def cached_atlas_covers_projects(atlas_data: Dict[str, Dict], expected_projects)
     return expected.issubset(cached)
 
 
+def previous_atlas_required_for_generation(
+    stale_projects,
+    expected_projects,
+    *,
+    bounded_projection: bool,
+) -> bool:
+    """Keep prior document truth only when this run cannot replace its full scope."""
+
+    if bounded_projection or stale_projects is None:
+        return True
+    stale = {str(project) for project in stale_projects}
+    expected = {str(project) for project in expected_projects}
+    return not expected.issubset(stale)
+
+
 def preserve_unselected_bounded_projects(
     atlas: Dict[str, Dict],
     previous_atlas: Dict[str, Dict],
@@ -279,10 +333,23 @@ def atlas_generation_mode(effective_stale_projects, project_keys, surgical_files
     return "incremental"
 
 
+def _parser_evidence_is_reusable(evidence) -> bool:
+    """Reuse real parser observations, including empty files and syntax diagnostics."""
+    return (
+        isinstance(evidence, dict)
+        and evidence.get("reported_by_adapter") is True
+        and evidence.get("status") in {"observed", "degraded"}
+        and bool(evidence.get("parser_kind"))
+        and evidence.get("parser_kind") != "unavailable"
+    )
+
+
 def file_contract_is_current(file_data: Dict) -> bool:
     if not isinstance(file_data, dict):
         return False
     if file_data.get("ast_contract_version") != AST_CONTRACT_VERSION:
+        return False
+    if not _parser_evidence_is_reusable(file_data.get("parser_evidence")):
         return False
     required_file_keys = {
         "project_key",
@@ -356,7 +423,59 @@ def _utf16_offset_to_utf8_byte_offset(content: str, offset: int) -> int:
     )
 
 
-def _normalize_polyglot_symbol(raw_symbol: Dict, content: str, language: str = "typescript") -> Dict:
+def _utf16_offsets_to_utf8_byte_offsets(content: str, offsets) -> Dict[int, int]:
+    """Resolve many compiler offsets with one bounded pass over source content."""
+
+    requested_set = set()
+    for offset in offsets:
+        try:
+            normalized_offset = int(offset)
+        except (TypeError, ValueError):
+            continue
+        if normalized_offset >= 0:
+            requested_set.add(normalized_offset)
+    requested = sorted(requested_set)
+    if not requested:
+        return {}
+    if content.isascii():
+        return {offset: offset for offset in requested if offset <= len(content)}
+
+    resolved: Dict[int, int] = {}
+    requested_index = 0
+    utf16_units = 0
+    utf8_bytes = 0
+    for char in content:
+        while requested_index < len(requested) and requested[requested_index] == utf16_units:
+            resolved[requested[requested_index]] = utf8_bytes
+            requested_index += 1
+
+        char_units = 2 if ord(char) > 0xFFFF else 1
+        next_utf16_units = utf16_units + char_units
+        while (
+            requested_index < len(requested)
+            and utf16_units < requested[requested_index] < next_utf16_units
+        ):
+            # Keep invalid surrogate-splitting offsets unresolved so the canonical
+            # single-offset validator raises its existing precise error on use.
+            requested_index += 1
+        utf16_units = next_utf16_units
+        utf8_bytes += len(char.encode("utf-8"))
+
+    while requested_index < len(requested) and requested[requested_index] == utf16_units:
+        resolved[requested[requested_index]] = utf8_bytes
+        requested_index += 1
+    return resolved
+
+
+def _normalize_polyglot_symbol(
+    raw_symbol: Dict,
+    content: str,
+    language: str = "typescript",
+    *,
+    utf16_offset_map=None,
+    normalization_profile_context=None,
+    canonical_type_cache=None,
+) -> Dict:
     """Normalize TS/JS and polyglot sequencer outputs into the Atlas symbol contract."""
     name = str(raw_symbol.get("name") or "anonymous")
     raw_type = str(raw_symbol.get("type") or raw_symbol.get("kind") or "Meta")
@@ -389,27 +508,54 @@ def _normalize_polyglot_symbol(raw_symbol: Dict, content: str, language: str = "
         symbol_type = "Meta"
 
     location = raw_symbol.get("location") if isinstance(raw_symbol.get("location"), dict) else {}
-    start = raw_symbol.get("start", location.get("line", 1))
-    end = raw_symbol.get("end", start)
-    raw_line = raw_symbol.get("line", location.get("line"))
-    raw_end_line = raw_symbol.get("endLine", raw_symbol.get("end_line", location.get("end_line")))
-    raw_source_lines = raw_symbol.get("sourceLines", raw_symbol.get("source_lines", ""))
-    try:
-        start = int(start or 1)
-    except (TypeError, ValueError):
-        start = 1
-    try:
-        end = int(end or start)
-    except (TypeError, ValueError):
-        end = start
-    if end < start:
-        end = start
     parser_kind_hint = str(
         raw_symbol.get("parserKind") or raw_symbol.get("parser_kind") or ""
     ).strip()
-    if language in {"typescript", "javascript"} and parser_kind_hint == "typescript_compiler_api":
-        start = _utf16_offset_to_utf8_byte_offset(content, start)
-        end = _utf16_offset_to_utf8_byte_offset(content, end)
+    compiler_offsets = (
+        language in {"typescript", "javascript"}
+        and parser_kind_hint == "typescript_compiler_api"
+    )
+    if compiler_offsets:
+        raw_start = raw_symbol.get("start")
+        raw_end = raw_symbol.get("end")
+        if raw_start in (None, "") or raw_end in (None, ""):
+            raise ValueError("TypeScript compiler symbol is missing start or end offset")
+        try:
+            start = int(raw_start)
+            end = int(raw_end)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("TypeScript compiler symbol has a non-integer offset") from exc
+        if end < start:
+            raise ValueError(
+                f"TypeScript compiler symbol end precedes start: start={start}, end={end}"
+            )
+    else:
+        start = raw_symbol.get("start", location.get("line", 1))
+        end = raw_symbol.get("end", start)
+        try:
+            start = int(start or 1)
+        except (TypeError, ValueError):
+            start = 1
+        try:
+            end = int(end or start)
+        except (TypeError, ValueError):
+            end = start
+        if end < start:
+            end = start
+    raw_line = raw_symbol.get("line", location.get("line"))
+    raw_end_line = raw_symbol.get("endLine", raw_symbol.get("end_line", location.get("end_line")))
+    raw_source_lines = raw_symbol.get("sourceLines", raw_symbol.get("source_lines", ""))
+    if compiler_offsets:
+        start = (
+            utf16_offset_map[start]
+            if utf16_offset_map is not None and start in utf16_offset_map
+            else _utf16_offset_to_utf8_byte_offset(content, start)
+        )
+        end = (
+            utf16_offset_map[end]
+            if utf16_offset_map is not None and end in utf16_offset_map
+            else _utf16_offset_to_utf8_byte_offset(content, end)
+        )
     try:
         line = int(raw_line if raw_line not in (None, "") else start)
     except (TypeError, ValueError):
@@ -432,16 +578,30 @@ def _normalize_polyglot_symbol(raw_symbol: Dict, content: str, language: str = "
     if not logic_dna:
         logic_dna = hashlib.sha256(f"{name}:{symbol_type}:{signature}".encode("utf-8")).hexdigest()
     semantic_signature = str(raw_symbol.get("semanticSignature") or raw_symbol.get("semantic_signature") or signature)
-    canonical_type = str(
+    canonical_type_hint = (
         raw_symbol.get("canonicalSymbolType")
         or raw_symbol.get("canonical_symbol_type")
-        or canonical_symbol_type(raw_type, language=language)
     )
+    if canonical_type_hint:
+        canonical_type = str(canonical_type_hint)
+    elif canonical_type_cache is not None:
+        canonical_cache_key = (language, raw_type)
+        if canonical_cache_key not in canonical_type_cache:
+            canonical_type_cache[canonical_cache_key] = canonical_symbol_type(
+                raw_type,
+                language=language,
+            )
+        canonical_type = str(canonical_type_cache[canonical_cache_key])
+    else:
+        canonical_type = str(canonical_symbol_type(raw_type, language=language))
     framework_tags = raw_symbol.get("frameworkTags", raw_symbol.get("framework_tags", []))
     if not isinstance(framework_tags, list):
         framework_tags = []
     framework_tags = [str(tag).strip() for tag in framework_tags if isinstance(tag, str) and str(tag).strip()]
-    default_profile_name, default_profile = normalization_profile_for_language(language)
+    if normalization_profile_context is None:
+        default_profile_name, default_profile = normalization_profile_for_language(language)
+    else:
+        default_profile_name, default_profile = normalization_profile_context
     normalization_profile = str(
         raw_symbol.get("normalizationProfile")
         or raw_symbol.get("normalization_profile")
@@ -458,6 +618,9 @@ def _normalize_polyglot_symbol(raw_symbol: Dict, content: str, language: str = "
         dependencies = raw_symbol.get("symbols_referenced", [])
     if not isinstance(dependencies, list):
         dependencies = []
+    features = raw_symbol.get("features", [])
+    if not isinstance(features, list):
+        features = []
 
     return {
         "name": name,
@@ -482,7 +645,7 @@ def _normalize_polyglot_symbol(raw_symbol: Dict, content: str, language: str = "
         "end_line": end_line,
         "source_lines": source_lines,
         "dependencies": dependencies,
-        "features": raw_symbol.get("features", []) if isinstance(raw_symbol.get("features", []), list) else [],
+        "features": features,
         "exported": bool(raw_symbol.get("exported", not name.startswith("_"))),
         "export_kind": raw_symbol.get("exportKind", raw_symbol.get("export_kind", "local")),
         "modifiers": raw_symbol.get("modifiers", []) if isinstance(raw_symbol.get("modifiers", []), list) else [],
@@ -498,7 +661,247 @@ def _normalize_polyglot_symbol(raw_symbol: Dict, content: str, language: str = "
         "architectural_markers": raw_symbol.get("architecturalMarkers", raw_symbol.get("architectural_markers", [])),
         "runtime_contract": bool(raw_symbol.get("runtimeContract", raw_symbol.get("runtime_contract", False))),
         "runtime_contract_kind": str(raw_symbol.get("contractKind", raw_symbol.get("runtime_contract_kind", "")) or ""),
+        "state_flow": summarize_state_flow_features(features),
     }
+
+
+def _normalize_polyglot_symbols(
+    raw_symbols: List[Dict],
+    content: str,
+    language: str,
+    *,
+    normalization_profile_context=None,
+    canonical_type_cache=None,
+) -> List[Dict]:
+    """Normalize a file's symbols without rescanning the source for every offset."""
+
+    if not raw_symbols:
+        return []
+    requested_offsets = []
+    if language in {"typescript", "javascript"}:
+        for raw_symbol in raw_symbols:
+            if not isinstance(raw_symbol, dict):
+                continue
+            parser_kind = str(
+                raw_symbol.get("parserKind") or raw_symbol.get("parser_kind") or ""
+            ).strip()
+            if parser_kind != "typescript_compiler_api":
+                continue
+            for field in ("start", "end"):
+                raw_offset = raw_symbol.get(field)
+                try:
+                    requested_offsets.append(int(raw_offset))
+                except (TypeError, ValueError):
+                    # Preserve the canonical per-symbol validation error.
+                    continue
+
+    offset_map = _utf16_offsets_to_utf8_byte_offsets(content, requested_offsets)
+    if normalization_profile_context is None:
+        normalization_profile_context = normalization_profile_for_language(language)
+    if canonical_type_cache is None:
+        canonical_type_cache = {}
+    return [
+        _normalize_polyglot_symbol(
+            raw_symbol,
+            content,
+            language=language,
+            utf16_offset_map=offset_map,
+            normalization_profile_context=normalization_profile_context,
+            canonical_type_cache=canonical_type_cache,
+        )
+        for raw_symbol in raw_symbols
+    ]
+
+
+def _symbol_occurrence_dependencies(symbol: Dict) -> List[str]:
+    """Return only dependencies owned by one compact symbol occurrence."""
+
+    dependencies = symbol.get("dependencies", [])
+    if not isinstance(dependencies, list):
+        dependencies = []
+    normalized = []
+    for dependency in dependencies:
+        value = str(dependency or "").strip()
+        if value and value not in normalized:
+            normalized.append(value)
+    module_specifier = str(symbol.get("module_specifier") or "").strip()
+    if module_specifier and module_specifier not in normalized:
+        normalized.append(module_specifier)
+    return normalized
+
+
+def _build_project_symbol_occurrences(files: Dict[str, Dict]) -> List[Dict]:
+    """Build the collision-preserving project index without file-level fanout."""
+
+    occurrences = []
+    for rel_path, file_data in files.items():
+        if not isinstance(file_data, dict):
+            continue
+        for symbol in file_data.get("symbols", []) or []:
+            if not isinstance(symbol, dict):
+                continue
+            occurrence = {
+                "name": symbol.get("name"),
+                "type": symbol.get("type"),
+                "file": rel_path,
+                "dependencies": _symbol_occurrence_dependencies(symbol),
+            }
+            for coordinate in ("line", "char", "end_line", "source_lines"):
+                if symbol.get(coordinate) is not None:
+                    occurrence[coordinate] = symbol[coordinate]
+            occurrences.append(occurrence)
+    return occurrences
+
+
+def _atlas_text_hash(content: str) -> str:
+    """Return the canonical source hash stored in Atlas file records."""
+
+    return hashlib.md5(content.encode("utf-8")).hexdigest()
+
+
+def _live_atlas_text_hash(path: str) -> str:
+    """Hash live source with the same decoding contract used by Atlas enrichment."""
+
+    with open(path, "r", encoding="utf-8", errors="ignore", newline="") as source_file:
+        return _atlas_text_hash(source_file.read())
+
+
+def _parser_strategy_for_language(language: str) -> str:
+    return {
+        "typescript": "node-ast",
+        "javascript": "node-ast",
+        "python": "python-ast",
+        "java": "java-regex",
+        "csharp": "cs-regex",
+        "go": "go-regex",
+    }.get(str(language or "").strip().lower(), "unavailable")
+
+
+def _file_parser_evidence(raw_results, language: str) -> Dict[str, object]:
+    """Project stable parser evidence owned by one source file."""
+
+    reported = isinstance(raw_results, list)
+    meta = next(
+        (
+            item
+            for item in raw_results or []
+            if isinstance(item, dict) and item.get("name") == "__file_meta__"
+        ),
+        {},
+    )
+    status = str(meta.get("parserStatus") or meta.get("parser_status") or "").strip().lower()
+    if status not in {"observed", "degraded", "unavailable"}:
+        status = "degraded" if reported else "unavailable"
+    return {
+        "strategy": _parser_strategy_for_language(language),
+        "status": status,
+        "reported_by_adapter": reported,
+        "parser_kind": str(
+            meta.get("parserKind") or meta.get("parser_kind") or "unavailable"
+        ),
+        "semantic_depth": str(
+            meta.get("semanticDepth") or meta.get("semantic_depth") or "unavailable"
+        ),
+        "parser_diagnostic_count": int(
+            meta.get("parserDiagnosticCount") or meta.get("parser_diagnostic_count") or 0
+        ),
+        "error_family": meta.get("errorFamily", meta.get("error_family")),
+        "error_type": meta.get("errorType", meta.get("error_type")),
+    }
+
+
+def _build_project_sequencer_evidence(files: Dict[str, Dict]) -> Dict[str, object]:
+    """Aggregate canonical parser coverage independently of fresh/resumed execution."""
+
+    grouped: Dict[str, List[Dict[str, object]]] = {}
+    for rel_path in sorted(files):
+        file_data = files.get(rel_path)
+        if not isinstance(file_data, dict):
+            continue
+        evidence = file_data.get("parser_evidence")
+        if not isinstance(evidence, dict):
+            evidence = _file_parser_evidence(
+                None,
+                str(file_data.get("language") or language_for_extension(Path(rel_path).suffix.lower())),
+            )
+        strategy = str(evidence.get("strategy") or "unavailable")
+        grouped.setdefault(strategy, []).append({"path": rel_path, **evidence})
+
+    details = []
+    warnings = []
+    for strategy in sorted(grouped):
+        rows = grouped[strategy]
+        status_counts = {
+            status: sum(1 for row in rows if row.get("status") == status)
+            for status in ("observed", "degraded", "unavailable")
+        }
+        non_observed = [row for row in rows if row.get("status") != "observed"]
+        if status_counts["unavailable"]:
+            claim_status = "unavailable"
+        elif status_counts["degraded"]:
+            claim_status = "degraded"
+        else:
+            claim_status = "proven"
+        detail = {
+            "strategy": strategy,
+            "files_requested": len(rows),
+            "files_reported_by_adapter": sum(
+                1 for row in rows if row.get("reported_by_adapter") is True
+            ),
+            "files_accounted": len(rows),
+            "status_counts": status_counts,
+            "claim_status": claim_status,
+        }
+        if non_observed:
+            samples = [
+                {
+                    "path": row["path"],
+                    "status": row.get("status"),
+                    "parser_kind": row.get("parser_kind"),
+                    "semantic_depth": row.get("semantic_depth"),
+                    "parser_diagnostic_count": row.get("parser_diagnostic_count", 0),
+                    "error_family": row.get("error_family"),
+                    "error_type": row.get("error_type"),
+                }
+                for row in non_observed[:20]
+            ]
+            if strategy == "node-ast":
+                sample_key = "non_observed_file_samples"
+                warning = (
+                    "Node AST coverage is not fully observed; inspect status_counts and "
+                    "non_observed_file_samples before making scope-wide claims."
+                )
+            elif strategy == "python-ast":
+                sample_key = "degraded_file_samples"
+                warning = (
+                    "Python AST coverage is incomplete; inspect status_counts and "
+                    "degraded_file_samples before making repository-wide structural claims."
+                )
+            else:
+                sample_key = "unavailable_file_samples"
+                warning = (
+                    f"{strategy} structural coverage is incomplete; inspect status_counts and "
+                    "unavailable_file_samples before making scope-wide claims."
+                )
+            detail[sample_key] = samples
+            detail["warning"] = warning
+            warnings.append({"strategy": strategy, "warning": warning})
+        details.append(detail)
+
+    return {
+        "scope": "materialized_project_files",
+        "repository_wide_claim": False,
+        "claim_boundary": (
+            "Coverage is deterministically aggregated from source-bound per-file parser evidence. "
+            "Execution worker, chunk and checkpoint-reuse telemetry is not canonical Atlas state."
+        ),
+        "coverage": {
+            "strategy": "+".join(sorted(grouped)) if grouped else "none",
+            "details": details,
+            "warnings": warnings,
+        },
+    }
+
 
 def load_previous_atlas() -> Dict[str, Dict]:
     p = RAW_DIR / "atlas.json"
@@ -610,7 +1013,21 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "Surgical Atlas scope crosses canonical project ownership: "
                 f"{project_key}::{', '.join(invalid_paths)}"
             )
-    prev_atlas = load_previous_atlas()
+    expected_projects = set(projects.keys())
+    import tools.core.config as runtime_config
+
+    bounded_projection_requested = bool(surgical_files_by_project or runtime_config.PROJECT_FILTER)
+    if previous_atlas_required_for_generation(
+        stale_projects,
+        expected_projects,
+        bounded_projection=bounded_projection_requested,
+    ):
+        prev_atlas = load_previous_atlas()
+    else:
+        prev_atlas = {}
+        logger.info(
+            "[CACHE] Full runtime project scope is stale; rebuilding without materializing the previous Atlas document."
+        )
     if surgical_files_by_project and isinstance(prev_atlas, dict):
         normalized_surgical_files_by_project = {}
         for pkey, paths in surgical_files_by_project.items():
@@ -640,7 +1057,6 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
     predicted_themes = discovery.get("predicted_themes", [])
     predicted_themes_lower = [(theme, theme.lower()) for theme in predicted_themes]
     test_mappings = discovery.get("test_mappings", {})
-    expected_projects = set(projects.keys())
     missing_cached_projects = sorted(expected_projects - set(prev_atlas.keys()))
     effective_stale_projects = None if stale_projects is None else sorted(set(stale_projects) | set(missing_cached_projects))
 
@@ -679,6 +1095,48 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             for rel, f_data in pdata["files"].items():
                 file_cache[(pkey, rel)] = f_data
 
+    staging_store = None
+    staging_run_id = ""
+    staging_producer_contract = ""
+    staged_file_cache = {}
+    staged_sequencer_cache = {}
+    if not dry_run:
+        from tools.core.artifact_store import STORE
+
+        if STORE.use_sqlite:
+            try:
+                staging_store = STORE
+                staging_producer_contract = atlas_staging_producer_contract()
+                staging_run_id = staging_store.begin_atlas_staging_run(staging_producer_contract)
+                staged_file_cache = staging_store.load_atlas_staging_files(
+                    staging_producer_contract,
+                    stage_kind="atlas_file",
+                )
+                staged_sequencer_cache = staging_store.load_atlas_staging_files(
+                    staging_producer_contract,
+                    stage_kind="sequencer_result",
+                )
+                logger.info(
+                    "[ATLAS_STAGING] Resumable generation opened run=%s completed_files=%s sequencer_files=%s",
+                    staging_run_id,
+                    len(staged_file_cache),
+                    len(staged_sequencer_cache),
+                )
+            except Exception as exc:
+                raise AtlasStagingWriteError(
+                    "SQLite Atlas staging could not be initialized; refusing a long non-resumable run."
+                ) from exc
+
+    def checkpoint_staging_reuse(reused_files: int, stage_label: str) -> None:
+        if staging_store is None or not staging_run_id or reused_files <= 0:
+            return
+        try:
+            staging_store.record_atlas_staging_reuse(staging_run_id, reused_files)
+        except Exception as exc:
+            raise AtlasStagingWriteError(
+                f"Atlas staging reuse receipt failed during {stage_label}."
+            ) from exc
+
     import_resolution_cache = {}
     path_exists_cache = {}
 
@@ -698,6 +1156,28 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         if path not in path_exists_cache:
             path_exists_cache[path] = os.path.exists(path)
         return path_exists_cache[path]
+
+    def staged_source_identity_matches(staged, full_path, current_mtime, current_size, *, allow_fingerprint=True):
+        """Accept provisional work only for the same bounded source identity."""
+        if not isinstance(staged, dict) or current_size < 0 or staged.get("size") is None:
+            return False
+        try:
+            size_matches = int(staged.get("size")) == int(current_size)
+        except (TypeError, ValueError):
+            return False
+        if not size_matches:
+            return False
+        if staged.get("hash"):
+            try:
+                return _live_atlas_text_hash(full_path) == str(staged.get("hash"))
+            except OSError:
+                return False
+        if _mtime_close(staged.get("mtime"), current_mtime):
+            return True
+        if not allow_fingerprint or not staged.get("fingerprint"):
+            return False
+        current_fingerprint = compute_file_fingerprint(full_path, int(current_size))
+        return bool(current_fingerprint and current_fingerprint == staged.get("fingerprint"))
 
     def ensure_structure_path(structure: Dict, rel_path: str):
         parts = [part for part in str(rel_path or "").split("/") if part]
@@ -781,7 +1261,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             )
         return strategy
 
-    def _sequence_via_node_batch(file_paths: List[str], atlas_project_workers: int = 1):
+    def _sequence_via_node_batch(file_paths: List[str], atlas_project_workers: int = 1, on_chunk=None):
         """Calls the Node.js high-fidelity sequencer in batches to avoid per-file process overhead."""
         import concurrent.futures
         import json
@@ -884,12 +1364,19 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             if max_workers <= 1:
                 results = {}
                 for job in chunk_jobs:
-                    results.update(run_chunk(job))
+                    chunk_result = run_chunk(job)
+                    results.update(chunk_result)
+                    if on_chunk is not None and chunk_result:
+                        on_chunk(chunk_result)
             else:
                 results = {}
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                     for chunk_result in executor.map(run_chunk, chunk_jobs):
                         results.update(chunk_result)
+                        if on_chunk is not None and chunk_result:
+                            on_chunk(chunk_result)
+        except AtlasStagingWriteError:
+            raise
         except Exception as e:
             logger.debug(f"Node batch sequencing failed: {str(e)}")
             strategy["workers_effective"] = 0
@@ -970,7 +1457,16 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     abs_path = (Path(project_root) / rel_path).resolve().as_posix()
                     if abs_path not in requested_paths:
                         continue
-                    results[abs_path] = file_data.get("symbols", [])
+                    results[abs_path] = list(file_data.get("symbols", []) or []) + [{
+                        "name": "__file_meta__",
+                        "type": "Meta",
+                        "parser_status": file_data.get("status", "unavailable"),
+                        "parser_kind": file_data.get("parser_kind", "unavailable"),
+                        "semantic_depth": file_data.get("semantic_depth", "unavailable"),
+                        "error_family": file_data.get("error_family"),
+                        "error_type": file_data.get("error_type"),
+                        "features": [],
+                    }]
                     file_evidence.append({
                         "path": rel_path,
                         "status": file_data.get("status", "unavailable"),
@@ -1064,7 +1560,16 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     abs_path = (Path(project_root) / rel_path).resolve().as_posix()
                     if abs_path not in requested_paths:
                         continue
-                    results[abs_path] = file_data.get("symbols", [])
+                    results[abs_path] = list(file_data.get("symbols", []) or []) + [{
+                        "name": "__file_meta__",
+                        "type": "Meta",
+                        "parser_status": file_data.get("status", "unavailable"),
+                        "parser_kind": file_data.get("parser_kind", "unavailable"),
+                        "semantic_depth": file_data.get("semantic_depth", "unavailable"),
+                        "error_family": file_data.get("error_family"),
+                        "error_type": file_data.get("error_type"),
+                        "features": [],
+                    }]
                     file_evidence.append({
                         "path": rel_path,
                         "status": file_data.get("status", "unavailable"),
@@ -1449,6 +1954,11 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         pending_ast_files = []
         project_changed_files = []
         project_dna_changed_files = []
+        lifted_by_staging = 0
+        lifted_sequencer_results = 0
+        staging_files_persisted = 0
+        staging_files_skipped_oversize = 0
+        staging_file_batch = []
         lifted_by_mtime = 0
         lifted_by_fingerprint = 0
         lifted_by_hash = 0
@@ -1510,6 +2020,28 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     )
                     f_mtime = -1
                     f_size = -1
+
+                staged = staged_file_cache.get((pkey, rel_path))
+                if staged and file_contract_is_current(staged) and not surgical_mode:
+                    if staged_source_identity_matches(
+                        staged,
+                        full_path,
+                        f_mtime,
+                        f_size,
+                        allow_fingerprint=use_fingerprint_lift,
+                    ):
+                        lifted_staged = dict(staged)
+                        lifted_staged["mtime"] = f_mtime
+                        lifted_staged["size"] = f_size
+                        atlas["files"][rel_path] = lifted_staged
+                        atlas["dependencies"][rel_path] = lifted_staged.get("internal_deps", [])
+                        project_changed_files.append(scoped_change_ref(pkey, rel_path))
+                        canonical_cached = file_cache.get((pkey, rel_path))
+                        previous_dna = canonical_cached.get("dna", "") if canonical_cached else ""
+                        if lifted_staged.get("dna", "") != previous_dna:
+                            project_dna_changed_files.append(scoped_change_ref(pkey, rel_path))
+                        lifted_by_staging += 1
+                        continue
 
                 cached = file_cache.get((pkey, rel_path))
                 if cached and file_contract_is_current(cached) and not surgical_mode:
@@ -1583,19 +2115,87 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 })
                 pending_ast_files.append(full_path)
         walk_elapsed = perf_counter() - walk_start
+        checkpoint_staging_reuse(lifted_by_staging, f"{pkey} completed-file lift")
 
         content_start = perf_counter()
         pending_entries = _load_file_contents(pending_entries)
         content_elapsed = perf_counter() - content_start
 
         ast_start = perf_counter()
+        pending_entry_by_abs = {
+            Path(entry["full_path"]).resolve().as_posix(): entry
+            for entry in pending_entries
+        }
+        node_results_by_file = {}
+        for abs_path, entry in pending_entry_by_abs.items():
+            staged_result = staged_sequencer_cache.get((pkey, entry["rel_path"]))
+            if not isinstance(staged_result, dict):
+                continue
+            source_matches = staged_source_identity_matches(
+                staged_result,
+                entry["full_path"],
+                entry.get("mtime", -1),
+                entry.get("size", -1),
+            )
+            staged_symbols = staged_result.get("results")
+            if source_matches and isinstance(staged_symbols, list) and _parser_evidence_is_reusable(
+                _file_parser_evidence(staged_symbols, language_for_extension(Path(entry["rel_path"]).suffix.lower()))
+            ):
+                node_results_by_file[abs_path] = staged_symbols
+                lifted_sequencer_results += 1
+        checkpoint_staging_reuse(
+            lifted_sequencer_results,
+            f"{pkey} sequencer-result lift",
+        )
+
+        def checkpoint_sequencer_results(results_by_path):
+            if staging_store is None or not staging_run_id or not results_by_path:
+                return
+            rows = []
+            for abs_path, result in results_by_path.items():
+                entry = pending_entry_by_abs.get(Path(abs_path).resolve().as_posix())
+                if entry is None or not isinstance(result, list):
+                    continue
+                rows.append((
+                    entry["rel_path"],
+                    {
+                        "mtime": entry.get("mtime", -1),
+                        "size": entry.get("size", -1),
+                        "fingerprint": compute_file_fingerprint(entry["full_path"], int(entry.get("size", -1))),
+                        "hash": _atlas_text_hash(str(entry.get("content") or "")),
+                        "results": result,
+                    },
+                ))
+            batch_size = max(1, int(staging_store.atlas_staging_batch_size))
+            try:
+                for offset in range(0, len(rows), batch_size):
+                    checkpoint_profile = staging_store.save_atlas_staging_batch(
+                        staging_run_id,
+                        staging_producer_contract,
+                        pkey,
+                        rows[offset:offset + batch_size],
+                        stage_kind="sequencer_result",
+                    )
+                    skipped = int(checkpoint_profile.get("skipped_oversize", 0) or 0)
+                    if skipped:
+                        logger.warning(
+                            "[ATLAS_STAGING] %s sequencer results exceeded the per-file checkpoint bound in %s.",
+                            skipped,
+                            pkey,
+                        )
+            except Exception as exc:
+                raise AtlasStagingWriteError(
+                    f"Atlas sequencer checkpoint failed for project {pkey}."
+                ) from exc
+
         # Polyglot Dispatch: Group pending files by extension
         files_by_ext = {}
         for f in pending_ast_files:
+            if Path(f).resolve().as_posix() in node_results_by_file:
+                continue
             ext = Path(f).suffix.lower()
             files_by_ext.setdefault(ext, []).append(f)
-            
-        node_results_by_file = {}
+
         strategies = []
         strategy_details = []
         
@@ -1608,24 +2208,28 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         if python_files:
             res, strat = _sequence_via_python_batch(python_files, pkey, str(project_root))
             node_results_by_file.update(res)
+            checkpoint_sequencer_results(res)
             strategies.append(strat["strategy"])
             strategy_details.append(strat)
             
         if ".java" in files_by_ext:
             res, strat = _sequence_via_java_batch(files_by_ext[".java"], pkey, str(project_root))
             node_results_by_file.update(res)
+            checkpoint_sequencer_results(res)
             strategies.append(strat["strategy"])
             strategy_details.append(strat)
             
         if ".cs" in files_by_ext:
             res, strat = _sequence_via_cs_batch(files_by_ext[".cs"], pkey, str(project_root))
             node_results_by_file.update(res)
+            checkpoint_sequencer_results(res)
             strategies.append(strat["strategy"])
             strategy_details.append(strat)
             
         if ".go" in files_by_ext:
             res, strat = _sequence_via_go_batch(files_by_ext[".go"], pkey, str(project_root))
             node_results_by_file.update(res)
+            checkpoint_sequencer_results(res)
             strategies.append(strat["strategy"])
             strategy_details.append(strat)
             
@@ -1637,7 +2241,11 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             for path in files_by_ext.get(extension, [])
         ]
         if js_ts_files:
-            res, strat = _sequence_via_node_batch(js_ts_files, atlas_project_workers=atlas_workers)
+            res, strat = _sequence_via_node_batch(
+                js_ts_files,
+                atlas_project_workers=atlas_workers,
+                on_chunk=checkpoint_sequencer_results,
+            )
             node_results_by_file.update(res)
             strategies.append(strat["strategy"])
             strategy_details.append(strat)
@@ -1666,17 +2274,36 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 if isinstance(detail, dict) and detail.get("warning")
             ],
         }
-        atlas["project"]["sequencer_evidence"] = {
-            "scope": "current_materialization_batch",
-            "repository_wide_claim": False,
-            "claim_boundary": (
-                "This evidence covers files sequenced in the current materialization batch. "
-                "Per-symbol parser_kind remains authoritative for cached and materialized symbols."
-            ),
-            "coverage": ast_strategy,
-        }
         ast_elapsed = perf_counter() - ast_start
 
+        def flush_staging_file_batch():
+            nonlocal staging_files_persisted, staging_files_skipped_oversize
+            if staging_store is None or not staging_run_id or not staging_file_batch:
+                return
+            try:
+                result = staging_store.save_atlas_staging_batch(
+                    staging_run_id,
+                    staging_producer_contract,
+                    pkey,
+                    list(staging_file_batch),
+                    stage_kind="atlas_file",
+                )
+            except Exception as exc:
+                raise AtlasStagingWriteError(
+                    f"Completed Atlas file checkpoint failed for project {pkey}."
+                ) from exc
+            staging_files_persisted += int(result.get("persisted", 0) or 0)
+            staging_files_skipped_oversize += int(result.get("skipped_oversize", 0) or 0)
+            if int(result.get("skipped_oversize", 0) or 0):
+                logger.warning(
+                    "[ATLAS_STAGING] %s completed Atlas files exceeded the per-file checkpoint bound in %s.",
+                    int(result.get("skipped_oversize", 0) or 0),
+                    pkey,
+                )
+            staging_file_batch.clear()
+
+        project_normalization_profiles = {}
+        project_canonical_type_caches = {}
         enrich_start = perf_counter()
         for entry in pending_entries:
             full_path = entry["full_path"]
@@ -1721,8 +2348,15 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             line_breaks = [i for i, char in enumerate(content) if char == '\n']
             content_last_offset = max(0, len(content) - 1)
             source_line_count = max(1, count_source_lines(content))
-            for nr in raw_node_results:
-                sym_entry = _normalize_polyglot_symbol(nr, content, language=f_lang)
+            if raw_node_results and f_lang not in project_normalization_profiles:
+                project_normalization_profiles[f_lang] = normalization_profile_for_language(f_lang)
+            for sym_entry in _normalize_polyglot_symbols(
+                raw_node_results,
+                content,
+                language=f_lang,
+                normalization_profile_context=project_normalization_profiles.get(f_lang),
+                canonical_type_cache=project_canonical_type_caches.setdefault(f_lang, {}),
+            ):
                 parser_line = int(sym_entry.get("line") or 0)
                 parser_end_line = int(sym_entry.get("end_line") or 0)
                 parser_source_lines = str(sym_entry.get("source_lines") or "").strip()
@@ -1800,7 +2434,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
 
             if not f_hash:
                 try:
-                    f_hash = hashlib.md5(content.encode('utf-8')).hexdigest()
+                    f_hash = _atlas_text_hash(content)
                 except (TypeError, UnicodeEncodeError) as exc:
                     record_honesty_event(
                         component="generate_atlas",
@@ -1846,6 +2480,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             f_data = {
                 "api_candidates": api_candidates,
                 "type": file_type,
+                "language": f_lang,
                 "project_key": pkey,
                 "atlas_rel_path": rel_path,
                 "workspace_rel": workspace_rel,
@@ -1861,6 +2496,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "symbols": [s for s in ast_symbols if s['name'] != '__file_meta__'],
                 "features": ast_features,
                 "state_flow": state_flow,
+                "parser_evidence": _file_parser_evidence(raw_node_results, f_lang),
                 "dna": "".join([s['dna'] or "" for s in ast_symbols if s['name'] != '__file_meta__']),
                 "mtime": f_mtime,
                 "size": f_size,
@@ -1878,24 +2514,18 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             atlas["dependencies"][rel_path] = internal_deps
             atlas["files"][rel_path] = f_data
             project_changed_files.append(scoped_change_ref(pkey, rel_path))
+            if staging_store is not None and staging_run_id:
+                staging_file_batch.append((rel_path, f_data))
+                if len(staging_file_batch) >= max(1, int(staging_store.atlas_staging_batch_size)):
+                    flush_staging_file_batch()
+        flush_staging_file_batch()
         enrich_elapsed = perf_counter() - enrich_start
 
         index_start = perf_counter()
-        atlas["symbols"] = []
+        atlas["project"]["sequencer_evidence"] = _build_project_sequencer_evidence(atlas["files"])
         atlas["features"] = {}
         atlas["clusters"] = {}
-        for rel_path, f_data in atlas["files"].items():
-            for sym in f_data.get("symbols", []):
-                occurrence = {
-                    "name": sym["name"],
-                    "type": sym["type"],
-                    "file": rel_path,
-                    "dependencies": f_data.get("internal_deps", [])
-                }
-                for coordinate in ("line", "char", "end_line", "source_lines"):
-                    if sym.get(coordinate) is not None:
-                        occurrence[coordinate] = sym[coordinate]
-                atlas["symbols"].append(occurrence)
+        atlas["symbols"] = _build_project_symbol_occurrences(atlas["files"])
         index_elapsed = perf_counter() - index_start
 
         cluster_start = perf_counter()
@@ -1939,6 +2569,10 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             "lifted_by_mtime": lifted_by_mtime,
             "lifted_by_fingerprint": lifted_by_fingerprint,
             "lifted_by_hash": lifted_by_hash,
+            "lifted_by_staging": lifted_by_staging,
+            "lifted_sequencer_results": lifted_sequencer_results,
+            "staging_files_persisted": staging_files_persisted,
+            "staging_files_skipped_oversize": staging_files_skipped_oversize,
             "walk_s": round(walk_elapsed, 3),
             "content_s": round(content_elapsed, 3),
             "ast_s": round(ast_elapsed, 3),
@@ -2043,8 +2677,6 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
 
     build_phase_seconds = perf_counter() - build_phase_start
 
-    import tools.core.config as runtime_config
-
     selected_project_keys = sorted(str(project_key) for project_key in multi_atlas)
     bounded_projection = bool(surgical_files_by_project or runtime_config.PROJECT_FILTER)
     preserved_bounded_projects = preserve_unselected_bounded_projects(
@@ -2093,7 +2725,20 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             DYNAMIC_CONFIG.pop("_source_snapshot_projection_scope", None)
         atlas_persist_start = perf_counter()
         try:
-            atlas_persist_profile = save_json_atomic(output_path, multi_atlas) or {}
+            try:
+                atlas_persist_profile = save_json_atomic(output_path, multi_atlas) or {}
+            except Exception as exc:
+                if staging_store is not None and staging_run_id:
+                    try:
+                        staging_store.finish_atlas_staging_run(
+                            staging_run_id,
+                            staging_producer_contract,
+                            status="FAILED",
+                            error_type=type(exc).__name__,
+                        )
+                    except Exception as receipt_exc:
+                        logger.error("[ATLAS_STAGING] Failure receipt could not be persisted: %s", receipt_exc)
+                raise
         finally:
             if previous_snapshot_scope is None:
                 DYNAMIC_CONFIG.pop("_source_snapshot_projection_scope", None)
@@ -2119,6 +2764,12 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         ensure_valid_payload("workload_profile", workload_profile)
         save_json_atomic(RAW_DIR / "workload_profile.json", workload_profile)
         workload_profile_seconds = perf_counter() - workload_profile_start
+        if staging_store is not None and staging_run_id:
+            staging_store.finish_atlas_staging_run(
+                staging_run_id,
+                staging_producer_contract,
+                status="COMPLETED",
+            )
         logger.info(f"[OK] Generated multi-project atlas: {output_path} ({len(multi_atlas)} projects)")
         
         # [Phase 6] RAM Persistence for Genomic Orchestration
@@ -2132,8 +2783,10 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
     total_elapsed = perf_counter() - atlas_start
     if project_metrics:
         logger.info(
-            "[PROFILE] Atlas persistence | chars=%s bytes=%s serialize=%.3fs encode=%.3fs hash=%.3fs sqlite=%.3fs relational=%.3fs total=%.3fs"
+            "[PROFILE] Atlas persistence | mode=%s parts=%s chars=%s bytes=%s serialize=%.3fs encode=%.3fs hash=%.3fs sqlite=%.3fs relational=%.3fs total=%.3fs"
             % (
+                str(atlas_persist_profile.get("state_payload_storage_mode") or "not_available"),
+                int(atlas_persist_profile.get("state_payload_part_count", 0) or 0),
                 int(atlas_persist_profile.get("state_payload_chars", 0) or 0),
                 int(atlas_persist_profile.get("state_payload_bytes", 0) or 0),
                 float(atlas_persist_profile.get("state_payload_serialize_seconds", 0.0) or 0.0),

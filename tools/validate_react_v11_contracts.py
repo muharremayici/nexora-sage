@@ -112,14 +112,19 @@ def _taxonomy_check() -> dict[str, Any]:
     }
 
 
-def validate_react_v11_contracts() -> dict[str, Any]:
+def build_fixture_atlas(fixture_root: Path) -> dict[str, Any]:
+    """Bind fixture nodes to exact bytes, matching production source evidence."""
     import hashlib
     fixture_atlas = {"files": {}}
-    for path in FIXTURE_ROOT.rglob("*"):
+    for path in fixture_root.rglob("*"):
         if path.is_file():
-            rel = path.relative_to(FIXTURE_ROOT).as_posix()
-            content = path.read_text(encoding="utf-8", errors="replace")
-            fixture_atlas["files"][rel] = {"hash": hashlib.sha256(content.encode("utf-8")).hexdigest()}
+            rel = path.relative_to(fixture_root).as_posix()
+            fixture_atlas["files"][rel] = {"hash": hashlib.sha256(path.read_bytes()).hexdigest()}
+    return fixture_atlas
+
+
+def validate_react_v11_contracts() -> dict[str, Any]:
+    fixture_atlas = build_fixture_atlas(FIXTURE_ROOT)
     route_payload = analyze_project_routes("REACT_V11", FIXTURE_ROOT, fixture_atlas)
     routes = route_payload.get("routes", [])
     features = _sequence_fixture()

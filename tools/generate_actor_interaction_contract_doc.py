@@ -28,6 +28,9 @@ def load_contract() -> dict[str, Any]:
 
 
 def render(contract: dict[str, Any]) -> str:
+    # Bind the supplied semantic snapshot, not checkout-specific file bytes.
+    canonical = json.dumps(contract, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    contract_sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     meta = contract["meta"]
     hierarchy = contract["constitutional_hierarchy"]
     ontology = contract["ontology"]
@@ -36,7 +39,7 @@ def render(contract: dict[str, Any]) -> str:
         "# SAGE Actor Interaction Contract",
         "",
         "> Generated from `config/actor_interaction_contract.json`. Do not edit this document directly.",
-        f"> Contract SHA-256: `{hashlib.sha256(CONTRACT_PATH.read_bytes()).hexdigest()}`",
+        f"> Contract semantic SHA-256 (canonical JSON v1): `{contract_sha256}`",
         "",
         f"Version: `{meta['version']}`",
         f"Status: `{meta['status']}`",

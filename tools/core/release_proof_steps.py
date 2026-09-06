@@ -110,6 +110,87 @@ def _resolve_symbolic_path(value: str) -> str:
     return value
 
 
+def plan_release_proof_reuse(
+    steps: list[dict[str, Any]],
+    *,
+    current_identities: dict[str, dict[str, str]],
+    previous_results: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Propose reuse from supplied identities; never authorize skipping a step."""
+    contract = load_release_proof_scope_contract()
+    policy = contract.get("evidence_reuse", {})
+    fields = policy.get("identity_fields")
+    fresh_domains = policy.get("always_fresh_domains")
+    if (
+        policy.get("mode") != "plan_only"
+        or policy.get("authority") != "diagnostic_only_no_execution_or_release_authority"
+        or not isinstance(fields, list) or not fields
+        or any(not isinstance(field, str) or not field for field in fields)
+        or len(fields) != len(set(fields))
+        or not isinstance(fresh_domains, list) or not fresh_domains
+    ):
+        raise ValueError("Invalid release proof reuse planning contract")
+    scope_map = release_proof_step_scope_map()
+    required_fields = set(fields)
+    ids = [str(step.get("id") or "") for step in steps]
+    if len(ids) != len(set(ids)) or any(step_id not in scope_map for step_id in ids):
+        raise ValueError("Unknown or duplicate step in release proof reuse plan")
+
+    def complete(identity: Any) -> bool:
+        return isinstance(identity, dict) and set(identity) == required_fields and all(
+            isinstance(value, str) and len(value) == 64
+            and all(char in "0123456789abcdef" for char in value)
+            for value in identity.values()
+        )
+
+    rows = []
+    for step_id in ids:
+        previous = previous_results.get(step_id)
+        current = current_identities.get(step_id)
+        reasons = []
+        if scope_map[step_id]["proof_domain"] in fresh_domains:
+            reasons.append("fresh_candidate_evidence_required")
+        if not complete(current):
+            reasons.append("current_identity_incomplete")
+        if not isinstance(previous, dict) or previous.get("id") != step_id:
+            reasons.append("prior_receipt_missing_or_wrong_step")
+        else:
+            if (
+                previous.get("passed") is not True
+                or previous.get("timed_out") is not False
+                or previous.get("attention") is not False
+                or previous.get("returncode") != 0
+            ):
+                reasons.append("prior_result_not_clean_pass")
+            old_identity = previous.get("reuse_identity")
+            if not complete(old_identity):
+                reasons.append("prior_identity_incomplete")
+            elif complete(current) and current != old_identity:
+                reasons.append("identity_changed")
+            if (
+                not isinstance(previous.get("evidence_sha256"), str)
+                or len(previous["evidence_sha256"]) != 64
+                or any(char not in "0123456789abcdef" for char in previous["evidence_sha256"])
+            ):
+                reasons.append("prior_evidence_identity_missing")
+        rows.append({
+            "id": step_id,
+            "decision": "execute" if reasons else "reuse_candidate",
+            "reasons": reasons or ["declared_identities_match_pending_receipt_verification"],
+        })
+    return {
+        "authority": policy["authority"],
+        "mode": policy["mode"],
+        "execution_skipping_allowed": False,
+        "steps": rows,
+        "summary": {
+            "steps": len(rows),
+            "execute": sum(row["decision"] == "execute" for row in rows),
+            "reuse_candidates": sum(row["decision"] == "reuse_candidate" for row in rows),
+        },
+    }
+
+
 def _resolve_raw_artifact(value: Any) -> Path | None:
     if not value:
         return None

@@ -76,6 +76,8 @@
           "type": "string",
           "enum": [
             "full_repository",
+            "bounded_project_selection",
+            "incomplete_evidence",
             "scoped_change"
           ]
         },
@@ -130,6 +132,9 @@
             "partial",
             "empty"
           ]
+        },
+        "scope_authority": {
+          "type": "object"
         }
       },
       "additionalProperties": true

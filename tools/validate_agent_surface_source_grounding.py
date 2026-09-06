@@ -17,6 +17,7 @@ from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_
 from tools.core.config import ROOT as TARGET_ROOT
 from tools.core.agent_packet_budget import BOUNDED_AGENT_PACKET_TOKENS
 from tools.core.atlas_io import load_atlas_data
+from tools.core.import_classifier import import_specifier_from_audit_detail
 
 
 MAX_AGENT_PACKET_TOKENS = BOUNDED_AGENT_PACKET_TOKENS
@@ -93,10 +94,7 @@ def _extract_import_evidence_pairs(text: str) -> list[dict[str, str]]:
             continue
         raw_value = line.split(":", 1)[1].strip()
         for evidence in _extract_inline_list_values(raw_value):
-            match = re.search(r"\bimports\s+(.+)$", evidence)
-            if not match:
-                continue
-            import_spec = match.group(1).strip().strip("\"'").rstrip(".")
+            import_spec = import_specifier_from_audit_detail(evidence)
             if import_spec:
                 pairs.append(
                     {

@@ -169,6 +169,7 @@
             "init",
             "install-proof",
             "run",
+            "run-status",
             "watch",
             "doctor",
             "mcp",

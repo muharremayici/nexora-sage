@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+import re
+
+
+def import_specifier_from_audit_detail(detail: str) -> str:
+    """Read legacy import evidence without interpreting diagnostic fields as paths."""
+    _source, separator, tail = str(detail or "").partition(" imports ")
+    if not separator or "\n" in tail or "\r" in tail:
+        return ""
+    # Audit appends semicolon-delimited key=value diagnostics after the import.
+    raw = re.split(r";\s+[A-Za-z_]\w*=", tail, maxsplit=1)[0].strip()
+    if raw[:1] in {"'", '"', "`"}:
+        return raw[1:-1] if len(raw) > 1 and raw[-1] == raw[0] else ""
+    return raw
+
 
 def is_alias_import(import_path: str, primary_alias: str = "@/") -> bool:
     raw = str(import_path or "").strip()

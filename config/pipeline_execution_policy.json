@@ -72,8 +72,50 @@
     "claim_boundary": "Local runtime telemetry selects only operator update cadence. It does not alter timeouts, scheduling, repository evidence, or release claims.",
     "rationale": "Fast and constrained machines receive bounded local cadence after enough same-scope observations. Until then, the safe bootstrap cadence remains explicit and observable."
   },
+  "pipeline_run_receipts": {
+    "event_type": "pipeline_invocation",
+    "sqlite_table": "governance_trace_events",
+    "shadow_path": "output/.raw/pipeline_run_receipt.json",
+    "shadow_authority": "projection_only",
+    "duration_trace_type": "pipeline_execution",
+    "duration_sample_limit": 10,
+    "duration_minimum_samples": 2,
+    "client_timeout_floor_seconds": 1800,
+    "stale_after_heartbeat_intervals": 3,
+    "lifecycle_phases": [
+      "acquisition",
+      "lock_acquired",
+      "blocked_by_active_run",
+      "atlas_refresh",
+      "execution_planned",
+      "step_completed",
+      "heartbeat",
+      "pipeline_completed",
+      "shadow_flush_started",
+      "shadow_flush_timeout",
+      "evidence_closeout",
+      "process_exit_ready",
+      "terminal"
+    ],
+    "terminal_requires_phase": "process_exit_ready",
+    "shadow_worker_attribution": "process_local_run_id_worker_id_and_artifact_name_only",
+    "shadow_worker_content_policy": "exclude_paths_payloads_and_source_content",
+    "shadow_worker_identity_limit": 50,
+    "process_exit_readiness_requires_global_pending_count": 0,
+    "compatibility_shadow_failure_effect": "preserve_sqlite_authority_expose_failed_count_and_do_not_promote_engineering_correctness",
+    "shadow_flush_timeout_behavior": "retain_pipeline_lock_emit_timeout_receipt_and_continue_bounded_waits_until_terminal",
+    "receipt_shadow_write_mode": "synchronous_projection_bypass_managed_artifact_store",
+    "status_query": "python sage.py run-status --run-id <run_id>",
+    "external_status_query": "python sage.py run-status --target-root <repository> --run-id <run_id>",
+    "latest_status_query": "python sage.py run-status",
+    "retry_rule": "A transport timeout, stale heartbeat or unknown receipt never authorizes a duplicate run. Poll the same run_id and reconcile process state before retry.",
+    "write_failure_behavior": "continue_with_explicit_receipt_degradation",
+    "claim_boundary": "A terminal PASS proves only that the recorded invocation returned successfully. It does not prove repository correctness, quality-gate success, finding validity or release readiness.",
+    "rationale": "One SQLite-first invocation identity survives a lost shell, IDE or agent transport and keeps acquisition, pipeline completion, evidence closeout, process-exit readiness and terminal state attributable without creating a second run ledger."
+  },
   "pipeline_lock": {
     "endpoint": ".pipeline_run.lock",
+    "diagnostic_endpoint": ".pipeline_run.lock.metadata.json",
     "protocol": "os_advisory_file_lock_v1",
     "scope": "single_local_filesystem_endpoint",
     "persistent_endpoint": true,
@@ -255,6 +297,10 @@
     ],
     "required_operational_limits": [
       "atlas_batch_sequencer_timeout_seconds",
+      "atlas_staging_batch_size",
+      "atlas_staging_file_payload_limit_bytes",
+      "state_payload_inline_limit_bytes",
+      "state_payload_part_size_bytes",
       "bootstrap_command_timeout_seconds",
       "cli_command_timeout_seconds",
       "cli_pipeline_refresh_timeout_seconds",
@@ -304,6 +350,7 @@
     ],
     "required_pipeline_lock_policy_fields": [
       "endpoint",
+      "diagnostic_endpoint",
       "protocol",
       "scope",
       "persistent_endpoint",
@@ -477,6 +524,10 @@
   },
   "operational_limits": {
     "atlas_batch_sequencer_timeout_seconds": 180,
+    "atlas_staging_batch_size": 128,
+    "atlas_staging_file_payload_limit_bytes": 33554432,
+    "state_payload_inline_limit_bytes": 8388608,
+    "state_payload_part_size_bytes": 4194304,
     "bootstrap_command_timeout_seconds": 180,
     "cli_command_timeout_seconds": 180,
     "cli_pipeline_refresh_timeout_seconds": 1800,
@@ -1994,6 +2045,11 @@
         "source": "config/codemaps.discovery.json",
         "rationale": "Discovery configuration and workspace signals seed analysis before managed artifacts exist."
       },
+      "external_target_preflight": {
+        "kind": "target_acquisition_input",
+        "source": "output/.raw/external_target_preflight.json",
+        "rationale": "External-target preflight is produced by the acquisition boundary before the orchestrator pipeline and constrains the shared post-Atlas analysis scope authority."
+      },
       "atlas_bound_source": {
         "kind": "target_repo_input",
         "source": "target repository source files bounded by Atlas scope and source_evidence guards",
@@ -2062,7 +2118,10 @@
       "nexora_surface_inventory": {
         "kind": "agent_surface_inventory_input",
         "source": "output/.raw/nexora_surface_inventory.json",
-        "rationale": "Nexora surface inventory is generated by agent-surface tooling outside the orchestrator step catalog and consumed by operator packets."
+        "rationale": "Nexora surface inventory is generated after the operator packet and read by the MCP get_surface_inventory surface outside the orchestrator catalog. The operator packet links to the later inventory but does not consume its payload as evidence.",
+        "broader_system_consumers": [
+          "tools/mcp/server.py"
+        ]
       },
       "operational_parity_validation": {
         "kind": "release_proof_validation_input",
@@ -2144,7 +2203,7 @@
   },
   "ai_context_generator_policy": {
     "surface_role": "global_index_not_surgical_packet",
-    "agent_rule": "AI Context is a broad repository index. Do not use it alone as permission to edit; request a bounded ContextOS/MCP surgical packet before target-repository mutation.",
+    "agent_rule": "AI Context is a broad index of the authority-bound analyzed scope, not necessarily the whole repository. Do not use it alone as permission to edit; request a bounded ContextOS/MCP surgical packet before target-repository mutation.",
     "product_governance_enrichment": {
       "default": "excluded",
       "activation": "explicit_sage_self_surface_only",

@@ -8,6 +8,7 @@ from typing import Any
 from tools.core.config import CONFIG_FILE, DISCOVERY_FILE, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic, DOCTRINE
 from tools.core.atlas_io import load_atlas_data
 from tools.core.runtime_project_scope import project_runtime_atlas
+from tools.core.analysis_scope_authority import bind_consumer_projects, load_scope_authority_for_consumer
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.architecture_blueprints import blueprint_coordinates, canonical_profile_id
@@ -656,7 +657,9 @@ def _classify_project(project_key: str, files: dict[str, Any], deps: dict[str, A
 
 
 def build_architecture_oracle(atlas: dict[str, Any] | None = None, *, use_discovery_prior: bool = True) -> dict[str, Any]:
-    atlas_payload = atlas if isinstance(atlas, dict) else project_runtime_atlas(load_atlas_data())[0]
+    runtime_execution = not isinstance(atlas, dict)
+    canonical_atlas = load_atlas_data() if runtime_execution else atlas
+    atlas_payload = project_runtime_atlas(canonical_atlas)[0] if runtime_execution else canonical_atlas
     projects = []
     for project_key, _project_data, files, deps in _iter_projects(atlas_payload if isinstance(atlas_payload, dict) else {}):
         projects.append(_classify_project(project_key, files, deps, use_discovery_prior=use_discovery_prior))
@@ -666,6 +669,15 @@ def build_architecture_oracle(atlas: dict[str, Any] | None = None, *, use_discov
     if projects:
         profile_counts = Counter(project.get("recommended_profile") for project in projects)
         top_profile = profile_counts.most_common(1)[0][0]
+
+    scope_authority = {}
+    if runtime_execution:
+        _scope_artifact, scope_authority = load_scope_authority_for_consumer(RAW_DIR)
+        scope_authority = bind_consumer_projects(
+            scope_authority,
+            layer="architecture_oracle",
+            observed_projects=(project.get("project") for project in projects),
+        )
 
     return {
         "meta": {
@@ -682,8 +694,10 @@ def build_architecture_oracle(atlas: dict[str, Any] | None = None, *, use_discov
             "top_recommended_profile": top_profile,
             "status": "PROPOSE_SEAL" if ready else "ADVISORY_ONLY",
             "hard_gate_enforced": False,
+            "scope_evidence_status": scope_authority.get("evidence_status", "NOT_EVALUATED_EXPLICIT_INPUT"),
         },
         "projects": projects,
+        "scope_authority": scope_authority,
         "policy": {
             "pre_atlas_discovery_role": "scope_alias_driver_selection_only",
             "post_atlas_oracle_role": "evidence_based_doctrine_proposal",
@@ -706,6 +720,7 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- seal-ready projects: `{summary.get('seal_ready_projects')}`",
         f"- top recommended profile: `{summary.get('top_recommended_profile')}`",
         f"- hard gate enforced: `{summary.get('hard_gate_enforced')}`",
+        f"- scope evidence: `{summary.get('scope_evidence_status')}`",
         "",
         "| Project | Files | Edges | Profile | Confidence | Seal Ready | FSD Direction | Encapsulation |",
         "|---|---:|---:|---|---:|---|---:|---:|",

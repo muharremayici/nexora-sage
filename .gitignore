@@ -19,6 +19,7 @@ scratch/
 # Local logs and locks
 *.log
 .pipeline_run.lock
+.pipeline_run.lock.metadata.json
 
 # Local/secret environment files
 .env

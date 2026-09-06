@@ -19,6 +19,7 @@
       "codemaps_adapters",
       "codemaps_suppressions",
       "discovery",
+      "external_target_preflight",
       "atlas_bound_source",
       "engine_signal_contract_validation",
       "hitl_approval_ledger",
@@ -52,6 +53,7 @@
   },
   "terminal_outputs": {
     "artifacts": [
+      "analysis_scope_authority_analysis_snapshot_lineage",
       "adapter_registry",
       "ai_context",
       "architecture_oracle",
@@ -93,11 +95,16 @@
       "temporal_diff",
       "test_impact_report",
       "variation_analysis",
+      "validation_oracle_scope",
       "watchdog_graph_advisories",
       "workload_profile"
     ],
     "reason": "These are public reports, validation ledgers, compatibility exports, or human/operator surfaces that may be consumed outside the pipeline graph.",
     "classifications": {
+      "analysis_scope_authority_analysis_snapshot_lineage": {
+        "category": "provenance_receipt",
+        "reason": "The immutable post-Atlas scope receipt is consumed on demand by target-repository proof and artifact-trust construction outside the static pipeline step graph."
+      },
       "adapter_registry": {
         "category": "public_registry",
         "reason": "Adapter inventory is a registry/report surface consumed by humans, validators, and future plugin wiring rather than a strict downstream pipeline step."
@@ -261,6 +268,10 @@
       "variation_analysis": {
         "category": "variation_report",
         "reason": "Variation analysis is a terminal variation report unless a merge workflow explicitly consumes it."
+      },
+      "validation_oracle_scope": {
+        "category": "pipeline_terminal_scope_evidence",
+        "reason": "Validation Oracle publishes its bounded project projection for terminal scope reconciliation and the pipeline run receipt; that reconciliation is orchestrator-owned rather than a separate static pipeline step."
       },
       "watchdog_graph_advisories": {
         "category": "agent_validation_evidence",

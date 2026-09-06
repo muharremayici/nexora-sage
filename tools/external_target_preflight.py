@@ -33,6 +33,11 @@ from tools.core.language_registry import (
 )
 from tools.core.installation_identity import runtime_installation_excluded_roots
 from tools.core.target_inventory import selected_project_inventory, source_inventory
+from tools.core.analysis_scope_authority import (
+    INCOMPLETE_EVIDENCE,
+    build_preflight_scope_authority,
+    runtime_project_projection,
+)
 
 
 EXTERNAL_TARGETS_DIR = CODE_MAPS_DIR / "output" / "external_targets"
@@ -401,14 +406,6 @@ def _node_dependency_evidence(
     }
 
 
-def _requested_project_keys(projects: str | None) -> list[str]:
-    return sorted({
-        item.strip().upper()
-        for item in str(projects or "").split(",")
-        if item.strip()
-    })
-
-
 def _embedded_sage_roots(target: Path) -> set[Path]:
     return runtime_installation_excluded_roots(target, CODE_MAPS_DIR)
 
@@ -437,16 +434,10 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
     target_architecture = _infer_target_architecture(target, target_dependencies, target_bundler)
     scope_projection = external_target_scope_projection(target, target_architecture)
     repository_topology = external_target_repository_topology(target, scope_projection)
-    topology_selected_projects = repository_topology["selected_projects"]
-    requested_project_filter = _requested_project_keys(projects)
-    effective_runtime_projects = {
-        key: value
-        for key, value in topology_selected_projects.items()
-        if not requested_project_filter or key.upper() in requested_project_filter
-    }
-    unavailable_requested_projects = sorted(
-        set(requested_project_filter) - {key.upper() for key in topology_selected_projects}
-    )
+    runtime_projection = runtime_project_projection(repository_topology, projects)
+    requested_project_filter = runtime_projection["requested_project_filter"]
+    effective_runtime_projects = runtime_projection["effective_runtime_projects"]
+    unavailable_requested_projects = runtime_projection["unavailable_requested_projects"]
     package_json = load_json_file(target / "package.json", {})
     package_payload_cache = {
         (target / "package.json").resolve(): package_json,
@@ -475,10 +466,20 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         node_dependency_sections,
         policy,
     )
-    selected_package_files = []
-    for relative_path in repository_topology["selected_projects"].values():
+    selected_package_files: list[Path] = []
+    package_roots = sorted(package_react_ownership, key=lambda path: len(path.parts), reverse=True)
+    for relative_path in effective_runtime_projects.values():
         project_root = target if str(relative_path) == "." else target / str(relative_path)
-        package_file = project_root / "package.json"
+        owning_package_root = next(
+            (
+                package_root
+                for package_root in package_roots
+                if project_root.resolve() == package_root
+                or project_root.resolve().is_relative_to(package_root)
+            ),
+            project_root.resolve(),
+        )
+        package_file = owning_package_root / "package.json"
         if (
             package_file.is_file()
             and _outside_excluded_roots(package_file, embedded_sage_roots)
@@ -505,7 +506,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         str(label): set()
         for label in node_dependency_sections
     }
-    package_signal_sources = _package_signal_sources(
+    repository_package_signal_sources = _package_signal_sources(
         package_json,
         "package.json",
         node_dependency_sections,
@@ -516,16 +517,17 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         for label, names in package_groups.items():
             workspace_dependency_groups[label].update(names)
         _merge_package_signal_sources(
-            package_signal_sources,
+            repository_package_signal_sources,
             _package_signal_sources(
                 workspace_payload,
                 package_file.relative_to(target).as_posix(),
                 node_dependency_sections,
             ),
         )
+    effective_package_signal_sources: dict[str, set[str]] = {}
     for package_file in selected_package_files:
         _merge_package_signal_sources(
-            package_signal_sources,
+            effective_package_signal_sources,
             _package_signal_sources(
                 package_payload(package_file),
                 package_file.relative_to(target).as_posix(),
@@ -539,12 +541,20 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         for name in names
     })
     manifest_patterns = manifest_file_marker_map()
-    all_package_names = set(package_signal_sources)
-    framework_authority, unsupported_framework_families = _framework_authority(package_signal_sources, policy)
+    all_package_names = set(effective_package_signal_sources)
+    framework_authority, unsupported_framework_families = _framework_authority(
+        effective_package_signal_sources,
+        policy,
+    )
+    repository_framework_authority, repository_unsupported_framework_families = _framework_authority(
+        repository_package_signal_sources,
+        policy,
+    )
     (
         file_count,
         truncated,
         repository_language_counts,
+        repository_analysis_language_counts,
         repository_react_source_files,
         repository_react_fixture_source_files,
         present_config_files,
@@ -559,12 +569,13 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             excluded_roots=embedded_sage_roots,
         )
         if target.exists() and target.is_dir()
-        else (0, False, {}, 0, 0, [], {})
+        else (0, False, {}, {}, 0, 0, [], {})
     )
     (
         analysis_file_count,
         analysis_truncated,
         language_counts,
+        analysis_language_counts,
         react_source_files,
         react_fixture_source_files,
         _analysis_config_files,
@@ -578,8 +589,23 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         manifest_patterns,
         package_react_ownership,
         excluded_roots=embedded_sage_roots,
+        projects=effective_runtime_projects,
     )
     has_react_signal = bool(all_package_names & react_packages) or react_source_files > 0
+    scope_authority = build_preflight_scope_authority(
+        topology=repository_topology,
+        projects=requested_project_filter,
+        repository_file_count=file_count,
+        repository_inventory_truncated=truncated,
+        repository_language_counts=repository_language_counts,
+        effective_file_count=analysis_file_count,
+        effective_inventory_truncated=analysis_truncated,
+        effective_language_counts=language_counts,
+        effective_project_file_counts=analysis_project_file_counts,
+        polyglot_capabilities=polyglot_capabilities,
+        repository_analysis_language_counts=repository_analysis_language_counts,
+        effective_analysis_language_counts=analysis_language_counts,
+    )
     status_policy = policy.get("status_policy", {})
     if policy_issues:
         status = FAIL_CLOSED_STATUS
@@ -633,6 +659,11 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
     if unavailable_requested_projects:
         attention_reasons.append("requested_project_filter_not_in_topology")
         status = FAIL_CLOSED_STATUS
+    if scope_authority["evidence_status"] == INCOMPLETE_EVIDENCE:
+        attention_reasons.extend(scope_authority["incomplete_reasons"])
+        if status != FAIL_CLOSED_STATUS:
+            status = str(status_policy["recognized_with_unsupported_families"])
+    attention_reasons = list(dict.fromkeys(attention_reasons))
     observation_only_language_map = observation_only_extension_language_map()
 
     return {
@@ -658,6 +689,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             "react_source_file_count": react_source_files,
             "react_fixture_source_file_count": react_fixture_source_files,
             "language_counts": language_counts,
+            "analysis_language_counts": analysis_language_counts,
             "language_families": sorted(language_counts),
             "analysis_scope": {
                 **scope_projection,
@@ -670,18 +702,25 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
                 "scope_field_semantics": {
                     "selected_projects": "topology_auto_selection_before_runtime_filter",
                     "effective_runtime_projects": "project_set_authorized_for_this_requested_execution",
-                    "language_and_framework_inventory": "topology_auto_selection_conservative_preflight",
+                    "language_and_framework_inventory": "effective_runtime_projects",
                 },
-                "inventory_project_scope": "auto_selected_projects",
+                "inventory_project_scope": "effective_runtime_projects",
                 "runtime_claim_project_scope": "effective_runtime_projects",
                 "project_candidates": repository_topology["project_candidates"],
                 "discovered_candidates": repository_topology["project_candidates"],
                 "project_candidate_roles": repository_topology["project_candidate_roles"],
+                "project_candidate_relationship_roles": repository_topology[
+                    "project_candidate_relationship_roles"
+                ],
                 "project_candidate_role_authority": repository_topology["project_candidate_role_authority"],
                 "project_candidate_system_kinds": repository_topology["project_candidate_system_kinds"],
                 "project_candidate_selection_evidence": repository_topology["project_candidate_selection_evidence"],
                 "selected_projects": repository_topology["selected_projects"],
                 "auto_selected_projects": repository_topology["selected_projects"],
+                "relationship_operation_projects": repository_topology[
+                    "relationship_operation_projects"
+                ],
+                "coverage_only_projects": repository_topology["coverage_only_projects"],
                 "requested_project_filter": requested_project_filter,
                 "effective_runtime_projects": effective_runtime_projects,
                 "unavailable_requested_projects": unavailable_requested_projects,
@@ -691,14 +730,19 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
                 "file_ownership_contract": repository_topology["file_ownership_contract"],
                 "relationship_role_contract": repository_topology["relationship_role_contract"],
                 "system_kind_contract": repository_topology["system_kind_contract"],
+                "analysis_coverage_contract": repository_topology["analysis_coverage_contract"],
                 "comparative_analysis_enabled": repository_topology["comparative_analysis_enabled"],
                 "file_count": analysis_file_count,
                 "project_file_counts": analysis_project_file_counts,
                 "truncated": analysis_truncated,
+                "scope_authority": scope_authority,
             },
             "repository_language_counts": repository_language_counts,
+            "repository_analysis_language_counts": repository_analysis_language_counts,
             "analysis_depth": analysis_authority["analysis_depth"],
             "analysis_authority": analysis_authority,
+            "repository_framework_authority": repository_framework_authority,
+            "repository_unsupported_framework_families": repository_unsupported_framework_families,
             "dependency_evidence": {
                 "javascript_node": _node_dependency_evidence(
                     target,
@@ -785,8 +829,10 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- react_fixture_source_file_count: `{summary.get('react_fixture_source_file_count')}`",
         f"- language_families: `{summary.get('language_families')}`",
         f"- language_counts: `{summary.get('language_counts')}`",
+        f"- analysis_language_counts: `{summary.get('analysis_language_counts')}`",
         f"- analysis_scope: `{summary.get('analysis_scope')}`",
         f"- repository_language_counts: `{summary.get('repository_language_counts')}`",
+        f"- repository_analysis_language_counts: `{summary.get('repository_analysis_language_counts')}`",
         f"- analysis_depth: `{summary.get('analysis_depth')}`",
         f"- analysis_authority_status: `{authority.get('status')}`",
         f"- ceiling_claim_level: `{authority.get('ceiling_claim_level')}`",

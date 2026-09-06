@@ -51,17 +51,221 @@ from tools.core.pipeline_registry import (
     step_registry_from_catalog,
 )
 from tools.core.advisory_file_lock import AdvisoryFileLock
-from tools.core.operational_limits import pipeline_step_heartbeat_seconds
+from tools.core.artifact_store import (
+    activate_shadow_write_run,
+    current_shadow_write_run_id,
+    flush_shadow_writes_report,
+    release_shadow_write_run,
+    shadow_write_lifecycle_snapshot,
+)
+from tools.core.operational_limits import artifact_shadow_flush_timeout_seconds, pipeline_step_heartbeat_seconds
+from tools.core.pipeline_run_receipts import PipelineRunRecorder, start_pipeline_run_receipt
+from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage
+from tools.core.analysis_scope_authority import (
+    INCOMPLETE_EVIDENCE,
+    reconcile_consumer_scope_authorities,
+    runtime_scope_authority,
+    scope_receipt_details,
+)
 import tools.core.cache_manager as cache_manager
 
 
 _PROJECT_FILTER = None
 _PIPELINE_LOCK_PATH = CODE_MAPS_DIR / str(pipeline_lock_policy().get("endpoint") or ".pipeline_run.lock")
+_PIPELINE_LOCK_DIAGNOSTIC_PATH = CODE_MAPS_DIR / str(
+    pipeline_lock_policy().get("diagnostic_endpoint") or ".pipeline_run.lock.metadata.json"
+)
 _PIPELINE_LOCK_HANDLE: AdvisoryFileLock | None = None
 _PIPELINE_LOCK_HELD = False
 _PIPELINE_LOCK_LAST_HEARTBEAT = 0.0
 _PIPELINE_LOCK_PROCESS_INSTANCE_ID = uuid.uuid4().hex
 _PIPELINE_LOCK_ATEXIT_REGISTERED = False
+_PIPELINE_RUN_RECEIPT: PipelineRunRecorder | None = None
+_PIPELINE_TERMINAL_DETAILS: dict = {}
+_PIPELINE_SHADOW_RUN_ID = ""
+
+
+class PipelineBusyError(RuntimeError):
+    def __init__(self, message: str, *, active_run_id: str = "", active_pid: int | None = None):
+        super().__init__(message)
+        self.active_run_id = str(active_run_id or "")
+        self.active_pid = active_pid
+
+
+def _pipeline_command_profile(args) -> str:
+    if getattr(args, "step", None):
+        return f"run:step:{normalize_step_name(str(args.step))}"
+    if getattr(args, "from_step", None):
+        return f"run:from:{normalize_step_name(str(args.from_step))}"
+    if getattr(args, "profile", None):
+        return f"run:{args.profile}"
+    if bool(getattr(args, "full", False)):
+        return "run:full"
+    return "run:default"
+
+
+def _pipeline_receipt_progress(phase: str, **details) -> None:
+    if _PIPELINE_RUN_RECEIPT is None:
+        return
+    try:
+        _PIPELINE_RUN_RECEIPT.progress(phase, **details)
+    except Exception as exc:
+        record_honesty_event(
+            component="orchestrator",
+            category="caught_error",
+            operation="pipeline_run_receipt_progress",
+            subject=_PIPELINE_RUN_RECEIPT.run_id,
+            severity="warning",
+            reason="Pipeline progress receipt could not be persisted.",
+            fallback="continue_with_pipeline_log_and_terminal_receipt_attempt",
+            claim_impact="invocation_progress_observability_degraded",
+            exception=exc,
+        )
+        logger.warning("[RUN_RECEIPT] progress persistence failed: %s", exc)
+
+
+def _pipeline_receipt_terminal(
+    *,
+    terminal_status: str,
+    exit_code: int,
+    interruption_reason: str = "",
+    governance_verdict: str = "NOT_EVALUATED",
+    completed_steps: list[str] | None = None,
+    failed_steps: list[str] | None = None,
+    skipped_steps: list[str] | None = None,
+    evidence_identities: list[str] | None = None,
+    scope_details: dict | None = None,
+) -> bool:
+    if _PIPELINE_RUN_RECEIPT is not None and _PIPELINE_RUN_RECEIPT.terminal_recorded:
+        return True
+    run_id = _PIPELINE_RUN_RECEIPT.run_id if _PIPELINE_RUN_RECEIPT is not None else _PIPELINE_SHADOW_RUN_ID
+    if not run_id:
+        return True
+    try:
+        timeout_seconds = float(artifact_shadow_flush_timeout_seconds())
+        observed = shadow_write_lifecycle_snapshot(run_id)
+        process_observed = shadow_write_lifecycle_snapshot()
+        logger.info(
+            "[SHADOW_CLOSEOUT] run_id=%s started=%s pending=%s timeout_seconds=%s",
+            run_id,
+            observed.get("started_count", 0),
+            observed.get("pending_count", 0),
+            timeout_seconds,
+        )
+        _pipeline_receipt_progress(
+            "shadow_flush_started",
+            shadow_worker_started_count=observed.get("started_count", 0),
+            shadow_worker_pending_count=observed.get("pending_count", 0),
+            shadow_worker_global_pending_count=process_observed.get("pending_count", 0),
+            shadow_worker_ids=observed.get("worker_ids", []),
+            shadow_artifacts=observed.get("artifacts", []),
+            shadow_worker_identities_truncated=observed.get("identities_truncated", False),
+            shadow_flush_timeout_seconds=timeout_seconds,
+        )
+        flush_timed_out = False
+        total_wait_seconds = 0.0
+        while True:
+            report = flush_shadow_writes_report(timeout=timeout_seconds, run_id=run_id)
+            total_wait_seconds += float(report.get("wait_seconds") or 0.0)
+            global_pending_count = int(report.get("global_pending_count") or 0)
+            if report.get("complete") and global_pending_count:
+                process_report = flush_shadow_writes_report(timeout=timeout_seconds)
+                total_wait_seconds += float(process_report.get("wait_seconds") or 0.0)
+                global_pending_count = int(process_report.get("global_pending_count") or 0)
+                report["global_pending_count"] = global_pending_count
+            if report.get("complete") and global_pending_count == 0:
+                break
+            flush_timed_out = True
+            logger.warning(
+                "[SHADOW_CLOSEOUT] run_id=%s timeout=true run_pending=%s "
+                "process_pending=%s waited_seconds=%.3f; continuing bounded wait",
+                run_id,
+                report.get("pending_count", 0),
+                global_pending_count,
+                total_wait_seconds,
+            )
+            _pipeline_receipt_progress(
+                "shadow_flush_timeout",
+                shadow_worker_started_count=report.get("started_count", 0),
+                shadow_worker_completed_count=report.get("completed_count", 0),
+                shadow_worker_failed_count=report.get("failed_count", 0),
+                shadow_worker_pending_count=report.get("pending_count", 0),
+                shadow_worker_global_pending_count=global_pending_count,
+                shadow_worker_ids=report.get("worker_ids", []),
+                shadow_artifacts=report.get("artifacts", []),
+                shadow_worker_identities_truncated=report.get("identities_truncated", False),
+                shadow_flush_timed_out=True,
+                shadow_flush_timeout_seconds=timeout_seconds,
+                shadow_flush_wait_seconds=round(total_wait_seconds, 3),
+            )
+            _heartbeat_pipeline_lock(force=True)
+
+        closeout_details = {
+            "shadow_worker_started_count": report.get("started_count", 0),
+            "shadow_worker_completed_count": report.get("completed_count", 0),
+            "shadow_worker_failed_count": report.get("failed_count", 0),
+            "shadow_worker_pending_count": report.get("pending_count", 0),
+            "shadow_worker_global_pending_count": report.get("global_pending_count", 0),
+            "shadow_worker_ids": report.get("worker_ids", []),
+            "shadow_artifacts": report.get("artifacts", []),
+            "shadow_worker_identities_truncated": report.get("identities_truncated", False),
+            "shadow_flush_timed_out": flush_timed_out,
+            "shadow_flush_timeout_seconds": timeout_seconds,
+            "shadow_flush_wait_seconds": round(total_wait_seconds, 3),
+        }
+        logger.info(
+            "[SHADOW_CLOSEOUT] run_id=%s complete=true completed=%s failed=%s "
+            "waited_seconds=%.3f timed_out=%s",
+            run_id,
+            closeout_details["shadow_worker_completed_count"],
+            closeout_details["shadow_worker_failed_count"],
+            total_wait_seconds,
+            flush_timed_out,
+        )
+        _pipeline_receipt_progress("evidence_closeout", **closeout_details)
+        if _PIPELINE_RUN_RECEIPT is None:
+            release_shadow_write_run(run_id)
+            print(
+                f"[RUN_RECEIPT] lifecycle_status=DEGRADED run_id={run_id} "
+                "process_exit_ready=true queryable_receipt=false",
+                file=sys.stderr,
+                flush=True,
+            )
+            return True
+        if not _PIPELINE_RUN_RECEIPT.evidence_closeout_recorded:
+            raise RuntimeError("Evidence closeout receipt was not persisted.")
+        released = release_shadow_write_run(run_id)
+        closeout_details["shadow_worker_global_pending_count"] = 0
+        closeout_details["shadow_worker_pending_count"] = released.get("pending_count", 0)
+        _pipeline_receipt_progress("process_exit_ready", **closeout_details)
+        if not _PIPELINE_RUN_RECEIPT.process_exit_ready_recorded:
+            raise RuntimeError("Process-exit readiness receipt was not persisted.")
+        _PIPELINE_RUN_RECEIPT.terminal(
+            terminal_status=terminal_status,
+            exit_code=exit_code,
+            interruption_reason=interruption_reason,
+            governance_verdict=governance_verdict,
+            completed_steps=completed_steps,
+            failed_steps=failed_steps,
+            skipped_steps=skipped_steps,
+            evidence_identities=evidence_identities,
+            scope_details=scope_details,
+        )
+        return True
+    except Exception as exc:
+        record_honesty_event(
+            component="orchestrator",
+            category="caught_error",
+            operation="pipeline_run_receipt_terminal",
+            subject=run_id,
+            severity="error",
+            reason="Pipeline terminal receipt could not be persisted.",
+            fallback="preserve_process_exit_and_pipeline_log",
+            claim_impact="invocation_terminal_state_unavailable",
+            exception=exc,
+        )
+        logger.error("[RUN_RECEIPT] terminal persistence failed: %s", exc)
+        return False
 
 
 def _apply_runtime_project_filter(projects: str | None) -> list[str] | None:
@@ -93,10 +297,22 @@ def _release_pipeline_lock():
         _PIPELINE_LOCK_HELD = False
 
 
+def _release_pipeline_lock_at_exit():
+    receipt_unready = _PIPELINE_RUN_RECEIPT is not None and not _PIPELINE_RUN_RECEIPT.terminal_recorded
+    shadow_run_unready = bool(current_shadow_write_run_id())
+    if receipt_unready or shadow_run_unready:
+        logger.error(
+            "[RUN_RECEIPT] Process is exiting without terminal readiness; "
+            "leaving diagnostic lock metadata active for post-mortem inspection."
+        )
+        return
+    _release_pipeline_lock()
+
+
 def _lock_payload(state: str = "active") -> dict:
     now_epoch = time.time()
     now_text = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_epoch))
-    return {
+    payload = {
         "lock_protocol": str(pipeline_lock_policy().get("protocol") or "os_advisory_file_lock_v1"),
         "state": state,
         "pid": os.getpid(),
@@ -107,12 +323,23 @@ def _lock_payload(state: str = "active") -> dict:
         "heartbeat_epoch": now_epoch,
         "command": " ".join(sys.argv),
     }
+    run_id = _PIPELINE_RUN_RECEIPT.run_id if _PIPELINE_RUN_RECEIPT is not None else _PIPELINE_SHADOW_RUN_ID
+    if run_id:
+        payload["run_id"] = run_id
+    return payload
 
 
 def _write_pipeline_lock(payload: dict):
     if _PIPELINE_LOCK_HANDLE is None:
         raise RuntimeError("Cannot update pipeline lock metadata without holding the OS advisory lock.")
     _PIPELINE_LOCK_HANDLE.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    try:
+        save_json_atomic(_PIPELINE_LOCK_DIAGNOSTIC_PATH, payload)
+    except Exception as exc:
+        logger.warning(
+            "[PIPELINE] Lock ownership remains active, but readable diagnostic metadata could not be updated: %s",
+            exc,
+        )
 
 
 def _heartbeat_pipeline_lock(force: bool = False):
@@ -168,11 +395,14 @@ def _acquire_pipeline_lock():
         try:
             details = json.loads(candidate.read_text())
         except Exception as exc:
-            logger.info(
-                "[PIPELINE] OS advisory lock is held; holder metadata is unavailable (%s). "
-                "Ownership remains authoritative; diagnostics are limited.",
-                exc,
-            )
+            details = load_json_file(_PIPELINE_LOCK_DIAGNOSTIC_PATH, {})
+            if not isinstance(details, dict) or not details:
+                logger.info(
+                    "[PIPELINE] OS advisory lock is held; holder metadata is unavailable (%s). "
+                    "Ownership remains authoritative; diagnostics are limited.",
+                    exc,
+                )
+                details = {}
         holder = details.get("pid")
         host = details.get("host")
         started = details.get("started_at")
@@ -180,9 +410,18 @@ def _acquire_pipeline_lock():
         holder_info = f" (pid={holder}{', host=' + str(host) if host else ''})" if holder else ""
         started_info = f" since {started}" if started else ""
         heartbeat_info = f"; heartbeat age={heartbeat_age:.0f}s" if heartbeat_age is not None else "; heartbeat unavailable"
-        raise RuntimeError(
+        active_run_id = str(details.get("run_id") or "")
+        _pipeline_receipt_progress(
+            "blocked_by_active_run",
+            active_run_id=active_run_id or "not_available",
+            active_pid=int(holder) if str(holder or "").isdigit() else 0,
+        )
+        raise PipelineBusyError(
             f"!! SYSTEM BUSY !! Another Nexora SAGE pipeline run holds the OS advisory lock{holder_info}{started_info}{heartbeat_info}.\n"
-            "Wait for it to finish. Do not remove .pipeline_run.lock; its metadata is diagnostic only."
+            f"Active run_id={active_run_id or 'not_available'}. Query it before retrying. "
+            "Wait for it to finish. Do not remove .pipeline_run.lock; its metadata is diagnostic only.",
+            active_run_id=active_run_id,
+            active_pid=int(holder) if str(holder or "").isdigit() else None,
         )
     _PIPELINE_LOCK_HANDLE = candidate
     _PIPELINE_LOCK_HELD = True
@@ -193,17 +432,60 @@ def _acquire_pipeline_lock():
         _release_pipeline_lock()
         raise
     if not _PIPELINE_LOCK_ATEXIT_REGISTERED:
-        atexit.register(_release_pipeline_lock)
+        atexit.register(_release_pipeline_lock_at_exit)
         _PIPELINE_LOCK_ATEXIT_REGISTERED = True
 
 
 def _release_pipeline_lock_on_exit(func):
     @wraps(func)
     def wrapped(*args, **kwargs):
+        terminal_ready = _PIPELINE_RUN_RECEIPT is None
         try:
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+        except BaseException as exc:
+            if isinstance(exc, KeyboardInterrupt):
+                terminal_status, exit_code = "INTERRUPTED", 130
+            elif isinstance(exc, PipelineBusyError):
+                terminal_status, exit_code = "BLOCKED", 1
+            elif isinstance(exc, SystemExit):
+                exit_code = int(exc.code) if isinstance(exc.code, int) else 1
+                terminal_status = "PASS" if exit_code == 0 else "FAILED"
+            else:
+                terminal_status, exit_code = "FAILED", 1
+            details = dict(_PIPELINE_TERMINAL_DETAILS)
+            terminal_ready = _pipeline_receipt_terminal(
+                terminal_status=str(details.get("terminal_status") or terminal_status),
+                exit_code=int(details.get("exit_code") if "exit_code" in details else exit_code),
+                interruption_reason=str(details.get("interruption_reason") or f"{type(exc).__name__}: {exc}"),
+                governance_verdict=str(details.get("governance_verdict") or "NOT_EVALUATED"),
+                completed_steps=details.get("completed_steps"),
+                failed_steps=details.get("failed_steps"),
+                skipped_steps=details.get("skipped_steps"),
+                evidence_identities=details.get("evidence_identities"),
+                scope_details=details.get("scope_details"),
+            )
+            raise
+        else:
+            details = dict(_PIPELINE_TERMINAL_DETAILS)
+            terminal_ready = _pipeline_receipt_terminal(
+                terminal_status=str(details.get("terminal_status") or ("FAILED" if result is False else "PASS")),
+                exit_code=int(details.get("exit_code") if "exit_code" in details else pipeline_process_exit_code(result)),
+                interruption_reason=str(details.get("interruption_reason") or ("explicit_preflight_rejection" if result is False else "none")),
+                governance_verdict=str(details.get("governance_verdict") or "NOT_EVALUATED"),
+                completed_steps=details.get("completed_steps"),
+                failed_steps=details.get("failed_steps"),
+                skipped_steps=details.get("skipped_steps"),
+                evidence_identities=details.get("evidence_identities"),
+                scope_details=details.get("scope_details"),
+            )
+            return result
         finally:
-            _release_pipeline_lock()
+            if terminal_ready:
+                _release_pipeline_lock()
+            else:
+                logger.error(
+                    "[RUN_RECEIPT] Pipeline lock retained because process-exit readiness was not recorded."
+                )
 
     return wrapped
 
@@ -236,7 +518,7 @@ PIPELINE_CACHE = {
     "fractal": None
 }
 
-def pre_warm_cache(force_refresh=False):
+def pre_warm_cache(force_refresh=False, atlas=None):
     from tools.core.config import RAW_DIR
     import json
     from collections import defaultdict
@@ -245,11 +527,12 @@ def pre_warm_cache(force_refresh=False):
     if PIPELINE_CACHE.get("__warmed__") and not force_refresh:
         return True
 
-    logger.info("[WATCHDOG] Warming/Refreshing persistent RAM cache...")
+    atlas_source = "provided_runtime_payload" if isinstance(atlas, dict) else "sqlite_first_artifact_store"
+    logger.info("[WATCHDOG] Warming/Refreshing persistent RAM cache... atlas_source=%s", atlas_source)
     
     try:
         # Pre-load Atlas into Orchestrator cache
-        atlas_payload = load_atlas_data()
+        atlas_payload = atlas if isinstance(atlas, dict) else load_atlas_data()
         if atlas_payload:
             PIPELINE_CACHE["atlas"] = atlas_payload
             
@@ -302,6 +585,14 @@ def pre_warm_cache(force_refresh=False):
     except Exception as e:
         logger.warning(f"Cache refresh failed: {e}")
         return False
+
+
+def _pending_cache_consumer_names(steps, successful_steps):
+    return [
+        str(step.get("name") or "")
+        for step in steps
+        if str(step.get("name") or "") not in successful_steps
+    ]
 
 def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None):
     stale_str = ",".join(stale_projects) if stale_projects else None
@@ -422,17 +713,43 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
     def run_oracle_validation_impl():
         from concurrent.futures import ThreadPoolExecutor, as_completed
         from tools.engines.validation_oracle import run_validation_oracle
-        from tools.core.config import RAW_DIR
+        from tools.core.config import RAW_DIR, save_json_atomic
+        from tools.core.analysis_scope_authority import (
+            INCOMPLETE_EVIDENCE,
+            bind_consumer_projects,
+            load_scope_authority_for_consumer,
+        )
         from tools.core.json_io import load_json_file
         from tools.core.projects_registry import resolve_runtime_projects
         from tools.core.workload_profile import build_workload_profile, oracle_worker_count
         projects = [project for project in resolve_runtime_projects(ROOT) if project != "MAIN"]
+        atlas = load_atlas_data()
+        _scope_artifact, scope_authority = load_scope_authority_for_consumer(RAW_DIR)
+        observed_projects: list[str] = []
+        project_statuses: dict[str, str] = {}
         if not projects:
+            scope_authority = bind_consumer_projects(
+                scope_authority,
+                layer="validation_oracle",
+                observed_projects=[],
+                expected_projects=[],
+            )
+            save_json_atomic(RAW_DIR / "validation_oracle_scope.json", {
+                "meta": {"kind": "validation_oracle_scope", "version": "v1"},
+                "scope_authority": scope_authority,
+                "scope_projection": {
+                    "purpose": "non_main_sanctuary_validation",
+                    "selection_rule": "effective_runtime_projects_excluding_MAIN",
+                    "expected_projects": [],
+                    "observed_projects": [],
+                    "repository_ontology_redefinition": False,
+                },
+                "project_statuses": {},
+            })
             return
 
         workload_profile = load_json_file(RAW_DIR / "workload_profile.json", {})
         if not isinstance(workload_profile, dict) or not workload_profile:
-            atlas = load_atlas_data()
             workload_profile = build_workload_profile(atlas if isinstance(atlas, dict) else {})
         workers = oracle_worker_count(workload_profile, len(projects))
         logger.info("[ORACLE] Parallel validation enabled: projects=%s workers=%s", len(projects), workers)
@@ -444,12 +761,37 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
                     result = future.result()
                     if isinstance(result, dict):
                         status = str(result.get("status") or "UNKNOWN").upper()
+                        observed_projects.append(project)
+                        project_statuses[project] = status
                         if status == "FAIL":
                             logger.warning("[ORACLE] Validation failed for %s: %s", project, result.get("error"))
                         elif status == "NOT_APPLICABLE":
                             logger.info("[ORACLE] Validation not applicable for %s", project)
                 except Exception as exc:
                     logger.warning("[ORACLE] Validation worker crashed for %s: %s", project, exc)
+                    project_statuses[project] = "WORKER_CRASH"
+        scope_authority = bind_consumer_projects(
+            scope_authority,
+            layer="validation_oracle",
+            observed_projects=observed_projects,
+            expected_projects=projects,
+        )
+        save_json_atomic(RAW_DIR / "validation_oracle_scope.json", {
+            "meta": {"kind": "validation_oracle_scope", "version": "v1"},
+            "scope_authority": scope_authority,
+            "scope_projection": {
+                "purpose": "non_main_sanctuary_validation",
+                "selection_rule": "effective_runtime_projects_excluding_MAIN",
+                "expected_projects": sorted(projects),
+                "observed_projects": sorted(observed_projects),
+                "repository_ontology_redefinition": False,
+            },
+            "project_statuses": dict(sorted(project_statuses.items())),
+        })
+        if scope_authority.get("layer_consistency") == INCOMPLETE_EVIDENCE:
+            raise RuntimeError(
+                "Validation Oracle project scope diverged from the shared repository scope authority."
+            )
 
     def run_blast_radius_impl():
         from tools.engines.blast_radius_engine import run_blast_radius
@@ -622,7 +964,7 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
         {"name": "Decision Evidence", "func": run_evidence_impl, "kwargs": {}, "heavy": True, "category": "core", "depends_on": ["Fractal Mapping"]},
         {"name": "Keyword Stats", "func": run_keyword_stats, "kwargs": {}, "heavy": True, "category": "core", "depends_on": ["Nuclear Sequencing"]},
         {"name": "Keyword Scanner", "func": run_keyword_main, "kwargs": {}, "heavy": True, "category": "core", "depends_on": ["Nuclear Sequencing"]},
-        {"name": "Gem Scorer", "func": run_keyword_gems, "kwargs": {}, "heavy": True, "category": "core", "depends_on": ["Nuclear Sequencing"]},
+        {"name": "Gem Scorer", "func": run_keyword_gems, "kwargs": {}, "heavy": True, "category": "core", "depends_on": ["Nuclear Sequencing", "Keyword Stats", "Keyword Scanner"]},
         {"name": "UI Mapper", "func": run_ui_impl, "kwargs": {}, "heavy": True, "category": "core", "depends_on": []},
         {"name": "Adapter Registry", "func": run_adapter_registry_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": []},
         {"name": "Framework Route Analyzer", "func": run_framework_routes_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["UI Mapper"]},
@@ -643,7 +985,7 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
         {"name": "Auto-Merge Script Generator", "func": run_merge_script_generator_impl, "kwargs": {}, "heavy": False, "full_only": True, "category": "derived", "depends_on": ["Fractal Mapping", "Audit", "Blast Radius Engine"]},
         {"name": "Oracle Validation Gate", "func": run_oracle_validation_impl, "kwargs": {}, "heavy": False, "full_only": True, "release_deep_only": True, "category": "derived", "depends_on": ["Auto-Merge Script Generator"]},
         {"name": "Self-Healing Generator", "func": run_self_healing_generator_impl, "kwargs": {}, "heavy": False, "full_only": True, "category": "derived", "depends_on": ["Audit"]},
-        {"name": "Health Score", "func": run_health_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Nuclear Sequencing", "Audit", "Dead Code Detector", "Circular Dependency Finder", "Keyword Scanner"]},
+        {"name": "Health Score", "func": run_health_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Nuclear Sequencing", "Audit", "Dead Code Detector", "Circular Dependency Finder", "Keyword Scanner", "Gem Scorer"]},
         {"name": "Module Risk Matrix", "func": run_risk_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Audit", "Nuclear Sequencing", "Dead Code Detector", "Circular Dependency Finder"]},
         {"name": "Temporal Diff", "func": run_temporal_impl, "kwargs": {}, "heavy": False, "full_only": True, "category": "derived", "depends_on": ["Health Score", "Module Risk Matrix"]},
         {"name": "Host Merge Intelligence", "func": run_host_merge_intelligence_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": ["Nuclear Sequencing", "Fractal Mapping"]},
@@ -1200,10 +1542,12 @@ def _step_execution_contracts(steps: list[dict]) -> dict[str, dict]:
     except Exception as exc:
         logger.warning(f"[PIPELINE] Execution policy unavailable; falling back to DAG scheduling: {exc}")
         return {}
-    return {
-        str(step.get("name") or ""): dict(step.get("execution_contract") or {})
-        for step in payload.get("steps", []) or []
-    }
+    contracts: dict[str, dict] = {}
+    for step in payload.get("steps", []) or []:
+        contract = dict(step.get("execution_contract") or {})
+        contract["writes_artifacts"] = list(step.get("writes_artifacts", []) or [])
+        contracts[str(step.get("name") or "")] = contract
+    return contracts
 
 
 def _is_sequential_step(name: str, execution_contracts: dict[str, dict]) -> bool:
@@ -1222,6 +1566,33 @@ def _resolve_pipeline_execution_identity(dynamic_config: dict | None = None) -> 
         installation_root=Path(__file__).resolve().parents[2],
         default_repository_root=ROOT,
     )
+
+
+def _scope_authority_artifact(scope_authority: dict, *, stage: str) -> dict:
+    return {
+        "meta": {
+            "kind": "analysis_scope_authority",
+            "version": "v1",
+            "stage": stage,
+            "authority": "shared_repository_analysis_scope",
+        },
+        "scope_authority": scope_authority,
+    }
+
+
+def _consumer_scope_authority(layer: str, payload: dict) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    if layer == "audit":
+        audit_scope = payload.get("audit_scope")
+        return audit_scope.get("scope_authority") if isinstance(audit_scope, dict) else None
+    if layer == "quality_gate":
+        return (
+            payload.get("analysis_scope_authority")
+            if isinstance(payload.get("analysis_scope_authority"), dict)
+            else None
+        )
+    return payload.get("scope_authority") if isinstance(payload.get("scope_authority"), dict) else None
 
 
 def validate_scoped_host_analyzer_scope(scope: str | None) -> Path | None:
@@ -1251,8 +1622,11 @@ def pipeline_process_exit_code(result) -> int:
 
 @_release_pipeline_lock_on_exit
 def main(args=None, changed_files_override=None):
-    global _PROJECT_FILTER
+    global _PROJECT_FILTER, _PIPELINE_RUN_RECEIPT, _PIPELINE_TERMINAL_DETAILS, _PIPELINE_SHADOW_RUN_ID
     total_start = time.time()
+    _PIPELINE_RUN_RECEIPT = None
+    _PIPELINE_TERMINAL_DETAILS = {}
+    _PIPELINE_SHADOW_RUN_ID = ""
 
     if args is None:
         parser = argparse.ArgumentParser(description="Nexora SAGE Analysis Pipeline")
@@ -1306,14 +1680,34 @@ def main(args=None, changed_files_override=None):
             scoped_host_path,
         )
 
+    ensure_output_dir()
+    execution_identity = _resolve_pipeline_execution_identity()
+    requested_projects = (
+        [item.strip().upper() for item in str(getattr(args, "projects", "") or "").split(",") if item.strip()]
+    )
+    _PIPELINE_SHADOW_RUN_ID = f"sage-run-{uuid.uuid4()}"
+    _PIPELINE_RUN_RECEIPT = start_pipeline_run_receipt(
+        command_profile=_pipeline_command_profile(args),
+        scope=str(execution_identity.get("system_scope") or "SAGE_ON_REPOSITORY"),
+        projects=requested_projects,
+        context={
+            "acquisition_mode": execution_identity.get("acquisition_mode"),
+            "system_scope": execution_identity.get("system_scope"),
+            "subject_root": execution_identity.get("subject_root"),
+            "actor_profile": execution_identity.get("actor_profile"),
+            "reality_profile": execution_identity.get("reality_profile"),
+        },
+        run_id=_PIPELINE_SHADOW_RUN_ID,
+    )
+    activate_shadow_write_run(_PIPELINE_SHADOW_RUN_ID)
     _acquire_pipeline_lock()
     _heartbeat_pipeline_lock(force=True)
+    _pipeline_receipt_progress("lock_acquired")
 
     _apply_runtime_project_filter(getattr(args, "projects", None))
     if _PROJECT_FILTER:
         logger.info(f"Project filter active: {_PROJECT_FILTER}")
 
-    ensure_output_dir()
     logger.info("\n" + "=" * 80)
     logger.info("PIPELINE ANALYSIS SESSION STARTED".center(80))
     logger.info("=" * 80 + "\n")
@@ -1337,7 +1731,6 @@ def main(args=None, changed_files_override=None):
             explicit_step_name = resolve_requested_step(preview_catalog, args.step)
         except ValueError as exc:
             logger.error("[STEP] %s", exc)
-            _release_pipeline_lock()
             raise SystemExit(2) from None
     
     if _PROJECT_FILTER:
@@ -1403,6 +1796,7 @@ def main(args=None, changed_files_override=None):
             if item in dna_changed_set:
                 dna_changed_files.append(item)
     else:
+        _pipeline_receipt_progress("atlas_refresh")
         logger.info("[PHASE 3.11] Running Atlas Pilot to determine change scope...")
         from tools.engines.generate_atlas import generate_atlas
         _heartbeat_pipeline_lock(force=True)
@@ -1412,13 +1806,41 @@ def main(args=None, changed_files_override=None):
             logger.info("[PIPELINE] Force mode active; downstream engines will run in full mode.")
             changed_files = None
 
+    scope_atlas = atlas_data if isinstance(atlas_data, dict) else load_atlas_data()
+    analysis_scope_authority = runtime_scope_authority(
+        dynamic_config=DYNAMIC_CONFIG,
+        projects=get_runtime_project_filter(),
+        atlas=scope_atlas if isinstance(scope_atlas, dict) else {},
+        raw_dir=RAW_DIR,
+    )
+    scope_authority_artifact = _scope_authority_artifact(
+        analysis_scope_authority,
+        stage="POST_ATLAS",
+    )
+    save_json_atomic(RAW_DIR / "analysis_scope_authority.json", scope_authority_artifact)
+    write_current_atlas_lineage(
+        artifact_id="analysis_scope_authority",
+        producer="tools.orchestrators.orchestrator",
+        artifact_payload=scope_authority_artifact,
+        atlas=scope_atlas if isinstance(scope_atlas, dict) else {},
+    )
+    logger.info(
+        "[SCOPE_AUTHORITY] stage=POST_ATLAS status=%s authority_id=%s effective_projects=%s "
+        "indexed_sources=%s claim_eligible_sources=%s reasons=%s",
+        analysis_scope_authority.get("evidence_status"),
+        analysis_scope_authority.get("scope_authority_id"),
+        len(analysis_scope_authority.get("effective_runtime_projects") or {}),
+        analysis_scope_authority.get("indexed_source_file_count"),
+        analysis_scope_authority.get("claim_eligible_source_file_count"),
+        ",".join(analysis_scope_authority.get("incomplete_reasons") or []) or "none",
+    )
+
     should_run_heavy = len(stale_projects) > 0 or args.force
     runtime_atlas = atlas_data if run_mode == "watchdog_save_pulse" else None
     catalog = build_step_catalog(args, stale_projects, changed_files, atlas=runtime_atlas)
     write_pipeline_step_registry(catalog)
     execution_policy = load_pipeline_execution_policy()
     scope_policy = execution_policy.get("step_system_scope_policy", {})
-    execution_identity = _resolve_pipeline_execution_identity()
     active_system_scope = str(execution_identity.get("system_scope") or "")
     scoped_catalog, scope_report = filter_catalog_for_system_scope(
         catalog,
@@ -1452,7 +1874,6 @@ def main(args=None, changed_files_override=None):
         )
     except ValueError as exc:
         logger.error("[STEP] Requested step is unavailable in the active system scope: %s", exc)
-        _release_pipeline_lock()
         raise SystemExit(2) from None
     if run_mode == "watchdog_save_pulse":
         from tools.core.watchdog_runtime_contract import load_watchdog_runtime_contract
@@ -1487,6 +1908,10 @@ def main(args=None, changed_files_override=None):
             )
     execution_contracts = _step_execution_contracts(steps)
     all_step_names = [s["name"] for s in steps]
+    _pipeline_receipt_progress(
+        "execution_planned",
+        active_steps=all_step_names[:50],
+    )
     successful_steps = set()
     if any(s["name"] == "Atlas" for s in steps):
         successful_steps.add("Atlas")
@@ -1509,10 +1934,13 @@ def main(args=None, changed_files_override=None):
     )
     
     cache_policy = str(run_mode_policy.get("runtime_cache_policy") or "broad_pre_warm")
-    if cache_policy == "skip_unrelated_broad_pre_warm":
+    pending_cache_consumers = _pending_cache_consumer_names(steps, successful_steps)
+    if not pending_cache_consumers:
+        logger.info("[CACHE] Pre-warm skipped; execution plan has no pending cache consumers.")
+    elif cache_policy == "skip_unrelated_broad_pre_warm":
         logger.info("[CACHE] Watchdog hot path skipped unrelated Keyword/UI/Landscape/Fractal pre-warm.")
     else:
-        pre_warm_cache()
+        pre_warm_cache(atlas=scope_atlas)
 
         from tools.engines.keyword_scanner import GLOBAL_KEYWORD_CACHE
         from tools.engines.ui_mapper import GLOBAL_UI_CACHE
@@ -1553,6 +1981,11 @@ def main(args=None, changed_files_override=None):
                     else:
                         logger.info(f"[LAUNCH] Reactive Launch: {name}")
                     future = executor.submit(run_step, name, step["func"], **step["kwargs"])
+                    _pipeline_receipt_progress(
+                        "step_started",
+                        step_id=name,
+                        step_status="running",
+                    )
                     running_steps[name] = future
                     started_at = time.time()
                     running_step_started_at[name] = started_at
@@ -1566,6 +1999,8 @@ def main(args=None, changed_files_override=None):
             if not running_steps:
                 if len(successful_steps) + len(failed_steps) + len(skipped_steps) < len(steps):
                     logger.error("[FAIL] Deadlock detected in reactive orchestrator!")
+                    failed_steps.add("__reactive_deadlock__")
+                    pipeline_metrics.append({"name": "__reactive_deadlock__", "status": "failed", "seconds": 0.0})
                     break
                 continue
 
@@ -1583,6 +2018,10 @@ def main(args=None, changed_files_override=None):
                     )
                     running_step_last_heartbeat[running_name] = now
                     _heartbeat_pipeline_lock(force=True)
+                    _pipeline_receipt_progress(
+                        "heartbeat",
+                        active_steps=sorted(running_steps)[:50],
+                    )
             for future in done:
                 finished_name = future_to_step.pop(future, None)
                 if not finished_name:
@@ -1595,16 +2034,33 @@ def main(args=None, changed_files_override=None):
                     if success:
                         successful_steps.add(finished_name)
                         pipeline_metrics.append({"name": finished_name, "status": "success", "seconds": round(elapsed, 2)})
+                        _pipeline_receipt_progress(
+                            "step_completed",
+                            step_id=finished_name,
+                            step_status="success",
+                        )
                     else:
                         failed_steps.add(finished_name)
                         pipeline_metrics.append({"name": finished_name, "status": "failed", "seconds": round(elapsed, 2)})
+                        _pipeline_receipt_progress(
+                            "step_completed",
+                            step_id=finished_name,
+                            step_status="failed",
+                        )
                 except Exception as exc:
                     logger.error(f"[FAIL] Step '{finished_name}' exception: {exc}")
                     failed_steps.add(finished_name)
+                    pipeline_metrics.append({"name": finished_name, "status": "failed", "seconds": 0.0})
+                    _pipeline_receipt_progress(
+                        "step_completed",
+                        step_id=finished_name,
+                        step_status="failed",
+                    )
 
+    _pipeline_receipt_progress("pipeline_completed")
     total_time = time.time() - total_start
     try:
-        from tools.core.config import REPORTS_DIR, save_json_atomic
+        from tools.core.config import REPORTS_DIR
         save_json_atomic(REPORTS_DIR / "pipeline_metrics.json", {
             "total_seconds": round(total_time, 2),
             "steps": pipeline_metrics
@@ -1620,7 +2076,35 @@ def main(args=None, changed_files_override=None):
         if "Quality Gates" in successful_steps
         else {}
     )
+    consumer_scope_authorities: dict[str, dict | None] = {}
+    if "Audit" in successful_steps and run_mode != "watchdog_save_pulse":
+        consumer_scope_authorities["audit"] = _consumer_scope_authority(
+            "audit",
+            load_json_file(RAW_DIR / "audit_report.json", {}),
+        )
+    if "Architecture Oracle" in successful_steps:
+        consumer_scope_authorities["architecture_oracle"] = _consumer_scope_authority(
+            "architecture_oracle",
+            load_json_file(RAW_DIR / "architecture_oracle.json", {}),
+        )
+    if "Oracle Validation Gate" in successful_steps:
+        consumer_scope_authorities["validation_oracle"] = _consumer_scope_authority(
+            "validation_oracle",
+            load_json_file(RAW_DIR / "validation_oracle_scope.json", {}),
+        )
+    if "Quality Gates" in successful_steps:
+        consumer_scope_authorities["quality_gate"] = _consumer_scope_authority(
+            "quality_gate",
+            quality_gate_payload,
+        )
+    analysis_scope_authority = reconcile_consumer_scope_authorities(
+        analysis_scope_authority,
+        consumer_scope_authorities,
+    )
+    scope_details = scope_receipt_details(analysis_scope_authority)
     governance_verdict = pipeline_completion_governance_verdict(successful_steps, quality_gate_payload)
+    if analysis_scope_authority.get("evidence_status") == INCOMPLETE_EVIDENCE:
+        governance_verdict = INCOMPLETE_EVIDENCE
     logger.info(
         (
             f"  Step execution: completed={len(successful_steps)} | "
@@ -1628,12 +2112,36 @@ def main(args=None, changed_files_override=None):
         ).center(80)
     )
     logger.info(f"  Governance verdict: {governance_verdict}".center(80))
+    logger.info(
+        (
+            f"  Scope evidence: {analysis_scope_authority.get('evidence_status')} | "
+            f"claim={analysis_scope_authority.get('claim_scope')} | "
+            f"consumers={analysis_scope_authority.get('consumer_scope_consistency')}"
+        ).center(80)
+    )
     logger.info("=" * 80 + "\n")
 
+    evidence_identities = sorted(
+        {
+            str(artifact)
+            for step_name in successful_steps
+            for artifact in execution_contracts.get(step_name, {}).get("writes_artifacts", [])
+            if str(artifact)
+        }
+    )
+    _PIPELINE_TERMINAL_DETAILS = {
+        "terminal_status": "FAILED" if failed_steps else "PASS",
+        "exit_code": 1 if failed_steps else 0,
+        "interruption_reason": "pipeline_step_failure" if failed_steps else "none",
+        "governance_verdict": governance_verdict,
+        "completed_steps": sorted(successful_steps),
+        "failed_steps": sorted(failed_steps),
+        "skipped_steps": sorted(skipped_steps),
+        "evidence_identities": evidence_identities,
+        "scope_details": scope_details,
+    }
     if failed_steps:
-        _release_pipeline_lock()
         sys.exit(1)
-    _release_pipeline_lock()
 
 if __name__ == "__main__":
     from tools.core.config import ensure_output_dir

@@ -1479,8 +1479,10 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
     else:
         missing_fields = sorted(required_pipeline_lock_policy_fields - set(pipeline_lock.keys()))
         endpoint = str(pipeline_lock.get("endpoint") or "")
+        diagnostic_endpoint = str(pipeline_lock.get("diagnostic_endpoint") or "")
         invalid_values = {
             "endpoint": endpoint,
+            "diagnostic_endpoint": diagnostic_endpoint,
             "protocol": pipeline_lock.get("protocol"),
             "scope": pipeline_lock.get("scope"),
             "persistent_endpoint": pipeline_lock.get("persistent_endpoint"),
@@ -1493,6 +1495,9 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
             missing_fields
             or not endpoint
             or Path(endpoint).is_absolute()
+            or not diagnostic_endpoint
+            or Path(diagnostic_endpoint).is_absolute()
+            or diagnostic_endpoint == endpoint
             or bool(pipeline_lock.get("persistent_endpoint")) is not True
             or str(pipeline_lock.get("holder_decision_source") or "") != "os_advisory_lock"
             or str(pipeline_lock.get("metadata_role") or "") != "diagnostic_only"

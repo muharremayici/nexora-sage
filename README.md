@@ -1,6 +1,6 @@
 # Nexora SAGE
 
-Current version: **1.0.3**.
+Current version: **1.0.4**.
 
 AI made code generation cheap.
 It did not make architecture cheap.
@@ -142,6 +142,17 @@ python sage.py doctor --include-validate --quick --max-seconds 180
 python sage.py watch --once --target-root "C:\path\to\repository"
 ```
 
+Every material `sage.py run` prints a durable `run_id`. If a shell, IDE or
+agent transport times out, query that invocation instead of starting a duplicate:
+
+```powershell
+python sage.py run-status --run-id "sage-run-..."
+python sage.py run-status --target-root "C:\path\to\repository" --run-id "sage-run-..."
+```
+
+A terminal `PASS` confirms process execution only. Repository findings and
+engineering claims remain subject to their own evidence and quality gates.
+
 After an embedded/default repository has been explicitly initialized, its
 compiled workspace may use the corresponding targetless forms. A central SAGE
 installation should keep `--target-root` on every repository-specific run so
@@ -216,7 +227,7 @@ SAGE is also built by the same principles it gives to AI agents: scoped intent, 
 
 ## License
 
-This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.0.3 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
+This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.0.4 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
 
 `NOTICE.md` states the SAGE-specific release-status, evidence, certification and
 human-review boundaries. In particular, a SAGE `PASS` or release-proof is

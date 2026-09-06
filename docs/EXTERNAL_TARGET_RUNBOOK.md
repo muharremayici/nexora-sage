@@ -52,13 +52,15 @@ identity is unavailable, SAGE blocks command emission instead of presenting a
 target-agnostic command. Copying a recommended command must therefore preserve
 the repository that produced the debt.
 
-Current operational limitation: target-bound read-only MCP calls may still
-update the product's default MCP/honesty telemetry store and open target-local
-SQLite WAL/SHM companions. These writes contain operational call metadata, not
-target findings or response bodies, and do not authorize evidence fallback.
-Separating product-global telemetry from target evidence is tracked as
-non-blocking post-V1 work; operators comparing target manifests should exclude
-these declared operational side effects.
+Current development-source behavior: MCP call timing and bounded fallback
+diagnostics use the product-global `output/.operational/mcp/` namespace. They do
+not write into default or explicit-target evidence databases, retain target
+paths or response bodies, or authorize evidence fallback. The raw state-payload
+and payload-fingerprint readers used by this boundary close their SQLite
+connections explicitly; the dedicated subprocess authority validator compares
+default, target-A and target-B manifests and fails if target namespaces or
+SQLite sidecars remain changed after process exit. This is a v1.1 roadmap
+delivery and does not retroactively expand the published v1.0.3 claim.
 
 The public distribution exposes only `SAGE_ON_REPOSITORY`. It may analyze the
 SAGE source tree as an ordinary target repository, but that does not grant
@@ -291,7 +293,8 @@ The active runtime config becomes:
 - `workspace_root`: the provided target folder
 - `source_mode`: `external_target`
 - `variations`: the projects selected by canonical repository topology discovery
-- `project_roles`: canonical `host`, `variation`, and `companion` roles
+- `project_roles`: canonical `host`, `variant`, `companion`, or `unresolved`
+  relationship roles
 - `analysis_projection`: `single_project` or `multi_project`, derived from discovered topology
 
 External acquisition does not define a second repository ontology. Normal
@@ -301,9 +304,12 @@ runtime isolation, and an isolated output namespace; it does not flatten nested
 projects into `MAIN`.
 
 `MAIN` remains the safely inferred host project scope, such as `src` for a
-root application. Nested project candidates are promoted to separate project
-keys when evidence supports their automatic selection. Every discovered project
-boundary owns its subtree even when that candidate is not selected for analysis.
+root application. A nested candidate with its own recognized config/manifest,
+a declared workspace edge, a policy-recognized relation container, or strong
+independent structure is promoted to a separate project key for repository
+coverage. Coverage selection does not invent its relationship role: a candidate
+without relationship evidence remains `unresolved`. Every discovered project
+boundary owns its subtree even when an explicit caller filter bounds it out.
 Parent Atlas walks therefore exclude all nested discovered project roots: a
 bounded-out embedded project cannot leak back into `MAIN`, and a selected child
 cannot be counted under multiple project keys.
@@ -327,6 +333,10 @@ Preflight exposes:
 - `project_candidate_selection_evidence`
 - `selected_projects` / `auto_selected_projects`: topology selection before a
   caller runtime filter
+- `coverage_only_projects`: selected project boundaries whose source is included
+  in analysis but whose host/variant/companion relationship remains unresolved
+- `relationship_operation_projects`: selected projects eligible for
+  relationship-dependent comparison or merge behavior
 - `requested_project_filter`: the caller's explicit `--projects` request
 - `effective_runtime_projects`: the projects authorized for this execution
 - `unavailable_requested_projects`: requested keys absent from discovered
@@ -344,11 +354,41 @@ and is labelled with `inventory_project_scope`; it may warn about a discovered
 project outside the requested runtime filter but cannot expand the runtime
 claim. A requested project absent from discovered topology fails closed.
 
-Automatic selection includes the host scope, declared workspace matches, and
-policy-recognized variation/companion containers. Config, manifest, or strong structural
-evidence can prove that a nested project candidate exists; it does not by itself
-prove that the candidate belongs to the host's comparative topology. A candidate
-without relationship evidence remains visible and requires explicit selection.
+After Atlas is materialized, the orchestrator writes one immutable
+`POST_ATLAS` `analysis_scope_authority` artifact. Audit, Architecture Oracle,
+Validation Oracle, and Quality Gate consume that exact authority rather than
+deriving a competing repository scope. Their scope identities are reconciled in
+the terminal run receipt, but terminal reconciliation does not rewrite the
+post-Atlas authority or its lineage receipt.
+
+Agent-facing action surfaces additionally require the SQLite-primary content
+digests for the scope authority, Audit, and Quality Gate to match COMPLETE
+lineage receipts bound to the current Atlas snapshot. Matching project names,
+timestamps, or embedded authority IDs alone are not sufficient action evidence.
+
+The authority distinguishes three outcomes:
+
+- `COMPLETE_REPOSITORY`: all claim-eligible supported source discovered for the
+  repository is represented by the effective runtime scope.
+- `BOUNDED_PROJECT_SELECTION`: an explicit caller selection such as
+  `--projects MAIN` is complete for that declared project boundary, but is not a
+  whole-repository claim.
+- `INCOMPLETE_EVIDENCE`: automatic omission, truncation, unavailable requested
+  projects, or consumer disagreement prevents an actionable repository claim.
+
+A zero process exit reports execution completion. It does not upgrade bounded
+or incomplete scope into complete-repository evidence.
+
+Automatic repository coverage includes the host scope plus evidence-bearing
+nested candidates discovered from declared workspace matches, policy-recognized
+containers, candidate-local config/manifests, or strong independent structure.
+Config, manifest, or structural evidence proves a boundary and grants analysis
+coverage; it does not by itself prove that the candidate belongs to the host's
+comparative topology. A candidate without relationship evidence remains
+`unresolved`, is exposed under `coverage_only_projects`, and is denied as a
+host-merge source. This prevents both silent omission and fabricated companion
+or variant semantics. It also avoids file-count promotion: source volume alone
+does not establish a repository relationship.
 A single-project projection is a bounded selection, not evidence that no nested
 project exists. Semantic depth still follows the language/framework capability
 matrix; multi-project discovery does not grant unsupported-language authority.
@@ -359,8 +399,8 @@ Technical system-kind inference requires a separate evidence-bearing
 classification stage. V1 keeps that inference conservative; a future two-pass
 Topology Oracle may consume candidate-local fingerprints or bounded scout
 Atlases before full Atlas materialization. Until then an otherwise unproven
-candidate receives a restrictive companion execution fallback, explicitly
-marked as unresolved; a policy-recognized container role remains a
+candidate remains `unresolved` and coverage-only; a
+policy-recognized container role remains a
 medium-confidence inference rather than a resolved relationship, and its
 technical system kind remains `unknown`.
 

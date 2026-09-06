@@ -80,6 +80,18 @@ def _proof(target_root: Path) -> dict:
         "meta": {"kind": "target_repository_proof_bundle", "version": "v1", "generated_at": NOW, "generator": "tools.generate_target_repository_proof_bundle", "contract_identity": "a" * 64},
         "subject": {"scope": "target_repository", "root": str(target_root.resolve()), "analysis_snapshot_kind": "atlas_commit", "analysis_snapshot_id": "snapshot-a", "root_binding": "BOUND", "repository_reference_kind": "explicit", "repository_reference_id": "fixture", "working_tree_status": "not_applicable"},
         "claim_boundary": "Fixture target proof binding only.",
+        "scope_evidence": {
+            "status": "PASS",
+            "scope_authority_id": "fixture-scope",
+            "evidence_status": "BOUNDED_PROJECT_SELECTION",
+            "claim_scope": "explicit_project_selection",
+            "full_repository_claim_eligible": False,
+            "atlas_projects": ["MAIN"],
+            "effective_projects": ["MAIN"],
+            "indexed_projects": ["MAIN"],
+            "checks": {"indexed_projects_match_effective_scope": True},
+            "reasons": [],
+        },
         "summary": {"mode": "baseline", "verdict": "PASS", "required_evidence": 1, "required_ready": 1, "optional_evidence": 0, "optional_ready": 0},
         "evidence": [{"artifact_id": "atlas", "required": True, "path": "atlas.json", "availability": "PRESENT", "freshness": "NOT_APPLICABLE", "snapshot_binding": "BOUND", "bound_snapshot_id": "snapshot-a", "content_sha256": "b" * 64, "source_verdict": "PRESENT", "human_decision": False}],
         "statistics": [],
@@ -140,6 +152,20 @@ def test_mismatched_target_proof_blocks_all_lesson_projection(tmp_path: Path) ->
     wrong_root = tmp_path / "different-target"
     wrong_root.mkdir()
     _write(_raw_dir(tmp_path), "target_repository_proof_bundle", _proof(wrong_root))
+    _write(_raw_dir(tmp_path), "watchdog_pulse_ledger", _watchdog())
+    _write(_raw_dir(tmp_path), "hitl_approval_ledger", _approvals())
+    payload = _build(tmp_path)
+    assert payload["summary"]["status"] == "PARTIAL"
+    assert payload["lessons"] == []
+    assert "target_binding:invalid" in payload["unknowns"]
+
+
+def test_missing_scope_evidence_blocks_all_lesson_projection(tmp_path: Path) -> None:
+    proof = _proof(tmp_path)
+    assert validate_payload("target_repository_proof_bundle", proof) == []
+    del proof["scope_evidence"]
+    assert validate_payload("target_repository_proof_bundle", proof)
+    _write(_raw_dir(tmp_path), "target_repository_proof_bundle", proof)
     _write(_raw_dir(tmp_path), "watchdog_pulse_ledger", _watchdog())
     _write(_raw_dir(tmp_path), "hitl_approval_ledger", _approvals())
     payload = _build(tmp_path)

@@ -5,6 +5,12 @@ from pathlib import Path
 
 from tools.core.artifact_contracts import AUDIT_REPORT_TEXT_PATH, MASTER_REPORT_PATH
 from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage
+from tools.core.analysis_scope_authority import (
+    INCOMPLETE_EVIDENCE,
+    extract_scope_authority,
+    fail_closed_scope_authority,
+    reconcile_consumer_scope_authorities,
+)
 from tools.core.audit_report import load_audit_report
 from tools.core.config import OUTPUT_DIR, RAW_DIR, REPORTS_DIR, CONFIG_FILE, DISCOVERY_FILE, DYNAMIC_CONFIG, DOCTRINE, save_json_atomic, save_text_atomic
 from tools.core.doctrine_contract import require_dead_code_policy, require_doctrine_mapping
@@ -78,6 +84,25 @@ def _audit_enforcement_authority() -> dict:
             'compiler or policy enforcement is not represented unless a provenance-bound adapter says otherwise.'
         ),
     }
+
+
+def _quality_scope_gate(audit_report: dict) -> tuple[dict, bool, dict]:
+    shared_payload = load_json_file(RAW_DIR / "analysis_scope_authority.json", {})
+    shared = extract_scope_authority(shared_payload) or fail_closed_scope_authority(
+        "analysis_scope_authority_missing_at_quality_gate"
+    )
+    audit_scope = audit_report.get("audit_scope") if isinstance(audit_report, dict) else None
+    audit_authority = (
+        extract_scope_authority(audit_scope.get("scope_authority"))
+        if isinstance(audit_scope, dict)
+        else None
+    )
+    reconciled = reconcile_consumer_scope_authorities(shared, {"audit": audit_authority})
+    usable = (
+        reconciled.get("evidence_status") != INCOMPLETE_EVIDENCE
+        and reconciled.get("consumer_scope_consistency") == "CONSISTENT"
+    )
+    return reconciled, usable, shared_payload
 
 
 def _ratio(numerator: int, denominator: int) -> float:
@@ -577,9 +602,15 @@ def run_quality_gates():
         return
 
     fractal = load_fractal_map_data()
-    atlas, _execution_scope = project_runtime_atlas(load_atlas_data())
+    canonical_atlas = load_atlas_data()
+    atlas, _execution_scope = project_runtime_atlas(canonical_atlas)
     genome = load_genome_data()
     audit_report = load_audit_report()
+    (
+        analysis_scope_authority,
+        analysis_scope_gate_passed,
+        analysis_scope_authority_artifact,
+    ) = _quality_scope_gate(audit_report)
     state_flow = load_json_file(RAW_DIR / 'state_flow.json', {})
     blast_radius = load_json_file(RAW_DIR / 'blast_radius.json', {})
     react_support_matrix = load_json_file(RAW_DIR / 'react_support_matrix.json', {})
@@ -729,6 +760,20 @@ def run_quality_gates():
         )
 
     checks = [
+        {
+            'name': 'analysis_scope_authority',
+            'actual': 1 if analysis_scope_gate_passed else 0,
+            'expected': 1,
+            'operator': '==',
+            'passed': analysis_scope_gate_passed,
+            'details': [{
+                'scope_authority_id': analysis_scope_authority.get('scope_authority_id'),
+                'evidence_status': analysis_scope_authority.get('evidence_status'),
+                'claim_scope': analysis_scope_authority.get('claim_scope'),
+                'consumer_scope_consistency': analysis_scope_authority.get('consumer_scope_consistency'),
+                'incomplete_reasons': analysis_scope_authority.get('incomplete_reasons', []),
+            }],
+        },
         {
             'name': 'required_artifacts',
             'actual': len(missing_required),
@@ -1165,6 +1210,8 @@ def run_quality_gates():
     payload = {
         'passed': overall_pass,
         'release_gate_status': 'PASS' if overall_pass else 'FAIL',
+        'scope_gate_status': 'PASS' if analysis_scope_gate_passed else INCOMPLETE_EVIDENCE,
+        'analysis_scope_authority': analysis_scope_authority,
         'ecosystem_signal_status': 'ATTENTION' if ecosystem_attention else 'CLEAR',
         'ecosystem_warning_signals': ecosystem_warning_signals,
         'audit_enforcement_authority': _audit_enforcement_authority(),
@@ -1179,8 +1226,9 @@ def run_quality_gates():
         artifact_id="quality_gate",
         producer="tools.engines.quality_gate",
         artifact_payload=payload,
-        atlas=atlas,
+        atlas=canonical_atlas,
         dependency_payloads={
+            "analysis_scope_authority": analysis_scope_authority_artifact,
             "genome": genome,
             "audit_report": audit_report,
         },
@@ -1190,6 +1238,7 @@ def run_quality_gates():
         '# Pipeline Quality Gates',
         '',
         f"Release Gate: {'PASS' if overall_pass else 'FAIL'}",
+        f"Scope Gate: {'PASS' if analysis_scope_gate_passed else INCOMPLETE_EVIDENCE}",
         f"Ecosystem Signal: {'ATTENTION' if ecosystem_attention else 'CLEAR'}",
         '',
         '> Enforced checks decide PASS/FAIL. Informational checks stay visible but do not block green status.',

@@ -322,6 +322,8 @@ def run_validation() -> dict[str, Any]:
     completed_waves_missing_local_evidence: list[dict[str, str]] = []
     invalid_wave_release_scopes: list[dict[str, Any]] = []
     evidence_check_scope = "clean_mirror_reference_only" if is_clean_install_root(ROOT) else "source_local_artifact_presence"
+    current_output_reference = VALIDATION_RAW.relative_to(ROOT).as_posix()
+    self_output_referenced = False
     wave_positions = {wave_id: index for index, wave_id in enumerate(actual_wave_order)}
     for wave in waves:
         if not isinstance(wave, dict):
@@ -349,6 +351,10 @@ def run_validation() -> dict[str, Any]:
         if assigned and not open_assigned:
             for evidence in wave.get("closure_evidence", []):
                 evidence_text = str(evidence)
+                if evidence_text == current_output_reference:
+                    # This invocation produces that reference; previous bytes cannot prove it.
+                    self_output_referenced = True
+                    continue
                 if not closure_evidence_is_available(root=ROOT, evidence=evidence_text):
                     completed_waves_missing_local_evidence.append({"wave": wave_id, "evidence": evidence_text})
 
@@ -414,6 +420,11 @@ def run_validation() -> dict[str, Any]:
             {"invalid_blocking_items": invalid_blocking_items},
         ),
         _check(
+            "delivery_ready_items_have_reviewed_passing_technical_evidence",
+            not any(row.get("errors") for row in report.get("delivery_assessments", [])),
+            {"assessments": report.get("delivery_assessments", [])},
+        ),
+        _check(
             "closed_work_items_have_closed_lifecycle_language",
             not closed_items_with_open_language,
             {"closed_items_with_open_language": closed_items_with_open_language},
@@ -465,6 +476,7 @@ def run_validation() -> dict[str, Any]:
                 "completed_waves_without_evidence": completed_waves_without_evidence,
                 "completed_waves_missing_local_evidence": completed_waves_missing_local_evidence,
                 "evidence_check_scope": evidence_check_scope,
+                "self_output_presence_check": "after_atomic_write" if self_output_referenced else "not_referenced",
                 "state_source": "config/sage_work_item_registry.json",
             },
         ),
@@ -487,6 +499,8 @@ def run_validation() -> dict[str, Any]:
             "failed_checks": len(failed),
             "open_work_items": report.get("summary", {}).get("open_work_items"),
             "blocking_work_items": report.get("summary", {}).get("blocking_work_items"),
+            "technical_blocking_work_items": report.get("summary", {}).get("technical_blocking_work_items"),
+            "delivery_pending_work_items": report.get("summary", {}).get("delivery_pending_work_items"),
             "current_execution_wave": wave_identity["current_execution_wave"],
             "next_open_delivery_wave": wave_identity["next_open_delivery_wave"],
             "execution_wave_selection_basis": wave_identity["selection_basis"],
@@ -495,6 +509,8 @@ def run_validation() -> dict[str, Any]:
         "checks": checks,
     }
     save_json_atomic(VALIDATION_RAW, payload)
+    if self_output_referenced and not VALIDATION_RAW.is_file():
+        raise OSError(f"Validation output was not materialized: {VALIDATION_RAW}")
     save_text_atomic(VALIDATION_REPORT, _render_report(payload))
     return payload
 

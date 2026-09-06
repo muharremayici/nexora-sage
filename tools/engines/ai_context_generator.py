@@ -1,5 +1,5 @@
 """
-AI Context Generator v2.0 - produces a compact JSON index of the entire codebase.
+AI Context Generator v2.0 - produces a compact JSON index of the analyzed Atlas scope.
 
 This global index helps an AI assistant orient itself without reading thousands
 of lines. It is not a surgical mutation packet; target-repository edits should
@@ -29,6 +29,7 @@ from tools.core.capability_registry import build_agent_capability_map, load_capa
 from tools.core.reality_scope import TARGET_REPOSITORY_PROJECTION_ID, projection_capability_scopes
 from tools.core.host_intelligence import get_host_studios
 from tools.core.atlas_io import load_atlas_data
+from tools.core.analysis_scope_authority import reconcile_quality_scope_authority
 from tools.core.genome_io import load_genome_data
 from tools.core.json_io import load_json_file
 from tools.core.fractal_io import load_fractal_map_data
@@ -251,6 +252,23 @@ def generate_ai_context(*, include_sage_product_governance: bool = False):
 
     # 11. Quality Gate Result
     qg = load_json_file(RAW_DIR / "quality_gate.json")
+    analysis_scope_authority, scope_actionable = reconcile_quality_scope_authority(
+        load_json_file(RAW_DIR / "analysis_scope_authority.json", {}),
+        qg,
+    )
+    ctx["analysis_scope"] = {
+        "actionable": scope_actionable,
+        "topology_authority_id": analysis_scope_authority.get("topology_authority_id"),
+        "scope_authority_id": analysis_scope_authority.get("scope_authority_id"),
+        "evidence_status": analysis_scope_authority.get("evidence_status"),
+        "claim_scope": analysis_scope_authority.get("claim_scope"),
+        "effective_runtime_projects": analysis_scope_authority.get("effective_runtime_projects", {}),
+        "incomplete_reasons": analysis_scope_authority.get("incomplete_reasons", []),
+        "claim_boundary": (
+            "Metrics describe only the authority-bound analyzed scope. "
+            "Do not infer whole-repository coverage from process success."
+        ),
+    }
     if qg:
         checks_summary = {}
         for check in qg.get("checks", []):
@@ -1146,8 +1164,14 @@ def generate_ai_context(*, include_sage_product_governance: bool = False):
                         })
     # Sort hints by priority
     hints.sort(key=lambda h: h["priority"])
-    if hints:
+    if hints and scope_actionable:
         ctx["action_hints"] = hints
+    elif hints:
+        ctx["action_hints_withheld"] = {
+            "status": "INCOMPLETE_EVIDENCE",
+            "count": len(hints),
+            "reason": "Repository scope authority is missing, inconsistent or not accepted by Quality Gates.",
+        }
 
     # 22. Architectural Signatures (Top 75 most influential symbols from genome)
     genome = load_genome_data()
@@ -1189,6 +1213,8 @@ def generate_ai_context(*, include_sage_product_governance: bool = False):
         "recommended_followups": ai_context_policy.get("recommended_followups", []),
         "decision_rules": ai_context_policy.get("decision_rules", {}),
         "policy_source": "config/pipeline_execution_policy.json:ai_context_generator_policy",
+        "scope_authority_required_for_action_hints": True,
+        "scope_actionable": scope_actionable,
     }
 
     # ---------------------------------------------------------------------------

@@ -33,6 +33,7 @@ from tools.core.contextos_mcp import (
     target_directive_approval_projection,
 )
 from tools.core.python_runtime_env import isolated_python_subprocess_env
+from tools.core.import_classifier import import_specifier_from_audit_detail
 
 BASE_DIR = Path(_ROOT)
 TARGET_ROOT = Path(CONFIG_ROOT)
@@ -69,10 +70,31 @@ class ProfiledFastMCP(FastMCP):
 
     async def call_tool(self, name: str, arguments: dict[str, Any]):
         started = time.perf_counter()
-        from tools.core.governance_trace import activate_trace, new_trace_id, reset_trace
+        from tools.core.governance_trace import (
+            activate_trace,
+            activate_trace_storage,
+            new_trace_id,
+            reset_trace,
+            reset_trace_storage,
+        )
+        from tools.core.honesty_telemetry import (
+            activate_honesty_telemetry_path,
+            reset_honesty_telemetry_path,
+        )
+        from tools.core.mcp_call_telemetry import (
+            activate_mcp_call_capture,
+            mcp_operational_db_path,
+            mcp_operational_honesty_path,
+            reset_mcp_call_capture,
+        )
 
+        operational_db = mcp_operational_db_path()
+        operational_honesty = mcp_operational_honesty_path()
         trace_id = new_trace_id()
         trace_token = activate_trace(trace_id)
+        trace_storage_token = activate_trace_storage(operational_db)
+        honesty_token = activate_honesty_telemetry_path(operational_honesty)
+        capture_token = activate_mcp_call_capture()
         profile = str(getattr(self, "active_tool_profile", "unknown"))
         allowed = getattr(self, "_visible_tool_names", None)
         failure_layer = "tool_execution"
@@ -91,12 +113,34 @@ class ProfiledFastMCP(FastMCP):
                     )
             result = await super().call_tool(name, arguments)
         except Exception:
-            self._record_governance_trace(name, arguments, profile, started, "failure", failure_layer, trace_id)
+            self._record_governance_trace(
+                name,
+                arguments,
+                profile,
+                started,
+                "failure",
+                failure_layer,
+                trace_id,
+                result=None,
+            )
             raise
+        else:
+            self._record_governance_trace(
+                name,
+                arguments,
+                profile,
+                started,
+                "success",
+                "none",
+                trace_id,
+                result=result,
+            )
+            return result
         finally:
+            reset_mcp_call_capture(capture_token)
+            reset_honesty_telemetry_path(honesty_token)
+            reset_trace_storage(trace_storage_token)
             reset_trace(trace_token)
-        self._record_governance_trace(name, arguments, profile, started, "success", "none", trace_id)
-        return result
 
     @staticmethod
     def _record_governance_trace(
@@ -107,11 +151,12 @@ class ProfiledFastMCP(FastMCP):
         outcome: str,
         failure_layer: str,
         trace_id: str | None,
+        result: Any = None,
     ) -> None:
         try:
-            from tools.core.governance_trace import record_mcp_tool_trace
+            from tools.core.mcp_call_telemetry import persist_completed_mcp_call
 
-            record_mcp_tool_trace(
+            persist_completed_mcp_call(
                 tool_name=name,
                 profile=profile,
                 arguments=arguments if isinstance(arguments, dict) else {},
@@ -119,6 +164,7 @@ class ProfiledFastMCP(FastMCP):
                 outcome=outcome,
                 failure_layer=failure_layer,
                 trace_id=trace_id,
+                result=result,
             )
         except Exception as exc:
             try:
@@ -715,14 +761,20 @@ def _audit_queue_trust_projection(trust_summary: dict[str, Any]) -> dict[str, An
     """Project only the evidence consumed by the Audit-backed work queue."""
     required_names = {
         "artifact_present:atlas",
+        "artifact_present:analysis_scope_authority",
         "artifact_present:audit_report",
         "sqlite_primary:atlas",
+        "sqlite_primary:analysis_scope_authority",
         "sqlite_primary:audit_report",
+        "scope_authority:present",
+        "scope_authority:claim_usable",
+        "scope_authority:audit_identity_matches",
         "audit_scope:present",
         "audit_scope:atlas_project_count_matches",
         "audit_scope:audited_projects_are_atlas_subset",
         "audit_scope:violation_projects_are_audited_subset",
         "freshness:audit_not_older_than_atlas",
+        "freshness:scope_not_older_than_atlas",
     }
     checks = [
         row
@@ -2297,7 +2349,7 @@ def _evidence_source_snippets(content: str, evidence_items: list[str], *, max_sn
             continue
         needles: list[str] = []
         if " imports " in evidence_text:
-            imported = evidence_text.split(" imports ", 1)[1].strip().strip("\"'`")
+            imported = import_specifier_from_audit_detail(evidence_text)
             if imported:
                 needles.append(imported)
         symbol_match = re.search(r"\bsymbol:([A-Za-z_$][\w.$]*)", evidence_text)
@@ -5731,6 +5783,26 @@ def _enrich_surgical_packet_with_sqlite_impact(
 
 
 def _render_violation_work_queue_brief(payload: dict[str, Any]) -> str:
+    """Fit complete work items, never cut safety instructions or source snippets."""
+    maximum = int(_work_queue_brief_policy()["max_visible_items"])
+    for visible_limit in range(maximum, 0, -1):
+        body = _render_violation_work_queue_page(payload, visible_limit=visible_limit)
+        if context_budget_profile(body, budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)["status"] == "pass":
+            return body
+    return "\n".join([
+        "# Technical Debt Work Queue", "", "```yaml",
+        'status: "context_budget_exceeded"',
+        "safe_to_apply: false",
+        "mutation_authority: not_granted",
+        "items: []",
+        'reason: "A complete work item and its safety context do not fit the bounded brief."',
+        'next_action: "Request get_violation_work_queue with format=json or narrower project/rule filters before editing."',
+        'claim_boundary: "No visible brief item does not mean a clean repository. Full evidence is retained in JSON."',
+        "```", "",
+    ])
+
+
+def _render_violation_work_queue_page(payload: dict[str, Any], *, visible_limit: int) -> str:
     items = payload.get("items") if isinstance(payload.get("items"), list) else []
     trust = payload.get("artifact_trust") if isinstance(payload.get("artifact_trust"), dict) else {}
     trust_scope = trust.get("scope") if isinstance(trust.get("scope"), dict) else {}
@@ -5741,7 +5813,7 @@ def _render_violation_work_queue_brief(payload: dict[str, Any]) -> str:
     brief_policy = _work_queue_brief_policy()
     grouped_items = _group_violation_work_items_for_agent(items) if trust_status == "PASS" else []
     max_visible_items = int(brief_policy.get("max_visible_items") or 1)
-    visible_items = grouped_items[:max_visible_items]
+    visible_items = grouped_items[:min(max_visible_items, visible_limit)]
     raw_page_items = len(items)
     grouped_work_items = len(grouped_items)
     omitted_work_items = max(0, grouped_work_items - len(visible_items))
@@ -6056,7 +6128,7 @@ def _resolve_work_item_paths_for_agent(raw_dir: Path, items: list[dict[str, Any]
                 inspect_first = [resolved_file]
                 evidence = str(clone.get("evidence") or "")
                 if " imports " in evidence:
-                    imported = evidence.split(" imports ", 1)[1].strip().strip("\"'`")
+                    imported = import_specifier_from_audit_detail(evidence)
                     if imported.startswith("."):
                         candidate = strip_current_directory_prefix(
                             posixpath.normpath(
@@ -6070,7 +6142,11 @@ def _resolve_work_item_paths_for_agent(raw_dir: Path, items: list[dict[str, Any]
                                     f"{resolved_project}::{candidate}" if resolved_project else candidate,
                                 )
                                 import_file = str(import_context.get("repo_relative_path") or candidate).replace("\\", "/")
-                                if import_file and import_file not in inspect_first:
+                                import_status = _target_path_status(raw_dir, _resolved_import_node, target_root=target_root)
+                                if (import_file and import_file not in inspect_first
+                                        and import_status.get("exists") is True
+                                        and import_status.get("inside_root") is True
+                                        and import_status.get("indexed") is True):
                                     inspect_first.append(import_file)
                             except Exception:
                                 pass

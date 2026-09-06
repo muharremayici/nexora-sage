@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from contextvars import ContextVar, Token
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from tools.core.config import RAW_DIR, save_json_atomic
@@ -11,9 +13,34 @@ from tools.core.logger import logger
 
 
 TELEMETRY_PATH = RAW_DIR / "honesty_telemetry.json"
+_ACTIVE_TELEMETRY_PATH: ContextVar[Path | None] = ContextVar("sage_honesty_telemetry_path", default=None)
 _LOCK = threading.RLock()
 _WRITING = threading.local()
 _MAX_EVENTS = 2000
+
+
+def activate_honesty_telemetry_path(path: Path) -> Token[Path | None]:
+    """Bind best-effort honesty events to one call-local operational namespace."""
+    return _ACTIVE_TELEMETRY_PATH.set(Path(path).resolve())
+
+
+def current_honesty_telemetry_path() -> Path:
+    """Return the active call-local path or the target runtime default."""
+    return _ACTIVE_TELEMETRY_PATH.get() or TELEMETRY_PATH
+
+
+def reset_honesty_telemetry_path(token: Token[Path | None]) -> None:
+    """Restore the previous honesty telemetry storage authority."""
+    _ACTIVE_TELEMETRY_PATH.reset(token)
+
+
+def _physical_ssot(path: Path) -> str:
+    """Describe the writer actually selected by save_json_atomic for this path."""
+    return (
+        "sqlite_artifact_store"
+        if Path(path).absolute().parent == Path(RAW_DIR).absolute()
+        else "json_file"
+    )
 
 
 def event_time_window(events: list[dict[str, Any]]) -> dict[str, str | None]:
@@ -82,8 +109,9 @@ def _event_key(component: str, category: str, operation: str, subject: str) -> s
 
 def refresh_honesty_telemetry_status() -> dict[str, Any]:
     """Rewrite the telemetry summary with an explicit PASS/ATTENTION status."""
+    telemetry_path = current_honesty_telemetry_path()
     with _LOCK:
-        payload = load_json_file(TELEMETRY_PATH, {}, bypass_proxy=False)
+        payload = load_json_file(telemetry_path, {}, bypass_proxy=False)
         if not isinstance(payload, dict):
             payload = {}
         events = list(payload.get("events", []) or [])
@@ -94,7 +122,7 @@ def refresh_honesty_telemetry_status() -> dict[str, Any]:
             "meta": {
                 "kind": "honesty_telemetry",
                 "version": "v1",
-                "physical_ssot": "sqlite_artifact_store",
+                "physical_ssot": _physical_ssot(telemetry_path),
                 "purpose": "caught errors, fallbacks, uncertainty and SSOT boundary provenance",
             },
             "summary": {
@@ -107,7 +135,7 @@ def refresh_honesty_telemetry_status() -> dict[str, Any]:
             },
             "events": events[-_MAX_EVENTS:],
         }
-        save_json_atomic(TELEMETRY_PATH, refreshed)
+        save_json_atomic(telemetry_path, refreshed)
         return refreshed
 
 
@@ -155,8 +183,9 @@ def record_honesty_event(
         return event
     try:
         _WRITING.active = True
+        telemetry_path = current_honesty_telemetry_path()
         with _LOCK:
-            payload = load_json_file(TELEMETRY_PATH, {}, bypass_proxy=False)
+            payload = load_json_file(telemetry_path, {}, bypass_proxy=False)
             if not isinstance(payload, dict):
                 payload = {}
             events = list(payload.get("events", []) or [])
@@ -184,12 +213,12 @@ def record_honesty_event(
             time_window = event_time_window(events)
             status, status_reason = _summary_status(events, summary)
             save_json_atomic(
-                TELEMETRY_PATH,
+                telemetry_path,
                 {
                     "meta": {
                         "kind": "honesty_telemetry",
                         "version": "v1",
-                        "physical_ssot": "sqlite_artifact_store",
+                        "physical_ssot": _physical_ssot(telemetry_path),
                         "purpose": "caught errors, fallbacks, uncertainty and SSOT boundary provenance",
                     },
                     "summary": {

@@ -1,15 +1,15 @@
 {
   "_meta": {
     "kind": "nexora_sage_public_release_identity",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "authority": "human_authorized_public_release_identity"
   },
   "product": {
     "name": "Nexora SAGE",
     "package_name": "nexora-sage",
-    "public_version": "1.0.3",
+    "public_version": "1.0.4",
     "release_status": "public_release",
-    "public_release_date": "2026-09-01",
+    "public_release_date": "2026-09-06",
     "primary_entrypoint": "python sage.py",
     "internal_compatibility_module": "codemaps.py"
   },
@@ -19,7 +19,7 @@
     "private_ownership_evidence": "RETAINED_OUTSIDE_PUBLIC_DISTRIBUTION",
     "qualified_legal_review": "NOT_COMPLETED_AND_NOT_A_V1_PUBLICATION_GATE",
     "human_publication_authority": "RECORDED_OUTSIDE_PUBLIC_DISTRIBUTION",
-    "publication_authority_receipt_sha256": "c7cc8c47b694f2857f442bdad8917362f3b766cd0b057bcb63ca6770ad498e19"
+    "publication_authority_receipt_sha256": "7d39f152d74ef29fe49a10708ddc770641faf25b72d140f8631ae63dcc8608b9"
   },
   "license": {
     "expression": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",

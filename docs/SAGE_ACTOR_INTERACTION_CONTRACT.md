@@ -1,7 +1,7 @@
 # SAGE Actor Interaction Contract
 
 > Generated from `config/actor_interaction_contract.json`. Do not edit this document directly.
-> Contract SHA-256: `91076dcb178f3cf51a27f3c765b0e2dd49e8dcb3dd39d11355cb6c4d98aa90e7`
+> Contract semantic SHA-256 (canonical JSON v1): `9067ffd990d4bbe8c2cce9c90b61f2c7654cb0ccae61463609b6220027906c62`
 
 Version: `0.3.0`
 Status: `normative_draft`

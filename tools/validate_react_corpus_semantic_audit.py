@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 from tools.core.config import CODE_MAPS_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.evidence_status import evidence_passed
 from tools.core.json_io import load_json_file
+from tools.core.release_identity import matches_current_release_claim
 
 
 def _utc_now() -> str:
@@ -106,7 +107,7 @@ def validate_react_corpus_semantic_audit() -> dict[str, Any]:
         ),
         _check(
             "release_claim_is_static_evidence_backed_and_runtime_bounded",
-            readiness_summary.get("allowed_claim") == "evidence_backed_universal_react_web_static_governance"
+            matches_current_release_claim(readiness_summary.get("allowed_claim"))
             and readiness_summary.get("universal_ready") is True
             and "needs_runtime_proof" in str(readiness_summary.get("runtime_boundary", "")),
             {

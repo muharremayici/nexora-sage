@@ -78,7 +78,7 @@ Nexora SAGE uses four truth layers:
 4. Structural truth
 
 - AST extraction via `tools/engines/ast_sequencer.cjs`.
-- Combined structural payload: `atlas`, stored first in SQLite `output/.raw/codemaps.db` (`state_payloads`) when `use_sqlite` is enabled, with `output/.raw/atlas.json` maintained as a compatibility/debug shadow export.
+- Combined structural payload: `atlas`, published first in SQLite `output/.raw/codemaps.db` when `use_sqlite` is enabled. Small documents remain inline in `state_payloads`; larger documents use a bounded manifest plus ordered `state_payload_parts`. The Atlas document identity and its relational project/file/symbol/dependency/source-snapshot projection commit in one transaction. `output/.raw/atlas.json` remains a compatibility/debug shadow export.
 
 Downstream engines should consume Atlas-backed truth, not re-infer structure
 from ad-hoc file heuristics.
@@ -94,7 +94,11 @@ proxy:
   on the runtime path. Shadow JSON is read only for missing-row recovery or a
   SQLite failure path, and that fallback is honesty-telemetry visible.
 - writes: `save_json_atomic(RAW_DIR / "<artifact>.json", payload)` writes the
-  SQLite payload first, then writes a full JSON shadow export for compatibility.
+  SQLite payload first, using bounded parts above the governed inline limit,
+  then writes a full JSON shadow export for compatibility. Atlas generation also
+  checkpoints producer-bound sequencer batches and completed file documents in
+  non-canonical staging rows; only a complete document/relational transaction is
+  visible as the current Atlas.
 - bypass: `bypass_proxy=True` is reserved for shadow export, backup/restore and
   explicit disk-recovery paths.
 

@@ -15,6 +15,7 @@ from tools.core.config import CONFIG_FILE, RAW_DIR, REPORTS_DIR, save_json_atomi
 from tools.core.artifact_trust import build_artifact_trust_summary
 from tools.core.json_io import load_json_file, load_json_strict
 from tools.core.doctrine_contract import require_doctrine_path
+from tools.core.analysis_scope_authority import BOUNDED_PROJECT_SELECTION, COMPLETE_REPOSITORY
 
 RAW_OUTPUT_PATH = RAW_DIR / "artifact_trust_validation.json"
 REPORT_OUTPUT_PATH = REPORTS_DIR / "artifact_trust_validation.md"
@@ -24,6 +25,25 @@ VALID_SYMBOL_RE = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
 def _check(name: str, passed: bool, details: str) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
+
+
+def _expected_analysis_projects(
+    trust_summary: dict[str, Any],
+    config_projects: set[str],
+) -> tuple[set[str], str]:
+    scope = trust_summary.get("scope") if isinstance(trust_summary, dict) else {}
+    scope = scope if isinstance(scope, dict) else {}
+    status = str(scope.get("evidence_status") or "")
+    effective = scope.get("effective_runtime_projects")
+    if isinstance(effective, dict):
+        effective_projects = {str(project) for project in effective if str(project)}
+    elif isinstance(effective, list):
+        effective_projects = {str(project) for project in effective if str(project)}
+    else:
+        effective_projects = set()
+    if status in {COMPLETE_REPOSITORY, BOUNDED_PROJECT_SELECTION} and effective_projects:
+        return effective_projects, f"analysis_scope_authority:{status}"
+    return set(config_projects), "config_fallback_due_to_unusable_scope_authority"
 
 
 def _iter_chain_pairs(chain: list[str]) -> list[tuple[str, str]]:
@@ -101,6 +121,10 @@ def run_validation() -> dict[str, Any]:
 
     config_projects = set((config.get("variations") or {}).keys()) if isinstance(config, dict) else set()
     atlas_projects = set(atlas.keys()) if isinstance(atlas, dict) else set()
+    expected_analysis_projects, project_scope_source = _expected_analysis_projects(
+        trust_summary,
+        config_projects,
+    )
     checks.append(
         _check(
             "project_alignment:config_vs_atlas",
@@ -113,8 +137,8 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "project_alignment:dead_code_by_project",
-            dead_by_project == config_projects,
-            f"dead_code={sorted(dead_by_project)} config={sorted(config_projects)}",
+            dead_by_project == expected_analysis_projects,
+            f"dead_code={sorted(dead_by_project)} expected={sorted(expected_analysis_projects)} source={project_scope_source}",
         )
     )
     dead_summary_conf = (dead_code.get("summary", {}) or {}).get("confidence", {}) if isinstance(dead_code, dict) else {}
@@ -166,8 +190,8 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "project_alignment:react_support_by_project",
-            react_by_project == config_projects,
-            f"react_support={sorted(react_by_project)} config={sorted(config_projects)}",
+            react_by_project == expected_analysis_projects,
+            f"react_support={sorted(react_by_project)} expected={sorted(expected_analysis_projects)} source={project_scope_source}",
         )
     )
 
@@ -193,8 +217,8 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "project_alignment:state_flow_by_project",
-            state_flow_by_project == config_projects,
-            f"state_flow={sorted(state_flow_by_project)} config={sorted(config_projects)}",
+            state_flow_by_project == expected_analysis_projects,
+            f"state_flow={sorted(state_flow_by_project)} expected={sorted(expected_analysis_projects)} source={project_scope_source}",
         )
     )
 
@@ -202,8 +226,8 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "project_alignment:decision_evidence_by_project",
-            decision_by_project == config_projects,
-            f"decision={sorted(decision_by_project)} config={sorted(config_projects)}",
+            decision_by_project == expected_analysis_projects,
+            f"decision={sorted(decision_by_project)} expected={sorted(expected_analysis_projects)} source={project_scope_source}",
         )
     )
     decision_confidence_ok = True
@@ -241,12 +265,13 @@ def run_validation() -> dict[str, Any]:
     workspace_mode = host_merge.get("workspace_mode", {}) if isinstance(host_merge, dict) else {}
     host_studios = host_merge.get("studios", {}) if isinstance(host_merge, dict) else {}
     comparative_enabled = bool(workspace_mode.get("comparative_enabled"))
-    host_studio_ok = bool(host_studios) if comparative_enabled else True
+    comparative_scope_expected = comparative_enabled and len(expected_analysis_projects) > 1
+    host_studio_ok = bool(host_studios) if comparative_scope_expected else True
     checks.append(
         _check(
             "host_merge:studio_inventory_present_when_comparative",
             host_studio_ok,
-            f"comparative_enabled={comparative_enabled} studios={len(host_studios) if isinstance(host_studios, dict) else 0}",
+            f"comparative_enabled={comparative_enabled} scope_projects={sorted(expected_analysis_projects)} studios={len(host_studios) if isinstance(host_studios, dict) else 0}",
         )
     )
     host_summary = host_merge.get("summary", {}) if isinstance(host_merge, dict) else {}
@@ -291,8 +316,8 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "project_alignment:merge_plan_by_source_subset",
-            merge_project_keys.issubset(config_projects),
-            f"merge_by_source={sorted(merge_project_keys)} config={sorted(config_projects)}",
+            merge_project_keys.issubset(expected_analysis_projects),
+            f"merge_by_source={sorted(merge_project_keys)} expected={sorted(expected_analysis_projects)} source={project_scope_source}",
         )
     )
     merge_source_conf_ok = True
@@ -336,8 +361,8 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "project_alignment:circular_by_project_superset",
-            bool(circular_project_keys) and config_projects.issubset(circular_project_keys),
-            f"circular={sorted(circular_project_keys)} config={sorted(config_projects)}",
+            bool(circular_project_keys) and expected_analysis_projects.issubset(circular_project_keys),
+            f"circular={sorted(circular_project_keys)} expected={sorted(expected_analysis_projects)} source={project_scope_source}",
         )
     )
     circular_shape_ok = True

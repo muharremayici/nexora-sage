@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 
 from tools.core.repository_topology import (
     attach_declared_exclusions_to_nearest_owner,
@@ -9,6 +11,38 @@ from tools.core.repository_topology import (
     prune_owned_walk_dirs,
     resolve_repository_topology,
 )
+
+
+def test_scope_identity_preserves_frozen_canonical_hashes():
+    from tools.core.analysis_scope_authority import scope_authority_id as consumer_id
+    from tools.core.repository_topology import scope_authority_id
+
+    topology = {"ontology_contract": "fixture", "selected_projects": {"MAIN": "src", "WEB": "web"}}
+    expected = {
+        None: "sha256:cef557277b831458b01694f0a3f95fba15204ce90bef5e9f96c52cd4a938a0a5",
+        "main": "sha256:59fa57fc1476d7b18e58913459a330541b70b3360640c5d8c1b253d22b4ba255",
+        "missing": "sha256:b6d6f4f7c8684ffbf6e387cd2b3204de46d5f50612cb2c5d66f15debc6f97275",
+    }
+    assert consumer_id is scope_authority_id
+    for selection, identity in expected.items():
+        assert scope_authority_id(topology, selection) == identity
+    assert scope_authority_id(topology, "MAIN, main") == expected["main"]
+    changed = {**topology, "selected_projects": {"MAIN": "other", "WEB": "web"}}
+    assert scope_authority_id(changed, "MAIN") != expected["main"]
+
+
+def test_topology_import_does_not_initialize_storage_or_config():
+    result = subprocess.run(
+        [
+            sys.executable, "-B", "-c",
+            "import sys; import tools.core.repository_topology; "
+            "assert not set(sys.modules) & "
+            "{'tools.core.config', 'tools.core.json_io', 'tools.core.artifact_store', "
+            "'tools.core.analysis_scope_authority'}",
+        ],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def _role_markers() -> dict:
@@ -66,18 +100,20 @@ def test_repository_source_does_not_change_canonical_topology(tmp_path):
         "LEGACY": "variant",
     }
     assert first["project_candidate_role_authority"]["UI"] == {
-        "execution_role": "companion",
-        "authority": "evidence_backed_declared_workspace_edge",
-        "confidence": "high",
-        "relationship_resolved": True,
+        "relationship_role": "companion",
+        "authority": "declared_workspace_edge_plus_policy_relation_container",
+        "confidence": "medium",
+        "relationship_resolved": False,
     }
     assert first["project_candidate_role_authority"]["LEGACY"] == {
-        "execution_role": "variant",
+        "relationship_role": "variant",
         "authority": "policy_inferred_relation_container",
         "confidence": "medium",
         "relationship_resolved": False,
     }
     assert first["selection_mode"] == "evidence_backed_auto"
+    assert first["topology_authority_id"].startswith("sha256:")
+    assert len(first["topology_authority_id"]) == len("sha256:") + 64
 
 
 def test_single_projection_does_not_relabel_discovered_topology(tmp_path):
@@ -100,6 +136,7 @@ def test_single_projection_does_not_relabel_discovered_topology(tmp_path):
     assert topology["project_ownership_exclusions"] == {
         "MAIN": ["packages/api"],
     }
+    assert topology["topology_authority_id"].startswith("sha256:")
 
 
 def test_project_ownership_excludes_nested_selected_roots_from_parent(tmp_path):
@@ -176,13 +213,14 @@ def test_project_name_does_not_create_an_implicit_exclusion(tmp_path):
         "MAIN": ".",
         "EMBEDDED_SAGE_CLIENT": "Embedded SAGE Client",
     }
-    assert topology["selected_projects"] == {"MAIN": "."}
-    assert topology["excluded_projects"] == {
+    assert topology["selected_projects"] == {
+        "MAIN": ".",
         "EMBEDDED_SAGE_CLIENT": "Embedded SAGE Client",
     }
+    assert topology["excluded_projects"] == {}
     assert topology["project_candidate_role_authority"]["EMBEDDED_SAGE_CLIENT"] == {
-        "execution_role": "companion",
-        "authority": "conservative_companion_execution_fallback",
+        "relationship_role": "unresolved",
+        "authority": "relationship_unresolved_analysis_coverage_selected",
         "confidence": "low",
         "relationship_resolved": False,
     }
@@ -192,7 +230,12 @@ def test_project_name_does_not_create_an_implicit_exclusion(tmp_path):
     }
     assert topology["project_ownership_exclusions"] == {
         "MAIN": ["Embedded SAGE Client"],
+        "EMBEDDED_SAGE_CLIENT": [],
     }
+    assert topology["coverage_only_projects"] == {
+        "EMBEDDED_SAGE_CLIENT": "Embedded SAGE Client",
+    }
+    assert topology["comparative_analysis_enabled"] is False
 
 
 def test_explicit_multi_project_projection_selects_all_visible_candidates(tmp_path):
@@ -211,6 +254,7 @@ def test_explicit_multi_project_projection_selects_all_visible_candidates(tmp_pa
         "EMBEDDED_TOOL": "Embedded Tool",
     }
     assert topology["selection_mode"] == "all_candidates_explicit"
+    assert topology["selected_project_roles"]["EMBEDDED_TOOL"] == "unresolved"
 
 
 def test_strong_structure_proves_candidate_not_companion_relationship(tmp_path):
@@ -227,12 +271,17 @@ def test_strong_structure_proves_candidate_not_companion_relationship(tmp_path):
         "MAIN": ".",
         "INDEPENDENT_PRODUCT": "Independent Product",
     }
-    assert topology["selected_projects"] == {"MAIN": "."}
+    assert topology["selected_projects"] == {
+        "MAIN": ".",
+        "INDEPENDENT_PRODUCT": "Independent Product",
+    }
     evidence = topology["project_candidate_selection_evidence"]["INDEPENDENT_PRODUCT"]
     assert evidence["candidate_boundary_strength"] == "strong_structural"
-    assert evidence["automatic_selection_eligible"] is False
+    assert evidence["automatic_selection_eligible"] is True
+    assert evidence["selection_reasons"] == ["strong_independent_structure"]
     assert topology["project_ownership_exclusions"] == {
         "MAIN": ["Independent Product"],
+        "INDEPENDENT_PRODUCT": [],
     }
 
 
@@ -258,6 +307,23 @@ def test_manifest_owned_source_structure_is_not_a_nested_project_boundary(tmp_pa
     assert topology["project_ownership_exclusions"] == {"MAIN": []}
 
 
+def test_manifest_ownership_flows_through_unmarked_containers(tmp_path):
+    nested_tests = tmp_path / "tests" / "unit_tests"
+    (nested_tests / "extensions").mkdir(parents=True)
+    (nested_tests / "utils").mkdir()
+    (tmp_path / "package.json").write_text("{}", encoding="utf-8")
+
+    topology = resolve_repository_topology(
+        tmp_path,
+        structural_markers={"extensions", "utils"},
+        config_or_manifest_predicate=_is_manifest,
+    )
+
+    assert topology["project_candidates"] == {"MAIN": "."}
+    assert topology["selected_projects"] == {"MAIN": "."}
+    assert topology["project_ownership_exclusions"] == {"MAIN": []}
+
+
 def test_manifest_inside_source_structure_preserves_real_nested_boundary(tmp_path):
     source_root = tmp_path / "src"
     (source_root / "app").mkdir(parents=True)
@@ -272,8 +338,99 @@ def test_manifest_inside_source_structure_preserves_real_nested_boundary(tmp_pat
     )
 
     assert topology["project_candidates"] == {"MAIN": ".", "SRC": "src"}
-    assert topology["excluded_projects"] == {"SRC": "src"}
-    assert topology["project_ownership_exclusions"] == {"MAIN": ["src"]}
+    assert topology["selected_projects"] == {"MAIN": ".", "SRC": "src"}
+    assert topology["excluded_projects"] == {}
+    assert topology["project_ownership_exclusions"] == {"MAIN": ["src"], "SRC": []}
+
+
+def test_polyglot_candidates_without_root_workspace_are_selected_for_coverage(tmp_path):
+    backend = tmp_path / "superset"
+    frontend = tmp_path / "superset-frontend"
+    (backend / "src").mkdir(parents=True)
+    (backend / "tests").mkdir()
+    frontend.mkdir()
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='host'\n", encoding="utf-8")
+    (frontend / "package.json").write_text('{"name":"frontend"}', encoding="utf-8")
+
+    topology = resolve_repository_topology(
+        tmp_path,
+        structural_markers={"src", "tests"},
+        role_markers=_role_markers(),
+        config_or_manifest_predicate=_is_manifest,
+    )
+
+    assert topology["selected_projects"] == {
+        "MAIN": ".",
+        "SUPERSET_FRONTEND": "superset-frontend",
+    }
+    assert topology["selected_project_roles"] == {
+        "MAIN": "host",
+        "SUPERSET_FRONTEND": "unresolved",
+    }
+    assert topology["excluded_projects"] == {}
+    assert topology["coverage_only_projects"] == {
+        "SUPERSET_FRONTEND": "superset-frontend",
+    }
+    assert topology["relationship_operation_projects"] == {"MAIN": "."}
+    assert topology["comparative_analysis_enabled"] is False
+
+
+def test_mattermost_style_polyglot_projects_are_covered_without_companion_claim(tmp_path):
+    (tmp_path / "server").mkdir()
+    (tmp_path / "webapp").mkdir()
+    (tmp_path / "e2e-tests" / "playwright").mkdir(parents=True)
+    (tmp_path / "server" / "pyproject.toml").write_text("[project]\nname='server'\n", encoding="utf-8")
+    (tmp_path / "webapp" / "package.json").write_text('{"name":"webapp"}', encoding="utf-8")
+    (tmp_path / "e2e-tests" / "playwright" / "package.json").write_text(
+        '{"name":"playwright"}',
+        encoding="utf-8",
+    )
+
+    topology = resolve_repository_topology(
+        tmp_path,
+        role_markers=_role_markers(),
+        config_or_manifest_predicate=_is_manifest,
+    )
+
+    assert topology["selected_projects"] == {
+        "MAIN": ".",
+        "SERVER": "server",
+        "WEBAPP": "webapp",
+        "PLAYWRIGHT": "e2e-tests/playwright",
+    }
+    assert topology["coverage_only_projects"] == {
+        "SERVER": "server",
+        "WEBAPP": "webapp",
+        "PLAYWRIGHT": "e2e-tests/playwright",
+    }
+    assert topology["relationship_operation_projects"] == {"MAIN": "."}
+
+
+def test_sentry_style_manifest_owner_keeps_source_package_in_main(tmp_path):
+    source_package = tmp_path / "src" / "sentry"
+    (source_package / "components").mkdir(parents=True)
+    (source_package / "services").mkdir()
+    api_docs = tmp_path / "api-docs"
+    api_docs.mkdir()
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='sentry-host'\n", encoding="utf-8")
+    (api_docs / "package.json").write_text('{"name":"api-docs"}', encoding="utf-8")
+
+    topology = resolve_repository_topology(
+        tmp_path,
+        structural_markers={"components", "services"},
+        role_markers=_role_markers(),
+        config_or_manifest_predicate=_is_manifest,
+    )
+
+    assert topology["selected_projects"] == {
+        "MAIN": ".",
+        "API_DOCS": "api-docs",
+    }
+    assert "src/sentry" not in topology["project_candidates"].values()
+    assert topology["project_ownership_exclusions"] == {
+        "MAIN": ["api-docs"],
+        "API_DOCS": [],
+    }
 
 
 def test_explicit_managed_projection_predicate_excludes_candidate(tmp_path):

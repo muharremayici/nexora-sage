@@ -11,6 +11,12 @@ from tools.core.artifact_freshness_contract import (
     evaluate_artifact_freshness_contract,
 )
 from tools.core.json_io import load_json_file
+from tools.core.analysis_scope_authority import (
+    BOUNDED_PROJECT_SELECTION,
+    COMPLETE_REPOSITORY,
+    extract_scope_authority,
+)
+from tools.core.analysis_snapshot_lineage import load_atlas_commit, receipt_digest_binding
 
 
 def _artifact_validation_epoch(raw_dir: Path, name: str) -> float:
@@ -65,6 +71,21 @@ def _sqlite_truth_summary(raw_dir: Path) -> dict[str, Any] | None:
             release_gate_status = _artifact_fact(conn, "quality_gate", "release_gate_status")
             if release_gate_status is None:
                 release_gate_status = _json_extract(conn, "quality_gate", "$.release_gate_status")
+            shared_scope_authority = _json_extract(
+                conn,
+                "analysis_scope_authority",
+                "$.scope_authority",
+            )
+            quality_scope_authority = _json_extract(
+                conn,
+                "quality_gate",
+                "$.analysis_scope_authority",
+            )
+            quality_scope_gate_status = _json_extract(
+                conn,
+                "quality_gate",
+                "$.scope_gate_status",
+            )
             violation_projects = {
                 str(row["project_key"])
                 for row in conn.execute(
@@ -88,6 +109,9 @@ def _sqlite_truth_summary(raw_dir: Path) -> dict[str, Any] | None:
         "audit_projects": audit_projects,
         "violation_projects": violation_projects,
         "release_gate_status": release_gate_status,
+        "shared_scope_authority": shared_scope_authority,
+        "quality_scope_authority": quality_scope_authority,
+        "quality_scope_gate_status": quality_scope_gate_status,
     }
 
 
@@ -116,6 +140,13 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
         audit_projects = sqlite_summary["audit_projects"]
         violation_projects = sqlite_summary["violation_projects"]
         release_gate_status = sqlite_summary["release_gate_status"]
+        shared_scope_authority = extract_scope_authority(
+            sqlite_summary.get("shared_scope_authority")
+        )
+        quality_scope_authority = extract_scope_authority(
+            sqlite_summary.get("quality_scope_authority")
+        )
+        quality_scope_gate_status = sqlite_summary.get("quality_scope_gate_status")
     else:
         atlas = load_json_file(raw_dir / "atlas.json", {})
         audit = load_json_file(raw_dir / "audit_report.json", {})
@@ -126,10 +157,27 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
         audit_projects = set(audit_scope.get("audited_projects") or []) if isinstance(audit_scope, dict) else set()
         violation_projects = set((audit_summary.get("by_project") or {}).keys()) if isinstance(audit_summary, dict) else set()
         release_gate_status = quality_gate.get("release_gate_status") if isinstance(quality_gate, dict) else None
+        shared_scope_authority = extract_scope_authority(
+            load_json_file(raw_dir / "analysis_scope_authority.json", {})
+        )
+        quality_scope_authority = extract_scope_authority(
+            quality_gate.get("analysis_scope_authority") if isinstance(quality_gate, dict) else None
+        )
+        quality_scope_gate_status = (
+            quality_gate.get("scope_gate_status") if isinstance(quality_gate, dict) else None
+        )
+
+    audit_scope_authority = extract_scope_authority(
+        audit_scope.get("scope_authority") if isinstance(audit_scope, dict) else None
+    )
+    shared_scope_id = str((shared_scope_authority or {}).get("scope_authority_id") or "")
+    shared_scope_status = str((shared_scope_authority or {}).get("evidence_status") or "")
 
     checks: list[dict[str, Any]] = []
-    for artifact_name in ("atlas", "audit_report", "quality_gate"):
+    artifact_meta: dict[str, dict[str, Any]] = {}
+    for artifact_name in ("atlas", "analysis_scope_authority", "audit_report", "quality_gate"):
         meta = artifact_state_meta(raw_dir, artifact_name)
+        artifact_meta[artifact_name] = meta
         detail = "source=%s validation_mtime=%s content_mtime=%s" % (
             meta.get("source"),
             meta.get("validation_mtime", meta.get("mtime", 0.0)),
@@ -151,11 +199,80 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
             )
         )
 
+    atlas_commit = load_atlas_commit(raw_dir)
+    expected_snapshot_id = str(atlas_commit.get("snapshot_id") or "")
+    for artifact_name in ("analysis_scope_authority", "audit_report", "quality_gate"):
+        digest = str(artifact_meta.get(artifact_name, {}).get("payload_sha") or "")
+        binding = "UNAVAILABLE"
+        observed_snapshot = None
+        errors = ["atlas_snapshot_id_unavailable"]
+        if expected_snapshot_id:
+            try:
+                binding, observed_snapshot, errors = receipt_digest_binding(
+                    raw_dir=raw_dir,
+                    artifact_id=artifact_name,
+                    artifact_sha256=digest,
+                    expected_snapshot_id=expected_snapshot_id,
+                )
+            except ValueError as exc:
+                errors = [f"lineage_contract_unavailable:{exc}"]
+        checks.append(
+            _check(
+                f"lineage:{artifact_name}_bound_to_current_snapshot",
+                binding == "BOUND",
+                "binding=%s expected_snapshot=%s observed_snapshot=%s errors=%s"
+                % (binding, expected_snapshot_id or None, observed_snapshot, errors),
+            )
+        )
+
     checks.append(
         _check(
             "audit_scope:present",
             isinstance(audit_scope, dict) and bool(audit_scope),
             f"audit_scope_keys={sorted(audit_scope.keys()) if isinstance(audit_scope, dict) else []}",
+        )
+    )
+    checks.append(
+        _check(
+            "scope_authority:present",
+            bool(shared_scope_authority and shared_scope_id),
+            f"scope_authority_id={shared_scope_id or None}",
+        )
+    )
+    checks.append(
+        _check(
+            "scope_authority:claim_usable",
+            shared_scope_status in {COMPLETE_REPOSITORY, BOUNDED_PROJECT_SELECTION},
+            f"evidence_status={shared_scope_status or None} reasons={(shared_scope_authority or {}).get('incomplete_reasons', [])}",
+        )
+    )
+    checks.append(
+        _check(
+            "scope_authority:audit_identity_matches",
+            bool(shared_scope_id)
+            and str((audit_scope_authority or {}).get("scope_authority_id") or "") == shared_scope_id,
+            "shared=%s audit=%s" % (
+                shared_scope_id or None,
+                (audit_scope_authority or {}).get("scope_authority_id"),
+            ),
+        )
+    )
+    checks.append(
+        _check(
+            "scope_authority:quality_identity_matches",
+            bool(shared_scope_id)
+            and str((quality_scope_authority or {}).get("scope_authority_id") or "") == shared_scope_id,
+            "shared=%s quality=%s" % (
+                shared_scope_id or None,
+                (quality_scope_authority or {}).get("scope_authority_id"),
+            ),
+        )
+    )
+    checks.append(
+        _check(
+            "scope_authority:quality_gate_accepts_scope",
+            quality_scope_gate_status == "PASS",
+            f"scope_gate_status={quality_scope_gate_status}",
         )
     )
     checks.append(
@@ -182,8 +299,16 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
     )
 
     atlas_mtime = _artifact_validation_epoch(raw_dir, "atlas")
+    scope_mtime = _artifact_validation_epoch(raw_dir, "analysis_scope_authority")
     audit_mtime = _artifact_validation_epoch(raw_dir, "audit_report")
     quality_mtime = _artifact_validation_epoch(raw_dir, "quality_gate")
+    checks.append(
+        _check(
+            "freshness:scope_not_older_than_atlas",
+            scope_mtime >= atlas_mtime - 0.001,
+            f"atlas_mtime={atlas_mtime} scope_mtime={scope_mtime}",
+        )
+    )
     checks.append(
         _check(
             "freshness:audit_not_older_than_atlas",
@@ -232,6 +357,16 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
         "failures": failures,
         "warnings": warnings,
         "scope": {
+            "scope_authority_id": shared_scope_id or None,
+            "evidence_status": shared_scope_status or "INCOMPLETE_EVIDENCE",
+            "claim_scope": (shared_scope_authority or {}).get("claim_scope"),
+            "effective_runtime_projects": dict(
+                (shared_scope_authority or {}).get("effective_runtime_projects") or {}
+            ),
+            "full_repository_claim_eligible": (
+                (shared_scope_authority or {}).get("full_repository_claim_eligible") is True
+            ),
+            "incomplete_reasons": list((shared_scope_authority or {}).get("incomplete_reasons") or []),
             "atlas_project_count": len(atlas_projects),
             "audited_project_count": len(audit_projects),
             "violation_project_count": len(violation_projects),
@@ -239,6 +374,7 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
         },
         "freshness": {
             "atlas_mtime": atlas_mtime,
+            "analysis_scope_authority_mtime": scope_mtime,
             "audit_report_mtime": audit_mtime,
             "quality_gate_mtime": quality_mtime,
         },

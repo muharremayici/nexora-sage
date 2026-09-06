@@ -3616,6 +3616,559 @@
           ]
         }
       ]
+    },
+    {
+      "repository_id": "zustand_legacy_content_aee2cf0862d1",
+      "source_url_or_local_identity": "react-corpus://legacy/zustand/aee2cf0862d1b3ecfa19956f6f407d0d1f8a1fe0c733314b528543cfe54e4ae7",
+      "commit_or_content_fingerprint": "aee2cf0862d1b3ecfa19956f6f407d0d1f8a1fe0c733314b528543cfe54e4ae7",
+      "license_observation": "Frozen LICENSE begins with MIT License and has SHA-256 c1e6e266563517467b1bf874817d23e426f3149252bd7d42758cd697514b8417; package.json declares MIT.",
+      "selection_timestamp": "2026-09-02T14:27:25.5261319+02:00",
+      "corpus_role": "longitudinal",
+      "prior_sage_exposure": "known_to_development_with_historical_sage_evidence_in_docs_react_validation_corpus_2026_06_08",
+      "selection_strata": {
+        "primary_language": "TypeScript and TSX library source with bounded JavaScript, JSX, CSS and documentation examples.",
+        "repository_shape": "Small single-package external-store library with React bindings, examples and documentation.",
+        "size_band": "Small frozen filesystem snapshot: 143 files and 1812985 bytes.",
+        "framework_family": "React-compatible state management library with a React 18-or-newer peer dependency.",
+        "package_or_build_system": "pnpm 11, TypeScript, Rollup and Vitest.",
+        "test_surface": "15 test-like files by independent path and filename inventory.",
+        "generated_code_presence": "No generated-majority claim; generated boundaries remain to be classified during adjudication."
+      },
+      "state": "identity_verified",
+      "selection_basis": "Known corpus subject selected as the legacy half of a longitudinal comparison. Byte-exact content identity and acquisition timestamp evidence were frozen before the public SAGE 1.0.3 baseline run; no upstream commit is claimed.",
+      "task": {
+        "task_id": "react_corpus_longitudinal_snapshot_comparison",
+        "purpose": "Compare a known React ecosystem repository across one legacy and one current snapshot with the same frozen public SAGE release.",
+        "target_scope": [
+          "repository_root"
+        ],
+        "tested_claim_domain": "Bounded longitudinal React and TypeScript static repository observation and finding-surface comparison.",
+        "real_failure_mode": "Repository evolution or analyzer limitations may be hidden when reports compare unfrozen source, different SAGE versions, mutable targets or unadjudicated finding counts.",
+        "user_relevance_hypothesis": "A developer should be able to see which repository observations and source-grounded findings remain stable, appear or disappear over time without confusing analyzer output with product bugs.",
+        "expected_evidence": [
+          "frozen subject receipt before and after execution",
+          "frozen public SAGE 1.0.3 evaluator identity",
+          "immutable first-run evidence",
+          "explicit unknown and unsupported states",
+          "independent manual adjudication for any publicized finding"
+        ],
+        "success_criteria": [
+          "Subject identity remains unchanged",
+          "The same evaluator identity is used for both snapshots",
+          "First results and failures remain preserved",
+          "Finding counts are not presented as bug counts",
+          "No holdout or generalization claim is made"
+        ],
+        "stop_conditions": [
+          "Subject identity changes",
+          "Evaluator identity changes",
+          "Output enters the subject root",
+          "A destructive-write or provenance defect appears",
+          "A critical truth or claim-boundary defect appears"
+        ]
+      },
+      "result": {
+        "repository_identity": "zustand_legacy_content_aee2cf0862d1",
+        "sage_release_identity": "Nexora SAGE 1.0.3 public tag at 3b399f6c5f3e3a9883c30ae456ad4c1ebf6179b1",
+        "actor_or_runner_identity": "not_selected_pre_run",
+        "language_claim_levels": {
+          "status": "not_available",
+          "reason": "preflight_not_run"
+        },
+        "tested_domains": [
+          "repository_preflight",
+          "planned_static_react_typescript_surfaces"
+        ],
+        "outcome": "not_available",
+        "reason": "Identity is frozen and the longitudinal SAGE 1.0.3 run has not started.",
+        "evidence_references": [
+          "react-corpus://campaign/react_corpus_longitudinal_pilot_2026_09/receipts/zustand_legacy_2026_06_04"
+        ],
+        "unknowns": [
+          "No SAGE 1.0.3 result exists yet."
+        ],
+        "limitations": [
+          "Known longitudinal corpus only; no holdout, precision, recall or universal React claim."
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "run_not_started"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-09-02T14:27:25.5261319+02:00",
+          "evidence": [
+            "byte-exact filesystem SHA-256 aee2cf0862d1b3ecfa19956f6f407d0d1f8a1fe0c733314b528543cfe54e4ae7",
+            "143 files and 1812985 bytes",
+            "all observed file mtimes are 2026-06-04T00:22:09+02:00 and are explicitly not commit proof",
+            "receipt schema 1.1 is deterministic",
+            "public SAGE analysis has not started"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "zustand_current_b57db4f86ef1",
+      "source_url_or_local_identity": "https://github.com/pmndrs/zustand.git",
+      "commit_or_content_fingerprint": "b57db4f86ef179285da216eeb291266da82c361c",
+      "license_observation": "Frozen LICENSE begins with MIT License and has SHA-256 f0dcbb086850a46d51446679126b274b0752801d85ca1f6ddb067ed046ccc2e2; package.json declares MIT.",
+      "selection_timestamp": "2026-09-02T14:27:25.5261319+02:00",
+      "corpus_role": "longitudinal",
+      "prior_sage_exposure": "known_repository_family_new_frozen_commit_no_holdout_claim",
+      "selection_strata": {
+        "primary_language": "TypeScript and TSX library source with bounded JavaScript, JSX, CSS and documentation examples.",
+        "repository_shape": "Small single-package external-store library with React bindings, examples and documentation.",
+        "size_band": "Small frozen Git snapshot: 144 files and 2177660 bytes.",
+        "framework_family": "React-compatible state management library with a React 18-or-newer peer dependency.",
+        "package_or_build_system": "pnpm 11, TypeScript, Rollup and Vitest; both pnpm and npm lock evidence are present.",
+        "test_surface": "15 test-like files by independent path and filename inventory.",
+        "generated_code_presence": "No generated-majority claim; generated boundaries remain to be classified during adjudication."
+      },
+      "state": "identity_verified",
+      "selection_basis": "Known repository family selected as the current half of a longitudinal comparison. Official remote identity, detached commit, Git tree, clean working tree and byte-exact content identity were frozen before SAGE execution.",
+      "task": {
+        "task_id": "react_corpus_longitudinal_snapshot_comparison",
+        "purpose": "Compare a known React ecosystem repository across one legacy and one current snapshot with the same frozen public SAGE release.",
+        "target_scope": [
+          "repository_root"
+        ],
+        "tested_claim_domain": "Bounded longitudinal React and TypeScript static repository observation and finding-surface comparison.",
+        "real_failure_mode": "Repository evolution or analyzer limitations may be hidden when reports compare unfrozen source, different SAGE versions, mutable targets or unadjudicated finding counts.",
+        "user_relevance_hypothesis": "A developer should be able to see which repository observations and source-grounded findings remain stable, appear or disappear over time without confusing analyzer output with product bugs.",
+        "expected_evidence": [
+          "frozen subject receipt before and after execution",
+          "frozen public SAGE 1.0.3 evaluator identity",
+          "immutable first-run evidence",
+          "explicit unknown and unsupported states",
+          "independent manual adjudication for any publicized finding"
+        ],
+        "success_criteria": [
+          "Subject identity remains unchanged",
+          "The same evaluator identity is used for both snapshots",
+          "First results and failures remain preserved",
+          "Finding counts are not presented as bug counts",
+          "No holdout or generalization claim is made"
+        ],
+        "stop_conditions": [
+          "Subject identity changes",
+          "Evaluator identity changes",
+          "Output enters the subject root",
+          "A destructive-write or provenance defect appears",
+          "A critical truth or claim-boundary defect appears"
+        ]
+      },
+      "result": {
+        "repository_identity": "zustand_current_b57db4f86ef1",
+        "sage_release_identity": "Nexora SAGE 1.0.3 public tag at 3b399f6c5f3e3a9883c30ae456ad4c1ebf6179b1",
+        "actor_or_runner_identity": "not_selected_pre_run",
+        "language_claim_levels": {
+          "status": "not_available",
+          "reason": "preflight_not_run"
+        },
+        "tested_domains": [
+          "repository_preflight",
+          "planned_static_react_typescript_surfaces"
+        ],
+        "outcome": "not_available",
+        "reason": "Identity is frozen and the longitudinal SAGE 1.0.3 run has not started.",
+        "evidence_references": [
+          "react-corpus://campaign/react_corpus_longitudinal_pilot_2026_09/receipts/zustand_current_b57db4f86ef1"
+        ],
+        "unknowns": [
+          "No SAGE 1.0.3 result exists yet."
+        ],
+        "limitations": [
+          "Known longitudinal corpus only; no holdout, precision, recall or universal React claim."
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "run_not_started"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-09-02T14:27:25.5261319+02:00",
+          "evidence": [
+            "origin https://github.com/pmndrs/zustand.git",
+            "detached clean HEAD b57db4f86ef179285da216eeb291266da82c361c",
+            "Git tree b6e553438d47e555433acce49e55bd96f5881d10",
+            "byte-exact filesystem SHA-256 47fc05cdbf944672ac1ad6a88806ec1426c8f4288dc02f108f0cb8d1d3f820ec",
+            "public SAGE analysis has not started"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "react_hook_form_legacy_content_2bcb4cd3a042",
+      "source_url_or_local_identity": "react-corpus://legacy/react-hook-form/2bcb4cd3a0424ad1399255db85251cfab86f73f58199f3a4646f88f93a0f7d5c",
+      "commit_or_content_fingerprint": "2bcb4cd3a0424ad1399255db85251cfab86f73f58199f3a4646f88f93a0f7d5c",
+      "license_observation": "Frozen LICENSE begins with MIT License and has SHA-256 e8eeb472f0a5889c2c51625b86a3f9b8630680adb9f49a125352e2e426392780; package.json declares MIT.",
+      "selection_timestamp": "2026-09-02T14:27:25.5261319+02:00",
+      "corpus_role": "longitudinal",
+      "prior_sage_exposure": "known_to_development_with_historical_sage_evidence_in_docs_react_validation_corpus_2026_06_08",
+      "selection_strata": {
+        "primary_language": "TypeScript and TSX dominate library, tests and examples with bounded JavaScript tooling.",
+        "repository_shape": "Medium React form library repository with product source, extensive tests, examples and tooling.",
+        "size_band": "Medium frozen filesystem snapshot: 484 files and 5489060 bytes.",
+        "framework_family": "React hooks and form-state library supporting React 16.8 through 19.",
+        "package_or_build_system": "pnpm lockfile, TypeScript, Jest and Cypress-oriented tooling.",
+        "test_surface": "118 test-like files by independent path and filename inventory.",
+        "generated_code_presence": "Snapshots and API extraction configuration are present; generated-majority exclusion does not apply."
+      },
+      "state": "identity_verified",
+      "selection_basis": "Known corpus subject selected as the legacy half of a longitudinal comparison. Byte-exact content identity and acquisition timestamp evidence were frozen before the public SAGE 1.0.3 baseline run; no upstream commit is claimed.",
+      "task": {
+        "task_id": "react_corpus_longitudinal_snapshot_comparison",
+        "purpose": "Compare a known React ecosystem repository across one legacy and one current snapshot with the same frozen public SAGE release.",
+        "target_scope": [
+          "repository_root"
+        ],
+        "tested_claim_domain": "Bounded longitudinal React and TypeScript static repository observation and finding-surface comparison.",
+        "real_failure_mode": "Repository evolution or analyzer limitations may be hidden when reports compare unfrozen source, different SAGE versions, mutable targets or unadjudicated finding counts.",
+        "user_relevance_hypothesis": "A developer should be able to see which repository observations and source-grounded findings remain stable, appear or disappear over time without confusing analyzer output with product bugs.",
+        "expected_evidence": [
+          "frozen subject receipt before and after execution",
+          "frozen public SAGE 1.0.3 evaluator identity",
+          "immutable first-run evidence",
+          "explicit unknown and unsupported states",
+          "independent manual adjudication for any publicized finding"
+        ],
+        "success_criteria": [
+          "Subject identity remains unchanged",
+          "The same evaluator identity is used for both snapshots",
+          "First results and failures remain preserved",
+          "Finding counts are not presented as bug counts",
+          "No holdout or generalization claim is made"
+        ],
+        "stop_conditions": [
+          "Subject identity changes",
+          "Evaluator identity changes",
+          "Output enters the subject root",
+          "A destructive-write or provenance defect appears",
+          "A critical truth or claim-boundary defect appears"
+        ]
+      },
+      "result": {
+        "repository_identity": "react_hook_form_legacy_content_2bcb4cd3a042",
+        "sage_release_identity": "Nexora SAGE 1.0.3 public tag at 3b399f6c5f3e3a9883c30ae456ad4c1ebf6179b1",
+        "actor_or_runner_identity": "not_selected_pre_run",
+        "language_claim_levels": {
+          "status": "not_available",
+          "reason": "preflight_not_run"
+        },
+        "tested_domains": [
+          "repository_preflight",
+          "planned_static_react_typescript_surfaces"
+        ],
+        "outcome": "not_available",
+        "reason": "Identity is frozen and the longitudinal SAGE 1.0.3 run has not started.",
+        "evidence_references": [
+          "react-corpus://campaign/react_corpus_longitudinal_pilot_2026_09/receipts/react_hook_form_legacy_2026_06_06"
+        ],
+        "unknowns": [
+          "No SAGE 1.0.3 result exists yet."
+        ],
+        "limitations": [
+          "Known longitudinal corpus only; no holdout, precision, recall or universal React claim."
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "run_not_started"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-09-02T14:27:25.5261319+02:00",
+          "evidence": [
+            "byte-exact filesystem SHA-256 2bcb4cd3a0424ad1399255db85251cfab86f73f58199f3a4646f88f93a0f7d5c",
+            "484 files and 5489060 bytes",
+            "all observed file mtimes are 2026-06-06T00:33:52+02:00 and are explicitly not commit proof",
+            "receipt schema 1.1 is deterministic",
+            "public SAGE analysis has not started"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "react_hook_form_current_dfb71861cff7",
+      "source_url_or_local_identity": "https://github.com/react-hook-form/react-hook-form.git",
+      "commit_or_content_fingerprint": "dfb71861cff7f6622598bd3b6d8b5aadd0d4d0fc",
+      "license_observation": "Frozen LICENSE begins with MIT License and has SHA-256 816960cd111639fe00e88d1d17a57c7d37054d9ce05b9c00067b173a1acbc447; package.json declares MIT.",
+      "selection_timestamp": "2026-09-02T14:27:25.5261319+02:00",
+      "corpus_role": "longitudinal",
+      "prior_sage_exposure": "known_repository_family_new_frozen_commit_no_holdout_claim",
+      "selection_strata": {
+        "primary_language": "TypeScript and TSX dominate library, tests and examples with bounded JavaScript tooling.",
+        "repository_shape": "Medium React form library repository with product source, extensive tests, examples and tooling.",
+        "size_band": "Medium frozen Git snapshot: 494 files and 5776039 bytes.",
+        "framework_family": "React hooks and form-state library supporting React 16.8 through 19.",
+        "package_or_build_system": "pnpm workspace and lockfile, TypeScript, Jest and Playwright-oriented tooling.",
+        "test_surface": "156 test-like files by independent path and filename inventory.",
+        "generated_code_presence": "Snapshots and API extraction configuration are present; generated-majority exclusion does not apply."
+      },
+      "state": "identity_verified",
+      "selection_basis": "Known repository family selected as the current half of a longitudinal comparison. A branch-advance mismatch was rejected; the exact preselected detached commit, Git tree, clean working tree and byte-exact content identity were then frozen before SAGE execution.",
+      "task": {
+        "task_id": "react_corpus_longitudinal_snapshot_comparison",
+        "purpose": "Compare a known React ecosystem repository across one legacy and one current snapshot with the same frozen public SAGE release.",
+        "target_scope": [
+          "repository_root"
+        ],
+        "tested_claim_domain": "Bounded longitudinal React and TypeScript static repository observation and finding-surface comparison.",
+        "real_failure_mode": "Repository evolution or analyzer limitations may be hidden when reports compare unfrozen source, different SAGE versions, mutable targets or unadjudicated finding counts.",
+        "user_relevance_hypothesis": "A developer should be able to see which repository observations and source-grounded findings remain stable, appear or disappear over time without confusing analyzer output with product bugs.",
+        "expected_evidence": [
+          "frozen subject receipt before and after execution",
+          "frozen public SAGE 1.0.3 evaluator identity",
+          "immutable first-run evidence",
+          "explicit unknown and unsupported states",
+          "independent manual adjudication for any publicized finding"
+        ],
+        "success_criteria": [
+          "Subject identity remains unchanged",
+          "The same evaluator identity is used for both snapshots",
+          "First results and failures remain preserved",
+          "Finding counts are not presented as bug counts",
+          "No holdout or generalization claim is made"
+        ],
+        "stop_conditions": [
+          "Subject identity changes",
+          "Evaluator identity changes",
+          "Output enters the subject root",
+          "A destructive-write or provenance defect appears",
+          "A critical truth or claim-boundary defect appears"
+        ]
+      },
+      "result": {
+        "repository_identity": "react_hook_form_current_dfb71861cff7",
+        "sage_release_identity": "Nexora SAGE 1.0.3 public tag at 3b399f6c5f3e3a9883c30ae456ad4c1ebf6179b1",
+        "actor_or_runner_identity": "not_selected_pre_run",
+        "language_claim_levels": {
+          "status": "not_available",
+          "reason": "preflight_not_run"
+        },
+        "tested_domains": [
+          "repository_preflight",
+          "planned_static_react_typescript_surfaces"
+        ],
+        "outcome": "not_available",
+        "reason": "Identity is frozen and the longitudinal SAGE 1.0.3 run has not started.",
+        "evidence_references": [
+          "react-corpus://campaign/react_corpus_longitudinal_pilot_2026_09/receipts/react_hook_form_current_dfb71861cff7"
+        ],
+        "unknowns": [
+          "No SAGE 1.0.3 result exists yet."
+        ],
+        "limitations": [
+          "Known longitudinal corpus only; no holdout, precision, recall or universal React claim."
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "run_not_started"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-09-02T14:27:25.5261319+02:00",
+          "evidence": [
+            "origin https://github.com/react-hook-form/react-hook-form.git",
+            "detached clean HEAD dfb71861cff7f6622598bd3b6d8b5aadd0d4d0fc",
+            "Git tree dc45521d4afc8fe6f139e9c98607472b46d75f41",
+            "byte-exact filesystem SHA-256 df05ab9d0e3eac727193036ed12b90552e5117da9a1c4e745a831ba5a1aeba7f",
+            "branch-advance mismatch was rejected before this freeze",
+            "public SAGE analysis has not started"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "excalidraw_legacy_content_bb04e9d1ee40",
+      "source_url_or_local_identity": "react-corpus://legacy/excalidraw/bb04e9d1ee4094af2da76dfc630302fb654c3fb684d55a343ac9732ee3d30a2f",
+      "commit_or_content_fingerprint": "bb04e9d1ee4094af2da76dfc630302fb654c3fb684d55a343ac9732ee3d30a2f",
+      "license_observation": "Frozen LICENSE begins with MIT License and has SHA-256 1352d204fdb90d5e482c13139d848bc2c9300a9a7de358a0a558a23e72d0d8be.",
+      "selection_timestamp": "2026-09-02T14:27:25.5261319+02:00",
+      "corpus_role": "longitudinal",
+      "prior_sage_exposure": "known_to_development_with_historical_sage_evidence_in_docs_external_react_validation_evidence_2026_05_22",
+      "selection_strata": {
+        "primary_language": "TypeScript and TSX dominate a large canvas application and package workspace, with SCSS, JSON, MDX and bounded JavaScript.",
+        "repository_shape": "Large Yarn workspace containing excalidraw-app, packages and examples.",
+        "size_band": "Large frozen filesystem snapshot: 1229 files and 54394284 bytes.",
+        "framework_family": "React canvas application and reusable package ecosystem.",
+        "package_or_build_system": "Yarn 1 workspaces, TypeScript, Vitest and application/package build tooling.",
+        "test_surface": "147 test-like files by independent path and filename inventory.",
+        "generated_code_presence": "Snapshots, font assets and generated-oriented surfaces are present; generated-majority exclusion does not apply."
+      },
+      "state": "identity_verified",
+      "selection_basis": "Known corpus subject selected as the legacy half of a longitudinal comparison. Byte-exact content identity and acquisition timestamp evidence were frozen before the public SAGE 1.0.3 baseline run; no upstream commit is claimed.",
+      "task": {
+        "task_id": "react_corpus_longitudinal_snapshot_comparison",
+        "purpose": "Compare a known React ecosystem repository across one legacy and one current snapshot with the same frozen public SAGE release.",
+        "target_scope": [
+          "repository_root"
+        ],
+        "tested_claim_domain": "Bounded longitudinal React and TypeScript static repository observation and finding-surface comparison.",
+        "real_failure_mode": "Repository evolution or analyzer limitations may be hidden when reports compare unfrozen source, different SAGE versions, mutable targets or unadjudicated finding counts.",
+        "user_relevance_hypothesis": "A developer should be able to see which repository observations and source-grounded findings remain stable, appear or disappear over time without confusing analyzer output with product bugs.",
+        "expected_evidence": [
+          "frozen subject receipt before and after execution",
+          "frozen public SAGE 1.0.3 evaluator identity",
+          "immutable first-run evidence",
+          "explicit unknown and unsupported states",
+          "independent manual adjudication for any publicized finding"
+        ],
+        "success_criteria": [
+          "Subject identity remains unchanged",
+          "The same evaluator identity is used for both snapshots",
+          "First results and failures remain preserved",
+          "Finding counts are not presented as bug counts",
+          "No holdout or generalization claim is made"
+        ],
+        "stop_conditions": [
+          "Subject identity changes",
+          "Evaluator identity changes",
+          "Output enters the subject root",
+          "A destructive-write or provenance defect appears",
+          "A critical truth or claim-boundary defect appears"
+        ]
+      },
+      "result": {
+        "repository_identity": "excalidraw_legacy_content_bb04e9d1ee40",
+        "sage_release_identity": "Nexora SAGE 1.0.3 public tag at 3b399f6c5f3e3a9883c30ae456ad4c1ebf6179b1",
+        "actor_or_runner_identity": "not_selected_pre_run",
+        "language_claim_levels": {
+          "status": "not_available",
+          "reason": "preflight_not_run"
+        },
+        "tested_domains": [
+          "repository_preflight",
+          "planned_static_react_typescript_surfaces"
+        ],
+        "outcome": "not_available",
+        "reason": "Identity is frozen and the longitudinal SAGE 1.0.3 run has not started.",
+        "evidence_references": [
+          "react-corpus://campaign/react_corpus_longitudinal_pilot_2026_09/receipts/excalidraw_legacy_2026_05_14"
+        ],
+        "unknowns": [
+          "No SAGE 1.0.3 result exists yet."
+        ],
+        "limitations": [
+          "Known longitudinal corpus only; no holdout, precision, recall or universal React claim."
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "run_not_started"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-09-02T14:27:25.5261319+02:00",
+          "evidence": [
+            "byte-exact filesystem SHA-256 bb04e9d1ee4094af2da76dfc630302fb654c3fb684d55a343ac9732ee3d30a2f",
+            "1229 files and 54394284 bytes",
+            "all observed file mtimes are 2026-05-14T22:45:03+02:00 and are explicitly not commit proof",
+            "receipt schema 1.1 is deterministic",
+            "public SAGE analysis has not started"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "excalidraw_current_e1bb9ff8f893",
+      "source_url_or_local_identity": "https://github.com/excalidraw/excalidraw.git",
+      "commit_or_content_fingerprint": "e1bb9ff8f8931e783c11d104abb8967ac6605c9a",
+      "license_observation": "Frozen LICENSE begins with MIT License and has SHA-256 1352d204fdb90d5e482c13139d848bc2c9300a9a7de358a0a558a23e72d0d8be.",
+      "selection_timestamp": "2026-09-02T14:27:25.5261319+02:00",
+      "corpus_role": "longitudinal",
+      "prior_sage_exposure": "known_repository_family_new_frozen_commit_no_holdout_claim",
+      "selection_strata": {
+        "primary_language": "TypeScript and TSX dominate a large canvas application and package workspace, with SCSS, JSON, MDX and bounded JavaScript.",
+        "repository_shape": "Large Yarn workspace containing excalidraw-app, packages and examples.",
+        "size_band": "Large frozen Git snapshot: 1271 files and 55740684 bytes.",
+        "framework_family": "React canvas application and reusable package ecosystem.",
+        "package_or_build_system": "Yarn 1 workspaces, TypeScript, Vitest and application/package build tooling.",
+        "test_surface": "168 test-like files by independent path and filename inventory.",
+        "generated_code_presence": "Snapshots, font assets and generated-oriented surfaces are present; generated-majority exclusion does not apply."
+      },
+      "state": "identity_verified",
+      "selection_basis": "Known repository family selected as the current half of a longitudinal comparison. Official remote identity, detached commit, Git tree, clean working tree and byte-exact content identity were frozen before SAGE execution.",
+      "task": {
+        "task_id": "react_corpus_longitudinal_snapshot_comparison",
+        "purpose": "Compare a known React ecosystem repository across one legacy and one current snapshot with the same frozen public SAGE release.",
+        "target_scope": [
+          "repository_root"
+        ],
+        "tested_claim_domain": "Bounded longitudinal React and TypeScript static repository observation and finding-surface comparison.",
+        "real_failure_mode": "Repository evolution or analyzer limitations may be hidden when reports compare unfrozen source, different SAGE versions, mutable targets or unadjudicated finding counts.",
+        "user_relevance_hypothesis": "A developer should be able to see which repository observations and source-grounded findings remain stable, appear or disappear over time without confusing analyzer output with product bugs.",
+        "expected_evidence": [
+          "frozen subject receipt before and after execution",
+          "frozen public SAGE 1.0.3 evaluator identity",
+          "immutable first-run evidence",
+          "explicit unknown and unsupported states",
+          "independent manual adjudication for any publicized finding"
+        ],
+        "success_criteria": [
+          "Subject identity remains unchanged",
+          "The same evaluator identity is used for both snapshots",
+          "First results and failures remain preserved",
+          "Finding counts are not presented as bug counts",
+          "No holdout or generalization claim is made"
+        ],
+        "stop_conditions": [
+          "Subject identity changes",
+          "Evaluator identity changes",
+          "Output enters the subject root",
+          "A destructive-write or provenance defect appears",
+          "A critical truth or claim-boundary defect appears"
+        ]
+      },
+      "result": {
+        "repository_identity": "excalidraw_current_e1bb9ff8f893",
+        "sage_release_identity": "Nexora SAGE 1.0.3 public tag at 3b399f6c5f3e3a9883c30ae456ad4c1ebf6179b1",
+        "actor_or_runner_identity": "not_selected_pre_run",
+        "language_claim_levels": {
+          "status": "not_available",
+          "reason": "preflight_not_run"
+        },
+        "tested_domains": [
+          "repository_preflight",
+          "planned_static_react_typescript_surfaces"
+        ],
+        "outcome": "not_available",
+        "reason": "Identity is frozen and the longitudinal SAGE 1.0.3 run has not started.",
+        "evidence_references": [
+          "react-corpus://campaign/react_corpus_longitudinal_pilot_2026_09/receipts/excalidraw_current_e1bb9ff8f893"
+        ],
+        "unknowns": [
+          "No SAGE 1.0.3 result exists yet."
+        ],
+        "limitations": [
+          "Known longitudinal corpus only; no holdout, precision, recall or universal React claim."
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "run_not_started"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-09-02T14:27:25.5261319+02:00",
+          "evidence": [
+            "origin https://github.com/excalidraw/excalidraw.git",
+            "detached clean HEAD e1bb9ff8f8931e783c11d104abb8967ac6605c9a",
+            "Git tree a6f61e7189ca8289b7963d5d0f9c2dfa897019ac",
+            "byte-exact filesystem SHA-256 8a50b11a8ba772cff2a433d04c297cc223c13b2efbc0cea947f1611414785c31",
+            "public SAGE analysis has not started"
+          ]
+        }
+      ]
     }
   ]
 }

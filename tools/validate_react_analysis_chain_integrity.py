@@ -12,6 +12,7 @@ if str(CODE_MAPS_DIR) not in sys.path:
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
+from tools.validate_react_fixtures import _bounded_fixture_config, bounded_react_fixture, react_proof_artifact_path
 
 
 RAW_OUTPUT_PATH = RAW_DIR / "react_analysis_chain_integrity_validation.json"
@@ -36,7 +37,7 @@ def _load_contract() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _react_primary_artifacts(contract: dict[str, Any]) -> dict[str, dict[str, Path]]:
+def _react_primary_artifacts(contract: dict[str, Any], fixture_root: Path | None = None) -> dict[str, dict[str, Path]]:
     rows = contract.get("primary_artifacts") if isinstance(contract, dict) else []
     artifacts: dict[str, dict[str, Path]] = {}
     for row in rows if isinstance(rows, list) else []:
@@ -46,7 +47,10 @@ def _react_primary_artifacts(contract: dict[str, Any]) -> dict[str, dict[str, Pa
         primary = str(row.get("primary") or "").strip()
         full = str(row.get("full") or "").strip()
         if artifact_id and primary and full:
-            artifacts[artifact_id] = {"primary": RAW_DIR / primary, "full": RAW_DIR / full}
+            artifacts[artifact_id] = {
+                "primary": react_proof_artifact_path(primary, RAW_DIR, fixture_root),
+                "full": react_proof_artifact_path(full, RAW_DIR, fixture_root),
+            }
     return artifacts
 
 
@@ -248,8 +252,13 @@ def _code_contract_check() -> dict[str, Any]:
 
 
 def run_validation() -> dict[str, Any]:
+    with bounded_react_fixture() as fixture_root:
+        return _run_validation(fixture_root)
+
+
+def _run_validation(fixture_root: Path) -> dict[str, Any]:
     contract = _load_contract()
-    artifacts = _react_primary_artifacts(contract)
+    artifacts = _react_primary_artifacts(contract, fixture_root)
     runtime_sensitive_dimensions = _runtime_sensitive_dimensions(contract)
     evidence = _evidence_contract_check(artifacts)
     primary_full = _primary_full_contract_check(artifacts)
@@ -280,6 +289,7 @@ def run_validation() -> dict[str, Any]:
         "generated_at": _utc_now(),
     }
     payload = {
+        "fixture_evidence": _bounded_fixture_config(),
         "meta": {
             "kind": "react_analysis_chain_integrity_validation",
             "version": "v1",

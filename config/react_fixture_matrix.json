@@ -1,6 +1,34 @@
 {
   "min_detected_present_ratio": 1.0,
   "max_partial_capabilities": 0,
+  "bounded_fixture": {
+    "claim_boundary": "Producer/output contracts only. Atlas ingestion, source acquisition, scope selection and merge cockpit decisions are fixture inputs, not integration proof. Runtime smoke is not executed.",
+    "project": "FIXTURE",
+    "file": "src/app/editor/page.tsx",
+    "source": "'use client';\nimport React, { useMemo } from 'react';\nimport fs from 'fs';\nexport function EditorPage(props) {\n  props.count = 1;\n  const value = useMemo(() => props.count, []);\n  return <button>{value}</button>;\n}\n",
+    "decision": {
+      "candidate": "EditorPage",
+      "source": "FIXTURE",
+      "action": "Do Not Import Yet",
+      "required_actions": [
+        "run_browser_smoke"
+      ],
+      "reasons": [
+        "Runtime behavior is not proven by this static fixture."
+      ]
+    },
+    "artifacts": [
+      "react_ecosystem_analysis.json",
+      "react_ecosystem_findings_full.json",
+      "react_runtime_intelligence.json",
+      "react_runtime_intelligence_full.json",
+      "react_compiler_readiness.json",
+      "react_compiler_readiness_full.json",
+      "next_boundary_analysis.json",
+      "next_boundary_analysis_full.json",
+      "ai_task_packs.json"
+    ]
+  },
   "artifact_contract_checks": [
     {
       "name": "react_compiler_readiness_contract",

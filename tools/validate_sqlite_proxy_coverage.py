@@ -30,6 +30,18 @@ def _contains(path: str, needle: str) -> bool:
     return needle in _read(path)
 
 
+def _definition_source(path: str, definition_name: str) -> str:
+    """Return one complete function/method body for structural source checks."""
+
+    text = _read(path)
+    tree = ast.parse(text, filename=path)
+    lines = text.splitlines()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == definition_name:
+            return "\n".join(lines[node.lineno - 1 : node.end_lineno])
+    return ""
+
+
 def _forbidden_matches() -> list[dict[str, str]]:
     """Detect direct disk reads for active output/.raw artifacts.
 
@@ -169,6 +181,11 @@ def _ast_contains_raw_json_path(node: ast.AST) -> bool:
 
 def run_validation() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
+    load_raw_source = _definition_source("tools/core/artifact_store.py", "load_raw")
+    load_state_payload_source = _definition_source(
+        "tools/core/artifact_store.py",
+        "_load_state_payload_row",
+    )
 
     checks.append(
         _check(
@@ -203,16 +220,18 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "artifact_store_sqlite_first_read",
-            _contains("tools/core/artifact_store.py", "SELECT payload, payload_sha, source_mtime FROM state_payloads")
-            and _contains("tools/core/artifact_store.py", "Falling back to JSON"),
+            "SELECT * FROM state_payloads WHERE name = ?" in load_raw_source
+            and "self._load_state_payload_row(conn, row)" in load_raw_source
+            and "Falling back to JSON" in load_raw_source,
             "ArtifactStore reads SQLite first and falls back to JSON only for recovery",
         )
     )
     checks.append(
         _check(
             "artifact_store_existing_row_does_not_read_shadow_json",
-            not _contains("tools/core/artifact_store.py", "shadow_payload = json.loads(json_path.read_text")
-            and _contains("tools/core/artifact_store.py", "return row_payload")
+            "if sqlite_row_found:" in load_raw_source
+            and "return sqlite_payload" in load_raw_source
+            and "load_json_file(json_path" not in load_raw_source.split("if sqlite_row_found:", 1)[1].split("return sqlite_payload", 1)[0]
             and _contains("tools/core/db.py", "source_mtime REAL"),
             "When SQLite has a state_payload row, runtime reads preserve SQLite primary truth and do not read shadow JSON",
         )
@@ -220,10 +239,12 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "artifact_store_hot_read_avoids_per_read_payload_digest",
-            _contains("tools/core/artifact_store.py", "Full payload SHA parity is validated by release/parity gates")
-            and _contains("tools/core/artifact_store.py", 'if not row["payload_sha"]')
-            and not _contains("tools/core/artifact_store.py", 'row["payload_sha"] != row_sha'),
-            "Runtime reads should not canonical-hash large payloads on every access; parity gates own full SHA verification.",
+            'if storage_mode == "inline_json":' in load_state_payload_source
+            and 'return json.loads(row["payload"])' in load_state_payload_source
+            and "digest.update(part_bytes)" in load_state_payload_source
+            and "json.dumps" not in load_state_payload_source
+            and "_payload_digest(sqlite_payload)" not in load_raw_source,
+            "Inline runtime reads do not canonical-rehash JSON; partitioned reads verify bounded parts and the manifest digest while reassembling.",
         )
     )
     checks.append(

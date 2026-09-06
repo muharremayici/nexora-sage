@@ -23,6 +23,11 @@ from tools.core.architecture_blueprints import architecture_governance_context
 from tools.core.contextos_mcp import build_agent_action_directives
 from tools.core.json_io import load_json_file
 from tools.core.contextos_signal_limits import contextos_signal_limit
+from tools.core.analysis_scope_authority import (
+    extract_scope_authority,
+    fail_closed_scope_authority,
+    reconcile_quality_scope_authority,
+)
 
 
 def _utc_now() -> str:
@@ -176,13 +181,15 @@ def build_operator_packet() -> dict[str, Any]:
     response_validation = _load(RAW_DIR / "nexora_agent_response_validation.json")
     response_ledger = _load(RAW_DIR / "nexora_agent_response_ledger.json")
     handoff = _load(RAW_DIR / "nexora_agent_handoff.json")
-    surface_inventory = _load(RAW_DIR / "nexora_surface_inventory.json")
     execution_contract = _load(RAW_DIR / "pipeline_execution_contract_validation.json")
     engine_signal_contract = _load(RAW_DIR / "engine_signal_contract_validation.json")
     architecture_oracle = _load(RAW_DIR / "architecture_oracle.json")
     signals = _load(RAW_DIR / "signals.json")
     audit_report = _load(RAW_DIR / "audit_report.json")
     quality_gate = _load(RAW_DIR / "quality_gate.json")
+    analysis_scope_authority = extract_scope_authority(
+        _load(RAW_DIR / "analysis_scope_authority.json")
+    ) or fail_closed_scope_authority("analysis_scope_authority_missing_at_operator_packet")
     capability_registry = load_capability_registry()
     capability_activation_plan = load_capability_activation_plan()
 
@@ -202,10 +209,19 @@ def build_operator_packet() -> dict[str, Any]:
     hitl_lifecycle_summary = hitl_lifecycle.get("summary", {}) if isinstance(hitl_lifecycle.get("summary"), dict) else {}
     response_validation_summary = response_validation.get("summary", {}) if isinstance(response_validation.get("summary"), dict) else {}
     response_ledger_summary = response_ledger.get("summary", {}) if isinstance(response_ledger.get("summary"), dict) else {}
-    surface_inventory_summary = surface_inventory.get("summary", {}) if isinstance(surface_inventory.get("summary"), dict) else {}
+    surface_inventory_summary = {
+        "status": "not_available_during_operator_packet_generation",
+        "currentness": "surface_inventory_validates_this_packet_after_generation",
+        "required_followup": "Call get_surface_inventory after generation; do not infer inventory PASS from this packet.",
+    }
     quality_release_status = quality_gate.get("release_gate_status") if isinstance(quality_gate, dict) else None
     quality_passed = quality_gate.get("passed") if isinstance(quality_gate, dict) else None
     quality_ecosystem_status = quality_gate.get("ecosystem_signal_status") if isinstance(quality_gate, dict) else None
+    analysis_scope_authority, scope_actionable = reconcile_quality_scope_authority(
+        analysis_scope_authority,
+        quality_gate,
+    )
+    scope_evidence_status = str(analysis_scope_authority.get("evidence_status") or "INCOMPLETE_EVIDENCE")
     platform_release_readiness = contract_posture.get("release_readiness") or brief_summary.get("release_readiness")
     combined_release_readiness = _combined_release_readiness(
         platform_release_readiness,
@@ -227,6 +243,8 @@ def build_operator_packet() -> dict[str, Any]:
         max_items=contextos_signal_limit("agent_directives"),
         project_scope="MAIN",
     )
+    if not scope_actionable:
+        agent_action_directives = []
     public_agent_action_directives = _public_agent_directives(agent_action_directives)
     operator_agent_action_directives = [
         {
@@ -239,6 +257,20 @@ def build_operator_packet() -> dict[str, Any]:
     approval_entry_limit = contextos_signal_limit("agent_ledger_entries")
     target_repository_agent_surface = {
         "surface": "target_repository_coding_agent",
+        "status": "READY" if scope_actionable else "INCOMPLETE_EVIDENCE",
+        "scope_authority": {
+            "topology_authority_id": analysis_scope_authority.get("topology_authority_id"),
+            "scope_authority_id": analysis_scope_authority.get("scope_authority_id"),
+            "evidence_status": scope_evidence_status,
+            "claim_scope": analysis_scope_authority.get("claim_scope"),
+            "full_repository_claim_eligible": analysis_scope_authority.get("full_repository_claim_eligible") is True,
+            "incomplete_reasons": list(analysis_scope_authority.get("incomplete_reasons") or []),
+        },
+        "required_action": (
+            "none"
+            if scope_actionable
+            else "Refresh repository discovery, Atlas, Audit and Quality Gates before acting on directives."
+        ),
         "default_projection": "agent_action_directives",
         "analysis_root": str(ANALYZED_REPOSITORY_ROOT),
         "contains_platform_status": False,
@@ -276,6 +308,9 @@ def build_operator_packet() -> dict[str, Any]:
             "release_readiness": combined_release_readiness,
             "platform_release_readiness": platform_release_readiness,
             "target_quality_gate_status": quality_release_status,
+            "target_scope_gate_status": quality_gate.get("scope_gate_status"),
+            "target_scope_evidence_status": scope_evidence_status,
+            "target_scope_authority_id": analysis_scope_authority.get("scope_authority_id"),
             "quality_gate": quality_release_status or contract_posture.get("quality_gate") or brief_summary.get("quality_gate"),
             "quality_gate_passed": quality_passed,
             "quality_gate_interpretation": quality_interpretation,

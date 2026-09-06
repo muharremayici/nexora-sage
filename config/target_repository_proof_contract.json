@@ -36,6 +36,7 @@
       "required_evidence": [
         "atlas",
         "atlas_commit",
+        "analysis_scope_authority",
         "genome",
         "audit_report",
         "quality_gate"
@@ -49,6 +50,7 @@
       "required_evidence": [
         "atlas",
         "atlas_commit",
+        "analysis_scope_authority",
         "genome",
         "audit_report",
         "quality_gate",
@@ -63,6 +65,7 @@
       "required_evidence": [
         "atlas",
         "atlas_commit",
+        "analysis_scope_authority",
         "genome",
         "audit_report",
         "quality_gate",
@@ -88,6 +91,18 @@
       ],
       "block_values": [],
       "snapshot_binding": "atlas_commit_identity",
+      "human_decision": false
+    },
+    "analysis_scope_authority": {
+      "verdict_pointer": "/scope_authority/evidence_status",
+      "pass_values": [
+        "COMPLETE_REPOSITORY",
+        "BOUNDED_PROJECT_SELECTION"
+      ],
+      "block_values": [
+        "INCOMPLETE_EVIDENCE"
+      ],
+      "snapshot_binding": "producer_lineage_receipt",
       "human_decision": false
     },
     "genome": {

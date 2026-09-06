@@ -15,7 +15,7 @@ from tools.core.audit_rules import (
     violates_canonical_alias_boundary,
 )
 from tools.core.atlas_io import load_atlas_data, resolve_atlas_data
-from tools.core.config import ROOT, REPORTS_DIR, DOCTRINE, save_json_atomic, save_text_atomic
+from tools.core.config import ROOT, RAW_DIR, REPORTS_DIR, DOCTRINE, save_json_atomic, save_text_atomic
 from tools.core.doctrine_contract import require_doctrine_mapping
 from tools.core.logger import logger
 from tools.core.operational_limits import artifact_shadow_flush_timeout_seconds
@@ -27,6 +27,12 @@ from tools.core.watchdog_runtime_contract import (
     normalize_watchdog_scope_refs,
     watchdog_artifact_identity,
     watchdog_artifact_path,
+)
+from tools.core.analysis_scope_authority import (
+    BOUNDED_PROJECT_SELECTION,
+    COMPLETE_REPOSITORY,
+    bind_consumer_projects,
+    load_scope_authority_for_consumer,
 )
 
 VIOLATION_LABELS = require_doctrine_mapping("violation_labels")
@@ -242,6 +248,8 @@ def _write_outputs(
     atlas=None,
     profile_timings=None,
     scoped_audit: dict | None = None,
+    scope_authority: dict | None = None,
+    scope_authority_artifact: dict | None = None,
 ):
     output_start = time.perf_counter()
     lines = ['=== NEXORA SAGE ARCHITECTURAL AUDIT V15 (ATLAS-PURE) ===', '']
@@ -385,13 +393,29 @@ def _write_outputs(
     }
     rule_taxonomy = build_rule_taxonomy(project_count=max(audited_project_count, 1))
     summary["structural_contract"] = structural_contract
+    scope_authority = scope_authority if isinstance(scope_authority, dict) else {}
+    evidence_status = str(scope_authority.get("evidence_status") or "")
+    scope_kind = (
+        "scoped_change"
+        if is_scoped
+        else "full_repository"
+        if evidence_status == COMPLETE_REPOSITORY
+        else "bounded_project_selection"
+        if evidence_status == BOUNDED_PROJECT_SELECTION
+        else "incomplete_evidence"
+    )
     audit_scope = {
-        "scope_kind": "scoped_change" if is_scoped else "full_repository",
-        "full_repository_claim": not is_scoped,
+        "scope_kind": scope_kind,
+        "full_repository_claim": bool(
+            not is_scoped
+            and scope_authority.get("full_repository_claim_eligible") is True
+            and evidence_status == COMPLETE_REPOSITORY
+        ),
         "atlas_project_count": int(atlas_project_count or 0),
         "audited_project_count": audited_project_count,
         "audited_projects": audited_projects,
         "violation_project_count": len(by_project),
+        "scope_authority": scope_authority,
     }
     if is_scoped:
         audit_scope.update(scoped_audit)
@@ -445,11 +469,19 @@ def _write_outputs(
     output_json_path = watchdog_artifact_path("audit") if is_scoped else AUDIT_REPORT_JSON_PATH
     save_json_atomic(output_json_path, payload)
     if not is_scoped:
+        scope_authority_artifact = (
+            scope_authority_artifact
+            if isinstance(scope_authority_artifact, dict)
+            else {}
+        )
         write_current_atlas_lineage(
             artifact_id="audit_report",
             producer="tools.engines.audit",
             artifact_payload=payload,
             atlas=atlas,
+            dependency_payloads={
+                "analysis_scope_authority": scope_authority_artifact,
+            },
         )
     if profile_timings is not None:
         profile_timings["canonical_artifact_save_seconds"] = round(
@@ -715,6 +747,15 @@ def analyze_project(changed_files=None, atlas=None):
             sorted(projects),
         )
         return False
+    scope_authority_artifact, scope_authority = load_scope_authority_for_consumer(
+        RAW_DIR
+    )
+    if not is_scoped:
+        scope_authority = bind_consumer_projects(
+            scope_authority,
+            layer="audit",
+            observed_projects=audited_projects,
+        )
     summary = {'total': sum(len(v) for v in violations.values()), 'by_rule': {k: len(v) for k, v in violations.items()}}
     profile_timings = {
         "atlas_load_seconds": round(atlas_loaded_at - profile_start, 3),
@@ -752,6 +793,8 @@ def analyze_project(changed_files=None, atlas=None):
         atlas=atlas,
         profile_timings=profile_timings,
         scoped_audit=scoped_audit,
+        scope_authority=scope_authority,
+        scope_authority_artifact=scope_authority_artifact,
     )
     outputs_written_at = time.perf_counter()
     profile_timings["write_outputs_seconds"] = round(outputs_written_at - scan_finished_at, 3)

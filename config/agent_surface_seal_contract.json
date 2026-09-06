@@ -107,7 +107,9 @@
       "Do not analyze or edit a repository until the target root is a real local directory",
       "Do not invent a fix target from this clean queue",
       "items:\n  []\ndo:",
-      "Do not edit from this summary alone."
+      "Do not edit from this summary alone.",
+      "Do not make a repository edit from ContextOS alone right now.",
+      "Do not edit from ContextOS alone. Search or inspect a concrete target first."
     ],
     "purpose": "Keep the Progressive HITL manual seal pack diverse enough to catch target/file/type-specific defects without dumping every reviewed sample. Selection is deterministic, but it prefers diversity over repeatedly showing the same package or target."
   },

@@ -7,6 +7,8 @@ from pathlib import Path
 from tools.core.governance_trace import (
     UNKNOWN_VALUE,
     activate_trace,
+    activate_trace_storage,
+    current_trace_storage,
     current_trace_id,
     load_trace_events,
     record_agent_handoff_trace,
@@ -14,6 +16,7 @@ from tools.core.governance_trace import (
     record_release_proof_step_trace,
     record_watchdog_session_trace,
     reset_trace,
+    reset_trace_storage,
 )
 
 
@@ -83,6 +86,28 @@ class GovernanceTraceTests(unittest.TestCase):
             stored = load_trace_events(limit=10, db_path=db_path)
             self.assertEqual({item["trace_id"] for item in stored}, set(trace_ids))
 
+    def test_event_specific_retention_does_not_evict_nested_trace_family(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "codemaps.db"
+            record_trace_event(
+                event_type="agent_handoff",
+                trace_id="handoff-preserved",
+                outcome="success",
+                failure_layer="none",
+                db_path=db_path,
+            )
+            for trace_id in ("mcp-old", "mcp-current"):
+                record_trace_event(
+                    event_type="mcp_tool_call",
+                    trace_id=trace_id,
+                    outcome="success",
+                    failure_layer="none",
+                    db_path=db_path,
+                    max_events=1,
+                )
+            stored = load_trace_events(limit=10, db_path=db_path)
+            self.assertEqual({item["trace_id"] for item in stored}, {"handoff-preserved", "mcp-current"})
+
     def test_watchdog_trace_keeps_counts_but_not_file_paths(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "codemaps.db"
@@ -133,6 +158,31 @@ class GovernanceTraceTests(unittest.TestCase):
         finally:
             reset_trace(token)
         self.assertIsNone(current_trace_id())
+
+    def test_call_local_storage_routes_nested_trace_without_touching_default_db(self):
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            default_raw = root / "default" / ".raw"
+            operational_db = root / "operational" / "mcp_call_telemetry.db"
+            token = activate_trace_storage(operational_db)
+            try:
+                with patch("tools.core.governance_trace.RAW_DIR", default_raw):
+                    record_agent_handoff_trace(
+                        {
+                            "meta": {"kind": "contextos_surgical_operation_packet"},
+                            "summary": {"returned_focus_files": 0, "integrity": "bounded"},
+                            "source_grounding": {"drift_check_status": "match"},
+                        },
+                        trace_id="sage-trace-operational",
+                    )
+                    self.assertEqual(current_trace_storage(), operational_db.resolve())
+            finally:
+                reset_trace_storage(token)
+            self.assertTrue(operational_db.exists())
+            self.assertFalse((default_raw / "codemaps.db").exists())
+            self.assertIsNone(current_trace_storage())
 
     def test_surgical_packet_exposes_only_opaque_handoff_reference_in_trace_context(self):
         from unittest.mock import patch

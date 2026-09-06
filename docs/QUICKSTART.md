@@ -53,6 +53,12 @@ those boundaries exist. They may reuse the same observations, but a preflight
 exclusion is not complete unless canonical discovery carries it to every
 downstream consumer.
 
+For a whole-repository run, discovery includes evidence-bearing nested project
+boundaries in analysis even when their relationship to `MAIN` is unresolved.
+Those projects are reported as coverage-only and cannot act as variation or
+host-merge sources until relationship evidence exists. An explicit `--projects`
+filter remains a bounded caller selection.
+
 A manifest-owned `src`, `app`, or other architecture marker remains part of
 its parent project unless it declares its own project identity or workspace
 edge. Internal folder shape alone does not remove the source tree from `MAIN`.

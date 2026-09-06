@@ -9,6 +9,11 @@ from typing import Any
 
 from tools.core.artifact_registry import artifact_metadata
 from tools.core.analysis_snapshot_lineage import receipt_binding
+from tools.core.analysis_scope_authority import (
+    BOUNDED_PROJECT_SELECTION,
+    COMPLETE_REPOSITORY,
+    extract_scope_authority,
+)
 from tools.core.atlas_integrity import validate_atlas_commit
 from tools.core.config import CONFIG_DIR, RAW_DIR
 from tools.core.json_io import load_json_object_strict, load_raw_artifact_path_strict
@@ -143,6 +148,62 @@ def _atlas_identity(atlas: Any, commit: Any) -> tuple[str | None, bool]:
     return str(commit.get("snapshot_id") or "") or None, bool(checks) and all(row["passed"] for row in checks)
 
 
+def _scope_evidence(payloads: dict[str, Any], atlas: Any) -> dict[str, Any]:
+    shared = extract_scope_authority(payloads.get("analysis_scope_authority")) or {}
+    audit = payloads.get("audit_report")
+    audit_scope = audit.get("audit_scope") if isinstance(audit, dict) else None
+    if not isinstance(audit_scope, dict) and isinstance(audit, dict):
+        summary = audit.get("summary")
+        audit_scope = summary.get("audit_scope") if isinstance(summary, dict) else None
+    audit_authority = extract_scope_authority(
+        audit_scope.get("scope_authority") if isinstance(audit_scope, dict) else None
+    ) or {}
+    quality = payloads.get("quality_gate")
+    quality_authority = extract_scope_authority(
+        quality.get("analysis_scope_authority") if isinstance(quality, dict) else None
+    ) or {}
+    authority_id = str(shared.get("scope_authority_id") or "")
+    atlas_projects = sorted(
+        str(project)
+        for project, value in (atlas.items() if isinstance(atlas, dict) else [])
+        if project != "symbols" and isinstance(value, dict)
+    )
+    effective_projects = sorted(
+        str(project)
+        for project in (shared.get("effective_runtime_projects") or {})
+    )
+    indexed_projects = sorted(str(project) for project in (shared.get("indexed_projects") or []))
+    evidence_status = str(shared.get("evidence_status") or "INCOMPLETE_EVIDENCE")
+    checks = {
+        "authority_id_present": bool(authority_id),
+        "claim_status_usable": evidence_status in {COMPLETE_REPOSITORY, BOUNDED_PROJECT_SELECTION},
+        "effective_project_set_present": bool(effective_projects),
+        "indexed_projects_match_effective_scope": indexed_projects == effective_projects,
+        "indexed_projects_exist_in_atlas": bool(indexed_projects)
+        and set(indexed_projects).issubset(atlas_projects),
+        "audit_identity_matches": bool(authority_id)
+        and str(audit_authority.get("scope_authority_id") or "") == authority_id,
+        "quality_identity_matches": bool(authority_id)
+        and str(quality_authority.get("scope_authority_id") or "") == authority_id,
+        "quality_scope_gate_passed": isinstance(quality, dict)
+        and quality.get("scope_gate_status") == "PASS",
+    }
+    failed = sorted(name for name, passed in checks.items() if not passed)
+    reasons = sorted(set(list(shared.get("incomplete_reasons") or []) + failed))
+    return {
+        "status": "PASS" if not failed else "BLOCKED",
+        "scope_authority_id": authority_id or None,
+        "evidence_status": evidence_status,
+        "claim_scope": shared.get("claim_scope"),
+        "full_repository_claim_eligible": shared.get("full_repository_claim_eligible") is True,
+        "atlas_projects": atlas_projects,
+        "effective_projects": effective_projects,
+        "indexed_projects": indexed_projects,
+        "checks": checks,
+        "reasons": reasons,
+    }
+
+
 def build_target_repository_proof(
     *,
     target_root: Path,
@@ -211,6 +272,7 @@ def build_target_repository_proof(
     atlas = payloads.get("atlas")
     atlas_commit = payloads.get("atlas_commit")
     analysis_snapshot_id, atlas_identity_valid = _atlas_identity(atlas, atlas_commit)
+    scope_evidence = _scope_evidence(payloads, atlas)
     root_binding = _root_binding(target_root, atlas)
     reference = _repository_reference(target_root.resolve(), repository_reference)
     subject = {
@@ -223,6 +285,11 @@ def build_target_repository_proof(
     }
     if not atlas_identity_valid:
         unknowns.append("analysis_snapshot:invalid_or_unavailable")
+    if scope_evidence["status"] != "PASS":
+        unknowns.extend(
+            f"analysis_scope_authority:{reason}"
+            for reason in scope_evidence["reasons"]
+        )
     if root_binding != "BOUND":
         unknowns.append(f"target_root:{root_binding.lower()}")
     commit_generated_at = _parse_time(
@@ -301,7 +368,12 @@ def build_target_repository_proof(
         or row["snapshot_binding"] != "BOUND"
         or row["source_verdict"] == "BLOCKED"
     ]
-    if not atlas_identity_valid or root_binding != "BOUND" or blockers:
+    if (
+        not atlas_identity_valid
+        or root_binding != "BOUND"
+        or scope_evidence["status"] != "PASS"
+        or blockers
+    ):
         verdict = "BLOCKED"
     elif human_decisions:
         verdict = "REVIEW_REQUIRED"
@@ -346,6 +418,7 @@ def build_target_repository_proof(
         },
         "subject": subject,
         "claim_boundary": str(contract["authority"]["claim_boundary"]),
+        "scope_evidence": scope_evidence,
         "summary": {
             "mode": mode,
             "verdict": verdict,

@@ -179,9 +179,24 @@ def run_validation() -> dict[str, Any]:
             changed_files=["MAIN::App.tsx"],
             dna_changed_files=["MAIN::App.tsx"],
             should_run_heavy=True,
+            atlas={"MAIN": {"files": {"App.tsx": {"features": ["ZustandStore"]}}}},
         )
     }
     selected_slugs = _step_slugs(selected_names)
+    unrelated_slugs = _step_slugs({
+        step["name"] for step in select_steps_smart(
+            catalog, live_args,
+            changed_files=["MAIN::App.tsx"],
+            dna_changed_files=["MAIN::App.tsx"],
+            should_run_heavy=True,
+            atlas={"MAIN": {"files": {"App.tsx": {"features": []}}}},
+        )
+    })
+    checks.append(_check(
+        "surgical_tsx_without_state_signal_skips_state_flow",
+        normalize_step_slug("State Flow Scanner") not in unrelated_slugs,
+        {"selected": sorted(unrelated_slugs), "evidence_role": "isolated_atlas_fixture"},
+    ))
     required_signal_sensitive_slugs = {normalize_step_slug("State Flow Scanner")}
     checks.append(
         _check(

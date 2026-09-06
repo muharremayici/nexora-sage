@@ -244,6 +244,7 @@ def render_executive_triage(master_content):
             "|---|---|---|",
             f"| Platform release-ready? | `{release_summary.get('platform_readiness', release.get('readiness', 'UNKNOWN'))}` | release checks `{release_summary.get('passed', '?')}/{release_summary.get('checks', '?')}` |",
             f"| Repo ecosystem attention? | `{release_summary.get('ecosystem_attention', False)}` | quality signal `{release_summary.get('ecosystem_signal_status', quality.get('ecosystem_signal_status', 'n/a'))}` |",
+            f"| Repository analysis scope | `{quality.get('scope_gate_status', 'INCOMPLETE_EVIDENCE')}` | authority `{(quality.get('analysis_scope_authority') or {}).get('scope_authority_id', 'n/a')}`; claim `{(quality.get('analysis_scope_authority') or {}).get('claim_scope', 'n/a')}` |",
             f"| Live-surface critical signals | `{(live_summary.get('risk_tiers') or {}).get('critical', 0)}` | broken `{live_summary.get('broken_live', 0)}`, duplicate `{live_summary.get('duplicate_live', 0)}` |",
             f"| Dead-code actionability | `{(dead_summary.get('actionability') or {}).get('actionable', 0)}` actionable | total `{dead_summary.get('total', 0)}` |",
             f"| Browser smoke readiness | `{ui_summary.get('ready_to_run', 0)}` ready | required `{ui_summary.get('browser_gate_required', 0)}`, next `{ui_summary.get('next_action', 'n/a')}` |",

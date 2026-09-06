@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
+
+from tools.core.artifact_validator import validate_against_schema
 from tools.validate_external_repository_evaluation_contract import evaluate_contract, evaluate_registry
 
 
@@ -27,9 +32,55 @@ def _failed_names(checks):
     return {check["name"] for check in checks if not check["passed"]}
 
 
+@pytest.mark.parametrize("autocrlf", ["true", "false"])
+def test_hashed_evaluation_inputs_survive_git_checkout(tmp_path, autocrlf):
+    import hashlib
+
+    repo = tmp_path / "source"
+    checkout = tmp_path / "checkout"
+    repo.mkdir()
+    shutil.copyfile(ROOT / ".gitattributes", repo / ".gitattributes")
+    registry = _load("config/external_repository_evaluation_registry.json")
+    manifests = [
+        row
+        for plan in registry["factorial_evaluation_plans"]
+        for row in plan.get("cell_input_manifests", [])
+    ]
+    assert manifests
+    for row in manifests:
+        target = repo / row["input_path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / row["input_path"], target)
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-c", f"core.autocrlf={autocrlf}", "-C", str(repo), *args],
+            check=True, capture_output=True, text=True,
+        )
+
+    git("init", "--quiet")
+    git("add", "--", ".gitattributes", "config/evaluation_inputs")
+    git("checkout-index", "--all", f"--prefix={checkout.as_posix()}/")
+    for row in manifests:
+        content = (checkout / row["input_path"]).read_bytes()
+        assert hashlib.sha256(content).hexdigest() == row["content_sha256"]
+        assert hashlib.sha256(content + b"changed").hexdigest() != row["content_sha256"]
+
+
 def test_real_contract_passes_cross_authority_checks():
     contract, polyglot, harness, preflight, human_text = _inputs()
     assert not _failed_names(evaluate_contract(contract, polyglot, harness, preflight, human_text=human_text))
+
+
+def test_registry_subject_accepts_commit_or_sha256_content_fingerprint():
+    schema_path = ROOT / "config/schemas/external_repository_evaluation_registry.schema.json"
+    registry = _load("config/external_repository_evaluation_registry.json")
+    assert not validate_against_schema(schema_path, "external_repository_evaluation_registry", registry)
+
+    mutated = copy.deepcopy(registry)
+    mutated["subjects"][0]["commit_or_content_fingerprint"] = "a" * 41
+    errors = validate_against_schema(schema_path, "external_repository_evaluation_registry", mutated)
+    assert any("commit_or_content_fingerprint" in error for error in errors)
 
 
 def test_known_repository_cannot_be_relabelled_as_holdout():

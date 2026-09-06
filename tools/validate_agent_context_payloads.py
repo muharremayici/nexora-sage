@@ -95,6 +95,25 @@ def _activation(payload: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _all_project_symbol_scope_is_safe(brief: str, symbol: str) -> bool:
+    """An all-project query need not find projects absent from the current Atlas."""
+    refs = _yaml_list_items(brief, "target_refs")
+    explicit_scope = (
+        f"target: {json.dumps(symbol)}" in brief
+        and f"symbol_query: {json.dumps(symbol)}" in brief
+        and 'project_scope: "all"' in brief
+        and f"target_query_ref: {json.dumps(symbol)}" in brief
+        and "target_query_ref_usage:" in brief
+        and bool(refs)
+        and all("::" in ref for ref in refs)
+    )
+    ambiguity_safe = len(set(refs)) <= 1 or (
+        "Do not edit yet; this target maps to multiple project-scoped targets." in brief
+        and "Make the smallest code change" not in brief
+    )
+    return explicit_scope and ambiguity_safe
+
+
 def _activation_summary(payload: dict[str, Any]) -> dict[str, Any]:
     return _activation(payload).get("summary", {}) if isinstance(_activation(payload).get("summary"), dict) else {}
 
@@ -1257,14 +1276,7 @@ def validate_agent_context_payloads() -> dict[str, Any]:
         ),
         _check(
             "inspect_symbol_all_project_scope_is_explicit_and_fail_closed_for_edits",
-            'target: "App"' in all_project_symbol_brief
-            and 'symbol_query: "App"' in all_project_symbol_brief
-            and 'project_scope: "all"' in all_project_symbol_brief
-            and 'target_query_ref: "App"' in all_project_symbol_brief
-            and "target_query_ref_usage:" in all_project_symbol_brief
-            and "Variations/" in all_project_symbol_brief
-            and "Do not edit yet; this target maps to multiple project-scoped targets." in all_project_symbol_brief
-            and "Make the smallest code change" not in all_project_symbol_brief,
+            _all_project_symbol_scope_is_safe(all_project_symbol_brief, "App"),
             {"brief": all_project_symbol_brief[:1200]},
         ),
         _check(

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.core.language_registry import observable_extension_language_map, skip_dirs
+from tools.core.source_files import is_analysis_source_file
 
 
 def _matches_marker(filename: str, patterns: list[str]) -> bool:
@@ -36,7 +37,16 @@ def source_inventory(
     identity_root: Path | None = None,
     excluded_roots: set[Path] | None = None,
     file_count_limit: int | None = None,
-) -> tuple[int, bool, dict[str, int], int, int, list[str], dict[str, list[str]]]:
+) -> tuple[
+    int,
+    bool,
+    dict[str, int],
+    dict[str, int],
+    int,
+    int,
+    list[str],
+    dict[str, list[str]],
+]:
     count = 0
     truncated = False
     limit = max(
@@ -73,6 +83,7 @@ def source_inventory(
         reverse=True,
     )
     language_counts: dict[str, int] = {}
+    analysis_language_counts: dict[str, int] = {}
     react_source_files = 0
     react_fixture_source_files = 0
     config_files: set[str] = set()
@@ -104,6 +115,8 @@ def source_inventory(
             language = language_by_extension.get(path.suffix.lower())
             if language:
                 language_counts[language] = language_counts.get(language, 0) + 1
+                if is_analysis_source_file(path):
+                    analysis_language_counts[language] = analysis_language_counts.get(language, 0) + 1
             owning_package_root = next(
                 (
                     package_root
@@ -134,6 +147,7 @@ def source_inventory(
         count,
         truncated,
         dict(sorted(language_counts.items())),
+        dict(sorted(analysis_language_counts.items())),
         react_source_files,
         react_fixture_source_files,
         sorted(config_files),
@@ -154,9 +168,11 @@ def selected_project_inventory(
     package_react_ownership: dict[Path, bool],
     *,
     excluded_roots: set[Path] | None = None,
+    projects: dict[str, Any] | None = None,
 ) -> tuple[
     int,
     bool,
+    dict[str, int],
     dict[str, int],
     int,
     int,
@@ -168,13 +184,19 @@ def selected_project_inventory(
     total_count = 0
     truncated = False
     language_counts: dict[str, int] = {}
+    analysis_language_counts: dict[str, int] = {}
     react_source_files = 0
     react_fixture_source_files = 0
     config_files: set[str] = set()
     manifest_files: dict[str, set[str]] = {}
     project_file_counts: dict[str, int] = {}
 
-    for project_key, relative_path in repository_topology["selected_projects"].items():
+    inventory_projects = (
+        projects
+        if isinstance(projects, dict)
+        else repository_topology["selected_projects"]
+    )
+    for project_key, relative_path in inventory_projects.items():
         remaining = total_limit - total_count
         if remaining <= 0:
             truncated = True
@@ -199,6 +221,7 @@ def selected_project_inventory(
             project_count,
             project_truncated,
             project_languages,
+            project_analysis_languages,
             project_react_sources,
             project_react_fixtures,
             project_configs,
@@ -221,6 +244,8 @@ def selected_project_inventory(
         config_files.update(project_configs)
         for language, count in project_languages.items():
             language_counts[language] = language_counts.get(language, 0) + count
+        for language, count in project_analysis_languages.items():
+            analysis_language_counts[language] = analysis_language_counts.get(language, 0) + count
         for ecosystem, files in project_manifests.items():
             manifest_files.setdefault(ecosystem, set()).update(files)
         if project_truncated:
@@ -230,6 +255,7 @@ def selected_project_inventory(
         total_count,
         truncated,
         dict(sorted(language_counts.items())),
+        dict(sorted(analysis_language_counts.items())),
         react_source_files,
         react_fixture_source_files,
         sorted(config_files),

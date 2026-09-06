@@ -5,8 +5,10 @@ import hashlib
 import sqlite3
 import threading
 from collections.abc import Callable
+from contextlib import closing
 from pathlib import Path
 from typing import Any
+from tools.core.json_syntax import DuplicateJSONKeyError, loads_json_strict
 
 
 _STRICT_JSON_CONTENT_CACHE: dict[tuple[str, Callable[[dict[str, Any]], dict[str, Any]] | None], tuple[str, dict[str, Any]]] = {}
@@ -15,24 +17,6 @@ _STRICT_JSON_CONTENT_CACHE_LOCK = threading.RLock()
 _JSON_CONTENT_CACHE: dict[tuple[str, Callable[[Any], Any] | None], tuple[str, Any]] = {}
 _JSON_CONTENT_CACHE_METRICS = {"reads": 0, "hits": 0, "misses": 0, "bytes_hashed": 0}
 _JSON_CONTENT_CACHE_LOCK = threading.RLock()
-
-
-class DuplicateJSONKeyError(ValueError):
-    """Raised when JSON contains two members with the same object key."""
-
-
-def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise DuplicateJSONKeyError(f"Duplicate JSON object key: {key}")
-        result[key] = value
-    return result
-
-
-def loads_json_strict(content: str) -> Any:
-    """Parse JSON without allowing last-key-wins semantic ambiguity."""
-    return json.loads(content, object_pairs_hook=_unique_object_pairs)
 
 
 def _content_snapshot(path: Path) -> tuple[bytes, str]:
@@ -215,21 +199,68 @@ def _raw_state_payload_row(json_path: Path) -> tuple[str, str | None] | None:
     connection = _raw_state_connection(json_path)
     if connection is None:
         return None
-    with connection as conn:
-        row = conn.execute(
-            "SELECT payload, payload_sha FROM state_payloads WHERE name = ?;",
-            (json_path.stem,),
-        ).fetchone()
-    if row is None:
-        return None
-    return str(row[0]), str(row[1]) if row[1] else None
+    with closing(connection) as conn:
+        try:
+            row = conn.execute(
+                """
+                SELECT payload, payload_sha, payload_bytes, storage_mode, generation_id, part_count
+                FROM state_payloads WHERE name = ?;
+                """,
+                (json_path.stem,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            row = conn.execute(
+                "SELECT payload, payload_sha FROM state_payloads WHERE name = ?;",
+                (json_path.stem,),
+            ).fetchone()
+            if row is None:
+                return None
+            return str(row[0]), str(row[1]) if row[1] else None
+        if row is None:
+            return None
+        if str(row[3] or "inline_json") == "inline_json":
+            return str(row[0]), str(row[1]) if row[1] else None
+        if str(row[3]) != "partitioned_json_v1":
+            raise ValueError(f"Unsupported raw state payload storage mode: {row[3]}")
+        generation_id = str(row[4] or "")
+        expected_parts = int(row[5] or 0)
+        expected_bytes = int(row[2] or 0)
+        expected_sha = str(row[1] or "")
+        digest = hashlib.sha256()
+        chunks: list[bytes] = []
+        actual_bytes = 0
+        parts = conn.execute(
+            """
+            SELECT part_index, payload, payload_bytes, payload_sha
+            FROM state_payload_parts
+            WHERE name = ? AND generation_id = ?
+            ORDER BY part_index;
+            """,
+            (json_path.stem, generation_id),
+        )
+        for expected_index, part in enumerate(parts):
+            if int(part[0]) != expected_index:
+                raise ValueError("Partitioned raw payload sequence is not contiguous.")
+            part_bytes = bytes(part[1])
+            if len(part_bytes) != int(part[2] or 0):
+                raise ValueError("Partitioned raw payload part length mismatch.")
+            if hashlib.sha256(part_bytes).hexdigest() != str(part[3] or ""):
+                raise ValueError("Partitioned raw payload part checksum mismatch.")
+            chunks.append(part_bytes)
+            digest.update(part_bytes)
+            actual_bytes += len(part_bytes)
+        if len(chunks) != expected_parts or actual_bytes != expected_bytes:
+            raise ValueError("Partitioned raw payload is incomplete.")
+        if digest.hexdigest() != expected_sha:
+            raise ValueError("Partitioned raw payload checksum mismatch.")
+        return b"".join(chunks).decode("utf-8"), expected_sha
 
 
 def _raw_state_payload_fingerprint(json_path: Path) -> str | None:
     connection = _raw_state_connection(json_path)
     if connection is None:
         return None
-    with connection as conn:
+    with closing(connection) as conn:
         row = conn.execute(
             "SELECT payload_sha FROM state_payloads WHERE name = ?;",
             (json_path.stem,),

@@ -3,11 +3,55 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.orchestrators.discovery import resolve_discovery_root, workspace_root_reference
+from tools import validate_discovery_universality as validator
 
 
 class DiscoveryTargetRootTests(unittest.TestCase):
+    def test_bounded_presence_keeps_unknown_and_path_safety_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src").mkdir()
+            installation = root / "sage"
+            installation.mkdir()
+            config = {
+                "variations": {"MAIN": "src", "ABSENT": "missing"},
+                "project_roles": {"MAIN": "host"},
+            }
+            with (
+                patch.object(validator, "ANALYSIS_ROOT", root),
+                patch.object(validator, "CODE_MAPS_DIR", installation),
+                patch.object(validator, "DYNAMIC_CONFIG", config),
+                patch.object(validator, "save_json_atomic"),
+                patch.object(validator, "save_text_atomic"),
+            ):
+                bounded = validator._declared_project_root_details("MAIN")
+                self.assertEqual(bounded["missing"], [])
+                self.assertEqual(bounded["checked_project_keys"], ["MAIN"])
+                self.assertEqual(bounded["excluded_from_presence_check"], ["ABSENT"])
+                self.assertEqual(validator.run_validation("MAIN")["summary"]["failed_checks"], 0)
+                self.assertEqual(validator.run_validation()["summary"]["failed_checks"], 1)
+                self.assertEqual(validator._declared_project_root_details()["missing"][0]["project"], "ABSENT")
+                unknown = validator._declared_project_root_details("MAIN,TYPO")
+                self.assertEqual(unknown["unavailable_requested_projects"], ["TYPO"])
+                self.assertEqual(validator.run_validation("MAIN,TYPO")["summary"]["failed_checks"], 1)
+                config["variations"]["ESCAPE"] = "../outside"
+                config["variations"]["INTERNAL"] = "sage"
+                unsafe = validator._declared_project_root_details("MAIN")
+                self.assertEqual(unsafe["escaping"][0]["project"], "ESCAPE")
+                self.assertEqual(unsafe["inside_sage_workspace"][0]["project"], "INTERNAL")
+                self.assertEqual(validator.run_validation("MAIN")["summary"]["failed_checks"], 1)
+
+    def test_release_discovery_presence_scope_matches_central_live_scope(self):
+        from tools.core.release_proof_steps import load_release_proof_steps_contract, load_release_proof_scope_contract
+        steps = load_release_proof_steps_contract()["steps"]
+        step = next(row for row in steps if row["id"] == "discovery_universality")
+        command = step["command"]
+        actual = command[command.index("--projects") + 1].split(",")
+        self.assertEqual(actual, load_release_proof_scope_contract()["live_repository_execution"]["required_project_filter"])
+
     def test_explicit_target_root_overrides_installation_parent(self):
         with tempfile.TemporaryDirectory() as install_tmp, tempfile.TemporaryDirectory() as target_tmp:
             install_root = Path(install_tmp)

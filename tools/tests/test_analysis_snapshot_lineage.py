@@ -57,17 +57,19 @@ def test_receipt_rejects_tampered_content_and_wrong_producer(tmp_path: Path) -> 
 
 def test_dependency_mismatch_blocks_downstream_receipt(tmp_path: Path) -> None:
     atlas, commit = _atlas(tmp_path)
+    scope = {"scope_authority": {"scope_authority_id": "scope-1"}}
     genome = {"Symbol": []}
     audit = {"summary": {"total": 0}}
+    write_lineage_receipt(artifact_id="analysis_scope_authority", producer="tools.orchestrators.orchestrator", artifact_payload=scope, atlas=atlas, atlas_commit=commit, raw_dir=tmp_path)
     write_lineage_receipt(artifact_id="genome", producer="tools.engines.nuclear_processor", artifact_payload=genome, atlas=atlas, atlas_commit=commit, raw_dir=tmp_path)
-    write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload=audit, atlas=atlas, atlas_commit=commit, raw_dir=tmp_path)
+    write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload=audit, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope}, raw_dir=tmp_path)
     receipt = write_lineage_receipt(
         artifact_id="quality_gate",
         producer="tools.engines.quality_gate",
         artifact_payload={"passed": True},
         atlas=atlas,
         atlas_commit=commit,
-        dependency_payloads={"genome": {"tampered": []}, "audit_report": audit},
+        dependency_payloads={"analysis_scope_authority": scope, "genome": {"tampered": []}, "audit_report": audit},
         raw_dir=tmp_path,
     )
     assert receipt["status"] == "BLOCKED"
@@ -76,11 +78,17 @@ def test_dependency_mismatch_blocks_downstream_receipt(tmp_path: Path) -> None:
 
 def test_invalid_atlas_commit_writes_blocked_receipt(tmp_path: Path) -> None:
     atlas, commit = _atlas(tmp_path)
-    commit["atlas_sha256"] = "0" * 64
-    receipt = write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload={"summary": {}}, atlas=atlas, atlas_commit=commit, raw_dir=tmp_path)
+    scope = {"scope_authority": {"scope_authority_id": "scope-1"}}
+    write_lineage_receipt(artifact_id="analysis_scope_authority", producer="tools.orchestrators.orchestrator", artifact_payload=scope, atlas=atlas, atlas_commit=commit, raw_dir=tmp_path)
+    invalid_commit = dict(commit)
+    invalid_commit["atlas_sha256"] = "0" * 64
+    receipt = write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload={"summary": {}}, atlas=atlas, atlas_commit=invalid_commit, dependency_payloads={"analysis_scope_authority": scope}, raw_dir=tmp_path)
     assert receipt["status"] == "BLOCKED"
     assert receipt["atlas_snapshot_id"] is None
-    assert receipt["errors"] == ["atlas_commit_invalid_or_unavailable"]
+    assert receipt["errors"] == [
+        "atlas_commit_invalid_or_unavailable",
+        "dependency:analysis_scope_authority:dependency_payload_missing",
+    ]
 
 
 def test_test_impact_uses_the_supplied_snapshot_inputs(monkeypatch) -> None:

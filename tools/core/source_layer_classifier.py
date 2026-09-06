@@ -23,6 +23,7 @@ GENERATED_OR_RUNTIME_ROOTS = {
 
 GENERATED_OR_RUNTIME_NAMES = {
     ".pipeline_run.lock",
+    ".pipeline_run.lock.metadata.json",
     "codemaps.config.json",
     "codemaps.db",
     "codemaps.discovery.json",

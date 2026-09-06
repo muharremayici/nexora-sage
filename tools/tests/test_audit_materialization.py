@@ -41,6 +41,7 @@ class AuditMaterializationTests(unittest.TestCase):
             patch.object(audit, "get_module_root_name", return_value="modules"),
             patch.object(audit, "save_json_atomic", side_effect=capture_payload) as save_json,
             patch.object(audit, "save_text_atomic", side_effect=capture_text) as save_text,
+            patch.object(audit, "write_current_atlas_lineage") as lineage,
             patch.object(audit, "flush_shadow_writes", side_effect=capture_flush) as flush_shadow,
             patch.object(audit, "invalidate_audit_report_cache") as invalidate_cache,
         ):
@@ -55,6 +56,11 @@ class AuditMaterializationTests(unittest.TestCase):
             )
 
         self.assertEqual(save_json.call_count, 1)
+        lineage.assert_called_once()
+        self.assertEqual(lineage.call_args.kwargs["artifact_id"], "audit_report")
+        self.assertEqual(lineage.call_args.kwargs["artifact_payload"], saved_payloads[0])
+        self.assertEqual(lineage.call_args.kwargs["atlas"], {"MAIN": {"files": {}}})
+        self.assertEqual(lineage.call_args.kwargs["dependency_payloads"], {"analysis_scope_authority": {}})
         self.assertEqual(flush_shadow.call_count, 1)
         self.assertEqual(save_text.call_count, 2)
         self.assertEqual(

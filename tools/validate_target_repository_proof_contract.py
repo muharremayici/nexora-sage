@@ -159,15 +159,41 @@ def _fixture_results() -> dict[str, object]:
         commit = build_atlas_commit(atlas, generated_at=basis.isoformat())
         _write_fixture(raw_dir, "atlas", atlas)
         _write_fixture(raw_dir, "atlas_commit", commit)
+        authority = {
+            "contract": "repository_analysis_scope_authority_v1",
+            "scope_authority_id": "sha256:" + "a" * 64,
+            "evidence_status": "COMPLETE_REPOSITORY",
+            "claim_scope": "supported_source_repository",
+            "full_repository_claim_eligible": True,
+            "incomplete_reasons": [],
+            "effective_runtime_projects": {"MAIN": "."},
+            "indexed_projects": ["MAIN"],
+            "layer_consistency": "CONSISTENT",
+        }
+        scope_payload = {
+            "meta": {"kind": "analysis_scope_authority", "version": "v1"},
+            "scope_authority": authority,
+        }
         genome = {"Example": []}
-        audit = {"summary": {"total": 3}}
-        quality = {"passed": True}
+        audit_scope = {
+            "atlas_project_count": 1,
+            "audited_projects": ["MAIN"],
+            "scope_authority": authority,
+        }
+        audit = {"summary": {"total": 3, "audit_scope": audit_scope}, "audit_scope": audit_scope}
+        quality = {
+            "passed": True,
+            "scope_gate_status": "PASS",
+            "analysis_scope_authority": authority,
+        }
+        _write_fixture(raw_dir, "analysis_scope_authority", scope_payload)
         _write_fixture(raw_dir, "genome", genome)
         _write_fixture(raw_dir, "audit_report", audit)
         _write_fixture(raw_dir, "quality_gate", quality)
         write_lineage_receipt(artifact_id="genome", producer="tools.engines.nuclear_processor", artifact_payload=genome, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
-        write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload=audit, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
-        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"genome": genome, "audit_report": audit}, raw_dir=raw_dir)
+        write_lineage_receipt(artifact_id="analysis_scope_authority", producer="tools.orchestrators.orchestrator", artifact_payload=scope_payload, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
+        write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload=audit, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload}, raw_dir=raw_dir)
+        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=raw_dir)
         clean = build_target_repository_proof(
             target_root=target_root,
             raw_dir=raw_dir,
@@ -185,9 +211,9 @@ def _fixture_results() -> dict[str, object]:
             repository_reference="fixture-snapshot",
             evidence_not_before=basis.isoformat(),
         )
-        quality = {"passed": False}
+        quality = {**quality, "passed": False}
         _write_fixture(raw_dir, "quality_gate", quality)
-        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"genome": genome, "audit_report": audit}, raw_dir=raw_dir)
+        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=raw_dir)
         blocked = build_target_repository_proof(
             target_root=target_root,
             raw_dir=raw_dir,
@@ -195,9 +221,9 @@ def _fixture_results() -> dict[str, object]:
             repository_reference="fixture-snapshot",
             evidence_not_before=basis.isoformat(),
         )
-        quality = {"passed": True}
+        quality = {**quality, "passed": True}
         _write_fixture(raw_dir, "quality_gate", quality)
-        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"genome": genome, "audit_report": audit}, raw_dir=raw_dir)
+        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=raw_dir)
         _write_merge_fixture_lineage(
             raw_dir,
             atlas,
@@ -220,7 +246,7 @@ def _fixture_results() -> dict[str, object]:
             mode="baseline",
             repository_reference="plausible-but-nonauthoritative",
         )
-        _write_fixture(raw_dir, "quality_gate", {"passed": True, "tampered_after_production": True})
+        _write_fixture(raw_dir, "quality_gate", {**quality, "tampered_after_production": True})
         unbound = build_target_repository_proof(
             target_root=target_root,
             raw_dir=raw_dir,
@@ -309,6 +335,11 @@ def build_validation() -> dict[str, object]:
         _check(
             "atlas_commit_is_required_in_every_mode",
             all("atlas_commit" in mode.get("required_evidence", []) for mode in modes.values() if isinstance(mode, dict)),
+            {mode_id: mode.get("required_evidence", []) for mode_id, mode in modes.items() if isinstance(mode, dict)},
+        ),
+        _check(
+            "analysis_scope_authority_is_required_in_every_mode",
+            all("analysis_scope_authority" in mode.get("required_evidence", []) for mode in modes.values() if isinstance(mode, dict)),
             {mode_id: mode.get("required_evidence", []) for mode_id, mode in modes.items() if isinstance(mode, dict)},
         ),
         _check(

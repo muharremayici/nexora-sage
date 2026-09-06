@@ -10,6 +10,24 @@ from tools.core.declarative_evidence import evaluate_evidence_contract
 
 
 class DeclarativeEvidenceTests(unittest.TestCase):
+    def test_current_sqlite_roadmap_requires_partition_verification(self) -> None:
+        source_root = Path(__file__).resolve().parents[2]
+        contract = json.loads((source_root / "config/product_reports_evidence_contract.json").read_text(encoding="utf-8"))
+        check = next(row for row in contract["checks"] if row["id"] == "python_boundary_and_sqlite_roadmap_are_explicit")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            sources = {key: contract["sources"][key] for key in check["requires"]}
+            for source in sources.values():
+                path = root / source["path"]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((source_root / source["path"]).read_bytes())
+            contract_path = root / "contract.json"
+            self._write(contract_path, {"sources": sources, "checks": [check]})
+            self.assertTrue(evaluate_evidence_contract(contract_path, root=root, raw_dir=root)[0]["passed"])
+            doc = root / sources["sqlite_roadmap"]["path"]
+            doc.write_text(doc.read_text(encoding="utf-8").replace("verify inline payload or manifest-selected ordered parts -> ", ""), encoding="utf-8")
+            self.assertFalse(evaluate_evidence_contract(contract_path, root=root, raw_dir=root)[0]["passed"])
+
     @staticmethod
     def _write(path: Path, payload: dict) -> None:
         path.write_text(json.dumps(payload), encoding="utf-8")

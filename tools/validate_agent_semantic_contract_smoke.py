@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 from tools.core.config import RAW_DIR, REPORTS_DIR, ROOT as ANALYZED_REPOSITORY_ROOT, save_json_atomic, save_text_atomic
 from tools.core.contextos_mcp import build_surgical_operation_packet
 from tools.core.json_io import load_json_file
+from tools.core.release_identity import matches_current_release_claim
 from tools.core.audit_rules import build_rule_taxonomy
 from tools.core.agent_surface_seal_contract import (
     load_agent_surface_seal_contract,
@@ -734,10 +735,10 @@ def _search_and_inspection_grounding_report() -> dict[str, Any]:
         for row in all_project_search_rows
         if isinstance(row, dict)
     }
-    if len(all_projects) <= len(default_projects):
+    if not default_projects or "" in all_projects or not default_projects.issubset(all_projects):
         issues.append(
             {
-                "issue": "search_symbols_all_scope_not_wider_than_default",
+                "issue": "search_symbols_all_scope_missing_default_or_unscoped_results",
                 "default_projects": sorted(default_projects),
                 "all_projects": sorted(all_projects),
             }
@@ -1665,8 +1666,7 @@ def validate_agent_semantic_contract_smoke() -> dict[str, Any]:
             and (claim_guard.get("summary") or {}).get("status") == "PASS"
             and release_contract.get("emits") == "verdict"
             and release_contract.get("quality_gate_effect") == "block"
-            and (claim_guard.get("summary") or {}).get("allowed_claim")
-            == "evidence_backed_universal_react_web_static_governance",
+            and matches_current_release_claim((claim_guard.get("summary") or {}).get("allowed_claim")),
             {
                 "release_readiness": {
                     "readiness": release_readiness.get("readiness") if isinstance(release_readiness, dict) else None,

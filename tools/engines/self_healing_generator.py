@@ -18,6 +18,7 @@ from tools.core.generated_validation_commands import generated_mutation_post_val
 from tools.core.jsonc import loads_jsonc
 from tools.core.logger import logger
 from tools.core.path_identity import strip_current_directory_prefix
+from tools.core.import_classifier import import_specifier_from_audit_detail
 
 
 def _auto_heal_script_policy() -> dict:
@@ -695,7 +696,7 @@ def _write_noop_scripts():
 def _parse_relative_import_violation(violation):
     detail = str(violation.get("detail", ""))
     file_path = str(violation.get("file", "")).strip()
-    match = re.search(r"imports\s+((?:\.\.?/)+)([^\s]+)", detail)
+    match = re.fullmatch(r"((?:\.\.?/)+)([^\s]+)", import_specifier_from_audit_detail(detail))
     if not match or not file_path:
         return None
     return file_path, match.group(1), match.group(2).strip()

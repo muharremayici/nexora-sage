@@ -141,6 +141,13 @@
       "storage_class": "managed_runtime_artifact"
     },
     {
+      "id": "analysis_scope_authority",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/analysis_scope_authority.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
       "id": "architecture_oracle",
       "schema": "config/schemas/generic_object.schema.json",
       "path": "output/.raw/architecture_oracle.json",
@@ -151,6 +158,13 @@
       "id": "architecture_oracle_validation",
       "schema": "config/schemas/generic_object.schema.json",
       "path": "output/.raw/architecture_oracle_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "validation_oracle_scope",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/validation_oracle_scope.json",
       "availability": "optional",
       "storage_class": "managed_runtime_artifact"
     },
@@ -599,6 +613,13 @@
       "id": "governance_trace_contract_validation",
       "schema": "config/schemas/generic_object.schema.json",
       "path": "output/.raw/governance_trace_contract_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "mcp_call_telemetry_authority_validation",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/mcp_call_telemetry_authority_validation.json",
       "availability": "optional",
       "storage_class": "managed_runtime_artifact"
     },
@@ -1810,6 +1831,13 @@
       "id": "pre_seal_stabilization_validation",
       "schema": "config/schemas/generic_object.schema.json",
       "path": "output/.raw/pre_seal_stabilization_validation.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "analysis_scope_authority_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/analysis_scope_authority_analysis_snapshot_lineage.json",
       "availability": "optional",
       "storage_class": "managed_runtime_artifact"
     },

@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from contextlib import ExitStack, contextmanager
+from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,9 +17,76 @@ if str(CODE_MAPS_DIR) not in sys.path:
 
 from tools.core.config import CONFIG_DIR, OUTPUT_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.evidence_status import evidence_passed
-from tools.core.json_io import load_json_file
+from tools.core.json_io import load_json_file, load_json_object_strict
 
 FIXTURE_CONFIG_PATH = CONFIG_DIR / "react_fixture_matrix.json"
+
+
+def _bounded_fixture_config() -> dict[str, Any]:
+    config = load_json_object_strict(FIXTURE_CONFIG_PATH, label="React fixture matrix")
+    fixture = config.get("bounded_fixture")
+    if not isinstance(fixture, dict) or not all(fixture.get(key) for key in
+            ("project", "file", "source", "decision", "artifacts", "claim_boundary")):
+        raise ValueError("React bounded fixture inputs are missing")
+    artifacts = fixture["artifacts"]
+    if not isinstance(artifacts, list) or any(
+        not isinstance(name, str) or not name.endswith(".json")
+        or "/" in name or "\\" in name or ":" in name or ".." in name
+        for name in artifacts
+    ):
+        raise ValueError("React fixture artifacts must be plain JSON filenames")
+    return fixture
+
+
+def react_proof_artifact_path(name: str, live_root: Path, fixture_root: Path | None) -> Path:
+    if name in _bounded_fixture_config()["artifacts"]:
+        if fixture_root is None:
+            raise ValueError(f"Bounded React fixture was not produced: {name}")
+        return fixture_root / name
+    return live_root / name
+
+
+@contextmanager
+def bounded_react_fixture():
+    """Run real producers against explicit fixture inputs, never the live Atlas.
+
+    Patches bind acquisition and output boundaries only. Analysis, serialization,
+    evidence calibration and task-pack generation remain production code.
+    This synchronous validator harness must not be shared with a running pipeline.
+    """
+    from tools.engines import react_ecosystem_analyzer as ecosystem
+    from tools.engines import react_runtime_intelligence as runtime
+    from tools.engines import react_compiler_readiness as compiler
+    from tools.engines import next_boundary_analyzer as boundary
+    from tools.engines import ai_task_pack_generator as taskpacks
+
+    fixture = _bounded_fixture_config()
+    atlas = {fixture["project"]: {"files": {fixture["file"]: {}}}}
+    with TemporaryDirectory(prefix="sage-react-proof-") as temporary, ExitStack() as stack:
+        root = Path(temporary)
+        raw = root / "raw"
+        for module in (ecosystem, runtime, compiler, boundary, taskpacks):
+            stack.enter_context(patch.object(module, "RAW_DIR", raw))
+            stack.enter_context(patch.object(module, "REPORTS_DIR", root / "reports"))
+            if hasattr(module, "_POLICY_CACHE"):
+                stack.enter_context(patch.object(module, "_POLICY_CACHE", None))
+        for module in (ecosystem, runtime, boundary):
+            stack.enter_context(patch.object(module, "load_atlas_data", return_value=atlas))
+            stack.enter_context(patch.object(module, "project_runtime_atlas", side_effect=lambda value: (value, {})))
+            stack.enter_context(patch.object(module, "_read_project_file", return_value=fixture["source"]))
+        stack.enter_context(patch.object(ecosystem, "EngineProgress", Mock()))
+        stack.enter_context(patch.object(taskpacks, "TASKPACK_DIR", root / "taskpacks"))
+        ecosystem.run_react_ecosystem_analyzer()
+        runtime.run_react_runtime_intelligence()
+        compiler.run_react_compiler_readiness()
+        boundary.run_next_boundary_analyzer()
+        # This is a declared upstream scenario, not a proven cockpit decision.
+        save_json_atomic(raw / "merge_decision_cockpit.json", {"decisions": [fixture["decision"]]})
+        taskpacks.run_ai_task_pack_generator()
+        missing = [name for name in fixture["artifacts"] if not (raw / name).is_file()]
+        if missing:
+            raise ValueError(f"React fixture producer omitted artifacts: {missing}")
+        yield raw
 
 
 def _path_exists(payload: Any, dotted_path: str) -> bool:
@@ -74,7 +144,7 @@ def _rehydrate_fixture_from_source(fixture: dict[str, Any], artifact_root: Path)
     return str(source_root)
 
 
-def _react_evidence_contract_check() -> dict[str, Any]:
+def _react_evidence_contract_check(fixture_root: Path | None = None) -> dict[str, Any]:
     artifact_names = [
         "react_ecosystem_analysis.json",
         "react_runtime_intelligence.json",
@@ -83,7 +153,7 @@ def _react_evidence_contract_check() -> dict[str, Any]:
     inspected = []
     missing = []
     for artifact_name in artifact_names:
-        path = RAW_DIR / artifact_name
+        path = react_proof_artifact_path(artifact_name, RAW_DIR, fixture_root)
         if not path.exists():
             missing.append({"artifact": artifact_name, "reason": "missing"})
             continue
@@ -117,14 +187,14 @@ def _react_evidence_contract_check() -> dict[str, Any]:
     }
 
 
-def _artifact_contract_checks(config: dict[str, Any]) -> list[dict[str, Any]]:
+def _artifact_contract_checks(config: dict[str, Any], fixture_root: Path | None = None) -> list[dict[str, Any]]:
     checks = []
     for item in config.get("artifact_contract_checks", []) if isinstance(config, dict) else []:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or item.get("artifact") or "artifact_contract")
         artifact = str(item.get("artifact") or "")
-        path = RAW_DIR / artifact
+        path = react_proof_artifact_path(artifact, RAW_DIR, fixture_root)
         if not artifact or not path.exists():
             checks.append({"name": name, "passed": False, "details": f"missing artifact {artifact}"})
             continue
@@ -141,6 +211,11 @@ def _artifact_contract_checks(config: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def run_validation() -> dict[str, Any]:
+    with bounded_react_fixture() as fixture_root:
+        return _run_validation(fixture_root)
+
+
+def _run_validation(fixture_root: Path) -> dict[str, Any]:
     config = load_json_file(FIXTURE_CONFIG_PATH, {})
     fixtures = config.get("fixtures", []) if isinstance(config, dict) else []
     min_ratio = float(config.get("min_detected_present_ratio", 1.0) or 1.0)
@@ -222,7 +297,7 @@ def run_validation() -> dict[str, Any]:
             }
         )
 
-    evidence_check = _react_evidence_contract_check()
+    evidence_check = _react_evidence_contract_check(fixture_root)
     checks.append(
         {
             "name": "react_evidence_ladder_contract",
@@ -230,9 +305,10 @@ def run_validation() -> dict[str, Any]:
             "details": evidence_check,
         }
     )
-    checks.extend(_artifact_contract_checks(config if isinstance(config, dict) else {}))
+    checks.extend(_artifact_contract_checks(config if isinstance(config, dict) else {}, fixture_root))
 
     payload = {
+        "fixture_evidence": _bounded_fixture_config(),
         "summary": {
             "total_checks": len(checks),
             "passed_checks": sum(1 for c in checks if c.get("passed")),

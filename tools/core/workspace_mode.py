@@ -12,7 +12,7 @@ def get_workspace_mode() -> Dict[str, Any]:
     project_count = len(variations)
     host_projects = sorted(
         str(key) for key in variations.keys()
-        if project_roles.get(key, "host" if str(key) == "MAIN" else "companion") == "host"
+        if project_roles.get(key, "host" if str(key) == "MAIN" else "unresolved") == "host"
     )
     variant_projects = sorted(
         str(key) for key in variations.keys()
@@ -20,7 +20,11 @@ def get_workspace_mode() -> Dict[str, Any]:
     )
     companion_projects = sorted(
         str(key) for key in variations.keys()
-        if project_roles.get(key, "host" if str(key) == "MAIN" else "companion") == "companion"
+        if project_roles.get(key, "host" if str(key) == "MAIN" else "unresolved") == "companion"
+    )
+    unresolved_projects = sorted(
+        str(key) for key in variations.keys()
+        if project_roles.get(key, "host" if str(key) == "MAIN" else "unresolved") == "unresolved"
     )
 
     if project_count <= 1:
@@ -41,6 +45,7 @@ def get_workspace_mode() -> Dict[str, Any]:
         "host_projects": host_projects,
         "variant_projects": variant_projects,
         "companion_projects": companion_projects,
+        "unresolved_projects": unresolved_projects,
     }
 
 
@@ -51,7 +56,7 @@ def get_project_role(project_name: str | None) -> str:
     roles = DYNAMIC_CONFIG.get("project_roles", {}) or {}
     if name in roles:
         return str(roles.get(name) or "unknown")
-    return "host" if name == "MAIN" else "companion"
+    return "host" if name == "MAIN" else "unresolved"
 
 
 def is_source_allowed_for_host_merge(source_project: str | None, target_project: str | None = "MAIN") -> tuple[bool, str]:
@@ -62,6 +67,10 @@ def is_source_allowed_for_host_merge(source_project: str | None, target_project:
 
     source_role = get_project_role(source)
     target_role = get_project_role(target)
+    if source_role in {"unknown", "unresolved"}:
+        return False, "source_relationship_unresolved"
+    if target_role in {"unknown", "unresolved"}:
+        return False, "target_relationship_unresolved"
     policy = require_dead_code_policy("assembly_governance").get("source_role_policy", {}) or {}
     deny_companion = bool(policy.get("deny_companion_to_host_by_default", True))
     allow_companion = bool(policy.get("allow_companion_to_host_merge", False))

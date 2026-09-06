@@ -59,6 +59,7 @@ def build_validation() -> dict[str, Any]:
     honesty_text = _read(ROOT / "tools" / "core" / "honesty_telemetry.py")
     mcp_call_telemetry_text = _read(ROOT / "tools" / "core" / "mcp_call_telemetry.py")
     local_telemetry_text = _read(ROOT / "tools" / "engines" / "local_telemetry_engine.py")
+    pipeline_receipt_text = _read(ROOT / "tools" / "core" / "pipeline_run_receipts.py")
     source_contracts_text = _read(ROOT / "tools" / "validate_source_contracts.py")
     external_retention_text = _read(ROOT / "tools" / "core" / "external_target_retention.py")
     external_retention_validator_text = _read(ROOT / "tools" / "validate_external_target_retention.py")
@@ -68,7 +69,9 @@ def build_validation() -> dict[str, Any]:
     pipeline_policy = target_by_id.get("pipeline_log", {})
     honesty_policy = target_by_id.get("honesty_telemetry", {})
     mcp_call_policy = target_by_id.get("mcp_call_telemetry", {})
+    mcp_honesty_policy = target_by_id.get("mcp_honesty_telemetry", {})
     telemetry_traces_policy = target_by_id.get("telemetry_traces", {})
+    pipeline_receipt_policy = target_by_id.get("pipeline_run_receipt_shadow", {})
     external_fixture_policy = target_by_id.get("external_target_generated_fixtures", {})
 
     pipeline_max_bytes = int(pipeline_policy.get("max_bytes") or 0)
@@ -76,6 +79,7 @@ def build_validation() -> dict[str, Any]:
     honesty_max_events = int(honesty_policy.get("max_events") or 0)
     mcp_max_entries = int(mcp_call_policy.get("max_entries") or 0)
     mcp_max_summary_tools = int(mcp_call_policy.get("max_summary_tools") or 0)
+    mcp_honesty_max_events = int(mcp_honesty_policy.get("max_events") or 0)
     telemetry_max_events = int(telemetry_traces_policy.get("max_events") or 0)
     external_fixture_prefixes = [
         str(prefix)
@@ -133,15 +137,35 @@ def build_validation() -> dict[str, Any]:
         _check(
             "mcp_call_telemetry_retention_matches_policy",
             "RETENTION_TARGET_ID = \"mcp_call_telemetry\"" in mcp_call_telemetry_text
-            and "record_mcp_call_result" in mcp_call_telemetry_text
+            and "persist_completed_mcp_call" in mcp_call_telemetry_text
             and "build_summary(entries" in mcp_call_telemetry_text
-            and "entries = entries[-max_entries:]" in mcp_call_telemetry_text
+            and "event_type=\"mcp_tool_call\"" in mcp_call_telemetry_text
+            and "max_events=max(1, int(policy.get(\"max_entries\") or 200))" in mcp_call_telemetry_text
+            and mcp_call_policy.get("path") == "output/.operational/mcp/mcp_call_telemetry.db"
+            and mcp_call_policy.get("physical_ssot") == "SQLite governance_trace_events"
+            and mcp_call_policy.get("storage_authority") == "product_global_operational"
+            and mcp_call_policy.get("target_namespace_writes") == "forbidden"
             and mcp_max_entries == 200
             and mcp_max_summary_tools == 50,
             {
                 "policy_max_entries": mcp_max_entries,
                 "policy_max_summary_tools": mcp_max_summary_tools,
                 "implementation": "tools/core/mcp_call_telemetry.py",
+            },
+        ),
+        _check(
+            "mcp_honesty_telemetry_is_call_local_and_bounded",
+            "activate_honesty_telemetry_path" in honesty_text
+            and "current_honesty_telemetry_path" in honesty_text
+            and "def _physical_ssot" in honesty_text
+            and 'else "json_file"' in honesty_text
+            and mcp_honesty_policy.get("path") == "output/.operational/mcp/honesty_telemetry.json"
+            and mcp_honesty_policy.get("storage_authority") == "product_global_operational"
+            and mcp_honesty_policy.get("target_namespace_writes") == "forbidden"
+            and mcp_honesty_max_events == honesty_max_events == 2000,
+            {
+                "policy_max_events": mcp_honesty_max_events,
+                "implementation": "tools/core/honesty_telemetry.py",
             },
         ),
         _check(
@@ -153,6 +177,19 @@ def build_validation() -> dict[str, Any]:
             {
                 "policy_max_events": telemetry_max_events,
                 "implementation": "tools/engines/local_telemetry_engine.py",
+            },
+        ),
+        _check(
+            "pipeline_run_receipt_shadow_is_single_latest_sqlite_projection",
+            pipeline_receipt_policy.get("kind") == "single_latest_sqlite_projection"
+            and int(pipeline_receipt_policy.get("max_files") or 0) == 1
+            and pipeline_receipt_policy.get("path") == "output/.raw/pipeline_run_receipt.json"
+            and 'DEFAULT_SHADOW_PATH = RAW_DIR / "pipeline_run_receipt.json"' in pipeline_receipt_text
+            and '"source_of_truth": "SQLite governance_trace_events"' in pipeline_receipt_text
+            and "save_json_atomic(path, projection, bypass_proxy=True)" in pipeline_receipt_text,
+            {
+                "policy_max_files": pipeline_receipt_policy.get("max_files"),
+                "implementation": "tools/core/pipeline_run_receipts.py",
             },
         ),
         _check(

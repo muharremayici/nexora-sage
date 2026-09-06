@@ -11,6 +11,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.core.config import CODE_MAPS_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.analysis_scope_authority import reconcile_quality_scope_authority
 from tools.core.json_io import load_json_file
 from tools.generate_nexora_agent_contract import build_approval_gates
 
@@ -114,6 +115,10 @@ def _surface_capabilities() -> list[dict[str, Any]]:
     release = load_json_file(RAW_DIR / "release_readiness.json", {})
     release_summary = release.get("summary", {}) if isinstance(release, dict) else {}
     quality = load_json_file(RAW_DIR / "quality_gate.json", {})
+    scope_authority, scope_actionable = reconcile_quality_scope_authority(
+        load_json_file(RAW_DIR / "analysis_scope_authority.json", {}),
+        quality,
+    )
     quality_warnings = quality.get("ecosystem_warning_signals", {}) if isinstance(quality, dict) else {}
     universal = _summary(RAW_DIR / "react_universal_readiness.json")
     freshness = _summary(RAW_DIR / "report_freshness_index.json")
@@ -187,10 +192,16 @@ def _surface_capabilities() -> list[dict[str, Any]]:
             "claim": "The active repo is not hiding UI/runtime manual validation risks.",
             "evidence": (
                 f"ecosystem_signal_status={quality.get('ecosystem_signal_status') if isinstance(quality, dict) else None}; "
+                f"scope_evidence_status={scope_authority.get('evidence_status')}; "
+                f"scope_authority_id={scope_authority.get('scope_authority_id')}; "
                 f"ui_high_risk_merge_candidates={quality_warnings.get('ui_high_risk_merge_candidates')}; "
                 f"ui_browser_smoke_required_candidates={quality_warnings.get('ui_browser_smoke_required_candidates')}"
             ),
-            "reality": "attention_needed_not_release_blocking",
+            "reality": (
+                "attention_needed_not_release_blocking"
+                if scope_actionable
+                else "scope_incomplete_no_repository_wide_interpretation"
+            ),
             "audience": "human",
         },
     ]
@@ -237,6 +248,10 @@ def build_brief() -> dict[str, Any]:
     capabilities = _surface_capabilities()
     release = load_json_file(RAW_DIR / "release_readiness.json", {})
     quality = load_json_file(RAW_DIR / "quality_gate.json", {})
+    scope_authority, scope_actionable = reconcile_quality_scope_authority(
+        load_json_file(RAW_DIR / "analysis_scope_authority.json", {}),
+        quality,
+    )
     universal = _summary(RAW_DIR / "react_universal_readiness.json")
     freshness = _summary(RAW_DIR / "report_freshness_index.json")
 
@@ -260,6 +275,12 @@ def build_brief() -> dict[str, Any]:
             "release_checks": (release.get("summary") or {}).get("checks") if isinstance(release, dict) else None,
             "release_failed": (release.get("summary") or {}).get("failed") if isinstance(release, dict) else None,
             "quality_gate": quality.get("release_gate_status") if isinstance(quality, dict) else None,
+            "repository_scope_actionable": scope_actionable,
+            "repository_scope_evidence_status": scope_authority.get("evidence_status"),
+            "repository_scope_claim": scope_authority.get("claim_scope"),
+            "repository_scope_authority_id": scope_authority.get("scope_authority_id"),
+            "repository_topology_authority_id": scope_authority.get("topology_authority_id"),
+            "repository_scope_incomplete_reasons": scope_authority.get("incomplete_reasons", []),
             "ecosystem_signal_status": quality.get("ecosystem_signal_status") if isinstance(quality, dict) else None,
             "react_universal_ready": universal.get("universal_ready"),
             "universality_basis": universal.get("universality_basis"),
@@ -313,6 +334,10 @@ def render_report(brief: dict[str, Any]) -> str:
         f"- generated_at: `{meta.get('generated_at')}`",
         f"- release_readiness: `{summary.get('release_readiness')}`",
         f"- quality_gate: `{summary.get('quality_gate')}`",
+        f"- repository_scope_actionable: `{summary.get('repository_scope_actionable')}`",
+        f"- repository_scope_evidence_status: `{summary.get('repository_scope_evidence_status')}`",
+        f"- repository_scope_claim: `{summary.get('repository_scope_claim')}`",
+        f"- repository_scope_authority_id: `{summary.get('repository_scope_authority_id')}`",
         f"- ecosystem_signal_status: `{summary.get('ecosystem_signal_status')}`",
         f"- react_universal_ready: `{summary.get('react_universal_ready')}`",
         f"- universality_basis: `{summary.get('universality_basis')}`",

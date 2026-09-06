@@ -13,7 +13,10 @@ if str(ROOT) not in sys.path:
 
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.agent_surface_seal_contract import load_agent_surface_seal_contract
-from tools.core.json_io import load_json_object_strict
+from tools.core.json_io import load_json_object_strict, load_json_file
+from tools.core.evidence_status import evidence_passed
+from tools.core.distribution_policy import is_clean_install_root
+from tools.core.release_proof_steps import load_release_proof_steps
 from tools.core.execution_waves import project_execution_waves
 from tools.core.sage_active_work_package import active_work_package
 
@@ -46,6 +49,65 @@ def _policy_list(policy: dict[str, Any], key: str) -> list[str]:
     return [str(item) for item in raw if str(item).strip()] if isinstance(raw, list) else []
 
 
+def _technical_evidence_artifacts() -> set[str]:
+    """Only required upstream proof may support readiness; no self/downstream cycle."""
+    steps = {step["id"]: step for step in load_release_proof_steps()}
+    consumer = "sage_work_item_registry_validation"
+    pending = list(steps[consumer].get("depends_on", []))
+    ancestors: set[str] = set()
+    while pending:
+        step_id = pending.pop()
+        if step_id == consumer:
+            raise ValueError("Work-item technical evidence has a proof dependency cycle")
+        if step_id in ancestors:
+            continue
+        ancestors.add(step_id)
+        pending.extend(steps[step_id].get("depends_on", []))
+    return {
+        "output/.raw/" + step["raw_artifact"].name
+        for step_id in ancestors for step in [steps[step_id]]
+        if step.get("required") and step.get("raw_artifact")
+        and step["raw_artifact"].parent == RAW_DIR
+    }
+
+
+def assess_delivery_readiness(row: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any]:
+    """Assess technical evidence, never shipment or release authorization.
+
+    Pre-seal independently requires current full source-bound proof. This
+    assessment alone cannot substitute for that proof or human authority.
+    """
+    result = {"id": row.get("id"), "ready": False, "errors": [], "runtime_evidence_checked": False}
+    if row.get("status") != "ready_for_delivery":
+        return result
+    completion = row.get("technical_completion")
+    if not isinstance(completion, dict) or not isinstance(completion.get("review"), str) or not completion["review"].strip():
+        result["errors"].append("missing_technical_review")
+        return result
+    references = completion.get("validation_artifacts")
+    if not isinstance(references, list) or not references or not all(isinstance(ref, str) for ref in references):
+        result["errors"].append("missing_validation_artifact_references")
+        return result
+    allowed = _technical_evidence_artifacts()
+    unavailable = False
+    for reference in references:
+        if reference not in allowed:
+            result["errors"].append(f"not_required_upstream_proof_artifact:{reference}")
+            continue
+        path = (root / reference).resolve()
+        if not path.is_relative_to(root.resolve()):
+            result["errors"].append(f"evidence_path_escapes_root:{reference}")
+            continue
+        if not path.is_file() and is_clean_install_root(root):
+            unavailable = True
+            continue
+        if not evidence_passed(load_json_file(path, {}), default=False):
+            result["errors"].append(f"validation_not_passed:{reference}")
+    result["runtime_evidence_checked"] = not unavailable
+    result["ready"] = not result["errors"] and not unavailable
+    return result
+
+
 def build_report() -> dict[str, Any]:
     registry = _registry()
     priority_policy = registry.get("priority_policy") if isinstance(registry.get("priority_policy"), dict) else {}
@@ -65,6 +127,10 @@ def build_report() -> dict[str, Any]:
         if str(row.get("priority") or "") in blocking_priorities or row.get("release_blocking") is True
     ]
     agent_surface_followups = _agent_surface_followups()
+    delivery_assessments = [assess_delivery_readiness(row) for row in open_items
+                           if row.get("status") == "ready_for_delivery"]
+    technically_ready = {row["id"] for row in delivery_assessments if row["ready"]}
+    technical_blocking_items = [row for row in blocking_items if row.get("id") not in technically_ready]
     agent_surface_ids = {str(row.get("id") or "") for row in agent_surface_followups}
     registry_ids = {str(row.get("id") or "") for row in work_items}
     untracked_agent_surface_followups = sorted(agent_surface_ids - registry_ids)
@@ -77,10 +143,14 @@ def build_report() -> dict[str, Any]:
             "generator": "tools.generate_sage_work_item_report",
         },
         "summary": {
-            "status": "PASS" if not untracked_agent_surface_followups else "FAIL",
+            "status": "PASS" if not untracked_agent_surface_followups and not any(
+                assessment["errors"] for assessment in delivery_assessments
+            ) else "FAIL",
             "total_work_items": len(work_items),
             "open_work_items": len(open_items),
             "blocking_work_items": len(blocking_items),
+            "technical_blocking_work_items": len(technical_blocking_items),
+            "delivery_pending_work_items": len(delivery_assessments),
             "untracked_agent_surface_followups": len(untracked_agent_surface_followups),
             "by_priority": _group_counts(work_items, "priority"),
             "open_by_priority": _group_counts(open_items, "priority"),
@@ -94,6 +164,8 @@ def build_report() -> dict[str, Any]:
         "registry": str(REGISTRY_PATH.relative_to(ROOT)),
         "open_items": open_items,
         "blocking_items": blocking_items,
+        "technical_blocking_items": technical_blocking_items,
+        "delivery_assessments": delivery_assessments,
         "delivery_variances": delivery_variances,
         "agent_surface_followup_ids": sorted(agent_surface_ids),
         "untracked_agent_surface_followups": untracked_agent_surface_followups,
@@ -112,6 +184,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- total_work_items: `{summary.get('total_work_items')}`",
         f"- open_work_items: `{summary.get('open_work_items')}`",
         f"- blocking_work_items: `{summary.get('blocking_work_items')}`",
+        f"- technical_blocking_work_items: `{summary.get('technical_blocking_work_items')}`",
+        f"- delivery_pending_work_items: `{summary.get('delivery_pending_work_items')}`",
         f"- untracked_agent_surface_followups: `{summary.get('untracked_agent_surface_followups')}`",
         f"- open_by_priority: `{json.dumps(summary.get('open_by_priority') or {}, ensure_ascii=False, sort_keys=True)}`",
         f"- open_by_planned_release: `{json.dumps(summary.get('open_by_planned_release') or {}, ensure_ascii=False, sort_keys=True)}`",

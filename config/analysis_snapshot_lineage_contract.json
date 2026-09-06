@@ -21,6 +21,11 @@
     "dependency_rule": "Every declared lineage dependency must have a COMPLETE content-matching receipt for the same Atlas snapshot; otherwise the new receipt is BLOCKED."
   },
   "artifacts": {
+    "analysis_scope_authority": {
+      "producer": "tools.orchestrators.orchestrator",
+      "receipt_artifact_id": "analysis_scope_authority_analysis_snapshot_lineage",
+      "lineage_dependencies": []
+    },
     "genome": {
       "producer": "tools.engines.nuclear_processor",
       "receipt_artifact_id": "genome_analysis_snapshot_lineage",
@@ -29,12 +34,15 @@
     "audit_report": {
       "producer": "tools.engines.audit",
       "receipt_artifact_id": "audit_report_analysis_snapshot_lineage",
-      "lineage_dependencies": []
+      "lineage_dependencies": [
+        "analysis_scope_authority"
+      ]
     },
     "quality_gate": {
       "producer": "tools.engines.quality_gate",
       "receipt_artifact_id": "quality_gate_analysis_snapshot_lineage",
       "lineage_dependencies": [
+        "analysis_scope_authority",
         "genome",
         "audit_report"
       ]

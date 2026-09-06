@@ -1,0 +1,4 @@
+# Evaluation manifests bind exact input bytes; checkout must preserve LF.
+/config/evaluation_inputs/*.md text eol=lf
+# Private pinned templates remain byte-identical; this does not activate a grant.
+/tools/legal_templates/*.txt text eol=lf

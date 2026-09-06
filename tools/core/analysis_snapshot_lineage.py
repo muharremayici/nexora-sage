@@ -36,7 +36,7 @@ def receipt_path(raw_dir: Path, artifact_id: str) -> Path:
     return artifact_path_for_storage_root(raw_dir, receipt_artifact_id)
 
 
-def _load_atlas_commit(raw_dir: Path) -> dict[str, Any]:
+def load_atlas_commit(raw_dir: Path) -> dict[str, Any]:
     path = raw_dir / "atlas_commit.json"
     if raw_dir.resolve() == RAW_DIR.resolve():
         from tools.core.artifact_store import STORE
@@ -47,6 +47,12 @@ def _load_atlas_commit(raw_dir: Path) -> dict[str, Any]:
     else:
         payload = load_json_file(path, {})
     return payload if isinstance(payload, dict) else {}
+
+
+def _load_atlas_commit(raw_dir: Path) -> dict[str, Any]:
+    """Backward-compatible private alias for older callers and tests."""
+
+    return load_atlas_commit(raw_dir)
 
 
 def load_lineage_receipt(raw_dir: Path, artifact_id: str) -> dict[str, Any]:
@@ -69,11 +75,11 @@ def validate_lineage_receipt(receipt: Any) -> list[str]:
     return validate_against_schema(schema_path, "analysis_snapshot_lineage", receipt)
 
 
-def receipt_binding(
+def receipt_digest_binding(
     *,
     raw_dir: Path,
     artifact_id: str,
-    artifact_payload: Any,
+    artifact_sha256: str,
     expected_snapshot_id: str,
 ) -> tuple[str, str | None, list[str]]:
     receipt = load_lineage_receipt(raw_dir, artifact_id)
@@ -85,11 +91,28 @@ def receipt_binding(
         return "UNAVAILABLE", observed_snapshot if isinstance(observed_snapshot, str) else None, list(receipt.get("errors") or ["lineage_receipt_blocked"])
     if receipt.get("artifact_id") != artifact_id:
         return "MISMATCH", observed_snapshot if isinstance(observed_snapshot, str) else None, ["artifact_id_mismatch"]
-    if receipt.get("artifact_sha256") != payload_sha256(artifact_payload):
+    if not artifact_sha256:
+        return "UNAVAILABLE", observed_snapshot if isinstance(observed_snapshot, str) else None, ["artifact_digest_unavailable"]
+    if receipt.get("artifact_sha256") != artifact_sha256:
         return "MISMATCH", observed_snapshot if isinstance(observed_snapshot, str) else None, ["artifact_content_hash_mismatch"]
     if observed_snapshot != expected_snapshot_id:
         return "MISMATCH", observed_snapshot if isinstance(observed_snapshot, str) else None, ["atlas_snapshot_id_mismatch"]
     return "BOUND", str(observed_snapshot), []
+
+
+def receipt_binding(
+    *,
+    raw_dir: Path,
+    artifact_id: str,
+    artifact_payload: Any,
+    expected_snapshot_id: str,
+) -> tuple[str, str | None, list[str]]:
+    return receipt_digest_binding(
+        raw_dir=raw_dir,
+        artifact_id=artifact_id,
+        artifact_sha256=payload_sha256(artifact_payload),
+        expected_snapshot_id=expected_snapshot_id,
+    )
 
 
 def evaluate_snapshot_bound_inputs(
@@ -241,7 +264,7 @@ def write_current_atlas_lineage(
     dependency_payloads: dict[str, Any] | None = None,
     raw_dir: Path = RAW_DIR,
 ) -> dict[str, Any]:
-    atlas_commit = _load_atlas_commit(raw_dir)
+    atlas_commit = load_atlas_commit(raw_dir)
     return write_lineage_receipt(
         artifact_id=artifact_id,
         producer=producer,

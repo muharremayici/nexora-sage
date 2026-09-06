@@ -1,13 +1,80 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import re
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-
 TOPOLOGY_MODES = {"auto", "single_project", "multi_project"}
+
+
+def normalize_project_filter(projects: Iterable[str] | str | None) -> list[str]:
+    if isinstance(projects, str):
+        values = projects.split(",")
+    else:
+        values = projects or []
+    return sorted({str(value).strip().upper() for value in values if str(value).strip()})
+
+
+def runtime_project_projection(
+    topology: dict[str, Any],
+    projects: Iterable[str] | str | None,
+) -> dict[str, Any]:
+    selected = topology.get("selected_projects")
+    selected = selected if isinstance(selected, dict) else {}
+    requested = normalize_project_filter(projects)
+    selected_by_upper = {str(key).upper(): (str(key), value) for key, value in selected.items()}
+    unavailable = sorted(set(requested) - set(selected_by_upper))
+    if requested:
+        effective = {
+            selected_by_upper[key][0]: selected_by_upper[key][1]
+            for key in requested
+            if key in selected_by_upper
+        }
+    else:
+        effective = dict(selected)
+    return {
+        "requested_project_filter": requested,
+        "effective_runtime_projects": effective,
+        "unavailable_requested_projects": unavailable,
+    }
+
+
+def _canonical_identity_payload(
+    topology: dict[str, Any],
+    runtime_projection: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "ontology_contract": topology.get("ontology_contract"),
+        "selection_mode": topology.get("selection_mode"),
+        "project_candidates": topology.get("project_candidates", {}),
+        "project_candidate_relationship_roles": topology.get(
+            "project_candidate_relationship_roles",
+            topology.get("project_candidate_roles", {}),
+        ),
+        "selected_projects": topology.get("selected_projects", {}),
+        "excluded_projects": topology.get("excluded_projects", {}),
+        "excluded_project_reasons": topology.get("excluded_project_reasons", {}),
+        "requested_project_filter": runtime_projection.get("requested_project_filter", []),
+        "effective_runtime_projects": runtime_projection.get("effective_runtime_projects", {}),
+        "unavailable_requested_projects": runtime_projection.get("unavailable_requested_projects", []),
+    }
+
+
+def scope_authority_id(
+    topology: dict[str, Any],
+    projects: Iterable[str] | str | None,
+) -> str:
+    runtime_projection = runtime_project_projection(topology, projects)
+    encoded = json.dumps(
+        _canonical_identity_payload(topology, runtime_projection),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
 def workspace_patterns(root: Path) -> list[str]:
@@ -87,10 +154,10 @@ def discover_project_candidates(
     excluded = {Path(path).resolve() for path in excluded_paths}
     declared_workspace_patterns = workspace_patterns(root)
     processed = {root, *excluded}
-    queue: list[tuple[Path, int]] = [(root, 0)]
+    queue: list[tuple[Path, int, bool]] = [(root, 0, False)]
 
     while queue:
-        current, depth = queue.pop(0)
+        current, depth, inherited_manifest_ownership = queue.pop(0)
         if depth >= max_depth:
             continue
         try:
@@ -102,6 +169,7 @@ def discover_project_candidates(
             is_config_or_manifest(name)
             for name in current_item_names
         )
+        manifest_owned_scope = inherited_manifest_ownership or current_has_config
         for entry in entries:
             if not entry.is_dir():
                 continue
@@ -133,14 +201,13 @@ def discover_project_candidates(
                 has_structure
                 and not has_config
                 and not workspace_match
-                and current_has_config
-                and normalized_name in markers
+                and manifest_owned_scope
             )
             if parent_owned_structure:
-                queue.append((entry, depth + 1))
+                queue.append((entry, depth + 1, manifest_owned_scope))
                 continue
             if not (has_config or has_structure or workspace_match):
-                queue.append((entry, depth + 1))
+                queue.append((entry, depth + 1, manifest_owned_scope))
                 continue
             if relative_path in projects.values():
                 continue
@@ -199,13 +266,14 @@ def attach_declared_exclusions_to_nearest_owner(
             continue
         owner_key, _owner_root = max(owners, key=lambda item: len(item[1].parts))
         merged[owner_key].add(excluded_path)
-    return {
+    topology = {
         key: sorted(
             paths,
             key=lambda path: (len(path.parts), path.as_posix().lower()),
         )
         for key, paths in merged.items()
     }
+    return topology
 
 
 def prune_owned_walk_dirs(
@@ -254,7 +322,7 @@ def classify_project_roles(
     projects: dict[str, str],
     role_markers: dict[str, Any] | None = None,
 ) -> dict[str, str]:
-    """Assign conservative execution roles, not technical system kinds."""
+    """Classify governance relationship roles without inventing a companion edge."""
     markers = role_markers if isinstance(role_markers, dict) else {}
     host_aliases = {str(item).upper() for item in (markers.get("host_aliases") or ["MAIN"])}
     variant_containers = {str(item).lower() for item in (markers.get("variant_containers") or [])}
@@ -280,7 +348,7 @@ def classify_project_roles(
         ):
             roles[key] = "companion"
         else:
-            roles[key] = "companion"
+            roles[key] = "unresolved"
     return roles
 
 
@@ -332,13 +400,18 @@ def project_candidate_selection_evidence(
             if top in companion_containers
             else None
         )
-        reasons = []
+        relationship_reasons = []
         if key == "MAIN":
-            reasons.append("host_scope")
+            relationship_reasons.append("host_scope")
         if workspace_matches:
-            reasons.append("declared_workspace_match")
+            relationship_reasons.append("declared_workspace_match")
         if explicit_container_role:
-            reasons.append(f"declared_{explicit_container_role}_container")
+            relationship_reasons.append(f"declared_{explicit_container_role}_container")
+        coverage_reasons = list(relationship_reasons)
+        if key != "MAIN" and has_config:
+            coverage_reasons.append("candidate_local_config_or_manifest")
+        if key != "MAIN" and len(structural_matches) >= 2:
+            coverage_reasons.append("strong_independent_structure")
         evidence[key] = {
             "relative_path": normalized,
             "has_config_or_manifest": has_config,
@@ -352,8 +425,10 @@ def project_candidate_selection_evidence(
                 if has_config
                 else "workspace_or_container_only"
             ),
-            "automatic_selection_eligible": bool(reasons),
-            "selection_reasons": reasons,
+            "analysis_coverage_eligible": bool(coverage_reasons),
+            "automatic_selection_eligible": bool(coverage_reasons),
+            "selection_reasons": coverage_reasons,
+            "relationship_evidence_reasons": relationship_reasons,
         }
     return evidence
 
@@ -399,20 +474,28 @@ def resolve_repository_topology(
             authority = "authoritative_host_scope"
             confidence = "high"
             relationship_resolved = True
-        elif evidence["workspace_pattern_matches"] and role == "companion":
-            authority = "evidence_backed_declared_workspace_edge"
-            confidence = "high"
-            relationship_resolved = True
         elif evidence["explicit_container_role"] == role:
-            authority = "policy_inferred_relation_container"
+            authority = (
+                "declared_workspace_edge_plus_policy_relation_container"
+                if evidence["workspace_pattern_matches"]
+                else "policy_inferred_relation_container"
+            )
             confidence = "medium"
             relationship_resolved = False
+        elif evidence["workspace_pattern_matches"]:
+            authority = "evidence_backed_workspace_membership_relationship_unresolved"
+            confidence = "medium"
+            relationship_resolved = False
+        elif requested_mode == "auto" and evidence["analysis_coverage_eligible"]:
+            authority = "relationship_unresolved_analysis_coverage_selected"
+            confidence = "low"
+            relationship_resolved = False
         else:
-            authority = "conservative_companion_execution_fallback"
+            authority = "relationship_unresolved_requires_explicit_selection"
             confidence = "low"
             relationship_resolved = False
         candidate_role_authority[key] = {
-            "execution_role": role,
+            "relationship_role": role,
             "authority": authority,
             "confidence": confidence,
             "relationship_resolved": relationship_resolved,
@@ -448,9 +531,21 @@ def resolve_repository_topology(
         for key, value in candidates.items()
         if key not in selected_projects
     }
-    excluded_project_reasons = {
-        key: "candidate_requires_explicit_selection"
-        for key in excluded_projects
+    excluded_reason = (
+        "explicit_single_project_projection"
+        if requested_mode == "single_project"
+        else "candidate_requires_explicit_selection"
+    )
+    excluded_project_reasons = {key: excluded_reason for key in excluded_projects}
+    relationship_operation_projects = {
+        key: value
+        for key, value in selected_projects.items()
+        if key == "MAIN" or candidate_roles[key] != "unresolved"
+    }
+    coverage_only_projects = {
+        key: value
+        for key, value in selected_projects.items()
+        if key != "MAIN" and candidate_roles[key] == "unresolved"
     }
     repository_root = Path(root).resolve()
     candidate_ownership_exclusions = project_ownership_exclusions({
@@ -470,7 +565,7 @@ def resolve_repository_topology(
         ownership_exclusions,
         excluded_paths,
     )
-    return {
+    topology = {
         "status": "resolved",
         "ontology_contract": "canonical_repository_topology_v1",
         "requested_mode": requested_mode,
@@ -479,11 +574,14 @@ def resolve_repository_topology(
         "selection_mode": selection_mode,
         "project_candidates": candidates,
         "project_candidate_roles": candidate_roles,
+        "project_candidate_relationship_roles": candidate_roles,
         "project_candidate_role_authority": candidate_role_authority,
         "project_candidate_system_kinds": candidate_system_kinds,
         "project_candidate_selection_evidence": candidate_evidence,
         "selected_projects": selected_projects,
         "selected_project_roles": selected_roles,
+        "relationship_operation_projects": relationship_operation_projects,
+        "coverage_only_projects": coverage_only_projects,
         "excluded_projects": excluded_projects,
         "excluded_project_reasons": excluded_project_reasons,
         "project_ownership_exclusions": {
@@ -494,10 +592,17 @@ def resolve_repository_topology(
             for key, excluded_roots in ownership_exclusions.items()
         },
         "file_ownership_contract": "nearest_discovered_project_root_v1",
-        "relationship_role_contract": "governance_relationship_role_v1",
+        "relationship_role_contract": "governance_relationship_role_v2_unresolved_explicit",
         "system_kind_contract": "technical_system_kind_unresolved_v1",
-        "comparative_analysis_enabled": len(selected_projects) > 1,
+        "analysis_coverage_contract": "evidence_bearing_candidate_coverage_v1",
+        "comparative_analysis_enabled": any(
+            role == "variant"
+            for key, role in selected_roles.items()
+            if key != "MAIN"
+        ),
         "candidate_count": len(candidates),
         "selected_project_count": len(selected_projects),
         "topology_is_independent_of_source_mode": True,
     }
+    topology["topology_authority_id"] = scope_authority_id(topology, None)
+    return topology

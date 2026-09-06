@@ -221,6 +221,13 @@ def build_release_readiness_payload(artifacts: dict[str, Any], artifact_errors: 
             "platform_readiness": readiness,
             "ecosystem_signal_status": ecosystem_signal_status,
             "ecosystem_attention": ecosystem_attention,
+            "repository_scope_gate_status": quality.get("scope_gate_status"),
+            "repository_scope_evidence_status": (
+                quality.get("analysis_scope_authority") or {}
+            ).get("evidence_status"),
+            "repository_scope_claim": (
+                quality.get("analysis_scope_authority") or {}
+            ).get("claim_scope"),
             "artifact_error_count": artifact_error_count,
             "manual_validation_confidence": manual_validation.get("status"),
             "react_allowed_claim": allowed_react_claim,
@@ -231,6 +238,8 @@ def build_release_readiness_payload(artifacts: dict[str, Any], artifact_errors: 
         "evidence": {
             "quality_gate": {
                 "release_gate_status": quality.get("release_gate_status"),
+                "scope_gate_status": quality.get("scope_gate_status"),
+                "analysis_scope_authority": quality.get("analysis_scope_authority", {}),
                 "ecosystem_signal_status": quality.get("ecosystem_signal_status"),
                 "ecosystem_warning_signals": quality.get("ecosystem_warning_signals", {}),
             },
@@ -298,6 +307,9 @@ def run_release_readiness_report() -> dict[str, Any]:
         f"- react_allowed_claim: `{payload['summary'].get('react_allowed_claim')}`",
         f"- performance_evidence_status: `{payload['summary'].get('performance_evidence_status')}`",
         f"- performance_release_proof_refresh_required: `{payload['summary'].get('performance_release_proof_refresh_required')}`",
+        f"- repository_scope_gate_status: `{payload['summary'].get('repository_scope_gate_status')}`",
+        f"- repository_scope_evidence_status: `{payload['summary'].get('repository_scope_evidence_status')}`",
+        f"- repository_scope_claim: `{payload['summary'].get('repository_scope_claim')}`",
         "",
         "Platform readiness means Nexora SAGE release contracts are satisfied. Ecosystem attention means the analyzed repository or merge/import candidates still contain advisory signals that should be reviewed before acting on those repo-level changes.",
         "",

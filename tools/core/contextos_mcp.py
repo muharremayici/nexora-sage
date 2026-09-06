@@ -18,6 +18,7 @@ from tools.core.principle_packs import principles_for_context
 from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, context_budget_profile
 from tools.core.contextos_signal_limits import contextos_signal_limit
 from tools.core.path_identity import strip_current_directory_prefix
+from tools.core.import_classifier import import_specifier_from_audit_detail
 
 
 MASKED_BODY = "// [MASKED] This file is restricted/locked under SAGE architectural governance rules."
@@ -343,9 +344,7 @@ def _import_evidence_related_files(
     default_project: str | None = None,
 ) -> list[str]:
     """Return editor-openable related files from simple import evidence."""
-    if " imports " not in str(detail or ""):
-        return []
-    imported = str(detail).split(" imports ", 1)[1].strip().strip("\"'`")
+    imported = import_specifier_from_audit_detail(detail)
     if not imported.startswith("."):
         return []
     _project_key, rel_path = _split_atlas_node(file_path, default_project=default_project)
@@ -355,7 +354,9 @@ def _import_evidence_related_files(
     )
     if candidate.startswith("../") or not candidate:
         return []
-    context = _agent_file_context(candidate, default_project=default_project)
+    if not _atlas_file_meta(_project_key, candidate):
+        return []
+    context = _agent_file_context(candidate, default_project=_project_key)
     repo_path = str(context.get("repo_relative_path") or "").strip()
     return [repo_path] if repo_path else []
 

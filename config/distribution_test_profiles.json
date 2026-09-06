@@ -13,8 +13,10 @@
       "tools/tests/test_actor_interaction_contract.py",
       "tools/tests/test_actor_interaction_runtime.py",
       "tools/tests/test_agent_artifact_query_contract.py",
+      "tools/tests/test_agent_inspection_scope_validation.py",
       "tools/tests/test_agent_semantic_contract_smoke.py",
       "tools/tests/test_agent_surface_target_visibility.py",
+      "tools/tests/test_analysis_scope_authority.py",
       "tools/tests/test_analysis_snapshot_lineage.py",
       "tools/tests/test_artifact_registry.py",
       "tools/tests/test_artifact_schemas.py",
@@ -48,6 +50,7 @@
       "tools/tests/test_jsonc.py",
       "tools/tests/test_lifecycle_scope_alignment.py",
       "tools/tests/test_loc_finding_semantics.py",
+      "tools/tests/test_mcp_call_telemetry.py",
       "tools/tests/test_mcp_json_cache.py",
       "tools/tests/test_mcp_surface_command_matrix_validation.py",
       "tools/tests/test_merge_intelligence.py",
@@ -60,6 +63,7 @@
       "tools/tests/test_performance_profile_integrity.py",
       "tools/tests/test_phase5_engines.py",
       "tools/tests/test_pipeline_layer_chain_semantics.py",
+      "tools/tests/test_pipeline_run_receipts.py",
       "tools/tests/test_polyglot_atlas.py",
       "tools/tests/test_progressive_hitl.py",
       "tools/tests/test_python_runtime_env.py",
@@ -97,7 +101,8 @@
       "tools/tests/test_watchdog_runtime_contract.py",
       "tools/tests/test_watchdog_semantic_triggers.py",
       "tools/tests/test_watchdog_tombstone_contract.py",
-      "tools/tests/test_workload_profile.py"
+      "tools/tests/test_workload_profile.py",
+      "tools/tests/test_workspace_mode.py"
     ],
     "target_fixture": "tools/tests/fixtures/src"
   }

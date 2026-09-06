@@ -90,6 +90,7 @@
         "tools/validate_step_isolation.py": "step isolation validator hashes shadow artifacts intentionally to prove write boundaries",
         "tools/validate_test_impact_change_integrity.py": "test-impact integrity report references Atlas path as provenance text",
         "tools/tests/test_polyglot_atlas.py": "polyglot test fixture artifact lookup",
+        "tools/tests/test_scoped_atlas_persistence.py": "isolated temporary-directory JSON shadow export and SQLite-first partition reassembly tests; not a production Atlas reader",
         "tools/tests/test_artifact_registry.py": "artifact registry tests assert the canonical Atlas shadow path without consuming runtime payloads",
         "tools/tests/test_mcp_json_cache.py": "MCP cache tests synthesize isolated Atlas SQLite and JSON-shadow fixtures",
         "tools/tests/test_engine_contracts.py": "test fixture and contract assertions",
@@ -204,6 +205,7 @@
         "tools/inspect_target.py",
         "tools/mcp/server.py",
         "tools/orchestrators/watchdog.py",
+        "tools/orchestrators/orchestrator.py",
         "tools/validate_agent_context_payloads.py",
         "tools/validate_artifact_trust.py",
         "tools/validate_lifecycle.py"
@@ -459,6 +461,8 @@
     }
   },
   "large_allowed_reference_files": {
+    "tools/tests/test_release_evidence_boundaries.py": "isolated temporary KeywordScanner producer fixture checks publication timing and payload bytes; no production runtime shadow read",
+    "tools/tests/test_analysis_scope_authority.py": "in-memory audit fixture supplied through a patched operator loader to verify scope mismatch suppresses directives; no runtime shadow read",
     "codemaps.py": "CLI step catalog declares artifact dependencies without loading runtime payloads",
     "tools/core/artifact_contracts.py": "central artifact contract constants, not runtime payload loading",
     "tools/core/artifact_store.py": "storage-layer alias metadata and recovery boundary",

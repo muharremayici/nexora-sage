@@ -3,7 +3,11 @@ from __future__ import annotations
 import ast
 import json
 import unittest
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
+
+from tools.core import config as core_config
 
 from tools.core.config import CODE_MAPS_DIR
 from tools.validate_exception_honesty import (
@@ -15,6 +19,46 @@ from tools.validate_exception_honesty import (
 
 
 class ExceptionHonestyTests(unittest.TestCase):
+    def test_atomic_writers_preserve_success_and_original_failure(self):
+        for writer, payload in (
+            (core_config.save_text_atomic, "new"),
+            (core_config.save_json_atomic, {"new": True}),
+        ):
+            with self.subTest(writer=writer.__name__), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / "state.txt"
+                writer(target, payload)
+                original = target.read_bytes()
+                error = OSError("replacement failed")
+                with patch.object(core_config.os, "replace", side_effect=error):
+                    with self.assertRaises(OSError) as caught:
+                        writer(target, payload)
+                self.assertIs(caught.exception, error)
+                self.assertEqual(target.read_bytes(), original)
+                self.assertEqual(list(Path(directory).glob("cm_tmp_*.tmp")), [])
+
+    def test_atomic_cleanup_failure_is_visible_without_masking_write_failure(self):
+        for writer, payload in (
+            (core_config.save_text_atomic, "new"),
+            (core_config.save_json_atomic, {"new": True}),
+        ):
+            with self.subTest(writer=writer.__name__), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / "state.txt"
+                writer(target, payload)
+                original = target.read_bytes()
+                error = OSError("replacement failed")
+                cleanup_error = OSError("cleanup failed")
+                with (
+                    patch.object(core_config.os, "replace", side_effect=error),
+                    patch.object(core_config.os, "remove", side_effect=cleanup_error),
+                ):
+                    with self.assertRaises(OSError) as caught:
+                        writer(target, payload)
+                self.assertIs(caught.exception, error)
+                self.assertIs(caught.exception.__context__, cleanup_error)
+                self.assertIn("cleanup failed", caught.exception.__notes__[0])
+                self.assertEqual(target.read_bytes(), original)
+                self.assertEqual(len(list(Path(directory).glob("cm_tmp_*.tmp"))), 1)
+
     def test_critical_generic_exceptions_are_observed_or_declared(self):
         result = validate_exception_honesty()
         self.assertEqual(result["summary"]["status"], "PASS")

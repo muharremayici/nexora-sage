@@ -6,16 +6,25 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from tools.core.artifact_validator import ensure_against_schema
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, DYNAMIC_CONFIG, ENVIRONMENT
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import
 from tools.core.polyglot_imports import extract_imports
+from tools.engines import generate_atlas as generate_atlas_module
 from tools.engines.ast_sequencer_cs import sequence_cs_file, sequence_cs_file_with_evidence
 from tools.engines.ast_sequencer_go import sequence_go_file, sequence_go_file_with_evidence
 from tools.engines.ast_sequencer_java import sequence_java_file, sequence_java_file_with_evidence
 from tools.engines.ast_sequencer_python import sequence_python_file, sequence_python_file_with_evidence
-from tools.engines.generate_atlas import _normalize_polyglot_symbol
+from tools.engines.generate_atlas import (
+    _build_project_symbol_occurrences,
+    _normalize_polyglot_symbol,
+    _normalize_polyglot_symbols,
+    previous_atlas_required_for_generation,
+)
 from tools.engines.generate_atlas import _raw_import_sources_not_in_records
+from tools.engines.generate_atlas import file_contract_is_current
 
 
 def _sequence_node_file(path: Path) -> list[dict]:
@@ -294,6 +303,222 @@ def test_typescript_offset_normalization_handles_astral_unicode_and_crlf():
     assert source_bytes[normalized["start"]:normalized["end"]].decode("utf-8") == signature
 
 
+def test_typescript_offset_batch_uses_one_content_index_for_many_symbols():
+    content = "\U0001f642" + ("x" * 512)
+    raw_symbols = [
+        {
+            "name": f"icon_{index}",
+            "type": "ReExportedSymbol",
+            "start": 2 + index,
+            "end": 3 + index,
+            "parserKind": "typescript_compiler_api",
+        }
+        for index in range(512)
+    ]
+
+    with patch.object(
+        generate_atlas_module,
+        "_utf16_offset_to_utf8_byte_offset",
+        side_effect=AssertionError("per-symbol source rescan"),
+    ):
+        normalized = _normalize_polyglot_symbols(
+            raw_symbols,
+            content,
+            language="javascript",
+        )
+
+    assert len(normalized) == 512
+    assert (normalized[0]["start"], normalized[0]["end"]) == (4, 5)
+    assert (normalized[-1]["start"], normalized[-1]["end"]) == (515, 516)
+
+
+def test_normalized_symbol_supplies_the_file_cache_state_flow_contract():
+    symbol = _normalize_polyglot_symbol(
+        {
+            "name": "useStore",
+            "type": "Function",
+            "features": ["Tech:zustand"],
+        },
+        "def useStore(): pass\n",
+        language="python",
+    )
+    file_data = {
+        "ast_contract_version": generate_atlas_module.AST_CONTRACT_VERSION,
+        "project_key": "MAIN",
+        "atlas_rel_path": "store.py",
+        "workspace_rel": "store.py",
+        "repo_relative_path": "store.py",
+        "target_ref": "MAIN::store.py",
+        "symbols": [symbol],
+        "parser_evidence": {"status": "observed", "reported_by_adapter": True, "parser_kind": "python_ast"},
+    }
+
+    assert isinstance(symbol["state_flow"], dict)
+    assert file_contract_is_current(file_data)
+
+
+@pytest.mark.parametrize("evidence, reusable", [
+    (None, False),
+    ({}, False),
+    ({"status": "unavailable", "reported_by_adapter": True, "parser_kind": "typescript_compiler_api"}, False),
+    ({"status": "degraded", "reported_by_adapter": True, "parser_kind": "unavailable"}, False),
+    ({"status": "observed", "reported_by_adapter": False, "parser_kind": "typescript_compiler_api"}, False),
+    ({"status": "observed", "reported_by_adapter": True, "parser_kind": "typescript_compiler_api"}, True),
+    ({"status": "degraded", "reported_by_adapter": True, "parser_kind": "typescript_compiler_api", "parser_diagnostic_count": 1}, True),
+])
+def test_empty_file_cache_requires_actual_parser_evidence(evidence, reusable):
+    record = {
+        "ast_contract_version": generate_atlas_module.AST_CONTRACT_VERSION,
+        "project_key": "MAIN", "atlas_rel_path": "empty.ts",
+        "workspace_rel": "empty.ts", "repo_relative_path": "empty.ts",
+        "target_ref": "MAIN::empty.ts", "symbols": [], "parser_evidence": evidence,
+    }
+    assert file_contract_is_current(record) is reusable
+
+
+def test_typescript_offset_batch_preserves_invalid_surrogate_failure():
+    with pytest.raises(ValueError, match="splits a surrogate pair"):
+        _normalize_polyglot_symbols(
+            [
+                {
+                    "name": "broken",
+                    "type": "Variable",
+                    "start": 1,
+                    "end": 2,
+                    "parserKind": "typescript_compiler_api",
+                }
+            ],
+            "\U0001f642",
+            language="typescript",
+        )
+
+
+def test_dense_barrel_symbol_occurrences_grow_linearly_without_file_dependency_fanout():
+    def build_files(symbol_count: int) -> dict:
+        return {
+            "generated/public-api.mjs": {
+                "internal_deps": [f"generated/Module{index}.mjs" for index in range(symbol_count)],
+                "symbols": [
+                    {
+                        "name": f"proxy:./Module{index}.mjs",
+                        "type": "ProxyExport",
+                        "dependencies": [],
+                        "module_specifier": f"./Module{index}.mjs",
+                        "line": index + 1,
+                    }
+                    for index in range(symbol_count)
+                ],
+            }
+        }
+
+    small = _build_project_symbol_occurrences(build_files(128))
+    large = _build_project_symbol_occurrences(build_files(256))
+
+    assert all(len(row["dependencies"]) == 1 for row in large)
+    assert large[-1]["dependencies"] == ["./Module255.mjs"]
+    assert len(json.dumps(large, separators=(",", ":"))) < 2.2 * len(
+        json.dumps(small, separators=(",", ":"))
+    )
+
+
+def test_previous_atlas_is_skipped_only_for_an_unbounded_complete_refresh():
+    expected = {"MAIN", "PACKAGE_A"}
+
+    assert previous_atlas_required_for_generation(
+        ["MAIN", "PACKAGE_A"],
+        expected,
+        bounded_projection=False,
+    ) is False
+    assert previous_atlas_required_for_generation(
+        ["MAIN"],
+        expected,
+        bounded_projection=False,
+    ) is True
+    assert previous_atlas_required_for_generation(
+        ["MAIN", "PACKAGE_A"],
+        expected,
+        bounded_projection=True,
+    ) is True
+    assert previous_atlas_required_for_generation(
+        None,
+        expected,
+        bounded_projection=False,
+    ) is True
+
+
+def test_typescript_compiler_offsets_preserve_explicit_zero_for_empty_source():
+    for language in ("typescript", "javascript"):
+        normalized = _normalize_polyglot_symbol(
+            {
+                "name": "__file_meta__",
+                "type": "Meta",
+                "start": 0,
+                "end": 0,
+                "parserKind": "typescript_compiler_api",
+            },
+            "",
+            language=language,
+        )
+
+        assert normalized["start"] == 0
+        assert normalized["end"] == 0
+
+    leading_symbol = _normalize_polyglot_symbol(
+        {
+            "name": "x",
+            "type": "Variable",
+            "start": 0,
+            "end": 1,
+            "parserKind": "typescript_compiler_api",
+        },
+        "x",
+        language="typescript",
+    )
+    assert leading_symbol["start"] == 0
+    assert leading_symbol["end"] == 1
+
+
+def test_typescript_compiler_offsets_reject_malformed_non_empty_spans():
+    with pytest.raises(ValueError, match="exceeds source length"):
+        _normalize_polyglot_symbol(
+            {
+                "name": "broken",
+                "type": "Variable",
+                "start": 0,
+                "end": 2,
+                "parserKind": "typescript_compiler_api",
+            },
+            "x",
+            language="typescript",
+        )
+
+    with pytest.raises(ValueError, match="splits a surrogate pair"):
+        _normalize_polyglot_symbol(
+            {
+                "name": "broken",
+                "type": "Variable",
+                "start": 1,
+                "end": 2,
+                "parserKind": "typescript_compiler_api",
+            },
+            "\U0001f642",
+            language="typescript",
+        )
+
+    with pytest.raises(ValueError, match="end precedes start"):
+        _normalize_polyglot_symbol(
+            {
+                "name": "broken",
+                "type": "Variable",
+                "start": 1,
+                "end": 0,
+                "parserKind": "typescript_compiler_api",
+            },
+            "x",
+            language="typescript",
+        )
+
+
 def test_canonical_types_preserve_language_specific_structure():
     cases = [
         ({"name": "run", "type": "Method", "signature": "void run()"}, "java", "method"),
@@ -506,6 +731,8 @@ def test_generate_atlas_smoke_indexes_polyglot_symbols_and_imports():
         (root / "config.cjs").write_text("module.exports = { enabled: true };\n", encoding="utf-8")
         (root / "typed.mts").write_text("export const typedValue: number = 1;\n", encoding="utf-8")
         (root / "legacy.cts").write_text("export const legacyValue: number = 1;\n", encoding="utf-8")
+        for empty_name in ("empty.ts", "empty.tsx", "empty.js", "empty.jsx"):
+            (root / empty_name).write_text("", encoding="utf-8")
         java_dir = root / "com" / "acme"
         java_dir.mkdir(parents=True)
         (java_dir / "Service.java").write_text("package com.acme; public class Service {}\n", encoding="utf-8")
@@ -542,7 +769,7 @@ def test_generate_atlas_smoke_indexes_polyglot_symbols_and_imports():
         assert project["language"].startswith("polyglot:")
         assert project["ast_contract_version"] == "polyglot-v1"
         sequencer_evidence = project["sequencer_evidence"]
-        assert sequencer_evidence["scope"] == "current_materialization_batch"
+        assert sequencer_evidence["scope"] == "materialized_project_files"
         assert sequencer_evidence["repository_wide_claim"] is False
         python_coverage = next(
             item for item in sequencer_evidence["coverage"]["details"]
@@ -560,9 +787,9 @@ def test_generate_atlas_smoke_indexes_polyglot_symbols_and_imports():
             if item["strategy"] == "node-ast"
         )
         assert node_coverage["claim_status"] == "degraded"
-        assert node_coverage["files_reported_by_adapter"] == 6
-        assert node_coverage["files_accounted"] == 6
-        assert node_coverage["status_counts"] == {"observed": 5, "degraded": 1, "unavailable": 0}
+        assert node_coverage["files_reported_by_adapter"] == 10
+        assert node_coverage["files_accounted"] == 10
+        assert node_coverage["status_counts"] == {"observed": 9, "degraded": 1, "unavailable": 0}
         assert node_coverage["non_observed_file_samples"][0]["path"].endswith("broken.ts")
         structural_coverage = {
             item["strategy"]: item
@@ -576,6 +803,12 @@ def test_generate_atlas_smoke_indexes_polyglot_symbols_and_imports():
         files = atlas["MAIN"]["files"]
         for module_path in ("module.mjs", "config.cjs", "typed.mts", "legacy.cts"):
             assert module_path in files
+        for module_path in ("empty.ts", "empty.tsx", "empty.js", "empty.jsx"):
+            assert module_path in files
+            assert files[module_path]["symbols"] == []
+            assert files[module_path]["exports"] == []
+            assert files[module_path]["imports"] == []
+            assert files[module_path]["internal_deps"] == []
         for module_path in ("module.mjs", "typed.mts", "legacy.cts"):
             assert files[module_path]["symbols"]
         global_run_occurrences = [

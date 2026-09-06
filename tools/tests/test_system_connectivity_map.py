@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
+from pathlib import Path
 
 from tools.validate_system_connectivity_map import validate_payload
 
@@ -101,3 +103,31 @@ def test_equal_external_input_count_with_wrong_identity_cannot_pass() -> None:
     payload["attention"]["consumed_external_inputs"] = ["wrong-external"]
     checks = {check["name"]: check for check in _validate(payload)}
     assert not checks["external_input_ids_match_policy"]["passed"]
+
+
+def test_surface_inventory_declares_actual_mcp_consumer_without_operator_cycle() -> None:
+    root = Path(__file__).resolve().parents[2]
+    policy = json.loads((root / "config/pipeline_execution_policy.json").read_text(encoding="utf-8"))
+    row = policy["external_input_artifacts"]["items"]["nexora_surface_inventory"]
+    assert row.get("broader_system_consumers") == ["tools/mcp/server.py"]
+    server = (root / "tools/mcp/server.py").read_text(encoding="utf-8")
+    assert '_read_json_artifact(RAW_DIR / "nexora_surface_inventory.json"' in server
+    assert "consumed by operator packets" not in row["rationale"]
+
+
+def test_unconsumed_external_input_cannot_keep_pass_status() -> None:
+    payload = deepcopy(_payload())
+    payload["attention"]["declared_but_unconsumed_anywhere"] = ["external"]
+    payload["connectivity"]["pipeline_artifacts"]["declared_but_unconsumed_anywhere"] = ["external"]
+    payload["summary"]["declared_but_unconsumed_anywhere"] = 1
+    checks = {check["name"]: check for check in _validate(payload)}
+    assert not checks["pass_requires_zero_critical_or_unsafe_state"]["passed"]
+
+
+def test_missing_broader_consumer_cannot_keep_pass_status() -> None:
+    payload = deepcopy(_payload())
+    invalid = [{"artifact": "external", "consumer": "missing.py"}]
+    payload["attention"]["invalid_broader_system_consumers"] = invalid
+    payload["connectivity"]["pipeline_artifacts"]["invalid_broader_system_consumers"] = invalid
+    checks = {check["name"]: check for check in _validate(payload)}
+    assert not checks["pass_requires_zero_critical_or_unsafe_state"]["passed"]

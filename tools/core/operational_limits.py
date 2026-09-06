@@ -5,9 +5,11 @@ from typing import Any
 
 from tools.core.config import CONFIG_DIR
 from tools.core.json_io import load_json_object_strict
+from tools.core.persistence_limits import DEFAULT_PERSISTENCE_LIMITS
 
 
 DEFAULT_OPERATIONAL_LIMITS: dict[str, Any] = {
+    **DEFAULT_PERSISTENCE_LIMITS,
     "atlas_batch_sequencer_timeout_seconds": 180,
     "bootstrap_command_timeout_seconds": 180,
     "cli_command_timeout_seconds": 180,
@@ -78,6 +80,22 @@ def patch_applicability_timeout_seconds() -> int:
 
 def atlas_batch_sequencer_timeout_seconds() -> int:
     return operational_limit_seconds("atlas_batch_sequencer_timeout_seconds")
+
+
+def atlas_staging_batch_size() -> int:
+    return operational_limit_seconds("atlas_staging_batch_size")
+
+
+def atlas_staging_file_payload_limit_bytes() -> int:
+    return operational_limit_seconds("atlas_staging_file_payload_limit_bytes")
+
+
+def state_payload_inline_limit_bytes() -> int:
+    return operational_limit_seconds("state_payload_inline_limit_bytes")
+
+
+def state_payload_part_size_bytes() -> int:
+    return operational_limit_seconds("state_payload_part_size_bytes")
 
 
 def bootstrap_command_timeout_seconds() -> int:

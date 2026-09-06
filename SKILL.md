@@ -33,6 +33,12 @@ the target-repository role and does not redefine authority or validation semanti
 - Treat `codemaps.discovery.json` as machine proposal.
 - Treat `codemaps.overrides.json` as human-governed policy.
 - Prefer Atlas / Genome / Closure artifacts over manual guessing.
+- Open import-related files only through grounded `related_files` or
+  `inspect_first` entries. Audit explanation fields such as ownership and reason
+  are diagnostic text, not path suffixes or authority to invent missing files.
+- A work-queue brief may show fewer complete items to fit its context budget.
+  An oversized single item returns `context_budget_exceeded`, not permission to
+  act on partial evidence; request JSON or narrower filters before editing.
 - Read the surgical operation packet or active signals before opening very large
   artifacts. Read the published evidence documents for SAGE product readiness;
   private self-release and debug/provenance tools are not part of this profile.

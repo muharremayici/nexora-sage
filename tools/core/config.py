@@ -40,6 +40,10 @@ DOCTRINE_MANIFEST_FILE = CONFIG_DIR / "doctrines" / "manifest.json"
 PROFILES_FILE = CONFIG_DIR / "architecture_profiles.json"
 SCHEMAS_DIR = CONFIG_DIR / "schemas"
 BOOTSTRAP_FILE = CORE_DIR / "bootstrap_env.py"
+PRODUCT_OPERATIONAL_DIR = CODE_MAPS_DIR / "output" / ".operational"
+MCP_OPERATIONAL_DIR = PRODUCT_OPERATIONAL_DIR / "mcp"
+MCP_CALL_TELEMETRY_DB = MCP_OPERATIONAL_DIR / "mcp_call_telemetry.db"
+MCP_HONESTY_TELEMETRY_FILE = MCP_OPERATIONAL_DIR / "honesty_telemetry.json"
 
 def _load_json(path: Path, repair: bool = True):
     if not path.exists(): return {}
@@ -87,12 +91,13 @@ def save_text_atomic(path: Path, content: str, encoding: str = "utf-8"):
                 time.sleep(0.05 * (2 ** attempt))
         if last_exc is not None:
             raise last_exc
-    except Exception:
+    except Exception as write_error:
         if os.path.exists(temp_name):
             try:
                 os.remove(temp_name)
-            except OSError:
-                pass
+            except OSError as cleanup_error:
+                write_error.add_note(f"Temporary-file cleanup also failed: {cleanup_error}")
+                raise write_error
         raise
 
 
@@ -147,8 +152,33 @@ def save_json_atomic(path: Path, data: any, indent: int = 2, bypass_proxy: bool 
                 print("Warning: Failed to record SQLite proxy write fallback telemetry")
             print(f"Warning: SQLite proxy write failed, falling back to JSON: {e}")
             
-    content = json.dumps(data, indent=indent, ensure_ascii=False)
-    save_text_atomic(path, content)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_fd, temp_name = tempfile.mkstemp(dir=str(path.parent), prefix="cm_tmp_", suffix=".tmp")
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as stream:
+            json.dump(data, stream, indent=indent, ensure_ascii=False)
+
+        last_exc = None
+        for attempt in range(6):
+            try:
+                os.replace(temp_name, str(path))
+                last_exc = None
+                break
+            except PermissionError as exc:
+                last_exc = exc
+                if attempt == 5:
+                    break
+                time.sleep(0.05 * (2 ** attempt))
+        if last_exc is not None:
+            raise last_exc
+    except Exception as write_error:
+        if os.path.exists(temp_name):
+            try:
+                os.remove(temp_name)
+            except OSError as cleanup_error:
+                write_error.add_note(f"Temporary-file cleanup also failed: {cleanup_error}")
+                raise write_error
+        raise
 
 
 def _runtime_config_needs_compile() -> bool:
@@ -570,18 +600,25 @@ def _apply_target_root_override(config: dict) -> dict:
         "selection_mode": topology["selection_mode"],
         "project_candidates": topology["project_candidates"],
         "project_candidate_roles": topology["project_candidate_roles"],
+        "project_candidate_relationship_roles": topology[
+            "project_candidate_relationship_roles"
+        ],
         "project_candidate_role_authority": topology["project_candidate_role_authority"],
         "project_candidate_system_kinds": topology["project_candidate_system_kinds"],
         "project_candidate_selection_evidence": topology["project_candidate_selection_evidence"],
         "selected_projects": topology["selected_projects"],
+        "relationship_operation_projects": topology["relationship_operation_projects"],
+        "coverage_only_projects": topology["coverage_only_projects"],
         "excluded_projects": topology["excluded_projects"],
         "excluded_project_reasons": topology["excluded_project_reasons"],
         "project_ownership_exclusions": topology["project_ownership_exclusions"],
         "file_ownership_contract": topology["file_ownership_contract"],
         "relationship_role_contract": topology["relationship_role_contract"],
         "system_kind_contract": topology["system_kind_contract"],
+        "analysis_coverage_contract": topology["analysis_coverage_contract"],
         "comparative_analysis_enabled": topology["comparative_analysis_enabled"],
         "ontology_contract": topology["ontology_contract"],
+        "topology_authority_id": topology["topology_authority_id"],
         "inferred_bundler": bundler,
         "inferred_plugins": plugins,
         "inferred_architecture": architecture,
@@ -589,7 +626,10 @@ def _apply_target_root_override(config: dict) -> dict:
             **scope_projection,
             "analysis_projection": topology["analysis_projection"],
             "selection_mode": topology["selection_mode"],
+            "topology_authority_id": topology["topology_authority_id"],
             "selected_projects": topology["selected_projects"],
+            "relationship_operation_projects": topology["relationship_operation_projects"],
+            "coverage_only_projects": topology["coverage_only_projects"],
             "excluded_projects": topology["excluded_projects"],
             "excluded_project_reasons": topology["excluded_project_reasons"],
             "project_ownership_exclusions": topology["project_ownership_exclusions"],

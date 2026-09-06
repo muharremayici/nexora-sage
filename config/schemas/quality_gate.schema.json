@@ -19,6 +19,16 @@
         "FAIL"
       ]
     },
+    "scope_gate_status": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "INCOMPLETE_EVIDENCE"
+      ]
+    },
+    "analysis_scope_authority": {
+      "type": "object"
+    },
     "ecosystem_signal_status": {
       "type": "string"
     },

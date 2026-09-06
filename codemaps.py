@@ -687,6 +687,30 @@ def cmd_run(args):
     return run_code
 
 
+def cmd_run_status(args):
+    target_env = _target_root_env(args)
+    if target_env is False:
+        return 2
+    cmd = ["python", str(CODE_MAPS_DIR / "tools" / "query_pipeline_run_receipt.py")]
+    if args.run_id:
+        cmd.extend(["--run-id", args.run_id])
+    if args.wait:
+        cmd.append("--wait")
+    if args.timeout_seconds:
+        cmd.extend(["--timeout-seconds", str(args.timeout_seconds)])
+    if args.poll_seconds:
+        cmd.extend(["--poll-seconds", str(args.poll_seconds)])
+    if args.json:
+        cmd.append("--json")
+    if args.wait and float(args.timeout_seconds or 0) <= 0:
+        timeout = None
+    elif args.wait:
+        timeout = max(60.0, float(args.timeout_seconds) + 30.0)
+    else:
+        timeout = 60
+    return run_command(cmd, env=target_env, timeout=timeout)
+
+
 def cmd_watch(args):
     target_env = _target_root_env(args)
     if target_env is False:
@@ -1847,6 +1871,19 @@ def build_parser():
     run_parser.add_argument("--skip-audit", action="store_true", help="Skip the audit step.")
     run_parser.add_argument("--list-steps", action="store_true", help="List runnable pipeline steps and exit.")
     run_parser.set_defaults(func=cmd_run)
+
+    run_status_parser = subparsers.add_parser(
+        "run-status",
+        help="Query a durable pipeline run receipt without starting another run.",
+        description="Poll the latest or named pipeline run through its SQLite-first receipt. A transport timeout never authorizes an automatic retry.",
+    )
+    run_status_parser.add_argument("--run-id", default="", help="Durable run id. Omit to query the latest run.")
+    run_status_parser.add_argument("--target-root", help="Read receipts from an external target repository namespace.")
+    run_status_parser.add_argument("--wait", action="store_true", help="Wait for this receipt to reach a terminal state without rerunning work.")
+    run_status_parser.add_argument("--timeout-seconds", type=float, default=0, help="Bounded observation timeout; does not terminate the run.")
+    run_status_parser.add_argument("--poll-seconds", type=float, default=5, help="Polling cadence while --wait is active.")
+    run_status_parser.add_argument("--json", action="store_true", help="Print the structured receipt projection.")
+    run_status_parser.set_defaults(func=cmd_run_status)
 
     watch_parser = subparsers.add_parser(
         "watch",

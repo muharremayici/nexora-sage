@@ -952,7 +952,7 @@
         },
         "commit_or_content_fingerprint": {
           "type": "string",
-          "pattern": "^[0-9a-f]{40}$"
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
         },
         "license_observation": {
           "type": "string",

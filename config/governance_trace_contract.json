@@ -5,7 +5,12 @@
     "purpose": "Define the local, privacy-bounded trace fields used to attribute SAGE tool and governance outcomes without inferring causes from a final score."
   },
   "scope": {
-    "storage": "target analysis SQLite codemaps.db",
+    "storage": "event-owned SQLite governance_trace_events",
+    "storage_authority_by_event_type": {
+      "mcp_tool_call": "product-global output/.operational/mcp/mcp_call_telemetry.db",
+      "nested_events_during_mcp_call": "inherit the active MCP call storage authority",
+      "other_events": "active target analysis SQLite codemaps.db unless an explicit call-local authority is bound"
+    },
     "local_first": true,
     "remote_egress": "prohibited_by_contract",
     "raw_content_policy": "Do not persist source code, prompts, full tool arguments, secrets, or model output. Persist only bounded metadata and deterministic fingerprints.",
@@ -34,11 +39,16 @@
       "watchdog_session",
       "release_proof_step",
       "agent_handoff",
-      "work_package_operation"
+      "work_package_operation",
+      "pipeline_invocation"
     ],
     "detail_allowed_keys": {
       "mcp_tool_call": [
-        "argument_keys"
+        "argument_keys",
+        "payload_chars",
+        "result_status",
+        "fail_closed_reason",
+        "target_mode"
       ],
       "watchdog_session": [
         "pulse_id",
@@ -66,6 +76,65 @@
         "evidence_artifact",
         "evidence_fingerprint",
         "authority"
+      ],
+      "pipeline_invocation": [
+        "run_id",
+        "lifecycle_state",
+        "phase",
+        "pid",
+        "command_profile",
+        "scope",
+        "projects",
+        "status_query",
+        "retry_rule",
+        "heartbeat_seconds",
+        "duration_basis",
+        "duration_sample_count",
+        "duration_p50_seconds",
+        "duration_p95_seconds",
+        "client_timeout_floor_seconds",
+        "step_id",
+        "step_status",
+        "active_steps",
+        "active_run_id",
+        "active_pid",
+        "terminal_status",
+        "exit_code",
+        "interruption_reason",
+        "governance_verdict",
+        "elapsed_seconds",
+        "completed_steps",
+        "failed_steps",
+        "skipped_steps",
+        "evidence_identities",
+        "shadow_worker_started_count",
+        "shadow_worker_completed_count",
+        "shadow_worker_failed_count",
+        "shadow_worker_pending_count",
+        "shadow_worker_global_pending_count",
+        "shadow_worker_ids",
+        "shadow_artifacts",
+        "shadow_worker_identities_truncated",
+        "shadow_flush_timed_out",
+        "shadow_flush_timeout_seconds",
+        "shadow_flush_wait_seconds",
+        "scope_topology_authority_id",
+        "scope_authority_id",
+        "scope_evidence_status",
+        "scope_claim",
+        "scope_full_repository_claim_eligible",
+        "scope_repository_inventory_file_count",
+        "scope_effective_supported_source_file_count",
+        "scope_indexed_source_file_count",
+        "scope_claim_eligible_source_file_count",
+        "scope_discovered_candidate_count",
+        "scope_auto_selected_project_count",
+        "scope_effective_project_count",
+        "scope_excluded_project_count",
+        "scope_unresolved_project_candidate_count",
+        "scope_mismatch_reasons",
+        "scope_consumer_checks",
+        "scope_evidence_artifact"
       ]
     },
     "outcomes": [
@@ -94,7 +163,8 @@
       "watchdog",
       "release_proof",
       "agent_handoff",
-      "work_package_operations"
+      "work_package_operations",
+      "pipeline_orchestrator"
     ],
     "future_surfaces": [],
     "integration_rule": "A surface may emit an event only when it can preserve the contract fields or explicitly write not_available. Do not synthesize causal attribution."

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 from datetime import date
 from pathlib import Path
@@ -139,7 +140,14 @@ from tools.core.architecture_blueprints import (
 )
 from tools.core.language_registry import index_files, language_for_extension, watch_extensions
 from tools.core.pipeline_registry import filter_catalog_for_system_scope
-from tools.orchestrators.orchestrator import apply_capability_activation, select_steps_smart
+from tools.orchestrators import orchestrator as orchestrator_module
+from tools.orchestrators.orchestrator import (
+    PIPELINE_CACHE,
+    _pending_cache_consumer_names,
+    apply_capability_activation,
+    pre_warm_cache,
+    select_steps_smart,
+)
 from tools.engines.capability_activation_planner import _refresh_project_dna_profile
 from tools.engines.project_dna_profiler import _dependency_names
 from tools.validate_merge_intelligence_regression import build_regression_checks
@@ -241,6 +249,45 @@ class EvidenceStatusContractTests(unittest.TestCase):
 
         self.assertEqual(verdict["status"], "FAIL")
         self.assertFalse(verdict["passed"])
+
+
+class PipelineCacheWarmTests(unittest.TestCase):
+    def test_completed_atlas_only_plan_has_no_pending_cache_consumer(self):
+        self.assertEqual(
+            _pending_cache_consumer_names([{"name": "Atlas"}], {"Atlas"}),
+            [],
+        )
+        self.assertEqual(
+            _pending_cache_consumer_names(
+                [{"name": "Atlas"}, {"name": "Audit"}],
+                {"Atlas"},
+            ),
+            ["Audit"],
+        )
+
+    def test_pre_warm_uses_provided_atlas_without_reloading_storage(self):
+        provided = {"MAIN": {"files": {}}}
+        empty_cache = {
+            "keyword": None,
+            "ui": None,
+            "landscape": None,
+            "atlas": None,
+            "fractal": None,
+        }
+        with (
+            patch.dict(PIPELINE_CACHE, empty_cache, clear=True),
+            patch.dict("tools.engines.generate_atlas.GLOBAL_ATLAS_CACHE", {}, clear=True),
+            patch.object(
+                orchestrator_module,
+                "load_atlas_data",
+                side_effect=AssertionError("redundant Atlas storage reload"),
+            ),
+            patch.object(orchestrator_module, "load_json_file", return_value={}),
+            patch("tools.core.fractal_io.load_fractal_map_data", return_value={}),
+        ):
+            self.assertTrue(pre_warm_cache(atlas=provided))
+            self.assertIs(PIPELINE_CACHE["atlas"], provided)
+            self.assertTrue(PIPELINE_CACHE["__warmed__"])
 
 
 class HardcodedDecisionInventoryTests(unittest.TestCase):
@@ -1265,6 +1312,59 @@ class ArtifactStoreSQLiteContractTests(unittest.TestCase):
         self.assertEqual(profile["shadow_write_mode"], "asynchronous")
         self.assertTrue(profile["shadow_thread_started"])
 
+    def test_sqlite_shadow_worker_lifecycle_is_run_owned_and_content_bounded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ArtifactStore(raw_dir=Path(tmp))
+            store.use_sqlite = True
+            store.backend = "hybrid_sqlite"
+            store._schema_initialized = False
+            worker_started = threading.Event()
+            allow_completion = threading.Event()
+            original_save = artifact_store.save_json_atomic
+
+            def delayed_shadow_write(*args, **kwargs):
+                worker_started.set()
+                self.assertTrue(allow_completion.wait(timeout=2.0))
+                return original_save(*args, **kwargs)
+
+            artifact_store.activate_shadow_write_run("sage-run-shadow-owned")
+            try:
+                with patch.object(artifact_store, "save_json_atomic", side_effect=delayed_shadow_write):
+                    profile = store.save_raw("private_artifact", {"secret": "must-not-appear"})
+                    self.assertTrue(worker_started.wait(timeout=1.0))
+                    observed = artifact_store.shadow_write_lifecycle_snapshot("sage-run-shadow-owned")
+                    short_flush = artifact_store.flush_shadow_writes_report(
+                        timeout=0.01,
+                        run_id="sage-run-shadow-owned",
+                    )
+                    allow_completion.set()
+                    final_flush = artifact_store.flush_shadow_writes_report(
+                        timeout=1.0,
+                        run_id="sage-run-shadow-owned",
+                    )
+
+                released = artifact_store.release_shadow_write_run("sage-run-shadow-owned")
+            finally:
+                allow_completion.set()
+                artifact_store.flush_shadow_writes(timeout=1.0)
+                if artifact_store.current_shadow_write_run_id() == "sage-run-shadow-owned":
+                    artifact_store.release_shadow_write_run("sage-run-shadow-owned")
+
+        self.assertEqual(profile["shadow_run_id"], "sage-run-shadow-owned")
+        self.assertEqual(observed["started_count"], 1)
+        self.assertEqual(observed["pending_count"], 1)
+        self.assertEqual(observed["artifacts"], ["private_artifact"])
+        self.assertEqual(observed["identity_limit"], 50)
+        self.assertFalse(observed["identities_truncated"])
+        self.assertNotIn("must-not-appear", json.dumps(observed))
+        self.assertNotIn(str(Path(tmp)), json.dumps(observed))
+        self.assertFalse(short_flush["complete"])
+        self.assertTrue(short_flush["timed_out"])
+        self.assertTrue(final_flush["complete"])
+        self.assertEqual(final_flush["completed_count"], 1)
+        self.assertEqual(released["pending_count"], 0)
+        self.assertEqual(artifact_store.current_shadow_write_run_id(), "")
+
     def test_bounded_process_shadow_mode_is_synchronous(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = ArtifactStore(raw_dir=Path(tmp))
@@ -2258,7 +2358,7 @@ class TargetRootOverrideContractTests(unittest.TestCase):
             payload["_target_root_override"]["analysis_projection"],
             "multi_project",
         )
-        self.assertTrue(
+        self.assertFalse(
             payload["_target_root_override"]["comparative_analysis_enabled"]
         )
 
@@ -2709,7 +2809,29 @@ class TargetRootOverrideContractTests(unittest.TestCase):
 
         self.assertEqual(payload["summary"]["inventory_file_count"], 1)
         self.assertEqual(payload["summary"]["language_counts"], {"python": 1})
+        self.assertEqual(payload["summary"]["analysis_language_counts"], {})
         self.assertIn("venv", payload["summary"]["inventory_evidence"]["root_only_skipped_directory_names"])
+
+    def test_external_target_preflight_separates_observed_files_from_atlas_analysis_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "package.json").write_text("{}", encoding="utf-8")
+            (root / "main.ts").write_text("export const value = 1\n", encoding="utf-8")
+            (root / "empty.ts").write_text("", encoding="utf-8")
+            (root / "globals.d.ts").write_text("declare const version: string\n", encoding="utf-8")
+            generated = root / "tooling" / "dist"
+            generated.mkdir(parents=True)
+            (generated / "bundle.js").write_text("module.exports = 1\n", encoding="utf-8")
+
+            payload = build_preflight(root)
+
+        summary = payload["summary"]
+        scope = summary["analysis_scope"]["scope_authority"]
+        self.assertEqual(summary["language_counts"], {"javascript": 1, "typescript": 3})
+        self.assertEqual(summary["analysis_language_counts"], {"typescript": 2})
+        self.assertEqual(scope["effective_observed_source_file_count"], 4)
+        self.assertEqual(scope["effective_supported_source_file_count"], 2)
+        self.assertEqual(scope["evidence_status"], "COMPLETE_REPOSITORY")
 
     def test_external_target_preflight_observes_rust_without_granting_semantic_authority(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2824,24 +2946,35 @@ class TargetRootOverrideContractTests(unittest.TestCase):
         self.assertEqual(scope["discovered_topology"], "multi_project")
         self.assertEqual(scope["analysis_projection"], "multi_project")
         self.assertEqual(scope["selection_mode"], "evidence_backed_auto")
-        self.assertEqual(scope["selected_projects"], {"MAIN": ".", "WEB": "packages/web"})
+        self.assertEqual(
+            scope["selected_projects"],
+            {"MAIN": ".", "EMBEDDED_TOOL": "Embedded Tool", "WEB": "packages/web"},
+        )
         self.assertEqual(
             scope["project_candidate_roles"],
-            {"MAIN": "host", "WEB": "companion", "EMBEDDED_TOOL": "companion"},
+            {"MAIN": "host", "WEB": "companion", "EMBEDDED_TOOL": "unresolved"},
         )
-        self.assertEqual(scope["excluded_projects"], {"EMBEDDED_TOOL": "Embedded Tool"})
+        self.assertEqual(scope["excluded_projects"], {})
+        self.assertEqual(scope["coverage_only_projects"], {"EMBEDDED_TOOL": "Embedded Tool"})
+        self.assertEqual(
+            scope["relationship_operation_projects"],
+            {"MAIN": ".", "WEB": "packages/web"},
+        )
         self.assertEqual(
             scope["project_ownership_exclusions"],
-            {"MAIN": ["Embedded Tool", "packages/web"], "WEB": []},
+            {"MAIN": ["Embedded Tool", "packages/web"], "EMBEDDED_TOOL": [], "WEB": []},
         )
         self.assertEqual(
             scope["file_ownership_contract"],
             "nearest_discovered_project_root_v1",
         )
-        self.assertEqual(scope["project_file_counts"], {"MAIN": 2, "WEB": 2})
-        self.assertNotIn("python", payload["summary"]["language_counts"])
+        self.assertEqual(
+            scope["project_file_counts"],
+            {"MAIN": 2, "EMBEDDED_TOOL": 2, "WEB": 2},
+        )
+        self.assertEqual(payload["summary"]["language_counts"]["python"], 1)
         self.assertEqual(payload["summary"]["repository_language_counts"]["python"], 1)
-        self.assertTrue(scope["comparative_analysis_enabled"])
+        self.assertFalse(scope["comparative_analysis_enabled"])
 
     def test_external_target_preflight_separates_topology_selection_from_runtime_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2872,11 +3005,13 @@ class TargetRootOverrideContractTests(unittest.TestCase):
             {
                 "selected_projects": "topology_auto_selection_before_runtime_filter",
                 "effective_runtime_projects": "project_set_authorized_for_this_requested_execution",
-                "language_and_framework_inventory": "topology_auto_selection_conservative_preflight",
+                "language_and_framework_inventory": "effective_runtime_projects",
             },
         )
-        self.assertEqual(scope["inventory_project_scope"], "auto_selected_projects")
+        self.assertEqual(scope["inventory_project_scope"], "effective_runtime_projects")
         self.assertEqual(scope["runtime_claim_project_scope"], "effective_runtime_projects")
+        self.assertEqual(scope["scope_authority"]["evidence_status"], "BOUNDED_PROJECT_SELECTION")
+        self.assertEqual(scope["project_file_counts"], {"MAIN": 2})
 
     def test_external_target_preflight_exposes_unavailable_runtime_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -3681,19 +3816,37 @@ class FrameworkRouteAnalyzerTests(unittest.TestCase):
 
     def test_v11_fixture_exposes_hybrid_and_tanstack_route_contracts(self):
         fixture_root = Path(__file__).resolve().parent / "fixtures" / "react_v11"
-        import hashlib
-        fixture_atlas = {"files": {}}
-        for path in fixture_root.rglob("*"):
-            if path.is_file():
-                rel = path.relative_to(fixture_root).as_posix()
-                content = path.read_text(encoding="utf-8", errors="replace")
-                fixture_atlas["files"][rel] = {"hash": hashlib.sha256(content.encode("utf-8")).hexdigest()}
+        from tools.validate_react_v11_contracts import build_fixture_atlas
+        fixture_atlas = build_fixture_atlas(fixture_root)
         payload = analyze_project_routes("REACT_V11", fixture_root, fixture_atlas)
 
         self.assertTrue(payload["hybrid_next_app_pages"])
         self.assertGreaterEqual(payload["route_counts"].get("tanstack_router", 0), 2)
         self.assertGreaterEqual(payload["segment_kind_counts"].get("route_group", 0), 1)
         self.assertGreaterEqual(payload["segment_kind_counts"].get("optional_catch_all", 0), 1)
+
+    def test_fixture_byte_identity_accepts_crlf_and_rejects_stale_source(self):
+        from tools.validate_react_v11_contracts import build_fixture_atlas
+        from tools.core import source_evidence
+        import tempfile
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "route.tsx"
+            source.write_bytes(b"export const route = '/hello';\r\n")
+            entry = build_fixture_atlas(root)["files"]["route.tsx"]
+            self.assertEqual(entry["hash"], hashlib.sha256(source.read_bytes()).hexdigest())
+            with (
+                patch.object(source_evidence, "load_source_text", return_value=None),
+                patch.object(source_evidence, "record_honesty_event") as record,
+            ):
+                args = dict(component="fixture_test", project="ISOLATED", project_root=root,
+                            rel_path="route.tsx", atlas_entry=entry, reason="fixture byte identity")
+                self.assertEqual(source_evidence.read_atlas_bound_source(**args), source.read_bytes().decode("utf-8"))
+                record.assert_not_called()
+                source.write_bytes(b"export const route = '/changed';\r\n")
+                self.assertIsNone(source_evidence.read_atlas_bound_source(**args))
+                self.assertEqual(record.call_args.kwargs["category"], "stale_evidence")
 
 
 class UISmokeSpecGeneratorTests(unittest.TestCase):
@@ -7174,6 +7327,30 @@ class AdapterRegistryContractTests(unittest.TestCase):
 
 
 class ReleaseReadinessContractTests(unittest.TestCase):
+    def setUp(self):
+        # Unit evidence must not depend on a previous repository analysis.
+        self.enterContext(patch("tools.engines.release_readiness_report.load_atlas_data", return_value={"fixture": True}))
+        self.enterContext(patch("tools.engines.release_readiness_report.load_genome_data", return_value={"fixture": True}))
+        self.enterContext(patch("tools.engines.release_readiness_report._manual_validation_confidence", return_value={"status": "not_available"}))
+
+    def _current_claim(self):
+        identity = json.loads((CODE_MAPS_DIR / "config/release_identity.json").read_text(encoding="utf-8"))
+        return identity["release_claim"]["allowed"]
+
+    def test_release_claim_must_match_current_identity(self):
+        if self._public_maintainer_boundary_is_closed():
+            return
+        for claim, expected in ((self._current_claim(), True), ("different_fixture_claim", False), ("", False)):
+            with self.subTest(claim=claim):
+                payload = build_release_readiness_payload({
+                    "react_universal_readiness": {"summary": {"universal_ready": True, "allowed_claim": claim}}
+                })
+                check = next(row for row in payload["checks"] if row["name"] == "react_universal_readiness_pass")
+                self.assertEqual(check["passed"], expected)
+                self.assertTrue(check["enforced"])
+                if not expected:
+                    self.assertEqual(payload["readiness"], "NOT_READY")
+
     def _public_maintainer_boundary_is_closed(self) -> bool:
         if not (CODE_MAPS_DIR / "PUBLIC_DISTRIBUTION_MANIFEST.json").is_file():
             return False
@@ -7185,11 +7362,8 @@ class ReleaseReadinessContractTests(unittest.TestCase):
             self.assertFalse((CODE_MAPS_DIR / relative_path).exists())
         return True
 
-    def test_release_readiness_requires_quality_artifacts_and_regression(self):
-        if self._public_maintainer_boundary_is_closed():
-            return
-        payload = build_release_readiness_payload(
-            {
+    def _ready_artifacts(self):
+        return {
                 "quality_gate": {
                     "release_gate_status": "PASS",
                     "ecosystem_signal_status": "ATTENTION",
@@ -7227,7 +7401,7 @@ class ReleaseReadinessContractTests(unittest.TestCase):
                 "react_universal_readiness": {
                     "summary": {
                         "universal_ready": True,
-                        "allowed_claim": "evidence_backed_universal_react_web_static_governance",
+                        "allowed_claim": self._current_claim(),
                     },
                 },
                 "universal_proof_validation": {
@@ -7239,14 +7413,35 @@ class ReleaseReadinessContractTests(unittest.TestCase):
                 "codemaps_suppressions": {
                     "suppressions": [],
                 },
-            },
-            artifact_errors={},
-        )
+        }
 
+    def test_release_readiness_requires_quality_artifacts_and_regression(self):
+        if self._public_maintainer_boundary_is_closed():
+            return
+        payload = build_release_readiness_payload(self._ready_artifacts(), artifact_errors={})
         self.assertEqual(payload["readiness"], "PRODUCTION_READY")
         self.assertEqual(payload["summary"]["failed"], 0)
         self.assertEqual(payload["summary"]["platform_readiness"], "PRODUCTION_READY")
         self.assertTrue(payload["summary"]["ecosystem_attention"])
+
+    def test_target_repository_debt_does_not_become_sage_release_debt(self):
+        if self._public_maintainer_boundary_is_closed():
+            return
+        artifacts = self._ready_artifacts()
+        artifacts["quality_gate"]["release_gate_status"] = "FAIL"
+        artifacts["quality_gate"]["scope_gate_status"] = "PASS"
+        payload = build_release_readiness_payload(artifacts)
+        self.assertEqual(payload["readiness"], "PRODUCTION_READY")
+        self.assertEqual(payload["evidence"]["quality_gate"]["release_gate_status"], "FAIL")
+        target_check = next(row for row in payload["checks"] if row["name"] == "quality_gate_pass")
+        self.assertFalse(target_check["passed"])
+        self.assertFalse(target_check["enforced"])
+
+        invalid = build_release_readiness_payload(artifacts, artifact_errors={"quality_gate": ["invalid fixture evidence"]})
+        self.assertEqual(invalid["readiness"], "NOT_READY")
+        artifacts["mcp_agent_surface_validation"]["summary"]["status"] = "FAIL"
+        broken_product = build_release_readiness_payload(artifacts)
+        self.assertEqual(broken_product["readiness"], "NOT_READY")
 
     def test_release_readiness_blocks_missing_mcp_agent_surface(self):
         if self._public_maintainer_boundary_is_closed():
@@ -7318,7 +7513,7 @@ class ReleaseReadinessContractTests(unittest.TestCase):
                     "summary": {
                         "universal_ready": True,
                         "external_fixture_pool_required": False,
-                        "allowed_claim": "evidence_backed_universal_react_web_static_governance",
+                        "allowed_claim": self._current_claim(),
                     }
                 },
                 "universal_proof_validation": {"summary": {"failed_checks": 0}},
@@ -7422,7 +7617,7 @@ class ReleaseReadinessContractTests(unittest.TestCase):
                     "summary": {
                         "universal_ready": True,
                         "external_fixture_pool_required": False,
-                        "allowed_claim": "evidence_backed_universal_react_web_static_governance",
+                        "allowed_claim": self._current_claim(),
                     }
                 },
                 "universal_proof_validation": {"summary": {"failed_checks": 0}},
@@ -7457,7 +7652,7 @@ class ReleaseReadinessContractTests(unittest.TestCase):
                     "summary": {
                         "universal_ready": True,
                         "external_fixture_pool_required": False,
-                        "allowed_claim": "evidence_backed_universal_react_web_static_governance",
+                        "allowed_claim": self._current_claim(),
                     }
                 },
                 "universal_proof_validation": {"summary": {"failed_checks": 0}},

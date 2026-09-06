@@ -117,8 +117,50 @@ class SQLiteManager:
                     name TEXT PRIMARY KEY,
                     payload TEXT NOT NULL,
                     payload_sha TEXT,
+                    payload_bytes INTEGER,
+                    storage_mode TEXT NOT NULL DEFAULT 'inline_json',
+                    generation_id TEXT,
+                    part_count INTEGER NOT NULL DEFAULT 0,
                     source_mtime REAL,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS state_payload_parts (
+                    name TEXT NOT NULL,
+                    generation_id TEXT NOT NULL,
+                    part_index INTEGER NOT NULL,
+                    payload BLOB NOT NULL,
+                    payload_bytes INTEGER NOT NULL,
+                    payload_sha TEXT NOT NULL,
+                    PRIMARY KEY (name, generation_id, part_index),
+                    FOREIGN KEY(name) REFERENCES state_payloads(name) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS atlas_staging_runs (
+                    run_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL,
+                    producer_contract TEXT NOT NULL,
+                    processed_files INTEGER NOT NULL DEFAULT 0,
+                    reused_files INTEGER NOT NULL DEFAULT 0,
+                    skipped_oversize_files INTEGER NOT NULL DEFAULT 0,
+                    error_type TEXT NOT NULL DEFAULT 'none',
+                    started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS atlas_staging_files (
+                    project_key TEXT NOT NULL,
+                    rel_path TEXT NOT NULL,
+                    stage_kind TEXT NOT NULL,
+                    run_id TEXT NOT NULL,
+                    producer_contract TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    payload_sha TEXT NOT NULL,
+                    source_mtime REAL,
+                    size_bytes INTEGER NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (project_key, rel_path, stage_kind),
+                    FOREIGN KEY(run_id) REFERENCES atlas_staging_runs(run_id) ON DELETE CASCADE
                 );
 
                 CREATE TABLE IF NOT EXISTS projects (
@@ -239,9 +281,16 @@ class SQLiteManager:
                 CREATE INDEX IF NOT EXISTS idx_target_write_leases_expiry ON target_write_leases(expires_at_epoch);
                 CREATE INDEX IF NOT EXISTS idx_governance_trace_events_trace ON governance_trace_events(trace_id);
                 CREATE INDEX IF NOT EXISTS idx_governance_trace_events_recorded ON governance_trace_events(recorded_at);
+                CREATE INDEX IF NOT EXISTS idx_state_payload_parts_generation ON state_payload_parts(name, generation_id, part_index);
+                CREATE INDEX IF NOT EXISTS idx_atlas_staging_files_contract ON atlas_staging_files(producer_contract, stage_kind, project_key);
+                CREATE INDEX IF NOT EXISTS idx_atlas_staging_runs_status ON atlas_staging_runs(status, updated_at);
             """)
             for statement in (
                 "ALTER TABLE state_payloads ADD COLUMN payload_sha TEXT;",
+                "ALTER TABLE state_payloads ADD COLUMN payload_bytes INTEGER;",
+                "ALTER TABLE state_payloads ADD COLUMN storage_mode TEXT NOT NULL DEFAULT 'inline_json';",
+                "ALTER TABLE state_payloads ADD COLUMN generation_id TEXT;",
+                "ALTER TABLE state_payloads ADD COLUMN part_count INTEGER NOT NULL DEFAULT 0;",
                 "ALTER TABLE state_payloads ADD COLUMN source_mtime REAL;",
                 "ALTER TABLE state_payloads ADD COLUMN updated_at TEXT;",
                 "ALTER TABLE symbols ADD COLUMN end_line INTEGER;",

@@ -77,7 +77,8 @@ def run_validation() -> dict[str, Any]:
         _check(
             "atlas_language_detection_uses_registry",
             "extension_language_map()" in atlas_text
-            and "dirs[:] = [d for d in dirs if d not in SKIP_DIRS]" in atlas_text
+            and "prune_owned_walk_dirs(" in atlas_text
+            and "skipped_names=SKIP_DIRS" in atlas_text
             and 'lowered.endswith(".py")' not in atlas_text
             and 'lowered.endswith(".java")' not in atlas_text,
             "Atlas project language detection should follow language_registry and skip ignored directories.",
@@ -109,6 +110,7 @@ def run_validation() -> dict[str, Any]:
     )
 
     discovery_text = _read(CODE_MAPS_DIR / "tools" / "orchestrators" / "discovery.py")
+    repository_topology_text = _read(CODE_MAPS_DIR / "tools" / "core" / "repository_topology.py")
     checks.append(
         _check(
             "discovery_uses_language_registry",
@@ -124,7 +126,9 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "discovery_config_markers_use_registry",
-            "has_config = any(is_config_or_manifest_file(item) for item in items)" in discovery_text
+            "config_or_manifest_predicate=is_config_or_manifest_file" in discovery_text
+            and "has_config = any(is_config_or_manifest(name) for name in item_names)"
+            in repository_topology_text
             and '"vite.config.ts"' not in discovery_text
             and '"next.config.js"' not in discovery_text,
             "Discovery workspace config markers should come from language_registry.config_file_markers.",
@@ -165,7 +169,8 @@ def run_validation() -> dict[str, Any]:
             "config_and_manifest_globs_use_one_matcher",
             "fnmatchcase" in language_registry_text
             and "is_config_or_manifest_file(name)" in _read(CODE_MAPS_DIR / "tools" / "engines" / "quant_engine.py")
-            and "is_config_or_manifest_file(item)" in discovery_text,
+            and "config_or_manifest_predicate=is_config_or_manifest_file" in discovery_text
+            and "is_config_or_manifest(name)" in repository_topology_text,
             "Exact names and glob patterns from the central taxonomy must have identical semantics in Discovery and Quant.",
         )
     )

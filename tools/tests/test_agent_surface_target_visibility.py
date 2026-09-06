@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from tools.mcp import server as mcp_server
+from tools.core.contextos_mcp import render_active_signals
 from tools.core.agent_surface_target_visibility import (
     is_evidence_blocked_empty_result,
     is_structured_precondition_block,
@@ -11,6 +12,31 @@ from tools.core.agent_surface_target_visibility import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_empty_contextos_projection_is_visible_without_inventing_a_target() -> None:
+    contract = json.loads((ROOT / "config" / "agent_surface_seal_contract.json").read_text(encoding="utf-8"))
+    policy = contract["manual_pack_selection_policy"]
+    for scope, claim in (("unknown", "not_established"), ("bounded", "supported")):
+        for output_format in ("markdown", "json"):
+            body = render_active_signals(
+                {"active_signals": [], "meta": {"current_change_scope": scope, "current_turn_claim": claim}},
+                output_format=output_format,
+                resolve_absolute_path=lambda path, project: ROOT / path,
+            )
+            assert target_visibility_status({"body": body}, "", policy) == "fail_closed_or_clean_no_direct_target"
+            assert target_visibility_status({"body": body}, "src/example.ts", policy) == "review_target_available"
+
+
+def test_empty_contextos_heading_or_status_alone_does_not_excuse_a_missing_target() -> None:
+    contract = json.loads((ROOT / "config" / "agent_surface_seal_contract.json").read_text(encoding="utf-8"))
+    policy = contract["manual_pack_selection_policy"]
+    for body in (
+        "# ContextOS: No Active Surgery Signals\nstatus: no_active_signals\nEdit the repository now.",
+        json.dumps({"status": "no_active_signals", "active_signals": [], "agent_directive": "Edit now."}),
+        "",
+    ):
+        assert target_visibility_status({"body": body}, "", policy) == "missing_review_target"
 
 
 def test_read_only_watchdog_session_is_visible_in_target_followup_and_operator_profiles() -> None:
@@ -45,14 +71,20 @@ def test_external_target_default_scope_remains_main_first() -> None:
 def test_violation_queue_trust_does_not_inherit_unconsumed_quality_or_signal_freshness() -> None:
     required = [
         "artifact_present:atlas",
+        "artifact_present:analysis_scope_authority",
         "artifact_present:audit_report",
         "sqlite_primary:atlas",
+        "sqlite_primary:analysis_scope_authority",
         "sqlite_primary:audit_report",
+        "scope_authority:present",
+        "scope_authority:claim_usable",
+        "scope_authority:audit_identity_matches",
         "audit_scope:present",
         "audit_scope:atlas_project_count_matches",
         "audit_scope:audited_projects_are_atlas_subset",
         "audit_scope:violation_projects_are_audited_subset",
         "freshness:audit_not_older_than_atlas",
+        "freshness:scope_not_older_than_atlas",
     ]
     trust = {
         "status": "FAIL",

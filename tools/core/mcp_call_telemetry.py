@@ -1,17 +1,30 @@
 from __future__ import annotations
 
 import math
+import os
+import re
 import time
+from contextvars import ContextVar, Token
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from tools.core.config import CONFIG_DIR, RAW_DIR, save_json_atomic
+from tools.core.config import (
+    CONFIG_DIR,
+    MCP_CALL_TELEMETRY_DB,
+    MCP_HONESTY_TELEMETRY_FILE,
+)
+from tools.core.execution_identity import SAGE_OPERATOR_ACTOR_PROFILE
 from tools.core.json_io import load_json_file
 
 
 RETENTION_TARGET_ID = "mcp_call_telemetry"
-DEFAULT_LEDGER_NAME = "mcp_call_telemetry_ledger.json"
+DEFAULT_LEDGER_NAME = "mcp_call_telemetry.db"
+MCP_OPERATIONAL_DB_ENV = "SAGE_MCP_OPERATIONAL_DB_PATH"
+_ACTIVE_CALL_RESULT: ContextVar[dict[str, Any] | None] = ContextVar(
+    "sage_mcp_call_result",
+    default=None,
+)
 
 
 def _utc_now() -> str:
@@ -26,30 +39,71 @@ def _retention_policy() -> dict[str, Any]:
             return row
     return {
         "id": RETENTION_TARGET_ID,
-        "path": f"output/.raw/{DEFAULT_LEDGER_NAME}",
+        "path": "output/.operational/mcp/mcp_call_telemetry.db",
         "max_entries": 200,
         "max_summary_tools": 50,
         "enabled": False,
     }
 
 
-def _ledger_path(policy: dict[str, Any]) -> Path:
-    configured = str(policy.get("path") or f"output/.raw/{DEFAULT_LEDGER_NAME}").replace("\\", "/")
-    return RAW_DIR / Path(configured).name
+def mcp_operational_db_path() -> Path:
+    """Return the product-global MCP telemetry authority, never a target RAW_DIR."""
+    override = str(os.environ.get(MCP_OPERATIONAL_DB_ENV) or "").strip()
+    if not override:
+        return MCP_CALL_TELEMETRY_DB
+    candidate = Path(override).expanduser()
+    if not candidate.is_absolute():
+        raise ValueError(f"{MCP_OPERATIONAL_DB_ENV} must be an absolute path")
+    return candidate.resolve()
 
 
-def _load_ledger(path: Path) -> dict[str, Any]:
-    payload = load_json_file(path, {})
-    if not isinstance(payload, dict):
-        payload = {}
-    entries = payload.get("entries") if isinstance(payload.get("entries"), list) else []
-    summary = payload.get("summary_by_tool") if isinstance(payload.get("summary_by_tool"), dict) else {}
-    return {
-        "meta": payload.get("meta") if isinstance(payload.get("meta"), dict) else {},
-        "policy": payload.get("policy") if isinstance(payload.get("policy"), dict) else {},
-        "summary_by_tool": summary,
-        "entries": entries,
-    }
+def mcp_operational_honesty_path() -> Path:
+    """Keep MCP-call honesty events beside the selected operational database."""
+    db_path = mcp_operational_db_path()
+    if db_path == MCP_CALL_TELEMETRY_DB:
+        return MCP_HONESTY_TELEMETRY_FILE
+    return db_path.parent / MCP_HONESTY_TELEMETRY_FILE.name
+
+
+def activate_mcp_call_capture() -> Token[dict[str, Any] | None]:
+    """Begin one call-local result capture without writing persistent state."""
+    return _ACTIVE_CALL_RESULT.set(None)
+
+
+def reset_mcp_call_capture(token: Token[dict[str, Any] | None]) -> None:
+    _ACTIVE_CALL_RESULT.reset(token)
+
+
+def current_mcp_call_capture() -> dict[str, Any]:
+    captured = _ACTIVE_CALL_RESULT.get()
+    return dict(captured) if isinstance(captured, dict) else {}
+
+
+def _safe_label(value: Any, *, default: str, limit: int = 120) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return default
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "_", text)[:limit] or default
+
+
+def _result_payload_chars(result: Any) -> int:
+    if result is None:
+        return 0
+    if isinstance(result, str):
+        return len(result)
+    if isinstance(result, (list, tuple)):
+        texts = [str(getattr(item, "text", "")) for item in result if getattr(item, "text", None) is not None]
+        if texts:
+            return sum(len(text) for text in texts)
+    return len(str(result))
+
+
+def _target_mode(profile: str, arguments: dict[str, Any]) -> str:
+    if str(arguments.get("target_root") or "").strip():
+        return "explicit_target"
+    if str(profile or "").strip() == SAGE_OPERATOR_ACTOR_PROFILE:
+        return "sage_self"
+    return "default_repository"
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -103,6 +157,7 @@ def build_summary(entries: list[dict[str, Any]], *, max_summary_tools: int = 50)
             "max_duration_ms": round(max(durations) if durations else 0, 2),
             "last_payload_chars": int(last.get("payload_chars") or 0),
             "last_fail_closed_reason": last.get("fail_closed_reason") or "",
+            "last_target_mode": last.get("target_mode") or "unknown",
             "expected_wait": _wait_guidance(p50, p95),
         }
     return summary
@@ -116,71 +171,117 @@ def record_mcp_call_result(
     status: str = "ok",
     fail_closed_reason: str = "",
 ) -> None:
-    policy = _retention_policy()
-    if not bool(policy.get("enabled", True)):
-        return
-    max_entries = max(1, int(policy.get("max_entries") or 200))
-    max_summary_tools = max(1, int(policy.get("max_summary_tools") or 50))
-    path = _ledger_path(policy)
-    ledger = _load_ledger(path)
-    entries = ledger.get("entries") if isinstance(ledger.get("entries"), list) else []
-    text = result if isinstance(result, str) else str(result)
-    entries.append(
+    """Capture bounded result metadata; the outer MCP wrapper performs the single durable write."""
+    _ACTIVE_CALL_RESULT.set(
         {
-            "tool_name": str(tool_name or "").strip() or "unknown",
-            "recorded_at": _utc_now(),
-            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
-            "status": str(status or "ok"),
-            "payload_chars": len(text or ""),
-            "fail_closed_reason": str(fail_closed_reason or ""),
+            "tool_name": _safe_label(tool_name, default="unknown", limit=160),
+            "duration_ms": round(max(0.0, (time.perf_counter() - started) * 1000), 2),
+            "status": _safe_label(status, default="unknown", limit=80),
+            "payload_chars": _result_payload_chars(result),
+            "fail_closed_reason": _safe_label(fail_closed_reason, default="none", limit=120),
         }
     )
-    entries = entries[-max_entries:]
-    payload = {
+
+
+def persist_completed_mcp_call(
+    *,
+    tool_name: str,
+    profile: str,
+    arguments: dict[str, Any],
+    started: float,
+    outcome: str,
+    failure_layer: str,
+    trace_id: str | None,
+    result: Any = None,
+) -> dict[str, Any] | None:
+    """Persist one authoritative MCP call event in the product-global operational database."""
+    policy = _retention_policy()
+    if not bool(policy.get("enabled", True)):
+        return None
+    captured = current_mcp_call_capture()
+    captured_matches = captured.get("tool_name") == _safe_label(tool_name, default="unknown", limit=160)
+    payload_chars = int(captured.get("payload_chars") or 0) if captured_matches else _result_payload_chars(result)
+    result_status = (
+        str(captured.get("status") or "unknown")
+        if captured_matches
+        else ("ok" if outcome == "success" else "error")
+    )
+    fail_closed_reason = str(captured.get("fail_closed_reason") or "none") if captured_matches else "none"
+
+    from tools.core.governance_trace import record_mcp_tool_trace
+
+    return record_mcp_tool_trace(
+        tool_name=tool_name,
+        profile=profile,
+        arguments=arguments if isinstance(arguments, dict) else {},
+        started=started,
+        outcome=outcome,
+        failure_layer=failure_layer,
+        trace_id=trace_id,
+        payload_chars=payload_chars,
+        result_status=result_status,
+        fail_closed_reason=fail_closed_reason,
+        target_mode=_target_mode(profile, arguments if isinstance(arguments, dict) else {}),
+        db_path=mcp_operational_db_path(),
+        max_events=max(1, int(policy.get("max_entries") or 200)),
+    )
+
+
+def _entry_from_trace(row: dict[str, Any]) -> dict[str, Any]:
+    details = row.get("details") if isinstance(row.get("details"), dict) else {}
+    fail_closed_reason = str(details.get("fail_closed_reason") or "")
+    return {
+        "trace_id": str(row.get("trace_id") or ""),
+        "tool_name": str(row.get("tool_name") or "unknown"),
+        "recorded_at": str(row.get("recorded_at") or ""),
+        "duration_ms": round(float(row.get("latency_ms") or 0), 2),
+        "status": str(details.get("result_status") or row.get("outcome") or "unknown"),
+        "outcome": str(row.get("outcome") or "unknown"),
+        "failure_layer": str(row.get("failure_layer") or "unknown"),
+        "payload_chars": max(0, int(details.get("payload_chars") or 0)),
+        "fail_closed_reason": "" if fail_closed_reason == "none" else fail_closed_reason,
+        "target_mode": str(details.get("target_mode") or "unknown"),
+    }
+
+
+def load_mcp_call_telemetry(tool_name: str = "") -> dict[str, Any]:
+    policy = _retention_policy()
+    max_entries = max(1, int(policy.get("max_entries") or 200))
+    max_summary_tools = max(1, int(policy.get("max_summary_tools") or 50))
+    path = mcp_operational_db_path()
+    rows: list[dict[str, Any]] = []
+    if path.exists():
+        from tools.core.governance_trace import load_trace_events
+
+        rows = load_trace_events(
+            event_type="mcp_tool_call",
+            limit=max_entries,
+            db_path=path,
+            initialize_schema=False,
+        )
+    entries = [_entry_from_trace(row) for row in reversed(rows)]
+    if tool_name:
+        entries = [row for row in entries if row.get("tool_name") == tool_name]
+    summary = build_summary(entries, max_summary_tools=max_summary_tools)
+    return {
         "meta": {
             "kind": "mcp_call_telemetry_ledger",
-            "version": "1.0.0",
+            "version": "2.0.0",
             "generated_at": _utc_now(),
+            "storage_authority": "product_global_operational",
+            "physical_ssot": "SQLite governance_trace_events",
             "claim_boundary": "local MCP call timing and payload-size guidance, not repository correctness evidence",
         },
         "policy": {
             "retention_target_id": RETENTION_TARGET_ID,
             "max_entries": max_entries,
             "max_summary_tools": max_summary_tools,
+            "target_response_bodies": "excluded",
+            "target_paths": "excluded",
         },
-        "summary_by_tool": build_summary(entries, max_summary_tools=max_summary_tools),
+        "summary_by_tool": summary,
         "entries": entries,
     }
-    save_json_atomic(path, payload)
-
-
-def load_mcp_call_telemetry(tool_name: str = "") -> dict[str, Any]:
-    policy = _retention_policy()
-    path = _ledger_path(policy)
-    ledger = _load_ledger(path)
-    ledger.setdefault(
-        "meta",
-        {
-            "kind": "mcp_call_telemetry_ledger",
-            "version": "1.0.0",
-            "generated_at": _utc_now(),
-            "claim_boundary": "local MCP call timing and payload-size guidance, not repository correctness evidence",
-        },
-    )
-    ledger.setdefault(
-        "policy",
-        {
-            "retention_target_id": RETENTION_TARGET_ID,
-            "max_entries": int(policy.get("max_entries") or 200),
-            "max_summary_tools": int(policy.get("max_summary_tools") or 50),
-        },
-    )
-    if tool_name:
-        summary = ledger.get("summary_by_tool") if isinstance(ledger.get("summary_by_tool"), dict) else {}
-        entries = ledger.get("entries") if isinstance(ledger.get("entries"), list) else []
-        ledger["summary_by_tool"] = {tool_name: summary.get(tool_name, {})}
-        ledger["entries"] = [row for row in entries if isinstance(row, dict) and row.get("tool_name") == tool_name]
-    return ledger
 
 
 def render_mcp_call_telemetry_brief(tool_name: str = "") -> str:
@@ -191,8 +292,9 @@ def render_mcp_call_telemetry_brief(tool_name: str = "") -> str:
         "",
         "```yaml",
         "status: " + ("available" if summary else "no_mcp_call_samples"),
-        "claim_boundary: \"Local-machine wait guidance only; not repository proof.\"",
-        "tool_filter: " + (f"\"{tool_name}\"" if tool_name else "\"\""),
+        'storage_authority: "product_global_operational"',
+        'claim_boundary: "Local-machine wait guidance only; not repository proof."',
+        "tool_filter: " + (f'"{tool_name}"' if tool_name else '""'),
         "tools:",
     ]
     if summary:
@@ -202,14 +304,15 @@ def render_mcp_call_telemetry_brief(tool_name: str = "") -> str:
             wait = row.get("expected_wait") if isinstance(row.get("expected_wait"), dict) else {}
             lines.extend(
                 [
-                    "  - name: " + f"\"{name}\"",
+                    "  - name: " + f'"{name}"',
                     f"    count: {int(row.get('count') or 0)}",
-                    "    last_status: " + f"\"{row.get('last_status') or 'unknown'}\"",
+                    "    last_status: " + f'"{row.get("last_status") or "unknown"}"',
                     f"    last_duration_ms: {float(row.get('last_duration_ms') or 0)}",
                     f"    p50_duration_ms: {float(row.get('p50_duration_ms') or 0)}",
                     f"    p95_duration_ms: {float(row.get('p95_duration_ms') or 0)}",
                     f"    last_payload_chars: {int(row.get('last_payload_chars') or 0)}",
-                    "    last_fail_closed_reason: " + f"\"{row.get('last_fail_closed_reason') or ''}\"",
+                    "    last_fail_closed_reason: " + f'"{row.get("last_fail_closed_reason") or ""}"',
+                    "    last_target_mode: " + f'"{row.get("last_target_mode") or "unknown"}"',
                     "    expected_wait:",
                     f"      check_after_seconds: {int(wait.get('check_after_seconds') or 0)}",
                     f"      attention_after_seconds: {int(wait.get('attention_after_seconds') or 0)}",

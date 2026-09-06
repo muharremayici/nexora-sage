@@ -38,12 +38,35 @@
     },
     {
       "id": "mcp_call_telemetry",
-      "path": "output/.raw/mcp_call_telemetry_ledger.json",
-      "kind": "bounded_per_call_tool_ledger",
+      "path": "output/.operational/mcp/mcp_call_telemetry.db",
+      "kind": "bounded_product_global_sqlite_ledger",
       "implemented_by": "tools/core/mcp_call_telemetry.py",
+      "physical_ssot": "SQLite governance_trace_events",
+      "storage_authority": "product_global_operational",
+      "target_namespace_writes": "forbidden",
+      "target_response_bodies": "excluded",
+      "target_paths": "excluded",
       "max_entries": 200,
       "max_summary_tools": 50,
       "claim_boundary": "Keeps MCP call latency, payload size and fail-closed wait guidance visible without turning agent packets into noisy telemetry dumps."
+    },
+    {
+      "id": "mcp_honesty_telemetry",
+      "path": "output/.operational/mcp/honesty_telemetry.json",
+      "kind": "bounded_call_local_honesty_projection",
+      "implemented_by": "tools/core/honesty_telemetry.py",
+      "storage_authority": "product_global_operational",
+      "target_namespace_writes": "forbidden",
+      "max_events": 2000,
+      "claim_boundary": "Keeps MCP-call fallback diagnostics outside every target evidence namespace; it is operational honesty, not repository proof."
+    },
+    {
+      "id": "pipeline_run_receipt_shadow",
+      "path": "output/.raw/pipeline_run_receipt.json",
+      "kind": "single_latest_sqlite_projection",
+      "implemented_by": "tools/core/pipeline_run_receipts.py",
+      "max_files": 1,
+      "claim_boundary": "Keeps the latest invocation human-readable while SQLite governance_trace_events remains the bounded source of truth. The shadow never proves engineering claims."
     },
     {
       "id": "external_target_generated_fixtures",

@@ -85,15 +85,6 @@
     },
     {
       "file": "tools/core/config.py",
-      "function": "save_text_atomic",
-      "exception_type": "OSError",
-      "pass_only": true,
-      "body_fingerprint": "ba591152bc191be6",
-      "try_context_fingerprint": "cbc04f9117520b48",
-      "purpose": "Best-effort temporary-file cleanup runs only while re-raising the original atomic-write failure."
-    },
-    {
-      "file": "tools/core/config.py",
       "function": "save_json_atomic",
       "exception_type": "Exception",
       "pass_only": false,
