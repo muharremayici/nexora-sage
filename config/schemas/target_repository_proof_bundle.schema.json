@@ -5,7 +5,6 @@
     "meta",
     "subject",
     "claim_boundary",
-    "scope_evidence",
     "summary",
     "evidence",
     "statistics",
@@ -110,86 +109,6 @@
     "claim_boundary": {
       "type": "string",
       "minLength": 1
-    },
-    "scope_evidence": {
-      "type": "object",
-      "required": [
-        "status",
-        "scope_authority_id",
-        "evidence_status",
-        "claim_scope",
-        "full_repository_claim_eligible",
-        "atlas_projects",
-        "effective_projects",
-        "indexed_projects",
-        "checks",
-        "reasons"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "status": {
-          "enum": [
-            "PASS",
-            "BLOCKED"
-          ]
-        },
-        "scope_authority_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "evidence_status": {
-          "enum": [
-            "COMPLETE_REPOSITORY",
-            "BOUNDED_PROJECT_SELECTION",
-            "INCOMPLETE_EVIDENCE"
-          ]
-        },
-        "claim_scope": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "full_repository_claim_eligible": {
-          "type": "boolean"
-        },
-        "atlas_projects": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
-        },
-        "effective_projects": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
-        },
-        "indexed_projects": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
-        },
-        "checks": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "boolean"
-          }
-        },
-        "reasons": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
-        }
-      }
     },
     "summary": {
       "type": "object",

@@ -1,0 +1,520 @@
+{
+  "meta": {
+    "kind": "nexora.react_corpus_report_coverage_registry",
+    "version": "v1",
+    "purpose": "Content-set receipt and bounded disposition map for the preserved React Corpus report directory. This registry proves inventory coverage, not the truth of every report claim or candidate row."
+  },
+  "evidence_snapshot": {
+    "label": "react_corpus_reports_2026_09_08",
+    "set_identity_algorithm": "Sort normalized relative paths ordinally; for each file append path, TAB, byte length, TAB, lowercase SHA-256, LF; SHA-256 the UTF-8 concatenation.",
+    "set_sha256": "2cc623501103e5df742679dba03856502d0bdef7b6016fa89c4b69a1bb826b4c",
+    "file_count": 361,
+    "total_bytes": 627294444,
+    "unique_content_hashes": 354,
+    "duplicate_hash_groups": 7,
+    "artifact_layers": [
+      {
+        "id": "root",
+        "file_count": 36,
+        "total_bytes": 7305288,
+        "json": 7,
+        "markdown": 29,
+        "python": 0
+      },
+      {
+        "id": "repositories",
+        "file_count": 51,
+        "total_bytes": 10781707,
+        "json": 15,
+        "markdown": 36,
+        "python": 0
+      },
+      {
+        "id": "batches",
+        "file_count": 22,
+        "total_bytes": 63634,
+        "json": 7,
+        "markdown": 15,
+        "python": 0
+      },
+      {
+        "id": "drafts",
+        "file_count": 250,
+        "total_bytes": 609129485,
+        "json": 185,
+        "markdown": 63,
+        "python": 2
+      },
+      {
+        "id": "_control",
+        "file_count": 2,
+        "total_bytes": 14330,
+        "json": 0,
+        "markdown": 0,
+        "python": 2
+      }
+    ],
+    "extension_counts": [
+      {
+        "extension": ".json",
+        "file_count": 214,
+        "total_bytes": 625412969
+      },
+      {
+        "extension": ".md",
+        "file_count": 143,
+        "total_bytes": 1842429
+      },
+      {
+        "extension": ".py",
+        "file_count": 4,
+        "total_bytes": 39046
+      }
+    ],
+    "read_receipt": {
+      "all_file_bytes_hashed": true,
+      "markdown_files_opened_and_heading_indexed": 143,
+      "json_files_structurally_inspected": 214,
+      "json_small_or_medium_files_fully_parsed": 211,
+      "json_large_candidate_inventories_streamed": 3,
+      "python_sources_read_without_execution": 4,
+      "files_without_inventory_classification": 0,
+      "boundary": "Reading, hashing and structural indexing establish complete report-set coverage. They do not promote report prose, summary percentages, candidate inventories or generated fixture exports into product truth."
+    }
+  },
+  "post_snapshot_derived_evidence": {
+    "boundary": "These files were generated after the immutable 2026-09-08 preserved-input snapshot. They are individually hash-bound derived/review outputs and are excluded only from reconstruction of that older input-set identity; they remain mandatory when external evidence validation is requested, while their own truth boundaries determine semantic authority.",
+    "entries": [
+      {
+        "relative_path": "architecture_blueprint_corpus_applicability_matrix_v104.json",
+        "sha256": "c592c6a17c39fdbb2de1bbd52da8c0d78eda7015be5a37ff59c574ff3fcfdafe",
+        "kind": "derived_architecture_inventory"
+      },
+      {
+        "relative_path": "architecture_blueprint_corpus_applicability_matrix_v104.md",
+        "sha256": "f52f4cd5fe04eaa9f05252ad874820f7b282e96e6bb84a8c2ecb5f141e114fbd",
+        "kind": "derived_architecture_inventory_report"
+      },
+      {
+        "relative_path": "architecture_blueprint_v105_zero_source_adjudication_20260908.json",
+        "sha256": "68d6e9634631cf7bb1ed1fe1424e1b8cbff127f7aeedd1299858da245d1e279b",
+        "kind": "bounded_zero_source_adjudication"
+      },
+      {
+        "relative_path": "architecture_blueprint_v105_zero_source_adjudication_20260908.md",
+        "sha256": "4faa5ae88f717be4fcd5bef61d031f0b29fe71f9c20aacd3c875fd815ab56732",
+        "kind": "bounded_zero_source_adjudication_report"
+      },
+      {
+        "relative_path": "THE_STATE_OF_REACT_ARCHITECTURE_2026.md",
+        "sha256": "be6396118737d726418a5c54ea69be90fd1c1db6ef0a881e9e9ccf0f6dbacb15",
+        "kind": "derived_narrative_report"
+      },
+      {
+        "relative_path": "SAGE_VIRAL_LAUNCH_KIT_HN_TWITTER.md",
+        "sha256": "efb2e75512f2ebdd09e907ea93c0c7487474aa82f45a3d13b875937720fafad7",
+        "kind": "derived_marketing_draft"
+      },
+      {
+        "relative_path": "MASTER_32_REPO_DATASET_LEDGER.json",
+        "sha256": "3cd67537f3aa98a1d48a2ee53f7082d062faa6e68104886ab1f5a3a1e2b1db69",
+        "kind": "derived_dataset_ledger"
+      },
+      {
+        "relative_path": "MASTER_32_REPO_DATASET_LEDGER.md",
+        "sha256": "600bf085cd25ce260b878b9a7e3eb49540d964b008212dae308996ec65f53515",
+        "kind": "derived_dataset_ledger_report"
+      },
+      {
+        "relative_path": "CORPUS_FILTERED_TRUE_SIGNALS.json",
+        "sha256": "43c0a68ad592c43a1709be174075651257cd66edb61c6bf57641695592270ef4",
+        "kind": "derived_filtered_signal_inventory"
+      },
+      {
+        "relative_path": "CORPUS_FILTERED_TRUE_SIGNALS_REPORT.md",
+        "sha256": "9cb31bffdee3c106e609dadb58bace01f9874179030b9e19e86b88481c7664b3",
+        "kind": "derived_filtered_signal_report"
+      },
+      {
+        "relative_path": "architecture_policy_v105_dub_bounded_acceptance_20260909.json",
+        "sha256": "c6d878f9e1970fbde6ef9a18b6129f058bed3605066189b0b13fca7ee07f0f47",
+        "kind": "bounded_corpus_acceptance_machine_receipt"
+      },
+      {
+        "relative_path": "architecture_policy_v105_dub_bounded_acceptance_20260909.md",
+        "sha256": "4ce60a1df06c37a56f6f98ea5a1d573453d1eb76a3cb6b6bd1ba4f082977ffae",
+        "kind": "bounded_corpus_acceptance_human_report"
+      }
+    ]
+  },
+  "evidence_quality_findings": [
+    {
+      "id": "master_matrix_count_and_row_shape_drift",
+      "severity": "P1",
+      "evidence": "MASTER_MANUAL_ADJUDICATION_MATRIX.json contains 360 case objects while total_cases says 334; observed row categories and summary confusion counts disagree, with blank or missing core fields in a material subset.",
+      "consequence": "Do not publish aggregate precision, recall or accuracy from the stored summary until row identities and denominators are reconciled."
+    },
+    {
+      "id": "fixture_export_is_review_input_not_executable_truth",
+      "severity": "P1",
+      "evidence": "SAGE_FIX_FIXTURES.json carries review context but lacks a uniform executable expected-verdict contract; many contexts are file-head fallbacks that do not bind the reported predicate.",
+      "consequence": "Promote selected cases only after exact source/evaluator identity, triggering snippet, positive control, negative control and expected output are bound."
+    },
+    {
+      "id": "candidate_inventory_not_adjudicated_truth",
+      "severity": "P1",
+      "evidence": "The latest candidate inventory contains 166180 UNREVIEWED records; 160216 remain source-and-lineage verification pending and 5964 retain recorded blockers.",
+      "consequence": "Candidate volume is a review queue, not a defect count or implementation mandate."
+    },
+    {
+      "id": "whole_evidence_map_has_no_ready_family",
+      "severity": "P1",
+      "evidence": "evidence_map029 maps 210 review units into 16 families and 113 subgroups, but records implementation_ready_groups as 0 and preserves unresolved decision axes.",
+      "consequence": "Use paired executable counterexamples to promote narrow repairs; do not bulk-convert the 113 subgroups into v1.0.5 code changes."
+    },
+    {
+      "id": "catalog_and_summary_claims_are_non_authoritative",
+      "severity": "P2",
+      "evidence": "README and synthesis reports contain stale or stronger completion/count language than their underlying matrices and later evidence maps support.",
+      "consequence": "Registry, source-bound tests and validators outrank narrative completion or quality percentages."
+    }
+  ],
+  "disposition_policy": {
+    "allowed_dispositions": [
+      "implemented_pending_delivery",
+      "verified_current_behavior_no_patch",
+      "bounded_v1_0_5_candidate",
+      "existing_roadmap_owner",
+      "research_only",
+      "evidence_quality_repair"
+    ],
+    "promotion_rule": "A bounded_v1_0_5_candidate becomes implementation work only after a current-source producer/consumer trace and at least one triggering plus one non-triggering executable control. Repository names and paths cannot become product exceptions.",
+    "release_rule": "v1.0.5 cannot enter release proof while this registry has an undispositioned family or a confirmed v1.0.5 repair lacks its focused validation and semantic review. Existing roadmap work does not silently become a v1.0.5 blocker.",
+    "unknown_rule": "Insufficient, unresolved, design-choice and policy-dependent evidence remains explicit; it is not coerced into TP, FP, TN or FN."
+  },
+  "family_dispositions": [
+    {
+      "id": "report_integrity_and_fixture_promotion",
+      "disposition": "evidence_quality_repair",
+      "owners": [
+        "react_corpus_report_coverage_and_disposition_contract",
+        "react_external_corpus_replay_v1_1"
+      ],
+      "evidence_surfaces": [
+        "MASTER_MANUAL_ADJUDICATION_MATRIX.json",
+        "SAGE_FIX_FIXTURES.json",
+        "SAGE_FP_TP_CONTRASTS.json",
+        "drafts/evidence_map029_20260907/map.json"
+      ],
+      "decision": "Reconcile row/count semantics and promote only source-bound contrasts. No global quality percentage is release evidence."
+    },
+    {
+      "id": "execution_profile_producer_reachability",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "execution_profile_full_producer_selection_contract"
+      ],
+      "evidence_surfaces": [
+        "SAGE_END_TO_END_NERVOUS_SYSTEM_DISCONNECT_REPORT.md",
+        "SAGE_V105_EMPIRICAL_ADVANCEMENT_SPECIFICATION.md"
+      ],
+      "decision": "Preserve the policy-owned full/deep profile repair and bounded producer-selection regressions; missing historical artifacts retain per-run attribution."
+    },
+    {
+      "id": "target_artifact_and_empty_project_consumers",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "target_required_artifact_and_empty_project_consumer_contract"
+      ],
+      "evidence_surfaces": [
+        "drafts/payload_case_study_evidence_review_2026_09_06.md",
+        "drafts/payload_v104_published_followup_2026_09_06.md"
+      ],
+      "decision": "Preserve generalized target SQLite-first and present-empty versus missing/invalid consumer behavior; no Payload-specific branch."
+    },
+    {
+      "id": "react_nested_component_usage",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_nested_component_usage_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "CROSS_DIMENSIONAL_SATURATION_BATCH3_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH8_v104.md"
+      ],
+      "decision": "Require same-binding JSX instantiation, not uppercase declaration or ordinary invocation alone."
+    },
+    {
+      "id": "i18n_interpolation_and_count_semantics",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "i18n_interpolation_count_semantics_contract"
+      ],
+      "evidence_surfaces": [
+        "SAGE_FP_TP_CONTRASTS.json",
+        "SAGE_V105_EMPIRICAL_ADVANCEMENT_SPECIFICATION.md"
+      ],
+      "decision": "Evaluate count/plural evidence per executable translation call and preserve unknown textual placeholders."
+    },
+    {
+      "id": "effect_cleanup_return_ownership",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_effect_cleanup_return_contract"
+      ],
+      "evidence_surfaces": [
+        "UNDERCOVERED_FAMILIES_SATURATION_REPORT_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH8_v104.md"
+      ],
+      "decision": "Resolve returned cleanup producers in executable effect scope while retaining true dangling-resource findings."
+    },
+    {
+      "id": "jsx_control_attributes_hidden_inputs_and_headless_events",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_ecosystem_applicability_precision_contract",
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "CROSS_DIMENSIONAL_SATURATION_BATCH9_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH10_v104.md",
+        "UNDERCOVERED_FAMILIES_SATURATION_REPORT_v104.md"
+      ],
+      "decision": "v1.0.5 now parses complete top-level JSX attributes, accepts boolean readOnly/disabled, hidden serialization and explicit custom-control event ownership, and retains the unmanaged editable-control positive. Unobserved headless-library runtime behavior remains UNKNOWN under the 1.1.0 context-authority owner rather than becoming a path exception."
+    },
+    {
+      "id": "query_and_mutation_framework_semantics",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_ecosystem_applicability_precision_contract",
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "SYSTEMIC_PATTERNS_BATCH4_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH9_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH10_v104.md",
+        "EMPIRICAL_EVIDENCE_ADJUDICATION_REPORT_v104.md"
+      ],
+      "decision": "v1.0.5 distinguishes direct object-literal key ownership from provider member calls, delegated options and dynamic keys, while retaining direct keyless-query and mutation invalidation findings. Mutation-owned onError and pending contracts satisfy async wrappers; provider behavior not evidenced statically remains with the 1.1.0 context-authority owner."
+    },
+    {
+      "id": "execution_role_hydration_and_lexical_collision",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_ecosystem_applicability_precision_contract",
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "HYDRATION_AND_MEMO_PATTERNS_BATCH5_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH6_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH7_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH9_v104.md"
+      ],
+      "decision": "v1.0.5 binds hydration checks to hydratable production source, excludes test/React Email and non-React TypeScript surfaces, requires actual JSX action binding, and separates feature evaluation from telemetry or comment/string lookalikes. Broader execution-context inference remains a 1.1.0 evidence-authority concern."
+    },
+    {
+      "id": "hook_dependency_ref_and_async_handler_parsing",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_ecosystem_applicability_precision_contract",
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "HYDRATION_AND_MEMO_PATTERNS_BATCH5_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH7_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH8_v104.md",
+        "SYSTEMIC_PATTERNS_BATCH4_v104.md"
+      ],
+      "decision": "v1.0.5 limits hook/ref/async parsing to executable call surfaces, masks comment/string lookalikes, respects callback-parameter shadowing, and preserves paired imperative-handle and async-handler positives. Framework runtime semantics not proven by source remain UNKNOWN under the 1.1.0 context-authority owner."
+    },
+    {
+      "id": "list_identity_and_multiline_jsx",
+      "disposition": "implemented_pending_delivery",
+      "owners": [
+        "react_ecosystem_applicability_precision_contract",
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "CROSS_REPO_PATTERN_SATURATION_REPORT_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH9_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH10_v104.md"
+      ],
+      "decision": "v1.0.5 uses balanced rendered-JSX map snippets, retains missing and index-key positives, removes list-count-only virtualization obligations and excludes static document renderers. The preserved long multiline-key claim did not reproduce, so no repository-specific exception was added."
+    },
+    {
+      "id": "state_owner_and_context_provider_semantics",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "CROSS_DIMENSIONAL_SATURATION_BATCH3_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH7_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH11_v104.md",
+        "UNDERCOVERED_FAMILIES_SATURATION_REPORT_v104.md"
+      ],
+      "decision": "Require duplicated editable ownership or measured provider blast radius; coexistence of URL, cache, form and local UI state is not itself a defect."
+    },
+    {
+      "id": "form_validation_accessibility_and_design_policy",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "react_static_finding_context_authority_contract",
+        "target_native_governance_enforcement_ingestion_contract"
+      ],
+      "evidence_surfaces": [
+        "EMPIRICAL_EVIDENCE_ADJUDICATION_REPORT_v104.md",
+        "POLICY_AND_LINTER_INGESTION_ARCHITECTURE_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH9_v104.md"
+      ],
+      "decision": "Preserve verified accessible error mappings while making custom form ownership and design-token policy applicability target-native and evidence-bound."
+    },
+    {
+      "id": "lazy_route_and_boundary_inheritance",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "CROSS_DIMENSIONAL_SATURATION_BATCH3_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH6_v104.md",
+        "CROSS_DIMENSIONAL_SATURATION_BATCH7_v104.md"
+      ],
+      "decision": "Model actual React lazy calls, route roles and hierarchical loading/error boundaries; static generation and API handlers need distinct applicability."
+    },
+    {
+      "id": "native_policy_alias_loc_and_architecture_applicability",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "target_native_governance_enforcement_ingestion_contract"
+      ],
+      "evidence_surfaces": [
+        "linter_and_policy_survey_v104.json",
+        "POLICY_AND_LINTER_INGESTION_ARCHITECTURE_v104.md",
+        "SAGE_REPO_CONFIG_ADAPTIVE_ENGINE_SPECIFICATION.md",
+        "SAGE_PREFLIGHT_DISCOVERY_AUDIT_DISCONNECT_REPORT.md"
+      ],
+      "decision": "Ingest effective per-file policy without executing untrusted configs. Repository rules inform applicability; they do not override SAGE evidence honesty or security invariants."
+    },
+    {
+      "id": "zero_hit_rule_reachability",
+      "disposition": "research_only",
+      "owners": [
+        "react_external_corpus_replay_v1_1"
+      ],
+      "evidence_surfaces": [
+        "SAGE_DEAD_RULES_ROOT_CAUSE_MATRIX.json",
+        "SAGE_RULE_EXHAUSTION_AND_DEAD_WEIGHT_ANALYSIS.md"
+      ],
+      "decision": "Trace every claimed zero-hit rule through doctrine, tags, imports and dispatch with paired controls. Zero observations do not prove dead code or authorize deletion."
+    },
+    {
+      "id": "scope_acquisition_monorepo_and_path_identity",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "repository_acquisition_semantic_parity_contract",
+        "current_atlas_consumer_path_lineage_contract"
+      ],
+      "evidence_surfaces": [
+        "SAGE_ARCHITECTURE_AND_PERFORMANCE_LESSONS_REPORT.md",
+        "SAGE_END_TO_END_NERVOUS_SYSTEM_DISCONNECT_REPORT.md",
+        "SAGE_PREFLIGHT_DISCOVERY_AUDIT_DISCONNECT_REPORT.md"
+      ],
+      "decision": "Require frozen acquisition, project-scope and Atlas/source identities before diagnosing current path or topology behavior; do not reopen delivered repository-scope work without a counterexample."
+    },
+    {
+      "id": "operation_budgets_bootstrap_and_runtime_performance",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "external_target_preflight_large_workspace_progress_profile",
+        "target_dependency_bootstrap_profile_and_adaptive_budget_contract"
+      ],
+      "evidence_surfaces": [
+        "SAGE_V105_EMPIRICAL_ADVANCEMENT_SPECIFICATION.md",
+        "SAGE_ARCHITECTURE_AND_PERFORMANCE_LESSONS_REPORT.md"
+      ],
+      "decision": "Separate discovery, sequencing, installation and engine budgets. Do not adopt file_count/50, persistent workers or DAG parallelism without measured causal evidence and interruption controls."
+    },
+    {
+      "id": "health_score_reporting_and_claim_calibration",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "health_score_completion_telemetry_contract",
+        "react_external_corpus_replay_v1_1"
+      ],
+      "evidence_surfaces": [
+        "SAGE_HEALTH_SCORE_20_MODEL_SPECIFICATION.md",
+        "SAGE_ENGINE_ADVANCEMENT_ANALYSIS_FROM_EMPIRICAL_DATA.md",
+        "REACT_CORPUS_32_REPOS_AND_113_FAMILIES_AUDIT_REPORT.md"
+      ],
+      "decision": "Preserve UNKNOWN for absent required evidence and reject uncalibrated weights or accuracy claims. Correct source/report connectivity before changing score mathematics."
+    },
+    {
+      "id": "watchdog_cost_and_incremental_closure",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "watchdog_current_pulse_atlas_transport_and_materialization",
+        "watchdog_filesystem_event_scope_amplification_observability",
+        "watchdog_scoped_canonical_generation_composition"
+      ],
+      "evidence_surfaces": [
+        "SAGE_END_TO_END_NERVOUS_SYSTEM_DISCONNECT_REPORT.md",
+        "SAGE_ARCHITECTURE_AND_PERFORMANCE_LESSONS_REPORT.md"
+      ],
+      "decision": "Keep save-pulse work distinct from explicit final-governance closure and require an expanding receipt before changing cost policy."
+    },
+    {
+      "id": "self_healing_runtime_blindspots_and_modern_react_fns",
+      "disposition": "existing_roadmap_owner",
+      "owners": [
+        "target_finding_root_cause_dominance_contract",
+        "dead_code_runtime_loaded_module_contract",
+        "target_runtime_schema_and_mutation_invariants"
+      ],
+      "evidence_surfaces": [
+        "SAGE_END_TO_END_NERVOUS_SYSTEM_DISCONNECT_REPORT.md",
+        "SAGE_ARCHITECTURE_AND_PERFORMANCE_LESSONS_REPORT.md",
+        "SAGE_VS_HUMAN_ARCHITECT_REALITY_AUDIT.md"
+      ],
+      "decision": "Server-action auth, waterfall, pooling, cache-collision and safe-remediation claims need runtime or framework contracts. Findings do not authorize automatic source mutation."
+    },
+    {
+      "id": "compiler_provider_and_longitudinal_observations",
+      "disposition": "research_only",
+      "owners": [
+        "react_external_corpus_replay_v1_1",
+        "react_static_finding_context_authority_contract"
+      ],
+      "evidence_surfaces": [
+        "REACT_COMPILER_CORPUS_AUTOPSY.md",
+        "LONGITUDINAL_ARCHITECTURAL_DRIFT_REPORT.md",
+        "aggregated_deep_findings.json"
+      ],
+      "decision": "Treat compiler readiness, provider churn and longitudinal erosion as bounded observations until source identities, denominators and causal comparisons support a product rule or public claim."
+    }
+  ],
+  "completion_boundary": {
+    "inventory_files_unclassified": 0,
+    "semantic_family_clusters_undispositioned": 0,
+    "implementation_ready_subgroups_certified_by_latest_map": 0,
+    "latest_map_subgroups": 113,
+    "latest_candidate_records": 166180,
+    "latest_candidate_records_adjudicated": 0,
+    "release_gate_work_items": [
+      "target_policy_profile_transport_contract",
+      "react_compiler_readiness_disposition_precision_contract",
+      "typescript_react_component_symbol_classification_contract",
+      "external_preflight_single_physical_inventory_contract",
+      "external_target_atomic_validated_generation_integrity_contract",
+      "ui_smoke_readiness_runtime_proof_separation_contract",
+      "node_ast_session_worker_lifecycle_contract",
+      "react_ecosystem_applicability_precision_contract",
+      "generic_exception_claim_impact_classification",
+      "dead_code_runtime_loaded_module_contract",
+      "typescript_import_evidence_must_exclude_generated_source_text"
+    ],
+    "release_ready": true,
+    "release_readiness_claim": "All bounded v1.0.5 family candidates have explicit outcomes and every other centrally registered v1.0.5 release blocker is ready_for_delivery. This does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize a broad Corpus replay, or prove release shipment.",
+    "next_action": "Mark the coverage/disposition owner technically ready, preserving evidence-quality, roadmap and research boundaries. Release proof remains a later release-candidate action; native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this closure."
+  }
+}

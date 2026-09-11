@@ -15,11 +15,16 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from tools.core.config import CODE_MAPS_DIR, ROOT, RAW_DIR, DOCTRINE, PRIMARY_ALIAS
+from tools.core.architecture_blueprints import load_effective_architecture_policy_context
 from tools.core.decision_ownership import find_owned_decision_copies
 from tools.core.layer_resolver import resolve_layer, is_violation
 from tools.core.pipeline_policy import get_api_entry_filenames, get_module_root_name, resolve_loc_finding_semantics
 from tools.core.logger import logger
-from tools.core.audit_rules import build_rule_taxonomy, canonical_alias_boundary_decision
+from tools.core.audit_rules import (
+    build_effective_project_rule_taxonomy,
+    build_rule_taxonomy,
+    canonical_alias_boundary_decision,
+)
 from tools.core.polyglot_imports import extract_imports
 from tools.core.language_registry import (
     language_for_extension,
@@ -28,6 +33,7 @@ from tools.core.language_registry import (
 from tools.core.subprocess_telemetry import run_observed_subprocess
 from tools.core.source_files import count_source_lines
 from tools.core.doctrine_contract import remediation_action
+from tools.core.projects_registry import resolve_project_for_path, resolve_runtime_projects
 
 def _resolve_target_inside_root(target_file: str, workspace_root: str | Path | None = None) -> Path:
     root = Path(workspace_root).resolve() if workspace_root else Path(_ROOT).resolve()
@@ -145,7 +151,13 @@ def _import_violation_key(violation: dict[str, Any]) -> tuple[str, str] | None:
     return (str(violation.get("rule") or ""), import_path)
 
 
-def _collect_import_violations(target_file: str, content: str, language: str) -> list[dict[str, Any]]:
+def _collect_import_violations(
+    target_file: str,
+    content: str,
+    language: str,
+    rule_profiles: dict[str, Any] | None = None,
+    parser_entries: list[dict] | None = None,
+) -> list[dict[str, Any]]:
     violations: list[dict[str, Any]] = []
     source_layer = resolve_layer(target_file)
     module_root_name = get_module_root_name()
@@ -157,7 +169,7 @@ def _collect_import_violations(target_file: str, content: str, language: str) ->
         if idx + 1 < len(parts):
             current_mod = parts[idx + 1]
 
-    for imp in extract_imports(content, language):
+    for imp in extract_imports(content, language, parser_entries=parser_entries):
         target_rel_path = imp.replace(PRIMARY_ALIAS, "") if imp.startswith(PRIMARY_ALIAS) else imp
         target_layer = resolve_layer(target_rel_path)
         is_violated = is_violation(source_layer, target_layer, language=language)
@@ -245,7 +257,18 @@ def _collect_import_violations(target_file: str, content: str, language: str) ->
                     "evidence": alias_decision,
                 }
             )
-    return violations
+    if not isinstance(rule_profiles, dict):
+        return violations
+    return [
+        violation
+        for violation in violations
+        if str(
+            (rule_profiles.get(str(violation.get("rule") or ""), {}) or {}).get(
+                "mode", "disabled"
+            )
+        ).strip().lower()
+        != "disabled"
+    ]
 
 
 def _symbol_loc(sym: dict[str, Any]) -> int | None:
@@ -302,19 +325,34 @@ def _sequence_existing_symbols(existing_content: str, file_ext: str) -> list[dic
     return [row for row in symbols if isinstance(row, dict)]
 
 
-def _existing_loc_violation_keys(symbols: list[dict[str, Any]]) -> set[tuple[str, str]]:
+def _existing_loc_violation_keys(
+    symbols: list[dict[str, Any]],
+    *,
+    project: str | None = None,
+    file_path: str | None = None,
+) -> set[tuple[str, str]]:
     """Return LOC violations already present before the proposed patch."""
 
     keys: set[tuple[str, str]] = set()
     for sym in symbols:
         if not isinstance(sym, dict):
             continue
-        sym_type = str(sym.get("type", "unknown")).lower()
+        sym_type = str(
+            sym.get("canonical_symbol_type")
+            or sym.get("canonicalSymbolType")
+            or sym.get("type", "unknown")
+        ).lower()
         sym_name = str(sym.get("name", "unknown"))
         sym_loc = _symbol_loc(sym)
         if sym_loc is None:
             continue
-        finding = resolve_loc_finding_semantics(sym_type, sym_loc, symbol_name=sym_name)
+        finding = resolve_loc_finding_semantics(
+            sym_type,
+            sym_loc,
+            symbol_name=sym_name,
+            project=project,
+            file_path=file_path,
+        )
         if sym_loc > finding["limit"]:
             keys.add((finding["rule"], sym_name))
     return keys
@@ -568,6 +606,22 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
     violations = []
     
     f_lang = language_for_extension(file_ext)
+
+    # Resolve the target identity once so Audit and patch governance consume the
+    # same exact-run target-policy lane. Unknown ownership deliberately falls
+    # back to the SAGE default rather than guessing a project.
+    validation_root = Path(workspace_root).resolve() if workspace_root else Path(_ROOT).resolve()
+    runtime_projects = resolve_runtime_projects(validation_root)
+    project_id = resolve_project_for_path(
+        validation_root,
+        target_path,
+        projects=runtime_projects,
+    ) or "UNKNOWN"
+    project_root = runtime_projects.get(project_id)
+    try:
+        policy_file_path = target_path.relative_to(Path(project_root).resolve()).as_posix() if project_root else ""
+    except ValueError:
+        policy_file_path = ""
     
     # 4. Check Architecture Doctrine Constraints
     
@@ -575,7 +629,11 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
     for sym in symbols:
         if not isinstance(sym, dict):
             continue
-        sym_type = str(sym.get("type", "unknown")).lower()
+        sym_type = str(
+            sym.get("canonical_symbol_type")
+            or sym.get("canonicalSymbolType")
+            or sym.get("type", "unknown")
+        ).lower()
         sym_name = sym.get("name", "unknown")
         
         sym_loc = _symbol_loc(sym)
@@ -587,6 +645,8 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
                 symbol_name=sym_name,
                 start_line=start_line,
                 end_line=end_line,
+                project=project_id if project_id != "UNKNOWN" else None,
+                file_path=policy_file_path or None,
             )
             if sym_loc > finding["limit"]:
                 violations.append({
@@ -595,15 +655,46 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
                     "recommended_action": f"Refactor '{sym_name}' along evidenced responsibilities while preserving its public contract (<{finding['limit']} LOC)."
                 })
 
-    # Rule 2: Technology purity uses the same enabled/mode authority as Audit.
-    rule_profiles = build_rule_taxonomy().get("profiles", {})
+    # Rule 2: Technology purity and architecture both use the same project policy authority as Audit.
+    policy_raw_dir = RAW_DIR if workspace_root is None else validation_root / "output" / ".raw"
+    effective_policy, atlas_snapshot_id = load_effective_architecture_policy_context(policy_raw_dir)
+    effective_taxonomy = build_effective_project_rule_taxonomy(
+        project_id,
+        effective_policy,
+        expected_snapshot_id=atlas_snapshot_id,
+        project_count=len(runtime_projects),
+    )
+    base_rule_profiles = build_rule_taxonomy().get("profiles", {})
+    effective_profiles = effective_taxonomy.get("profiles", {})
+    rule_profiles = {
+        **base_rule_profiles,
+        **{
+            rule_key: profile
+            for rule_key, profile in effective_profiles.items()
+            if str(profile.get("layer") or "") == "architectural"
+        },
+    }
     proposed_feature_violations = _feature_tag_violations(symbols, rule_profiles)
     violations.extend(proposed_feature_violations)
 
+    existing_symbols = _sequence_existing_symbols(existing_content, file_ext)
+
     # Rule 3: Hexagonal Layer and Import Restrictions
-    proposed_import_violations = _collect_import_violations(target_file, proposed_content, f_lang)
+    proposed_import_violations = _collect_import_violations(
+        target_file,
+        proposed_content,
+        f_lang,
+        rule_profiles,
+        parser_entries=symbols,
+    )
     existing_import_violations = (
-        _collect_import_violations(target_file, existing_content, f_lang)
+        _collect_import_violations(
+            target_file,
+            existing_content,
+            f_lang,
+            rule_profiles,
+            parser_entries=existing_symbols,
+        )
         if existing_content
         else []
     )
@@ -637,8 +728,11 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
                 }
             )
 
-    existing_symbols = _sequence_existing_symbols(existing_content, file_ext)
-    existing_loc_keys = _existing_loc_violation_keys(existing_symbols)
+    existing_loc_keys = _existing_loc_violation_keys(
+        existing_symbols,
+        project=project_id if project_id != "UNKNOWN" else None,
+        file_path=policy_file_path or None,
+    )
     existing_feature_violations = _feature_tag_violations(existing_symbols, rule_profiles)
     existing_feature_by_key = {
         key: violation
@@ -714,6 +808,17 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
         "advisory_violation_count": len(advisory_violations),
         "resolved_violation_count": len(resolved_violations),
         "unchanged_violation_count": len(existing_violations),
+        "architecture_policy_application": {
+            "authority": "effective_architecture_policy_v1",
+            "project": project_id,
+            "effective_policy_status": effective_taxonomy.get("effective_policy_status"),
+            "recommended_profile": effective_taxonomy.get("recommended_profile"),
+            "architecture_sensitive_rules_enabled": bool(
+                effective_taxonomy.get("architecture_sensitive_rules_enabled")
+            ),
+            "expected_snapshot_id": effective_taxonomy.get("expected_snapshot_id"),
+            "observed_snapshot_id": effective_taxonomy.get("observed_snapshot_id"),
+        },
         "metrics": {
             "loc": count_source_lines(proposed_content),
             "symbols_analyzed": len(symbols)

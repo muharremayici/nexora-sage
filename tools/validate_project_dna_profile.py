@@ -11,8 +11,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.capability_registry import load_capability_registry
-from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, ROOT as TARGET_ROOT, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_object_strict
+from tools.core.projects_registry import resolve_runtime_projects
 from tools.engines.project_dna_profiler import build_project_dna_profile
 
 
@@ -50,6 +51,7 @@ def validate_project_dna_profile() -> dict[str, Any]:
     }
     project_rows = [project for project in payload.get("projects", []) if isinstance(project, dict)]
     project_ids = _project_ids(payload)
+    expected_project_ids = sorted(resolve_runtime_projects(TARGET_ROOT))
     source = (ROOT / "tools" / "engines" / "project_dna_profiler.py").read_text(encoding="utf-8")
     forbidden_repo_tokens = ["privatehost", "legacyproduct", "example-product", "example-suite"]
 
@@ -66,8 +68,12 @@ def validate_project_dna_profile() -> dict[str, Any]:
             payload.get("meta", {}).get("kind") == "project_dna_profile"
             and payload.get("summary", {}).get("status") == "PASS"
             and bool(project_rows)
-            and "MAIN" in project_ids,
-            {"project_count": len(project_rows), "projects": project_ids},
+            and sorted(project_ids) == expected_project_ids,
+            {
+                "project_count": len(project_rows),
+                "projects": project_ids,
+                "expected_runtime_projects": expected_project_ids,
+            },
         ),
         _check(
             "profile_separates_description_from_scheduling",

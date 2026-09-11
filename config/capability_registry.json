@@ -1,8 +1,8 @@
 {
   "_meta": {
     "kind": "nexora.capability_registry",
-    "version": "1.0.4",
-    "product_release": "1.0.4",
+    "version": "1.0.5",
+    "product_release": "1.0.5",
     "description": "Machine-readable capability/plugin foundation for Nexora SAGE engines, adapters, artifacts and claim boundaries. Product release and capability introduction use SemVer; internal artifact contracts version independently.",
     "validation_contract": {
       "roadmap_decision_matrix": {
@@ -753,10 +753,10 @@
         "tools/validate_project_dna_profile.py",
         "tools/validate_capability_activation_plan.py"
       ],
-      "current_state": "Project DNA and the capability registry produce an activation plan consumed by daily and normal full pipeline profiles; explicit, forced and release-deep runs bypass filtering.",
+      "current_state": "Project DNA, the capability registry, and snapshot-bound effective architecture policy produce an activation plan consumed by daily and normal full pipeline profiles. Exact-project policy state is projected to agent context; selected architecture policy producers and internal rule consumers are preserved while explicit, forced and release-deep runs bypass filtering.",
       "roadmap_scope": "Extend activation precision as executable third-party plugins and deeper polyglot adapters are introduced.",
       "rationale": "This is the shortest path from plugin-readiness to faster, lower-noise, project-aware execution without rewriting existing engines.",
-      "claim_boundary": "DNA-driven engine selection is active for non-release profiles; explicit steps, forced runs and release-deep proof remain complete and deterministic."
+      "claim_boundary": "DNA-driven engine selection is active for non-release profiles. Architecture-sensitive rule activation remains owned by exact-project Audit/cage consumers; the scheduler preserves selected Oracle and internal consumers but does not turn advisory or stale policy into enforcement. Explicit steps, forced runs and release-deep proof remain complete and deterministic."
     },
     {
       "id": "ide_lsp_surface",
@@ -1048,6 +1048,7 @@
       "artifacts": [],
       "validators": [],
       "current_state": "SAGE tracks static imports and some boundary signals, but it does not correlate bundle/build outputs.",
+      "research_checkpoint_2026_09_08": "A real esbuild/rollup/webpack metafile can provide machine-readable input-to-output byte attribution, but only for the exact entrypoints, resolver, aliases, plugins, defines, conditions, tree-shaking mode and dependency snapshot used by that build. A SAGE-owned synthetic build must not impersonate the repository's production bundle. Prefer ingesting an existing target-native manifest first; allow an opt-in write:false build adapter only when its config and execution receipt are explicit. Keep build-artifact evidence distinct from browser/runtime proof and never promise a byte saving until both before and after builds use the same bound configuration.",
       "roadmap_scope": "Detect heavy import boundaries, bundle risk and build-output correlations for React apps.",
       "rationale": "Useful product value, but lower priority than correctness/security/topology guardrails.",
       "claim_boundary": "Roadmap capability slot for bundle boundary, heavy import and build-output correlation; not active in V1 release claims.",

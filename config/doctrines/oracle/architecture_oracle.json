@@ -67,6 +67,12 @@
         "loading.tsx",
         "error.tsx",
         "template.tsx"
+      ],
+      "next_config_filenames": [
+        "next.config.js",
+        "next.config.mjs",
+        "next.config.cjs",
+        "next.config.ts"
       ]
     },
     "fsd_weights": {
@@ -141,6 +147,36 @@
       "non_sealable_profiles": [
         "MODULAR_FLAT"
       ]
+    },
+    "repository_composition": {
+      "contract": "repository_composition_blueprint_v1",
+      "minimum_multi_project_count": 2,
+      "allowed_models": [
+        "homogeneous_workspace",
+        "heterogeneous_workspace",
+        "mixed_evidence_workspace"
+      ],
+      "allowed_relationship_models": [
+        "host_with_related_projects",
+        "multi_root_workspace",
+        "unresolved_relationships"
+      ],
+      "host_role": "host",
+      "related_roles": [
+        "companion",
+        "variant"
+      ],
+      "unresolved_role_values": [
+        "",
+        "unknown",
+        "unresolved"
+      ],
+      "complete_scope_status": "COMPLETE_REPOSITORY",
+      "bounded_scope_status": "BOUNDED_PROJECT_SELECTION",
+      "incomplete_scope_status": "INCOMPLETE_EVIDENCE",
+      "unknown_system_kind": "unknown",
+      "insufficient_project_status": "INSUFFICIENT_SOURCE_EVIDENCE",
+      "seal_proposal_status": "NOT_PROPOSED"
     }
   }
 }

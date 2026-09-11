@@ -21,12 +21,84 @@
       "type": "object",
       "required": [
         "status",
+        "contract_errors",
+        "scan_roots",
+        "generic_blocking_scope",
         "handlers",
         "observed",
         "allowed_quiet",
         "unobserved",
-        "blocking_unobserved_generic"
-      ]
+        "blocking_unobserved_generic",
+        "pass_only_handlers",
+        "blocking_unclassified_pass_only",
+        "legacy_quiet_handler_policy_fields_present",
+        "semantic_handler_policy_records",
+        "semantic_handler_policy_unmatched_or_ambiguous"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "contract_errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scan_roots": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "generic_blocking_scope": {
+          "type": "string"
+        },
+        "handlers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowed_quiet": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unobserved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocking_unobserved_generic": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pass_only_handlers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocking_unclassified_pass_only": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "legacy_quiet_handler_policy_fields_present": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "semantic_handler_policy_records": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "semantic_handler_policy_unmatched_or_ambiguous": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     },
     "principles": {
       "type": "object"
@@ -61,9 +133,43 @@
           "line",
           "function",
           "status",
-          "critical",
-          "generic_exception"
-        ]
+          "generic_exception",
+          "pass_only",
+          "semantic_identity"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "function": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "allowed_quiet",
+              "unobserved",
+              "syntax_error"
+            ]
+          },
+          "generic_exception": {
+            "type": "boolean"
+          },
+          "pass_only": {
+            "type": "boolean"
+          },
+          "semantic_identity": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
       }
     }
   }

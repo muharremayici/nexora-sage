@@ -82,6 +82,15 @@ def test_audit_schema_conditionally_requires_loc_semantics():
         "end_line": 151,
         "observed_loc": 151,
         "limit": 150,
+        "limit_authority": "sage_default",
+        "target_policy_resolution": {
+            "status": "not_requested_missing_project_or_file_context",
+            "limit": 150,
+            "limit_authority": "sage_default",
+            "matched_rules": [],
+            "unresolved_reasons": [],
+            "native_execution": "not_run",
+        },
     }
     assert validate_payload("audit_report", _minimal_audit_report(valid)) == []
 
@@ -309,11 +318,19 @@ def test_phase5_artifacts_have_strict_schema_contracts():
         "meta": {"kind": "exception_honesty_validation", "version": "v1"},
         "summary": {
             "status": "PASS",
+            "contract_errors": [],
+            "scan_roots": 3,
+            "generic_blocking_scope": "all_scan_roots",
             "handlers": 1,
             "observed": 1,
             "allowed_quiet": 0,
             "unobserved": 0,
             "blocking_unobserved_generic": 0,
+            "pass_only_handlers": 0,
+            "blocking_unclassified_pass_only": 0,
+            "legacy_quiet_handler_policy_fields_present": [],
+            "semantic_handler_policy_records": 0,
+            "semantic_handler_policy_unmatched_or_ambiguous": 0,
         },
         "principles": {"critical_rule": "log critical generic exceptions"},
         "top_unobserved_by_file": [],
@@ -324,10 +341,24 @@ def test_phase5_artifacts_have_strict_schema_contracts():
                 "line": 10,
                 "function": "example",
                 "status": "observed",
-                "critical": True,
                 "generic_exception": True,
+                "pass_only": False,
+                "semantic_identity": {
+                    "file": "tools/core/example.py",
+                    "function": "example",
+                    "exception_type": "Exception",
+                    "pass_only": False,
+                    "body_fingerprint": "0123456789abcdef",
+                    "try_context_fingerprint": "fedcba9876543210",
+                },
             }
         ],
     }
     assert validate_payload("exception_honesty_validation", valid_exception_honesty) == []
+    missing_current_finding_semantics = json.loads(json.dumps(valid_exception_honesty))
+    del missing_current_finding_semantics["findings"][0]["pass_only"]
+    assert validate_payload(
+        "exception_honesty_validation",
+        missing_current_finding_semantics,
+    )
     assert validate_payload("exception_honesty_validation", {"summary": {}})

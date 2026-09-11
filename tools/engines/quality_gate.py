@@ -74,14 +74,28 @@ def _audit_mode_breakdown(audit_report: dict):
     }
 
 
-def _audit_enforcement_authority() -> dict:
+def _audit_enforcement_authority(effective_target_policy: dict | None = None) -> dict:
+    target_policy = (
+        effective_target_policy
+        if isinstance(effective_target_policy, dict)
+        else DYNAMIC_CONFIG.get("effective_target_policy", {})
+    )
+    target_summary = target_policy.get("summary") if isinstance(target_policy.get("summary"), dict) else {}
+    declared_tools = sorted(str(item) for item in target_summary.get("declared_tools", []) if str(item).strip())
+    profile_status = str(target_policy.get("status") or "")
+    target_status = profile_status or (
+        "declared_not_evaluated" if declared_tools else "not_observed_in_configured_taxonomy"
+    )
     return {
         'native_enforcement': 'sage_native_audit_taxonomy',
-        'target_native_enforcement': 'not_ingested',
+        'target_native_enforcement': target_status,
+        'declared_target_policy_tools': declared_tools,
+        'target_policy_profile_contract': target_policy.get("contract"),
+        'target_policy_feature_flags': target_policy.get("feature_flags", {}),
         'combined_verdict': 'not_available',
         'claim_boundary': (
             'Audit enforcement counts cover SAGE-native rules only. Target repository lint, '
-            'compiler or policy enforcement is not represented unless a provenance-bound adapter says otherwise.'
+            'compiler or policy enforcement is inventoried but not represented as enforced unless a provenance-bound adapter says otherwise.'
         ),
     }
 
@@ -98,6 +112,23 @@ def _quality_scope_gate(audit_report: dict) -> tuple[dict, bool, dict]:
         else None
     )
     reconciled = reconcile_consumer_scope_authorities(shared, {"audit": audit_authority})
+    audit_analysis_gap_count = max(
+        0,
+        int(_audit_summary(audit_report).get("analysis_gap_count", 0) or 0),
+    )
+    if audit_analysis_gap_count:
+        reconciled = dict(reconciled)
+        consumer_checks = dict(reconciled.get("consumer_scope_checks") or {})
+        consumer_checks["audit_analysis_gaps"] = {
+            "status": INCOMPLETE_EVIDENCE,
+            "count": audit_analysis_gap_count,
+        }
+        reconciled["consumer_scope_checks"] = consumer_checks
+        reconciled["evidence_status"] = INCOMPLETE_EVIDENCE
+        reconciled["full_repository_claim_eligible"] = False
+        reasons = list(reconciled.get("incomplete_reasons") or [])
+        reasons.append(f"audit_analysis_gaps:{audit_analysis_gap_count}")
+        reconciled["incomplete_reasons"] = sorted(set(reasons))
     usable = (
         reconciled.get("evidence_status") != INCOMPLETE_EVIDENCE
         and reconciled.get("consumer_scope_consistency") == "CONSISTENT"
@@ -622,13 +653,13 @@ def run_quality_gates():
     merge_cockpit_payload = load_json_file(RAW_DIR / 'merge_decision_cockpit.json', {})
     quality_review_payload = load_json_file(RAW_DIR / 'quality_review.json', {})
     proof_obligations_payload = load_json_file(RAW_DIR / 'proof_obligations.json', {})
-    artifact_validation = validate_all_artifacts()
+    required_artifacts = gates.get('required_artifacts', [])
+    artifact_validation = validate_all_artifacts(required_artifacts=required_artifacts, storage_root=RAW_DIR)
     workspace_mode = get_workspace_mode()
     comparative_enabled = bool((workspace_mode or {}).get('comparative_enabled', False))
     from tools.core.config import DOCTRINE
     q_defaults = require_dead_code_policy("quality_defaults")
 
-    required_artifacts = gates.get('required_artifacts', [])
     missing_required = [name for name in required_artifacts if artifact_validation.get(name)]
 
     meta = fractal.get('meta', {})

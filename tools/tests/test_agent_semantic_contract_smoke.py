@@ -57,6 +57,63 @@ def test_brief_scalar_accepts_canonical_quoted_or_plain_yaml():
     assert not smoke._brief_has_scalar('status: "unknown"', "status", "no_actionable_items")
 
 
+def test_all_project_search_may_equal_single_project_default_scope():
+    coverage = smoke._search_scope_project_coverage(
+        [{"project": "MAIN", "file": "src/App.tsx"}],
+        [{"project": "MAIN", "file": "src/App.tsx"}],
+    )
+
+    assert coverage["default_scope_observed"] is True
+    assert coverage["all_scope_preserves_default_projects"] is True
+    assert coverage["missing_default_projects"] == []
+
+
+def test_all_project_search_cannot_omit_default_project():
+    coverage = smoke._search_scope_project_coverage(
+        [{"project": "MAIN", "file": "src/App.tsx"}],
+        [{"project": "WEB", "file": "apps/web/App.tsx"}],
+    )
+
+    assert coverage["all_scope_preserves_default_projects"] is False
+    assert coverage["missing_default_projects"] == ["MAIN"]
+
+
+def test_dead_code_family_accepts_explicit_bounded_no_action(monkeypatch, tmp_path: Path):
+    brief = smoke.mcp_server._render_supporting_context_brief(
+        "Dead Code Context Brief",
+        {
+            "analysis_root": str(tmp_path),
+            "surface": "dead_code",
+            "filter": "src",
+            "status": "no_actionable_items",
+            "items": [],
+        },
+    )
+    monkeypatch.setattr(smoke, "_cached_mcp_json", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(smoke, "_cached_mcp_text", lambda *_args, **_kwargs: brief)
+
+    report = smoke._scenario_dead_code_summary({}, tmp_path, tmp_path / ".raw")
+
+    assert report["ok"] is True
+    assert report["mode"] == "no_actionable_items"
+    assert all(report["expectations"].values())
+
+
+def test_dead_code_family_rejects_silent_empty_result(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(smoke, "_cached_mcp_json", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        smoke,
+        "_cached_mcp_text",
+        lambda *_args, **_kwargs: 'status: "no_actionable_items"\nfilter: "src"\nitems:\n  []\n',
+    )
+
+    report = smoke._scenario_dead_code_summary({}, tmp_path, tmp_path / ".raw")
+
+    assert report["ok"] is False
+    assert report["expectations"]["candidate_evidence_fields_non_applicable"] is False
+    assert report["expectations"]["bounded_absence_claim"] is False
+
+
 def test_work_queue_and_task_scenario_accept_bounded_clean_projection():
     payload = _clean_queue_payload()
     brief = (

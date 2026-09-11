@@ -8,6 +8,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.core import config as core_config
+from tools.core import unmanaged_atomic_io
+from tools.core.artifact_validator import validate_payload
+from tools import validate_exception_honesty as exception_honesty
 
 from tools.core.config import CODE_MAPS_DIR
 from tools.validate_exception_honesty import (
@@ -19,6 +22,17 @@ from tools.validate_exception_honesty import (
 
 
 class ExceptionHonestyTests(unittest.TestCase):
+    def test_windows_native_filesystem_path_preserves_local_and_unc_long_paths(self):
+        with patch.object(unmanaged_atomic_io.os, "name", "nt"):
+            self.assertEqual(
+                unmanaged_atomic_io.native_filesystem_path(r"C:\deep\artifact.json"),
+                r"\\?\C:\deep\artifact.json",
+            )
+            self.assertEqual(
+                unmanaged_atomic_io.native_filesystem_path(r"\\server\share\artifact.json"),
+                r"\\?\UNC\server\share\artifact.json",
+            )
+
     def test_atomic_writers_preserve_success_and_original_failure(self):
         for writer, payload in (
             (core_config.save_text_atomic, "new"),
@@ -68,6 +82,7 @@ class ExceptionHonestyTests(unittest.TestCase):
             result["summary"]["semantic_handler_policy_records"],
             result["summary"]["allowed_quiet"],
         )
+        self.assertEqual(validate_payload("exception_honesty_validation", result), [])
 
     def test_policy_uses_exact_semantic_handler_identities(self):
         policy_path = Path(CODE_MAPS_DIR) / "config" / "exception_handling_policy.json"
@@ -158,6 +173,86 @@ class ExceptionHonestyTests(unittest.TestCase):
             baseline["try_context_fingerprint"],
             identity(changed)["try_context_fingerprint"],
         )
+
+    def test_unobserved_generic_handler_blocks_outside_legacy_critical_file_list(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scan_root = root / "tools" / "core"
+            scan_root.mkdir(parents=True)
+            (scan_root / "new_consumer.py").write_text(
+                "def consume():\n"
+                "    try:\n"
+                "        return risky()\n"
+                "    except Exception:\n"
+                "        return None\n",
+                encoding="utf-8",
+            )
+            policy_path = root / "exception_policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "principles": {},
+                        "validation_contract": {
+                            "generic_blocking_scope": "all_scan_roots",
+                            "scan_roots": ["tools/core"],
+                            "observable_call_names": ["record_honesty_event"],
+                            "observable_return_keys": ["status", "error"],
+                        },
+                        "allowed_quiet_semantic_handlers": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch.object(exception_honesty, "CODE_MAPS_DIR", root),
+                patch.object(exception_honesty, "POLICY_PATH", policy_path),
+                patch.object(exception_honesty, "save_json_atomic"),
+                patch.object(exception_honesty, "save_text_atomic"),
+            ):
+                result = exception_honesty.validate_exception_honesty()
+
+        self.assertEqual(result["summary"]["status"], "FAIL")
+        self.assertEqual(result["summary"]["blocking_unobserved_generic"], 1)
+        self.assertEqual(result["blocking"][0]["file"], "tools/core/new_consumer.py")
+
+    def test_syntax_error_fails_closed_with_schema_valid_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scan_root = root / "tools" / "core"
+            scan_root.mkdir(parents=True)
+            (scan_root / "broken.py").write_text(
+                "def broken(:\n",
+                encoding="utf-8",
+            )
+            policy_path = root / "exception_policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "principles": {},
+                        "validation_contract": {
+                            "generic_blocking_scope": "all_scan_roots",
+                            "scan_roots": ["tools/core"],
+                            "observable_call_names": ["record_honesty_event"],
+                            "observable_return_keys": ["status", "error"],
+                        },
+                        "allowed_quiet_semantic_handlers": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch.object(exception_honesty, "CODE_MAPS_DIR", root),
+                patch.object(exception_honesty, "POLICY_PATH", policy_path),
+                patch.object(exception_honesty, "save_json_atomic"),
+                patch.object(exception_honesty, "save_text_atomic"),
+            ):
+                result = exception_honesty.validate_exception_honesty()
+
+        self.assertEqual(result["summary"]["status"], "FAIL")
+        self.assertEqual(result["findings"][0]["status"], "syntax_error")
+        self.assertEqual(result["findings"][0]["semantic_identity"], None)
+        self.assertIn("syntax_error:tools/core/broken.py:1", result["summary"]["contract_errors"])
+        self.assertEqual(validate_payload("exception_honesty_validation", result), [])
 
 
 if __name__ == "__main__":

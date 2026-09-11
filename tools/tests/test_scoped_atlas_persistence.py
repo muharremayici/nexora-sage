@@ -375,9 +375,18 @@ def test_interrupted_real_atlas_generation_rejects_changed_source_then_reuses_la
             results = [{"name": "__file_meta__", "type": "Meta", "start": 0, "end": 0, "parserStatus": "observed", "parserKind": "typescript_compiler_api", "semanticDepth": "ast_normalized"}]
             if not initial_parser_available and len(node_calls) == 1:
                 results = []
+            request_id = command[command.index("--request-id") + 1]
             return SimpleNamespace(
                 returncode=0,
-                stdout=json.dumps({source.resolve().as_posix(): results}),
+                stdout=json.dumps({
+                    "batchMeta": {
+                        "protocolVersion": 1,
+                        "requestId": request_id,
+                        "filesRequested": 1,
+                        "filesReported": 1,
+                    },
+                    "results": {source.resolve().as_posix(): results},
+                }),
                 stderr="",
             ), 0.01
 

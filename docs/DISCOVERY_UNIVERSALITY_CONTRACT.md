@@ -4,13 +4,6 @@ Date: 2026-06-15
 
 Discovery is the scout layer. It must not become the final architecture judge.
 
-The discovery validator checks all declared project roots by default. An explicit
-`--projects MAIN` limits directory-presence checks to the bounded release subject,
-using the shared runtime project projection. Unknown requested projects fail.
-The report lists omitted presence checks; path escape and SAGE-workspace intrusion
-checks still cover every declared root. This does not scan omitted projects or
-claim their availability.
-
 ## Contract
 
 Discovery may:

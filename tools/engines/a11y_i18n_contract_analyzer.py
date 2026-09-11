@@ -13,6 +13,7 @@ from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.report_surface_limits import report_surface_limit
 from tools.core.source_evidence import read_atlas_bound_source
+from tools.engines.react_source_scanner import call_snippets
 
 
 INTERACTIVE_RE = re.compile(r"<(?:button|a|input|select|textarea)\b", re.IGNORECASE)
@@ -24,10 +25,10 @@ ARIA_RELATION_RE = re.compile(r"\b(?:aria-labelledby|aria-describedby|aria-contr
 ID_ATTR_RE = re.compile(r"\bid\s*=")
 RAW_TEXT_RE = re.compile(r">\s*[A-Z][A-Za-z ]{18,}\s*<")
 I18N_FALLBACK_RE = re.compile(r"\b(?:t|i18n\.t)\s*\([^)]*(?:defaultValue|fallback)", re.DOTALL)
-I18N_CALL_RE = re.compile(r"\b(?:t|i18n\.t)\s*\((?P<args>[^)]*)\)", re.DOTALL)
 I18N_KEY_RE = re.compile(r"\b(?:t|i18n\.t)\s*\(\s*['\"]([^'\"]+)['\"]")
-I18N_INTERPOLATION_RE = re.compile(r"\b(?:t|i18n\.t)\s*\([^)]*{[^}]+}", re.DOTALL)
-I18N_PLURAL_RE = re.compile(r"\b(?:count|plural|one|other)\b", re.IGNORECASE)
+I18N_PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*}}")
+I18N_COUNT_OPTION_RE = re.compile(r"(?:[{,]\s*)(?:count|plural|one|other)\s*(?=[:,}])", re.IGNORECASE)
+I18N_PLURAL_KEY_RE = re.compile(r"(?:_one|_other|\.one|\.other)['\"]", re.IGNORECASE)
 IMG_TAG_RE = re.compile(r"<img\b([^>]*)>", re.IGNORECASE | re.DOTALL)
 NEXT_IMAGE_RE = re.compile(r"(?:from\s+['\"]next/image['\"]|<Image\b)")
 ALT_RE = re.compile(r"\balt\s*=")
@@ -43,8 +44,10 @@ SAFE_REL_RE = re.compile(r"\brel\s*=\s*{?['\"][^'\"]*(?:noopener|noreferrer)[^'\
 
 def _dynamic_i18n_call_count_without_fallback(content: str) -> int:
     count = 0
-    for match in I18N_CALL_RE.finditer(content):
-        args = (match.group("args") or "").strip()
+    for call in call_snippets(content, r"\b(?:t|i18n\.t)\s*\(", executable_only=True):
+        open_paren = call.find("(")
+        close_paren = call.rfind(")")
+        args = call[open_paren + 1 : close_paren].strip() if open_paren >= 0 and close_paren > open_paren else ""
         if not args:
             continue
         if "defaultValue" in args or "fallback" in args:
@@ -56,6 +59,33 @@ def _dynamic_i18n_call_count_without_fallback(content: str) -> int:
             continue
         count += 1
     return count
+
+
+def _count_like_i18n_placeholder(name: str) -> bool:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+    tokens = {token for token in re.split(r"[^a-z0-9]+", normalized) if token}
+    return bool(tokens & {"count", "num", "number", "total", "amount", "quantity"})
+
+
+def _i18n_interpolation_call_evidence(content: str) -> dict[str, int]:
+    interpolation_calls = 0
+    contract_calls = 0
+    missing_count_contract_calls = 0
+    for call in call_snippets(content, r"\b(?:t|i18n\.t)\s*\(", executable_only=True):
+        placeholders = I18N_PLACEHOLDER_RE.findall(call)
+        has_contract = bool(I18N_COUNT_OPTION_RE.search(call) or I18N_PLURAL_KEY_RE.search(call))
+        if has_contract:
+            contract_calls += 1
+        if not placeholders:
+            continue
+        interpolation_calls += 1
+        if any(_count_like_i18n_placeholder(name) for name in placeholders) and not has_contract:
+            missing_count_contract_calls += 1
+    return {
+        "interpolation_calls": interpolation_calls,
+        "contract_calls": contract_calls,
+        "missing_count_contract_calls": missing_count_contract_calls,
+    }
 
 
 def _project_root(project: str) -> Path:
@@ -138,8 +168,10 @@ def analyze_a11y_i18n_file(project: str, rel_path: str, content: str) -> dict[st
     raw_text = len(RAW_TEXT_RE.findall(content))
     fallback = len(I18N_FALLBACK_RE.findall(content))
     i18n_keys = sorted(set(I18N_KEY_RE.findall(content)))
-    i18n_interpolations = len(I18N_INTERPOLATION_RE.findall(content))
-    i18n_plural_signals = len(I18N_PLURAL_RE.findall(content)) if i18n_interpolations else 0
+    interpolation_evidence = _i18n_interpolation_call_evidence(content)
+    i18n_interpolations = interpolation_evidence["interpolation_calls"]
+    i18n_plural_signals = interpolation_evidence["contract_calls"]
+    i18n_missing_count_contracts = interpolation_evidence["missing_count_contract_calls"]
     dynamic_i18n_without_fallback = _dynamic_i18n_call_count_without_fallback(content)
     img_tags = IMG_TAG_RE.findall(content)
     next_image = bool(NEXT_IMAGE_RE.search(content))
@@ -199,7 +231,7 @@ def analyze_a11y_i18n_file(project: str, rel_path: str, content: str) -> dict[st
         risks.append("interactive_surface_without_aria_contract")
     if raw_text >= 3 and fallback == 0 and "t(" not in content and "i18n.t" not in content:
         risks.append("raw_copy_without_i18n_contract")
-    if i18n_interpolations and not i18n_plural_signals:
+    if i18n_missing_count_contracts:
         risks.append("i18n_interpolation_without_plural_or_count_contract")
     if dynamic_i18n_without_fallback:
         risks.append("i18n_dynamic_key_without_fallback_contract")

@@ -136,15 +136,16 @@
     "evidence_source": "config/agent_surface_manual_review_evidence.json",
     "fingerprint_model": "dual_identity_reviewed_variants_v2",
     "volatile_value_fields": [
+      "analysis_root",
       "analysis_snapshot_id",
       "bound_snapshot_id",
       "content_sha256",
+      "estimated_tokens",
       "generated_at"
     ],
     "volatile_value_fields_by_sample": {
       "active_signals": [
         "active_focus_files_l1",
-        "estimated_tokens",
         "halo_files",
         "omitted_l1_files",
         "returned_l1_files",

@@ -160,4 +160,3 @@ def test_release_fixture_rejects_unconfined_output_names(monkeypatch, filename):
     monkeypatch.setattr(fixtures, "load_json_object_strict", lambda *args, **kwargs: config)
     with pytest.raises(ValueError, match="plain JSON filenames"):
         fixtures._bounded_fixture_config()
-

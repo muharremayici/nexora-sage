@@ -77,6 +77,157 @@ def test_complete_small_repository_is_eligible_for_repository_claim() -> None:
     assert authority["atlas_consistency"] == "CONSISTENT"
 
 
+def test_project_system_kind_has_a_separate_semantic_identity_and_survives_atlas_binding() -> None:
+    topology = _topology()
+    topology["project_candidate_system_kinds"] = {
+        "MAIN": {
+            "kind": "application",
+            "authority": "technical_system_kind_static_inventory_v1",
+            "confidence": "high",
+            "evidence": ["application_framework_and_runtime_script"],
+            "candidate_kinds": ["application"],
+        }
+    }
+    authority = build_preflight_scope_authority(
+        topology=topology,
+        projects=None,
+        repository_file_count=10,
+        repository_inventory_truncated=False,
+        repository_language_counts={"typescript": 10},
+        effective_file_count=10,
+        effective_inventory_truncated=False,
+        effective_language_counts={"typescript": 10},
+        effective_project_file_counts={"MAIN": 10},
+        polyglot_capabilities={"languages": {"typescript": {}}},
+    )
+    bound = bind_atlas_materialization(authority, _atlas("MAIN"))
+
+    assert bound["project_system_kinds"]["MAIN"]["kind"] == "application"
+    assert bound["project_system_kind_identity"].startswith("sha256:")
+    changed = json.loads(json.dumps(topology))
+    changed["project_candidate_system_kinds"]["MAIN"]["kind"] = "library"
+    changed_authority = build_preflight_scope_authority(
+        topology=changed,
+        projects=None,
+        repository_file_count=10,
+        repository_inventory_truncated=False,
+        repository_language_counts={"typescript": 10},
+        effective_file_count=10,
+        effective_inventory_truncated=False,
+        effective_language_counts={"typescript": 10},
+        effective_project_file_counts={"MAIN": 10},
+        polyglot_capabilities={"languages": {"typescript": {}}},
+    )
+    assert changed_authority["project_system_kind_identity"] != authority["project_system_kind_identity"]
+
+
+def test_project_relationship_roles_have_a_separate_semantic_identity_and_survive_atlas_binding() -> None:
+    topology = _topology()
+    topology["discovered_topology"] = "multi_project"
+    topology["analysis_projection"] = "multi_project"
+    topology["project_candidates"] = {"MAIN": "src", "WEB": "packages/web"}
+    topology["selected_projects"] = {"MAIN": "src", "WEB": "packages/web"}
+    topology["project_candidate_relationship_roles"] = {"MAIN": "host", "WEB": "companion"}
+    topology["project_candidate_role_authority"] = {
+        "MAIN": {"relationship_role": "host", "relationship_resolved": True},
+        "WEB": {"relationship_role": "companion", "relationship_resolved": True},
+    }
+    authority = build_preflight_scope_authority(
+        topology=topology,
+        projects=None,
+        repository_file_count=20,
+        repository_inventory_truncated=False,
+        repository_language_counts={"typescript": 20},
+        effective_file_count=20,
+        effective_inventory_truncated=False,
+        effective_language_counts={"typescript": 20},
+        effective_project_file_counts={"MAIN": 10, "WEB": 10},
+        polyglot_capabilities={"languages": {"typescript": {}}},
+    )
+    bound = bind_atlas_materialization(authority, _atlas("MAIN", "WEB"))
+
+    assert bound["discovered_topology"] == "multi_project"
+    assert bound["project_relationship_roles"] == {"MAIN": "host", "WEB": "companion"}
+    assert bound["project_relationship_identity"].startswith("sha256:")
+
+    changed = json.loads(json.dumps(topology))
+    changed["project_candidate_relationship_roles"]["WEB"] = "variant"
+    changed["project_candidate_role_authority"]["WEB"]["relationship_role"] = "variant"
+    changed_authority = build_preflight_scope_authority(
+        topology=changed,
+        projects=None,
+        repository_file_count=20,
+        repository_inventory_truncated=False,
+        repository_language_counts={"typescript": 20},
+        effective_file_count=20,
+        effective_inventory_truncated=False,
+        effective_language_counts={"typescript": 20},
+        effective_project_file_counts={"MAIN": 10, "WEB": 10},
+        polyglot_capabilities={"languages": {"typescript": {}}},
+    )
+    assert changed_authority["project_relationship_identity"] != authority["project_relationship_identity"]
+
+
+def test_project_language_capability_distinguishes_recognition_from_engine_availability() -> None:
+    authority = build_preflight_scope_authority(
+        topology=_topology(),
+        projects=None,
+        repository_file_count=12,
+        repository_inventory_truncated=False,
+        repository_language_counts={"typescript": 8, "rust": 4},
+        effective_file_count=12,
+        effective_inventory_truncated=False,
+        effective_language_counts={"typescript": 8, "rust": 4},
+        effective_project_file_counts={"MAIN": 12},
+        polyglot_capabilities={
+            "languages": {
+                "typescript": {"claim_level": "deep_specialist"},
+            }
+        },
+        effective_project_inventory_evidence={
+            "MAIN": {
+                "language_counts": {"typescript": 8, "rust": 4},
+                "analysis_language_counts": {"typescript": 8},
+            }
+        },
+    )
+    bound = bind_atlas_materialization(authority, _atlas("MAIN", files_per_project=8))
+    capability = bound["project_language_capabilities"]["MAIN"]
+
+    assert capability["status"] == "PARTIAL_ENGINE_COVERAGE"
+    assert capability["recognized_language_families"] == ["rust", "typescript"]
+    assert capability["engine_available_language_families"] == ["typescript"]
+    assert capability["engine_unavailable_language_families"] == ["rust"]
+    assert capability["language_claim_levels"] == {
+        "rust": "not_available",
+        "typescript": "deep_specialist",
+    }
+    assert capability["recognition_does_not_authorize_engine_activation"] is True
+    assert bound["project_language_capability_identity"].startswith("sha256:")
+
+
+def test_default_runtime_fallback_preserves_system_kind_and_relationship_semantics() -> None:
+    topology = _topology()
+    topology["project_candidate_system_kinds"] = {
+        "MAIN": {
+            "kind": "application",
+            "authority": "technical_system_kind_static_inventory_v1",
+            "confidence": "high",
+            "evidence": ["application_framework_and_runtime_script"],
+            "candidate_kinds": ["application"],
+        }
+    }
+    authority = runtime_scope_authority(
+        dynamic_config={"_repository_topology": topology},
+        projects=None,
+    )
+
+    assert authority["project_system_kinds"]["MAIN"]["kind"] == "application"
+    assert authority["project_system_kind_identity"].startswith("sha256:")
+    assert authority["project_relationship_roles"] == {"MAIN": "host"}
+    assert authority["project_relationship_identity"].startswith("sha256:")
+
+
 def test_explicit_main_selection_is_bounded_not_incomplete_for_unselected_sibling() -> None:
     authority = bind_atlas_materialization(
         _preflight(projects="MAIN", excluded=True, repository_truncated=True),
@@ -355,6 +506,29 @@ def test_quality_gate_fails_closed_on_audit_scope_identity_mismatch(monkeypatch)
     assert shared_payload == {"scope_authority": authority}
     assert observed["evidence_status"] == INCOMPLETE_EVIDENCE
     assert observed["consumer_scope_checks"]["audit"]["status"] == "IDENTITY_MISMATCH"
+
+
+def test_quality_gate_fails_closed_on_audit_analysis_gap(monkeypatch) -> None:
+    authority = bind_atlas_materialization(_preflight(), _atlas("MAIN"))
+    monkeypatch.setattr(
+        "tools.engines.quality_gate.load_json_file",
+        lambda *_args, **_kwargs: {"scope_authority": authority},
+    )
+
+    observed, passed, _shared_payload = _quality_scope_gate(
+        {
+            "audit_scope": {"scope_authority": authority},
+            "summary": {"analysis_gap_count": 1},
+        }
+    )
+
+    assert passed is False
+    assert observed["evidence_status"] == INCOMPLETE_EVIDENCE
+    assert observed["consumer_scope_checks"]["audit_analysis_gaps"] == {
+        "status": INCOMPLETE_EVIDENCE,
+        "count": 1,
+    }
+    assert "audit_analysis_gaps:1" in observed["incomplete_reasons"]
 
 
 def test_audit_lineage_binds_the_exact_shared_scope_artifact() -> None:

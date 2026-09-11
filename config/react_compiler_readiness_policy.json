@@ -14,13 +14,15 @@
     "state_ownership"
   ],
   "blocking_risks": [
+    "react_compiler_native_blocking_diagnostic"
+  ],
+  "review_risks": [
+    "compiler_static_contract_risk",
     "compiler_or_memoization_contract_risk",
     "memo_or_callback_dependency_contract_risk",
     "provider_topology_or_value_stability_risk",
     "render_pressure_or_context_blast_radius",
-    "unstable_provider_value_contract"
-  ],
-  "review_risks": [
+    "unstable_provider_value_contract",
     "ambiguous_or_duplicated_state_owner",
     "effect_lifecycle_or_stale_closure_risk",
     "subscription_or_timer_without_cleanup_contract"

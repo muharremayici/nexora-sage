@@ -75,7 +75,13 @@ def _installation_duration_guidance():
         return f"unknown basis=duration_policy_unavailable error={type(exc).__name__}"
 
 
-def _build_installation_plan_with_progress(target_root, *, dependency_install_enabled):
+def _build_installation_plan_with_progress(
+    target_root,
+    *,
+    dependency_install_enabled,
+    persist_target_preflight=False,
+    projects=None,
+):
     cadence = heartbeat_cadence_selection("subprocess")
     interval = max(1, int(cadence.get("interval_seconds") or 15))
     started = time.perf_counter()
@@ -99,10 +105,32 @@ def _build_installation_plan_with_progress(target_root, *, dependency_install_en
     worker.start()
     status = "failed"
     try:
-        plan = build_installation_plan(
-            target_root,
-            dependency_install_enabled=dependency_install_enabled,
-        )
+        if persist_target_preflight:
+            from tools.external_target_preflight import (
+                build_preflight,
+                persist_preflight,
+                preflight_receipt_transport,
+            )
+
+            target_preflight = build_preflight(target_root, projects=projects)
+            persist_preflight(target_preflight)
+            transport = preflight_receipt_transport(target_preflight)
+            os.environ["CODEMAPS_TARGET_PREFLIGHT_RECEIPT"] = transport["path"]
+            os.environ["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] = transport["sha256"]
+            if projects:
+                os.environ["CODEMAPS_TARGET_PROJECTS"] = str(projects)
+            else:
+                os.environ.pop("CODEMAPS_TARGET_PROJECTS", None)
+            plan = build_installation_plan(
+                target_root,
+                target_preflight=target_preflight,
+                dependency_install_enabled=dependency_install_enabled,
+            )
+        else:
+            plan = build_installation_plan(
+                target_root,
+                dependency_install_enabled=dependency_install_enabled,
+            )
         status = "completed"
         return plan
     finally:
@@ -409,12 +437,18 @@ def main():
         "--target-root",
         help="Explicit repository root to discover and initialize. Required by public product projections.",
     )
+    parser.add_argument(
+        "--projects",
+        help="Optional comma-separated project filter bound to the explicit target Preflight receipt.",
+    )
     args = parser.parse_args()
 
     if PUBLIC_DISTRIBUTION_MANIFEST.is_file() and not args.target_root:
         parser.error(
             "this public SAGE distribution requires --target-root <repository>"
         )
+    if args.projects and not args.target_root:
+        parser.error("--projects requires --target-root")
 
     if args.target_root:
         target_root = Path(args.target_root).expanduser()
@@ -426,6 +460,8 @@ def main():
         if not target_root.is_dir():
             parser.error(f"--target-root is not a directory: {target_root}")
         os.environ["CODEMAPS_TARGET_ROOT"] = str(target_root)
+        if args.projects:
+            os.environ["CODEMAPS_TARGET_PROJECTS"] = str(args.projects)
         log(f"Explicit analyzed repository: {target_root}", "[TARGET]")
     else:
         target_root = CODE_MAPS_DIR.parent.resolve()
@@ -437,6 +473,8 @@ def main():
     installation_plan = _build_installation_plan_with_progress(
         target_root,
         dependency_install_enabled=not args.skip_deps,
+        persist_target_preflight=bool(args.target_root),
+        projects=args.projects,
     )
     write_installation_plan(installation_plan)
     check_env(installation_plan)

@@ -21,6 +21,16 @@
         "compiler_readiness"
       ],
       "semantic_depth": "React/TypeScript specialist analysis across AST, imports, diagnostics, compiler readiness and framework contracts.",
+      "dead_code_reachability": {
+        "mode": "candidate_analysis",
+        "required_parser_statuses": [
+          "observed"
+        ],
+        "required_semantic_depths": [
+          "logic_normalized"
+        ],
+        "dynamic_contract_status": "requires_contract_triage"
+      },
       "not_claimed": []
     },
     "javascript": {
@@ -37,6 +47,16 @@
         "react_frontier_analysis"
       ],
       "semantic_depth": "JavaScript/React structural and framework-aware analysis, without TypeScript-only diagnostics.",
+      "dead_code_reachability": {
+        "mode": "candidate_analysis",
+        "required_parser_statuses": [
+          "observed"
+        ],
+        "required_semantic_depths": [
+          "logic_normalized"
+        ],
+        "dynamic_contract_status": "requires_contract_triage"
+      },
       "not_claimed": [
         "typescript_typecheck"
       ]
@@ -53,6 +73,16 @@
         "atlas_symbol_normalization"
       ],
       "semantic_depth": "Python implementation and typing-stub AST symbol/import extraction with normalized Atlas integration; type-checker, framework, type-flow and runtime semantics remain outside the active claim.",
+      "dead_code_reachability": {
+        "mode": "candidate_analysis",
+        "required_parser_statuses": [
+          "observed"
+        ],
+        "required_semantic_depths": [
+          "ast_normalized"
+        ],
+        "dynamic_contract_status": "requires_contract_triage"
+      },
       "not_claimed": [
         "mypy_grade_type_semantics",
         "runtime_import_execution",
@@ -81,6 +111,12 @@
         "atlas_symbol_normalization"
       ],
       "semantic_depth": "Java package/class/method/import structural extraction.",
+      "dead_code_reachability": {
+        "mode": "inventory_only",
+        "required_parser_statuses": [],
+        "required_semantic_depths": [],
+        "dynamic_contract_status": "unavailable_until_semantic_adapter"
+      },
       "not_claimed": [
         "javac_grade_semantics",
         "maven_gradle_resolution"
@@ -94,12 +130,19 @@
       "evidence": [
         "go_structural_sequencer",
         "polyglot_import_extraction",
-        "atlas_symbol_normalization"
+        "atlas_symbol_normalization",
+        "go_mod_module_prefix_resolution"
       ],
-      "semantic_depth": "Go package/function/import structural extraction.",
+      "semantic_depth": "Go package/function/import structural extraction plus source-grounded local go.mod module-prefix and qualified-member resolution; go/types and go list dependency semantics remain unavailable.",
+      "dead_code_reachability": {
+        "mode": "inventory_only",
+        "required_parser_statuses": [],
+        "required_semantic_depths": [],
+        "dynamic_contract_status": "unavailable_until_go_types_adapter"
+      },
       "not_claimed": [
         "go_types_grade_semantics",
-        "go_list_module_resolution"
+        "go_list_dependency_graph"
       ]
     },
     "csharp": {
@@ -113,6 +156,12 @@
         "atlas_symbol_normalization"
       ],
       "semantic_depth": "C# namespace/class/method/using structural extraction.",
+      "dead_code_reachability": {
+        "mode": "inventory_only",
+        "required_parser_statuses": [],
+        "required_semantic_depths": [],
+        "dynamic_contract_status": "unavailable_until_roslyn_adapter"
+      },
       "not_claimed": [
         "roslyn_grade_semantics",
         "dotnet_build_diagnostics"
@@ -142,6 +191,14 @@
       "go": "structural",
       "csharp": "structural"
     },
+    "required_dead_code_reachability_modes": {
+      "typescript": "candidate_analysis",
+      "javascript": "candidate_analysis",
+      "python": "candidate_analysis",
+      "java": "inventory_only",
+      "go": "inventory_only",
+      "csharp": "inventory_only"
+    },
     "compiler_grade_forbidden_claims": {
       "java": [
         "javac_grade_semantics",
@@ -149,7 +206,7 @@
       ],
       "go": [
         "go_types_grade_semantics",
-        "go_list_module_resolution"
+        "go_list_dependency_graph"
       ],
       "csharp": [
         "roslyn_grade_semantics",

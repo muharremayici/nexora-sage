@@ -7,10 +7,13 @@ from pathlib import Path
 from tools.core.artifact_contracts import AUDIT_REPORT_JSON_PATH, AUDIT_REPORT_TEXT_PATH
 from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage
 from tools.core.artifact_store import flush_shadow_writes
+from tools.core.architecture_blueprints import load_effective_architecture_policy_context
 from tools.core.audit_report import invalidate_audit_report_cache
 from tools.core.audit_rules import (
+    build_effective_project_rule_taxonomy,
     build_rule_taxonomy,
     canonical_alias_boundary_decision,
+    filter_violations_by_project_taxonomy,
     path_alias_applies_to_file,
     violates_canonical_alias_boundary,
 )
@@ -250,6 +253,8 @@ def _write_outputs(
     scoped_audit: dict | None = None,
     scope_authority: dict | None = None,
     scope_authority_artifact: dict | None = None,
+    architecture_policy_application: dict | None = None,
+    analysis_gaps: list[dict] | None = None,
 ):
     output_start = time.perf_counter()
     lines = ['=== NEXORA SAGE ARCHITECTURAL AUDIT V15 (ATLAS-PURE) ===', '']
@@ -263,6 +268,12 @@ def _write_outputs(
     audited_projects = sorted(str(project) for project in (audited_projects or []) if project)
     audited_project_count = len(audited_projects)
     rule_taxonomy = build_rule_taxonomy(project_count=max(audited_project_count, 1))
+    architecture_policy_application = (
+        architecture_policy_application
+        if isinstance(architecture_policy_application, dict)
+        else {}
+    )
+    analysis_gaps = list(analysis_gaps or [])
     project_counts = defaultdict(int)
     for items in violations.values():
         for item in items:
@@ -291,9 +302,32 @@ def _write_outputs(
     lines.append(f"Genome Current Version Coverage: {structural_contract['genome_current_version_ratio']}")
     lines.append('')
 
+    lines.append('--- EFFECTIVE ARCHITECTURE POLICY ---')
+    lines.append(f"Authority: {architecture_policy_application.get('authority', 'unavailable')}")
+    lines.append(
+        "Architecture Enabled Projects: "
+        f"{architecture_policy_application.get('architecture_enabled_projects', [])}"
+    )
+    lines.append(
+        "Architecture Incomplete Projects: "
+        f"{architecture_policy_application.get('architecture_incomplete_projects', [])}"
+    )
+    lines.append(
+        "Suppressed Unauthorised Findings: "
+        f"{int(architecture_policy_application.get('suppressed_finding_count') or 0)}"
+    )
+    for project, policy_row in architecture_policy_application.get("projects", {}).items():
+        lines.append(
+            f"  - [{project}] status={policy_row.get('effective_policy_status')} "
+            f"profile={policy_row.get('recommended_profile')} "
+            f"rules_enabled={policy_row.get('architecture_sensitive_rules_enabled')}"
+        )
+    lines.append('')
+
     lines.append('--- AUDIT SCOPE ---')
     lines.append(f"Atlas Projects: {int(atlas_project_count or 0)}")
     lines.append(f"Audited Projects: {audited_project_count}")
+    lines.append(f"Analysis Gaps: {len(analysis_gaps)}")
     if audited_projects:
         for project in audited_projects:
             lines.append(f"  - {project_display_name(project)} [{project}]")
@@ -327,8 +361,23 @@ def _write_outputs(
         lines.append('')
 
     lines.append('------------------------------')
-    if summary['total'] == 0: lines.append('RESULT: 100% SEALED. NO ARCHITECTURAL VIOLATIONS DETECTED.')
-    else: lines.append(f"RESULT: {summary['total']} TOTAL VIOLATIONS REMAIN.")
+    incomplete_architecture = architecture_policy_application.get(
+        "architecture_incomplete_projects", []
+    )
+    if analysis_gaps:
+        lines.append(
+            f"RESULT: INCOMPLETE EVIDENCE; {len(analysis_gaps)} AUDIT ANALYSIS GAP(S) "
+            "PREVENT A SEALED CLAIM."
+        )
+    elif incomplete_architecture:
+        lines.append(
+            f"RESULT: {summary['total']} ACTIVE-POLICY VIOLATIONS; ARCHITECTURE-SENSITIVE "
+            f"COVERAGE INCOMPLETE FOR {len(incomplete_architecture)} PROJECT(S)."
+        )
+    elif summary['total'] == 0:
+        lines.append('RESULT: 100% SEALED. NO ACTIVE-POLICY VIOLATIONS DETECTED.')
+    else:
+        lines.append(f"RESULT: {summary['total']} TOTAL VIOLATIONS REMAIN.")
     report_text_built_at = time.perf_counter()
     report_text = '\n'.join(lines)
 
@@ -376,7 +425,7 @@ def _write_outputs(
                         "start_line",
                         "end_line",
                         "observed_loc",
-                        "limit",
+                        "limit", "limit_authority", "target_policy_resolution",
                     )
                     if field in item
                 },
@@ -421,6 +470,9 @@ def _write_outputs(
         audit_scope.update(scoped_audit)
     summary["audit_scope"] = audit_scope
     summary["rule_taxonomy"] = rule_taxonomy
+    summary["architecture_policy_application"] = architecture_policy_application
+    summary["analysis_gaps"] = analysis_gaps
+    summary["analysis_gap_count"] = len(analysis_gaps)
     summary["remediation_backlog"] = remediation_backlog
     payload = {
         'meta': {
@@ -429,6 +481,7 @@ def _write_outputs(
         },
         'summary': summary,
         'audit_scope': summary["audit_scope"],
+        'architecture_policy_application': architecture_policy_application,
         'atlas_project_count': int(atlas_project_count or 0),
         'audited_project_count': audited_project_count,
         'audited_projects': audited_projects,
@@ -545,8 +598,20 @@ def analyze_project(changed_files=None, atlas=None):
     )
     audited_projects = []
     audited_file_refs: set[str] = set()
-    reportable_keys = _reportable_violation_keys(project_count=len(projects))
-    violations = {key: [] for key in DEFAULT_VIOLATION_KEYS if key in reportable_keys}
+    effective_policy, atlas_snapshot_id = load_effective_architecture_policy_context(RAW_DIR)
+    project_taxonomies = {
+        pkey: build_effective_project_rule_taxonomy(
+            pkey,
+            effective_policy,
+            expected_snapshot_id=atlas_snapshot_id,
+            project_count=len(projects),
+        )
+        for pkey in projects
+    }
+    # Collect candidate evidence first, then let the exact project taxonomy decide
+    # applicability. This also keeps suppressed false-positive counts observable.
+    violations = {key: [] for key in DEFAULT_VIOLATION_KEYS}
+    analysis_gaps: list[dict] = []
     
     report_sections = get_audit_report_sections()
     module_root_name = get_module_root_name()
@@ -579,6 +644,10 @@ def analyze_project(changed_files=None, atlas=None):
         if changed_files is not None and not target_rel_paths:
             # If changed_files exists but none are in this project, skip the whole project loop
             continue
+        # A present empty file map is covered, not a missing Atlas project.
+        # Scoped pulses still count only projects with requested audited files.
+        if not is_scoped and pkey in atlas and isinstance(proj_data.get("files"), dict) and not files:
+            audited_projects.append(pkey)
         for rel_path, a_data in files.items():
             # [Polyglot] Detect file language context
             f_ext = Path(rel_path).suffix.lower()
@@ -627,11 +696,13 @@ def analyze_project(changed_files=None, atlas=None):
                             continue
                         sym_loc = end - start + 1
                         finding = resolve_loc_finding_semantics(
-                            sym.get('type', 'unknown'),
+                            sym.get('canonical_symbol_type') or sym.get('canonicalSymbolType') or sym.get('type', 'unknown'),
                             sym_loc,
                             symbol_name=sym.get('name', 'unknown'),
                             start_line=start,
                             end_line=end,
+                            project=pkey,
+                            file_path=rel_path,
                         )
                         if sym_loc > finding["limit"]:
                             _add_violation(
@@ -642,7 +713,15 @@ def analyze_project(changed_files=None, atlas=None):
                                 f"{rel_path} symbol:{sym.get('name')} ({sym_loc} lines)",
                                 metadata={key: value for key, value in finding.items() if key != "rule"},
                             )
-                    except (KeyError, TypeError, ValueError): pass
+                    except (KeyError, TypeError, ValueError) as exc:
+                        gap = {
+                            "project": pkey, "file": rel_path,
+                            "symbol": str(sym.get("name") or "unknown"),
+                            "stage": "symbol_loc_evaluation",
+                            "error_type": type(exc).__name__,
+                        }
+                        analysis_gaps.append(gap)
+                        logger.warning("[AUDIT_GAP] %s", gap)
 
             # 2. Tech Violations (markers from ast_sequencer) - Completely config-driven via feature_tag_audit_rules
             tag_rules = require_doctrine_mapping("architectural_integrity_rules").get("feature_tag_audit_rules")
@@ -655,6 +734,7 @@ def analyze_project(changed_files=None, atlas=None):
             # 3. Import Purity (from Sovereign records)
             from tools.core.config import PRIMARY_ALIAS
             for imp_rec in imports:
+                if str(imp_rec.get("kind") or "").strip().lower() == "type": continue
                 imp = imp_rec.get('source', '')
                 raw_imp = imp_rec.get("raw_source") or imp
                 module_import_prefix = f"{PRIMARY_ALIAS}{module_root_name}/"
@@ -739,6 +819,10 @@ def analyze_project(changed_files=None, atlas=None):
                     )
 
     violations = _dedupe_violations(violations)
+    violations, architecture_policy_application = filter_violations_by_project_taxonomy(
+        violations,
+        project_taxonomies,
+    )
     scan_finished_at = time.perf_counter()
     if not is_scoped and atlas_project_count > 0 and not audited_projects:
         logger.error(
@@ -795,6 +879,8 @@ def analyze_project(changed_files=None, atlas=None):
         scoped_audit=scoped_audit,
         scope_authority=scope_authority,
         scope_authority_artifact=scope_authority_artifact,
+        architecture_policy_application=architecture_policy_application,
+        analysis_gaps=analysis_gaps,
     )
     outputs_written_at = time.perf_counter()
     profile_timings["write_outputs_seconds"] = round(outputs_written_at - scan_finished_at, 3)

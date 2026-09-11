@@ -11,6 +11,10 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.core.config import CODE_MAPS_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.external_target_generation import (
+    resolve_current_external_target_generation,
+    resolve_external_target_artifact_dir,
+)
 from tools.core.json_io import load_json_file
 
 
@@ -37,13 +41,20 @@ def build_index() -> dict[str, Any]:
         for run_dir in sorted(EXTERNAL_TARGETS_DIR.iterdir(), key=lambda p: p.name.lower()):
             if not run_dir.is_dir():
                 continue
-            stat = run_dir.stat()
+            current_dir, pointer, current_reason = resolve_current_external_target_generation(run_dir)
+            summary_dir, artifact_reason = resolve_external_target_artifact_dir(run_dir)
+            stat_source = summary_dir if summary_dir.exists() else run_dir
+            stat = stat_source.stat()
             rows.append(
                 {
                     "slug": run_dir.name,
                     "path": str(run_dir),
+                    "current_status": "VALIDATED" if current_dir else "UNVALIDATED_OR_LEGACY",
+                    "current_run_id": pointer.get("run_id") if pointer else None,
+                    "current_reason": current_reason,
+                    "artifact_resolution": artifact_reason,
                     "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-                    "summary": _load_summary(run_dir),
+                    "summary": _load_summary(summary_dir),
                 }
             )
     return {
@@ -57,6 +68,7 @@ def build_index() -> dict[str, Any]:
             "targets": len(rows),
             "with_preflight": sum(1 for row in rows if row["summary"].get("preflight")),
             "with_capability_probe": sum(1 for row in rows if row["summary"].get("capability_probe")),
+            "validated_current": sum(1 for row in rows if row["current_status"] == "VALIDATED"),
         },
         "targets": rows,
     }
@@ -70,16 +82,17 @@ def render_report(index: dict[str, Any]) -> str:
         f"- targets: `{summary.get('targets')}`",
         f"- with_preflight: `{summary.get('with_preflight')}`",
         f"- with_capability_probe: `{summary.get('with_capability_probe')}`",
+        f"- validated_current: `{summary.get('validated_current')}`",
         "",
-        "| Target | Workspace Root | Preflight | Repo Present | Declared Detected | Modified |",
-        "|---|---|---|---:|---:|---|",
+        "| Target | Current | Run ID | Workspace Root | Preflight | Repo Present | Declared Detected | Modified |",
+        "|---|---|---|---|---|---:|---:|---|",
     ]
     for row in index.get("targets", []):
         summary_row = row.get("summary", {})
         preflight = summary_row.get("preflight", {})
         capability = summary_row.get("capability_probe", {})
         lines.append(
-            f"| `{row.get('slug')}` | `{summary_row.get('workspace_root')}` | `{preflight.get('status')}` | {capability.get('repo_present', 0)} | {capability.get('declared_detected', 0)} | `{row.get('modified_at')}` |"
+            f"| `{row.get('slug')}` | `{row.get('current_status')}` | `{row.get('current_run_id')}` | `{summary_row.get('workspace_root')}` | `{preflight.get('status')}` | {capability.get('repo_present', 0)} | {capability.get('declared_detected', 0)} | `{row.get('modified_at')}` |"
         )
     return "\n".join(lines) + "\n"
 

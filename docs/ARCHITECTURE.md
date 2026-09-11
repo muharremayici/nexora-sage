@@ -108,15 +108,56 @@ surfaces and disaster-recovery material.
 
 ## 3. Core Execution Flow
 
-### 3.1 Setup And Refresh Chain
+### 3.1 Setup, Discovery And Refresh Routes
 
-Initial setup uses `sage.py init`. Subsequent public target-repository runs may
-request stale-truth refresh through `sage.py run --refresh`. Both routes reuse
-the shared internal refresh chain:
+Preflight, Discovery and post-Atlas Oracle are different evidence phases:
 
-1. `tools/orchestrators/discovery.py`
-2. `tools/governance_sync.py --apply`
-3. `tools/config_compiler.py --apply`
+- Preflight establishes target identity, admissibility, bounded inventory,
+  topology proposal, capability ceiling and repository-declared policy evidence
+  before an explicit target run.
+- Discovery converts repository evidence into the declared configuration
+  proposal, governance override seed, compiled runtime configuration and
+  project-truth projection.
+- Architecture Oracle consumes the committed Atlas and may refine an
+  architecture proposal. An unsealed Oracle proposal is advisory until the
+  applicable HITL and policy contracts authorize downstream enforcement.
+
+They must not be collapsed into one authority. Expensive observations should
+instead cross phase boundaries through identity-bound receipts so later phases
+reuse the same evidence without silently producing a second topology.
+
+The current entry routes are:
+
+| Entry route                                  | Configuration/discovery behavior                                                                                                                                                         | Analysis behavior                                                                                                                                                                     | Authority boundary                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `sage.py init --plan-only --target-root ...` | target-aware installation plan and Preflight only                                                                                                                                        | none                                                                                                                                                                                  | read-only setup plan; no adoption                           |
+| `sage.py init`                               | dependency check, Discovery, auto-doctrine proposal, governance sync, config compile and project-truth prune                                                                             | none by default                                                                                                                                                                       | configured-default maintenance/adoption; no freshness claim |
+| `sage.py init --full`                        | same configured-default maintenance/adoption chain                                                                                                                                       | forced `release-deep` pipeline                                                                                                                                                        | heavyweight truth build, not release proof                  |
+| the private refresh command                            | reruns the setup refresh chain                                                                                                                                                           | none                                                                                                                                                                                  | configuration refresh only                                  |
+| `sage.py run ...`                            | consumes existing compiled truth; explicit targets first create and transport an immutable Preflight receipt                                                                             | selected pipeline profile                                                                                                                                                             | profile-specific claim boundary                             |
+| `sage.py run --refresh ...`                  | does **not** rerun Discovery/governance/config compilation                                                                                                                               | invalidates project/Atlas cache for the selected normal profile                                                                                                                       | freshness request, not profile escalation                   |
+| `sage.py watch ...`                          | consumes runtime truth                                                                                                                                                                   | reuses the canonical orchestrator with a surgical changed-file scope                                                                                                                  | save pulse; not repository-wide proof                       |
+| `sage.py doctor`                | behavior comes from `config/cli_command_contract.json` validation profiles                                                                                                               | bounded refresh only when the selected profile declares it                                                                                                                            | validator result; not release proof                         |
+| `sage.py install-proof`                      | setup-only init for daily/release levels; transports its immutable Preflight receipt across the subprocess boundary and reuses it only after a current target-observation identity match | daily profile plus installation/surface checks                                                                                                                                        | machine-local installation proof                            |
+| `sage.py mcp`                                | resolves actor/tool profile and starts one MCP composition root                                                                                                                          | heavy target analysis delegates to the public CLI; a current packet from the primary full run satisfies context closure, otherwise one dependency-correct Quality Gates recovery runs | tool profile never grants subject authority                 |
+| the private self-audit command                         | private SAGE governance context                                                                                                                                                          | contract-owned release-proof subset                                                                                                                                                   | neither target-repository analysis nor full release proof   |
+
+The private interactive `setup` surface is legacy development support, not the
+canonical public onboarding route. It preserves confirmation, progress,
+subprocess telemetry, timeout and stop-on-failure behavior, but its centrally
+owned plan now references the canonical `init_setup_only` and `run_full` CLI
+command identities. It does not own or directly sequence analysis engines.
+
+The lifecycle distinction is contract-owned rather than inferred from entrypoint
+names. An explicit-target `init` is `configured_default_adoption`: it may rewrite
+shared Discovery, governance and compiled project truth. An explicit-target
+`run` or `watch` is `isolated_target_acquisition`: it uses process-local runtime
+truth and does not adopt the target. Installation proof composes the two public
+commands but does not repeat the expensive Preflight observation: the init
+receipt crosses the subprocess boundary, its lightweight target-observation
+identity is rechecked, and the validated payload is rebound into the daily run's
+new atomic external generation. A mismatch fails closed instead of silently
+using stale evidence or performing a second hidden topology discovery.
 
 ### 3.2 Pipeline Chain
 

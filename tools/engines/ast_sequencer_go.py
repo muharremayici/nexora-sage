@@ -51,7 +51,8 @@ def sequence_go_file_with_evidence(file_path: str):
             "name": name,
             "kind": "Package",
             "detail": f"package {name}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": False,
         })
 
     # Types (Structs/Interfaces)
@@ -62,7 +63,8 @@ def sequence_go_file_with_evidence(file_path: str):
             "name": name,
             "kind": kind.capitalize(),
             "detail": f"type {name} {kind}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": bool(name[:1].isupper()),
         })
 
     # Methods (Higher priority than functions to avoid double matching)
@@ -78,7 +80,8 @@ def sequence_go_file_with_evidence(file_path: str):
             "name": name,
             "kind": "Method",
             "detail": f"func ({receiver}) {name}({args}) {ret_type}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": False,
         })
 
     # Functions
@@ -94,7 +97,8 @@ def sequence_go_file_with_evidence(file_path: str):
             "name": name,
             "kind": "Function",
             "detail": f"func {name}({args}) {ret_type}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": bool(name[:1].isupper()),
         })
 
     for symbol in symbols:

@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 from tools.core.logger import logger
 
 from tools.core.artifact_registry import ARTIFACT_METADATA
-from tools.core.artifact_registry import ARTIFACT_PATHS, ARTIFACT_SCHEMAS, mandatory_artifact_ids
+from tools.core.artifact_registry import ARTIFACT_PATHS, ARTIFACT_SCHEMAS, mandatory_artifact_ids, artifact_path_for_storage_root
 class ArtifactValidationError(Exception):
     pass
 
@@ -196,9 +196,11 @@ def ensure_valid_payload(artifact_name: str, payload: Any) -> None:
     ensure_against_schema(ARTIFACT_SCHEMAS[artifact_name], artifact_name, payload)
 
 
-def validate_artifact_file(artifact_name: str) -> List[str]:
+def validate_artifact_file(artifact_name: str, *, storage_root: Path | None = None) -> List[str]:
     artifact_path = ARTIFACT_PATHS[artifact_name]
     metadata = ARTIFACT_METADATA[artifact_name]
+    if storage_root is not None and metadata.get("storage_class") == "managed_runtime_artifact":
+        artifact_path = artifact_path_for_storage_root(storage_root, artifact_name)
     if metadata.get("storage_class") == "managed_runtime_artifact":
         from tools.core.json_io import load_raw_artifact_path_strict
 
@@ -218,11 +220,33 @@ def validate_artifact_file(artifact_name: str) -> List[str]:
     return validate_payload(artifact_name, payload)
 
 
-def validate_all_artifacts() -> Dict[str, List[str]]:
+def validate_required_artifacts(artifact_names, *, storage_root: Path) -> Dict[str, List[str]]:
+    """Validate declared target inputs, including SQLite-only primary artifacts.
+
+    Unlike installation-wide validation, this never borrows another target's
+    artifacts. Missing and invalid required inputs both remain explicit errors.
+    """
     results = {}
+    for name in artifact_names:
+        try:
+            results[name] = validate_artifact_file(name, storage_root=storage_root)
+        except (KeyError, FileNotFoundError, ValueError, ArtifactValidationError) as exc:
+            results[name] = [f"required artifact {name}: {type(exc).__name__}: {exc}"]
+    return results
+
+
+def validate_all_artifacts(*, required_artifacts=None, storage_root: Path | None = None) -> Dict[str, List[str]]:
+    if required_artifacts is not None and storage_root is None:
+        raise ValueError("Target required-artifact validation requires an explicit storage root.")
+    results = (
+        validate_required_artifacts(required_artifacts, storage_root=storage_root)
+        if required_artifacts is not None else {}
+    )
     mandatory = mandatory_artifact_ids()
 
     for artifact_name, artifact_path in ARTIFACT_PATHS.items():
+        if artifact_name in results:
+            continue
         if not artifact_path.exists():
             if artifact_name in mandatory:
                 results[artifact_name] = [f"missing mandatory artifact file: {artifact_path}"]

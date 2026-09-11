@@ -64,6 +64,10 @@ def test_isolated_python_subprocess_env_preserves_runtime_identity_but_not_secre
         "USERPROFILE": "runtime-profile",
         "PYTHONUSERBASE": "runtime-userbase",
         "CODEMAPS_PROFILE": "sage_self",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT": "fixture/runs/preflight.json",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256": "a" * 64,
+        "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE": "installation_proof",
+        "CODEMAPS_TARGET_PROJECTS": "MAIN",
         "CODEMAPS_HITL_SECRET": "must-not-cross-boundary",
         "GIT_CONFIG_COUNT": "2",
         "GIT_CONFIG_KEY_0": "safe.directory",
@@ -84,6 +88,9 @@ def test_isolated_python_subprocess_env_preserves_runtime_identity_but_not_secre
     assert env["USERPROFILE"] == "runtime-profile"
     assert env["PYTHONUSERBASE"] == "runtime-userbase"
     assert env["CODEMAPS_PROFILE"] == "sage_self"
+    assert env["CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE"] == "installation_proof"
+    assert env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
+    assert env["CODEMAPS_TARGET_PROJECTS"] == "MAIN"
     assert env["GIT_CONFIG_COUNT"] == "1"
     assert env["GIT_CONFIG_KEY_0"] == "safe.directory"
     assert env["GIT_CONFIG_VALUE_0"] == "fixture-root"

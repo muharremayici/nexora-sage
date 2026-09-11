@@ -6,11 +6,161 @@ import sys
 
 from tools.core.repository_topology import (
     attach_declared_exclusions_to_nearest_owner,
+    classify_project_system_kind,
     is_project_owned_path,
     project_ownership_exclusions,
     prune_owned_walk_dirs,
     resolve_repository_topology,
 )
+
+
+def _system_kind_policy() -> dict:
+    return {
+        "contract": "technical_system_kind_static_inventory_v1",
+        "allowed_kinds": [
+            "application", "library", "service", "tool", "configuration",
+            "documentation", "asset_bundle", "unknown",
+        ],
+        "confidence_precedence": ["high", "medium", "low"],
+        "kind_precedence": [
+            "documentation", "configuration", "asset_bundle", "tool",
+            "service", "application", "library",
+        ],
+        "same_confidence_conflict_policy": "unknown",
+        "manifest_dependency_sections": ["dependencies", "devDependencies"],
+        "documentation_extensions": [".md", ".mdx"],
+        "configuration_extensions": [".json", ".yaml", ".yml"],
+        "asset_extensions": [".png", ".svg"],
+        "documentation_dependency_markers": ["mintlify"],
+        "documentation_script_tokens": ["mintlify"],
+        "application_dependency_markers": ["next"],
+        "service_dependency_markers": ["fastify"],
+        "application_dependency_sections": ["dependencies", "devDependencies"],
+        "service_dependency_sections": ["dependencies", "optionalDependencies"],
+        "application_script_names": ["dev", "start"],
+        "tool_manifest_fields": ["bin"],
+        "library_manifest_fields": ["exports", "main", "types"],
+        "dominance_threshold": 0.6,
+        "minimum_dominant_file_count": 1,
+    }
+
+
+def _kind_inventory(**overrides) -> dict:
+    payload = {
+        "file_count": 2,
+        "inventory_truncated": False,
+        "analysis_source_file_count": 0,
+        "analysis_config_file_count": 0,
+        "extension_counts": {".json": 2},
+        "manifest_files": {"javascript_node": ["package.json"]},
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_static_system_kind_classifier_preserves_distinct_non_program_projects():
+    policy = _system_kind_policy()
+    configuration = classify_project_system_kind(
+        _kind_inventory(extension_counts={".json": 1, ".yml": 1}, file_count=2),
+        {"name": "config-package"},
+        policy,
+    )
+    documentation = classify_project_system_kind(
+        _kind_inventory(extension_counts={".mdx": 8, ".json": 1}, file_count=9),
+        {"scripts": {"dev": "npx mintlify dev"}},
+        policy,
+    )
+    assets = classify_project_system_kind(
+        _kind_inventory(extension_counts={".svg": 4}, file_count=4, manifest_files={}),
+        {},
+        policy,
+    )
+
+    assert configuration["kind"] == "configuration"
+    assert documentation["kind"] == "documentation"
+    assert assets["kind"] == "asset_bundle"
+
+
+def test_static_system_kind_classifier_uses_manifest_identity_and_fails_closed():
+    policy = _system_kind_policy()
+    source = _kind_inventory(
+        file_count=4,
+        analysis_source_file_count=3,
+        extension_counts={".ts": 3, ".json": 1},
+    )
+
+    assert classify_project_system_kind(source, {"bin": {"cli": "dist/cli.js"}}, policy)["kind"] == "tool"
+    assert classify_project_system_kind(
+        source,
+        {"dependencies": {"fastify": "1"}},
+        policy,
+    )["kind"] == "service"
+    assert classify_project_system_kind(
+        source,
+        {"dependencies": {"next": "1"}, "scripts": {"dev": "next dev"}},
+        policy,
+    )["kind"] == "application"
+    assert classify_project_system_kind(
+        source,
+        {
+            "dependencies": {"next": "1"},
+            "devDependencies": {"fastify": "1"},
+            "scripts": {"dev": "next dev"},
+        },
+        policy,
+    )["kind"] == "application"
+    assert classify_project_system_kind(source, {"exports": {".": "./src/index.ts"}}, policy)["kind"] == "library"
+    assert classify_project_system_kind(source, {}, policy)["kind"] == "unknown"
+    assert classify_project_system_kind(
+        {**source, "inventory_truncated": True},
+        {"bin": "cli.js"},
+        policy,
+    )["authority"] == "inventory_truncated"
+
+
+def test_static_system_kind_classifier_uses_policy_order_and_refuses_equal_confidence_conflicts():
+    policy = _system_kind_policy()
+    source = _kind_inventory(
+        file_count=4,
+        analysis_source_file_count=3,
+        extension_counts={".ts": 3, ".json": 1},
+    )
+
+    application_with_exports = classify_project_system_kind(
+        source,
+        {
+            "dependencies": {"next": "1"},
+            "scripts": {"dev": "next dev"},
+            "exports": {".": "./src/index.ts"},
+        },
+        policy,
+    )
+    assert application_with_exports["kind"] == "application"
+    assert application_with_exports["candidate_kinds"] == ["application", "library"]
+
+    ambiguous = classify_project_system_kind(
+        source,
+        {
+            "dependencies": {"next": "1", "fastify": "1"},
+            "scripts": {"start": "node server.js"},
+        },
+        policy,
+    )
+    assert ambiguous == {
+        "kind": "unknown",
+        "authority": "ambiguous_static_system_kind_evidence",
+        "confidence": "none",
+        "evidence": [
+            "service_framework_dependency",
+            "application_framework_and_runtime_script",
+        ],
+        "candidate_kinds": ["service", "application"],
+    }
+
+    incomplete_policy = {**policy, "kind_precedence": ["application"]}
+    assert classify_project_system_kind(source, {}, incomplete_policy)["authority"] == (
+        "system_kind_policy_unavailable"
+    )
 
 
 def test_scope_identity_preserves_frozen_canonical_hashes():

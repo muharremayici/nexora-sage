@@ -19,12 +19,56 @@ from tools.engines.ast_sequencer_java import sequence_java_file, sequence_java_f
 from tools.engines.ast_sequencer_python import sequence_python_file, sequence_python_file_with_evidence
 from tools.engines.generate_atlas import (
     _build_project_symbol_occurrences,
+    _decode_node_batch_response,
     _normalize_polyglot_symbol,
     _normalize_polyglot_symbols,
+    _raw_import_sources_not_in_records,
+    file_contract_is_current,
     previous_atlas_required_for_generation,
 )
-from tools.engines.generate_atlas import _raw_import_sources_not_in_records
-from tools.engines.generate_atlas import file_contract_is_current
+
+
+def test_node_batch_response_rejects_wrong_identity_partial_and_malformed_payloads():
+    expected = {"C:/repo/a.ts", "C:/repo/b.ts"}
+    wrong_identity = json.dumps({
+        "batchMeta": {
+            "requestId": "wrong",
+            "filesRequested": 2,
+            "filesReported": 2,
+        },
+        "results": {path: [] for path in expected},
+    })
+    partial = json.dumps({
+        "batchMeta": {
+            "requestId": "expected",
+            "filesRequested": 2,
+            "filesReported": 2,
+        },
+        "results": {"C:/repo/a.ts": []},
+    })
+
+    self_results, _, wrong_error = _decode_node_batch_response(
+        wrong_identity,
+        request_id="expected",
+        expected_paths=expected,
+    )
+    partial_results, _, partial_error = _decode_node_batch_response(
+        partial,
+        request_id="expected",
+        expected_paths=expected,
+    )
+    malformed_results, _, malformed_error = _decode_node_batch_response(
+        "{",
+        request_id="expected",
+        expected_paths=expected,
+    )
+
+    assert self_results == {}
+    assert wrong_error == "request_identity_mismatch"
+    assert partial_results == {}
+    assert partial_error == "response_file_set_mismatch"
+    assert malformed_results == {}
+    assert malformed_error == "malformed_json"
 
 
 def _sequence_node_file(path: Path) -> list[dict]:
@@ -60,7 +104,7 @@ def test_polyglot_import_extractor_covers_python_java_go_csharp():
     ]
 
 
-def test_typescript_type_only_imports_do_not_create_runtime_edges():
+def test_typescript_type_only_imports_do_not_create_runtime_edges(tmp_path):
     source = """
         import type { PanelState } from './ModuleLayout';
         import { type ConsistencyCheckResult } from '@/writing/useWritingIntegration';
@@ -69,11 +113,13 @@ def test_typescript_type_only_imports_do_not_create_runtime_edges():
         import { RuntimeThing, type RuntimeOptions } from './runtime-thing';
         export { RuntimeExport, type RuntimeExportShape } from './runtime-export';
     """
-    assert extract_imports(source, "typescript") == [
+    target = tmp_path / "type-imports.ts"
+    target.write_text(source, encoding="utf-8")
+    parser_entries = _sequence_node_file(target)
+    assert extract_imports(source, "typescript", parser_entries=parser_entries) == [
         "./runtime-thing",
         "./runtime-export",
     ]
-
 
 def test_unrecorded_typescript_import_sources_are_preserved_for_evidence():
     raw_imports = ["@/platform/ai/types/ai", "./runtime-thing"]
@@ -745,8 +791,9 @@ def test_generate_atlas_smoke_indexes_polyglot_symbols_and_imports():
         cs_dir.mkdir(parents=True)
         (cs_dir / "Core.cs").write_text("namespace My.App; public class Core {}\n", encoding="utf-8")
         (root / "Demo.cs").write_text("using My.App.Core; namespace Demo; public class DemoService {}\n", encoding="utf-8")
-
         env = dict(os.environ)
+        for key in ("CODEMAPS_TARGET_PREFLIGHT_RECEIPT", "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256", "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE", "CODEMAPS_TARGET_PROJECTS"):
+            env.pop(key, None)
         env["CODEMAPS_TARGET_ROOT"] = str(root)
         result = subprocess.run(
             [sys.executable, "-m", "tools.engines.generate_atlas"],
@@ -759,7 +806,6 @@ def test_generate_atlas_smoke_indexes_polyglot_symbols_and_imports():
             check=False,
         )
         assert result.returncode == 0, result.stderr or result.stdout
-
         safe_prefix = "".join(ch.lower() if ch.isalnum() else "_" for ch in root.name).strip("_")
         candidates = sorted((CODE_MAPS_DIR / "output" / "external_targets").glob(f"{safe_prefix}_*/.raw/atlas.json"))
         assert candidates

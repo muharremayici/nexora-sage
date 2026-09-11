@@ -133,17 +133,55 @@ def _latest_atlas_persistence_profile(text: str, config: dict[str, Any] | None =
     if not matches:
         return {}
     values = matches[-1]
-    if not isinstance(values, tuple) or len(values) != 8:
+    if not isinstance(values, tuple) or len(values) not in {8, 10}:
+        return {}
+    offset = 0
+    profile: dict[str, float | int | str] = {}
+    if len(values) == 10:
+        profile["state_payload_storage_mode"] = str(values[0])
+        profile["state_payload_part_count"] = int(values[1])
+        offset = 2
+    profile.update({
+        "state_payload_chars": int(values[offset]),
+        "state_payload_bytes": int(values[offset + 1]),
+        "state_payload_serialize_seconds": float(values[offset + 2]),
+        "state_payload_encode_seconds": float(values[offset + 3]),
+        "state_payload_hash_seconds": float(values[offset + 4]),
+        "state_payload_sqlite_seconds": float(values[offset + 5]),
+        "atlas_relational_index_seconds": float(values[offset + 6]),
+        "total_save_raw_seconds": float(values[offset + 7]),
+    })
+    return profile
+
+
+def _latest_atlas_ast_lifecycle_profile(
+    text: str,
+    config: dict[str, Any] | None = None,
+) -> dict[str, float | int]:
+    pattern = _pattern(config, "atlas_ast_lifecycle_pattern")
+    if not pattern:
+        return {}
+    matches = re.findall(pattern, text)
+    if not matches:
+        return {}
+    values = matches[-1]
+    if not isinstance(values, tuple) or len(values) != 14:
         return {}
     return {
-        "state_payload_chars": int(values[0]),
-        "state_payload_bytes": int(values[1]),
-        "state_payload_serialize_seconds": float(values[2]),
-        "state_payload_encode_seconds": float(values[3]),
-        "state_payload_hash_seconds": float(values[4]),
-        "state_payload_sqlite_seconds": float(values[5]),
-        "atlas_relational_index_seconds": float(values[6]),
-        "total_save_raw_seconds": float(values[7]),
+        "process_starts": int(values[0]),
+        "batch_process_starts": int(values[1]),
+        "fallback_process_starts": int(values[2]),
+        "batch_failures": int(values[3]),
+        "fallback_chunks": int(values[4]),
+        "response_identity_failures": int(values[5]),
+        "worker_restarts": int(values[6]),
+        "request_replays": int(values[7]),
+        "files_requested": int(values[8]),
+        "checkpoint_callbacks": int(values[9]),
+        "checkpoint_files": int(values[10]),
+        "subprocess_seconds": float(values[11]),
+        "checkpoint_seconds": float(values[12]),
+        "node_reported_rss_max_bytes": int(values[13]),
     }
 
 
@@ -525,6 +563,7 @@ def run_validation() -> dict[str, Any]:
     atlas_ctx = _atlas_context(latest_session, config)
     physical_atlas_phases = _latest_atlas_phase_profile(physical_latest_session, config)
     physical_atlas_state_payload = _latest_atlas_persistence_profile(physical_latest_session, config)
+    physical_atlas_ast_lifecycle = _latest_atlas_ast_lifecycle_profile(physical_latest_session, config)
     atlas_totals = _all_floats(_pattern(config, "atlas_total_seconds_pattern"), log_text)
     latest_session_atlas_totals = _all_floats(_pattern(config, "atlas_total_seconds_pattern"), latest_session)
     atlas_total = latest_session_atlas_totals[-1] if latest_session_atlas_totals else atlas_ctx.get("total")
@@ -719,6 +758,7 @@ def run_validation() -> dict[str, Any]:
             "atlas_total_seconds": atlas_total,
             "physical_atlas_phase_timings": physical_atlas_phases,
             "physical_atlas_state_payload_profile": physical_atlas_state_payload,
+            "physical_atlas_ast_lifecycle_profile": physical_atlas_ast_lifecycle,
             "atlas_projects": atlas_projects,
             "atlas_files": atlas_files,
             "fractal_total_seconds": fractal_total,
@@ -816,6 +856,21 @@ def run_validation() -> dict[str, Any]:
     )
     for key, value in (payload["metrics"].get("workload_counts") or {}).items():
         lines.append(f"| `{key}` | {value} |")
+    ast_lifecycle = payload["metrics"].get("physical_atlas_ast_lifecycle_profile") or {}
+    lines.extend(
+        [
+            "",
+            "## Physical Atlas AST Lifecycle",
+            "",
+            "| Metric | Observed |",
+            "|---|---:|",
+        ]
+    )
+    if ast_lifecycle:
+        for key, value in ast_lifecycle.items():
+            lines.append(f"| `{key}` | {value} |")
+    else:
+        lines.append("| evidence | unavailable in latest physical session |")
     lines.extend(
         [
             "",

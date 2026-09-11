@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +11,16 @@ from tools.core.config import CONFIG_FILE, DISCOVERY_FILE, RAW_DIR, REPORTS_DIR,
 from tools.core.atlas_io import load_atlas_data
 from tools.core.runtime_project_scope import project_runtime_atlas
 from tools.core.analysis_scope_authority import bind_consumer_projects, load_scope_authority_for_consumer
+from tools.core.analysis_snapshot_lineage import load_atlas_commit, receipt_binding
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
-from tools.core.architecture_blueprints import blueprint_coordinates, canonical_profile_id
+from tools.core.architecture_blueprints import (
+    INSUFFICIENT_SOURCE_EVIDENCE,
+    build_effective_architecture_policy,
+    blueprint_coordinates,
+    canonical_profile_id,
+    render_effective_architecture_policy,
+)
 
 
 def _oracle_policy() -> dict[str, Any]:
@@ -50,6 +59,311 @@ def _policy_str(section: str, key: str, default: str) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _semantic_identity(payload: Any) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _scope_snapshot_binding(scope_artifact: dict[str, Any]) -> dict[str, Any]:
+    commit = load_atlas_commit(RAW_DIR)
+    snapshot_id = str(commit.get("snapshot_id") or "") if commit.get("state") == "complete" else ""
+    if not snapshot_id:
+        return {
+            "status": "UNAVAILABLE",
+            "atlas_snapshot_id": None,
+            "atlas_sha256": None,
+            "errors": ["complete_atlas_commit_unavailable"],
+        }
+    try:
+        status, observed_snapshot, errors = receipt_binding(
+            raw_dir=RAW_DIR,
+            artifact_id="analysis_scope_authority",
+            artifact_payload=scope_artifact,
+            expected_snapshot_id=snapshot_id,
+        )
+    except (OSError, ValueError) as exc:
+        status, observed_snapshot, errors = "UNAVAILABLE", None, [f"scope_lineage_unavailable:{exc}"]
+    return {
+        "status": status,
+        "atlas_snapshot_id": observed_snapshot,
+        "atlas_sha256": str(commit.get("atlas_sha256") or "") or None,
+        "errors": sorted(set(str(error) for error in errors)),
+    }
+
+
+def build_repository_composition_blueprint(
+    projects: list[dict[str, Any]],
+    scope_authority: dict[str, Any] | None,
+    snapshot_binding: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Summarize repository composition without widening project or scope authority."""
+
+    rules = (_oracle_policy().get("repository_composition") or {})
+    rules = rules if isinstance(rules, dict) else {}
+    contract = str(rules.get("contract") or "")
+    allowed_models = {str(value) for value in rules.get("allowed_models", [])}
+    allowed_relationship_models = {
+        str(value) for value in rules.get("allowed_relationship_models", [])
+    }
+    scope = scope_authority if isinstance(scope_authority, dict) else {}
+    snapshot = snapshot_binding if isinstance(snapshot_binding, dict) else {}
+    project_rows = sorted(
+        (project for project in projects if isinstance(project, dict)),
+        key=lambda project: str(project.get("project") or ""),
+    )
+    project_ids = [str(project.get("project") or "") for project in project_rows]
+    effective = scope.get("effective_runtime_projects")
+    effective = effective if isinstance(effective, dict) else {}
+    expected_ids = sorted(str(project) for project in effective)
+    relationship_roles = scope.get("project_relationship_roles")
+    relationship_roles = relationship_roles if isinstance(relationship_roles, dict) else {}
+    system_kinds = scope.get("project_system_kinds")
+    system_kinds = system_kinds if isinstance(system_kinds, dict) else {}
+    language_capabilities = scope.get("project_language_capabilities")
+    language_capabilities = language_capabilities if isinstance(language_capabilities, dict) else {}
+    project_facts = [
+        {
+            "project": project_id,
+            "atlas_file_count": max(0, int(project.get("file_count") or 0)),
+            "classification_status": str(project.get("classification_status") or "UNKNOWN"),
+            "recommended_profile": project.get("recommended_profile"),
+            "system_kind": str((system_kinds.get(project_id) or {}).get("kind") or "unknown"),
+            "relationship_role": str(relationship_roles.get(project_id) or "unresolved"),
+            "language_engine_status": str(
+                (language_capabilities.get(project_id) or {}).get("status") or "UNAVAILABLE"
+            ),
+            "recognized_language_families": sorted(
+                str(language)
+                for language in ((language_capabilities.get(project_id) or {}).get("recognized_language_families") or [])
+            ),
+            "engine_unavailable_language_families": sorted(
+                str(language)
+                for language in ((language_capabilities.get(project_id) or {}).get("engine_unavailable_language_families") or [])
+            ),
+        }
+        for project_id, project in zip(project_ids, project_rows)
+    ]
+    profile_counts = dict(sorted(Counter(
+        str(fact["recommended_profile"])
+        for fact in project_facts
+        if fact["recommended_profile"]
+    ).items()))
+    system_kind_counts = dict(sorted(Counter(fact["system_kind"] for fact in project_facts).items()))
+    relationship_role_counts = dict(sorted(Counter(
+        fact["relationship_role"] for fact in project_facts
+    ).items()))
+    insufficient_status = str(
+        rules.get("insufficient_project_status") or INSUFFICIENT_SOURCE_EVIDENCE
+    )
+    unknown_kind = str(rules.get("unknown_system_kind") or "unknown")
+    insufficient_projects = sorted(
+        fact["project"]
+        for fact in project_facts
+        if fact["classification_status"] == insufficient_status
+    )
+    unknown_kind_projects = sorted(
+        fact["project"] for fact in project_facts if fact["system_kind"] == unknown_kind
+    )
+    discovered_topology = str(scope.get("discovered_topology") or "unknown")
+    scope_status = str(scope.get("evidence_status") or "")
+    project_set_matches = bool(expected_ids) and expected_ids == project_ids
+    candidate_coverage_matches = (
+        int(scope.get("discovered_candidate_count") or 0) == len(expected_ids)
+    )
+    language_capability_set_matches = set(language_capabilities) == set(expected_ids)
+    unavailable_language_engine_projects = sorted(
+        fact["project"]
+        for fact in project_facts
+        if fact["language_engine_status"] in {"PARTIAL_ENGINE_COVERAGE", "RECOGNIZED_NO_ENGINE"}
+    )
+    minimum_projects = max(2, int(rules.get("minimum_multi_project_count") or 2))
+
+    status = "OBSERVED"
+    model: str | None = None
+    reason = "Repository composition is observed from a complete, snapshot-bound project set."
+    if not contract or not allowed_models or not allowed_relationship_models:
+        status = "POLICY_UNAVAILABLE"
+        reason = "Repository-composition policy is unavailable or incomplete."
+    elif not scope.get("scope_authority_id") or not expected_ids:
+        status = "INSUFFICIENT_SCOPE_EVIDENCE"
+        reason = "Repository scope authority is unavailable."
+    elif discovered_topology != "multi_project" or len(expected_ids) < minimum_projects:
+        status = "NOT_APPLICABLE"
+        reason = "The authorized subject is not a complete multi-project repository."
+    elif scope_status == str(rules.get("bounded_scope_status") or "BOUNDED_PROJECT_SELECTION"):
+        status = "BOUNDED_PROJECTION_ONLY"
+        reason = "A bounded project selection cannot establish whole-repository composition."
+    elif (
+        scope_status != str(rules.get("complete_scope_status") or "COMPLETE_REPOSITORY")
+        or not bool(scope.get("full_repository_claim_eligible"))
+        or not project_set_matches
+        or not candidate_coverage_matches
+        or not language_capability_set_matches
+        or not scope.get("project_language_capability_identity")
+    ):
+        status = "INSUFFICIENT_SCOPE_EVIDENCE"
+        reason = "The complete repository project set is not authority-bound at this layer."
+    elif snapshot.get("status") != "BOUND" or not snapshot.get("atlas_snapshot_id"):
+        status = "SNAPSHOT_UNBOUND"
+        reason = "Repository composition cannot bind to the Atlas snapshot."
+    elif insufficient_projects or unknown_kind_projects or unavailable_language_engine_projects:
+        status = "PARTIAL_EVIDENCE"
+        model = "mixed_evidence_workspace"
+        reason = "The repository project set is bound, but one or more project facts remain unknown."
+    else:
+        model = (
+            "homogeneous_workspace"
+            if len(profile_counts) == 1 and len(system_kind_counts) == 1
+            else "heterogeneous_workspace"
+        )
+
+    if model not in allowed_models:
+        model = None
+        if status in {"OBSERVED", "PARTIAL_EVIDENCE"}:
+            status = "POLICY_UNAVAILABLE"
+            reason = "The derived repository composition model is not policy-declared."
+
+    unresolved_values = {str(value) for value in rules.get("unresolved_role_values", [])}
+    roles = [fact["relationship_role"] for fact in project_facts]
+    if any(role in unresolved_values for role in roles) or set(relationship_roles) != set(expected_ids):
+        relationship_model = "unresolved_relationships"
+    else:
+        host_role = str(rules.get("host_role") or "host")
+        related_roles = {str(value) for value in rules.get("related_roles", [])}
+        relationship_model = (
+            "host_with_related_projects"
+            if roles.count(host_role) == 1 and set(roles) - {host_role} <= related_roles
+            else "multi_root_workspace"
+        )
+    if relationship_model not in allowed_relationship_models:
+        relationship_model = "unresolved_relationships"
+
+    identity_payload = {
+        "contract": contract,
+        "atlas_snapshot_id": snapshot.get("atlas_snapshot_id"),
+        "atlas_sha256": snapshot.get("atlas_sha256"),
+        "scope_authority_id": scope.get("scope_authority_id"),
+        "topology_authority_id": scope.get("topology_authority_id"),
+        "project_system_kind_identity": scope.get("project_system_kind_identity"),
+        "project_relationship_identity": scope.get("project_relationship_identity"),
+        "project_language_capability_identity": scope.get("project_language_capability_identity"),
+        "project_facts": project_facts,
+    }
+    identity_bound = (
+        status in {"OBSERVED", "PARTIAL_EVIDENCE"}
+        and snapshot.get("status") == "BOUND"
+        and all(identity_payload.get(key) for key in (
+            "atlas_snapshot_id",
+            "scope_authority_id",
+            "project_system_kind_identity",
+            "project_relationship_identity",
+            "project_language_capability_identity",
+        ))
+    )
+    return {
+        "contract": contract or None,
+        "classification_status": status,
+        "composition_model": model,
+        "relationship_model": relationship_model,
+        "project_count": len(project_rows),
+        "project_ids": project_ids,
+        "profile_counts": profile_counts,
+        "system_kind_counts": system_kind_counts,
+        "relationship_role_counts": relationship_role_counts,
+        "insufficient_source_projects": insufficient_projects,
+        "unknown_system_kind_projects": unknown_kind_projects,
+        "unavailable_language_engine_projects": unavailable_language_engine_projects,
+        "evidence": {
+            "scope_evidence_status": scope_status or "UNAVAILABLE",
+            "full_repository_claim_eligible": bool(scope.get("full_repository_claim_eligible")),
+            "discovered_topology": discovered_topology,
+            "expected_project_ids": expected_ids,
+            "project_set_matches": project_set_matches,
+            "candidate_coverage_matches": candidate_coverage_matches,
+            "language_capability_set_matches": language_capability_set_matches,
+            "snapshot_binding": snapshot,
+            "reason": reason,
+        },
+        "proposal_identity_status": "BOUND" if identity_bound else "UNAVAILABLE",
+        "proposal_identity": _semantic_identity(identity_payload) if identity_bound else None,
+        "seal_proposal": {
+            "status": str(rules.get("seal_proposal_status") or "NOT_PROPOSED"),
+            "reason": "Repository composition remains advisory until an exact HITL and effective-policy contract exists.",
+        },
+        "policy_activation_allowed": False,
+    }
+
+
+def _bind_project_proposal_identities(
+    projects: list[dict[str, Any]],
+    scope_authority: dict[str, Any] | None,
+    snapshot_binding: dict[str, Any] | None,
+) -> None:
+    """Bind each project proposal to the exact post-Atlas evidence subject."""
+
+    scope = scope_authority if isinstance(scope_authority, dict) else {}
+    snapshot = snapshot_binding if isinstance(snapshot_binding, dict) else {}
+    effective = scope.get("effective_runtime_projects")
+    authorized_projects = set(effective) if isinstance(effective, dict) else set()
+    required_authorities = (
+        scope.get("scope_authority_id"),
+        scope.get("topology_authority_id"),
+        scope.get("project_system_kind_identity"),
+        scope.get("project_language_capability_identity"),
+    )
+    snapshot_bound = snapshot.get("status") == "BOUND" and bool(snapshot.get("atlas_snapshot_id"))
+
+    for project in projects:
+        project_id = str(project.get("project") or "")
+        system_kind = project.get("project_system_kind") if isinstance(project.get("project_system_kind"), dict) else {}
+        language_capability = (
+            project.get("project_language_capability")
+            if isinstance(project.get("project_language_capability"), dict)
+            else {}
+        )
+        identity_payload = {
+            "contract": "architecture_project_proposal_identity_v1",
+            "atlas_snapshot_id": snapshot.get("atlas_snapshot_id"),
+            "atlas_sha256": snapshot.get("atlas_sha256"),
+            "scope_authority_id": scope.get("scope_authority_id"),
+            "topology_authority_id": scope.get("topology_authority_id"),
+            "project_system_kind_identity": scope.get("project_system_kind_identity"),
+            "project_language_capability_identity": scope.get("project_language_capability_identity"),
+            "project": project_id,
+            "classification_status": project.get("classification_status"),
+            "recommended_profile": project.get("recommended_profile"),
+            "blueprint": project.get("blueprint"),
+            "system_kind": system_kind,
+            "language_capability": language_capability,
+        }
+        bindable = bool(
+            project_id
+            and project_id in authorized_projects
+            and snapshot_bound
+            and all(required_authorities)
+            and project.get("classification_status") != INSUFFICIENT_SOURCE_EVIDENCE
+            and project.get("recommended_profile")
+            and str(system_kind.get("kind") or "unknown") != "unknown"
+        )
+        proposal_identity = _semantic_identity(identity_payload) if bindable else None
+        project["proposal_identity_status"] = "BOUND" if bindable else "UNAVAILABLE"
+        project["proposal_identity"] = proposal_identity
+        seal_proposal = project.get("seal_proposal") if isinstance(project.get("seal_proposal"), dict) else {}
+        seal_proposal["proposal_identity"] = proposal_identity
+        seal_proposal["identity_status"] = "BOUND" if bindable else "UNAVAILABLE"
+        seal_proposal["required_hitl_evidence"] = (
+            f"architecture_proposal_identity:{proposal_identity}"
+            if proposal_identity
+            else None
+        )
+        project["seal_proposal"] = seal_proposal
 
 
 def _parts(path: str) -> list[str]:
@@ -103,6 +417,28 @@ def _public_api_prefixes() -> tuple[str, ...]:
 
 def _next_app_route_names() -> set[str]:
     return set(_policy_list("blueprint_markers", "next_app_route_filenames", ["page.tsx", "layout.tsx", "route.ts", "loading.tsx", "error.tsx", "template.tsx"]))
+
+
+def _next_config_filenames() -> set[str]:
+    return set(
+        _policy_list(
+            "blueprint_markers",
+            "next_config_filenames",
+            ["next.config.js", "next.config.mjs", "next.config.cjs", "next.config.ts"],
+        )
+    )
+
+
+def _is_router_root(parts: list[str], router_dir: str) -> bool:
+    return bool(
+        parts
+        and (
+            parts[0] == router_dir
+            or (len(parts) > 1 and parts[0] == "src" and parts[1] == router_dir)
+            or (len(parts) > 2 and parts[0] == "apps" and parts[2] == router_dir)
+            or (len(parts) > 3 and parts[0] == "apps" and parts[2] == "src" and parts[3] == router_dir)
+        )
+    )
 
 
 def _fsd_layer(path: str) -> str | None:
@@ -218,52 +554,78 @@ def _score_fsd(files: dict[str, Any], deps: dict[str, Any]) -> dict[str, Any]:
 
 
 def _score_next(files: dict[str, Any]) -> dict[str, Any]:
-    app_router = 0
-    pages_router = 0
-    route_handlers = 0
+    app_router_candidates = 0
+    pages_router_candidates = 0
+    route_handler_candidates = 0
     server_client_markers = 0
+    framework_identity_evidence: set[str] = set()
     for rel, meta in files.items():
         norm = str(rel).replace("\\", "/")
         parts = _parts(norm)
-        is_app_router_path = bool(
-            parts
-            and (
-                parts[0] == "app"
-                or (len(parts) > 1 and parts[0] == "src" and parts[1] == "app")
-                or (len(parts) > 2 and parts[0] == "apps" and parts[2] == "app")
-            )
-        )
+        is_app_router_path = _is_router_root(parts, "app")
+        is_pages_router_path = _is_router_root(parts, "pages")
         if is_app_router_path:
-            app_router += 1
-        if "pages" in parts:
-            pages_router += 1
+            app_router_candidates += 1
+        if is_pages_router_path:
+            pages_router_candidates += 1
         name = Path(norm).name.lower()
+        if name in _next_config_filenames():
+            framework_identity_evidence.add(f"config:{name}")
         if is_app_router_path and name in _next_app_route_names():
-            route_handlers += 1
+            route_handler_candidates += 1
         features = meta.get("features") if isinstance(meta, dict) else []
-        if isinstance(features, list) and any(
-            str(feature).startswith(("ContractKind:next_", "Next:")) or str(feature) in {"ServerComponent", "ClientComponent"}
-            for feature in features
-        ):
-            server_client_markers += 1
+        if isinstance(features, list):
+            next_features = [
+                str(feature)
+                for feature in features
+                if str(feature).startswith(("ContractKind:next_", "Next:"))
+            ]
+            if next_features:
+                framework_identity_evidence.add("atlas_feature:next_specific_contract")
+            if any(
+                str(feature).startswith(("ContractKind:next_", "Next:"))
+                or str(feature) in {"ServerComponent", "ClientComponent"}
+                for feature in features
+            ):
+                server_client_markers += 1
+
+    framework_identity_proven = bool(framework_identity_evidence)
+    app_router = app_router_candidates if framework_identity_proven else 0
+    pages_router = pages_router_candidates if framework_identity_proven else 0
+    route_handlers = route_handler_candidates if framework_identity_proven else 0
+    if app_router and pages_router:
+        runtime_trait = "next_hybrid"
+    elif app_router:
+        runtime_trait = "next_app_router"
+    elif pages_router:
+        runtime_trait = "next_pages_router"
+    else:
+        runtime_trait = "unknown"
 
     route_cap = _policy_float("nextjs_caps", "route_handler_cap", 3.0)
     marker_cap = _policy_float("nextjs_caps", "server_client_marker_cap", 10.0)
     app_cap = _policy_float("nextjs_caps", "app_router_file_cap", 60.0)
+    scoring_markers = server_client_markers if framework_identity_proven else 0
     score = min(
         1.0,
         (min(route_handlers, route_cap) / max(route_cap, 1.0) * _policy_float("nextjs_weights", "route_handlers", 0.70))
-        + (min(server_client_markers, marker_cap) / max(marker_cap, 1.0) * _policy_float("nextjs_weights", "server_client_markers", 0.20))
+        + (min(scoring_markers, marker_cap) / max(marker_cap, 1.0) * _policy_float("nextjs_weights", "server_client_markers", 0.20))
         + (min(app_router, app_cap) / max(app_cap, 1.0) * _policy_float("nextjs_weights", "app_router_files", 0.10)),
     )
     if route_handlers >= _policy_int("nextjs_thresholds", "strong_route_handlers", 2) and app_router >= _policy_int("nextjs_thresholds", "strong_app_router_files", 3):
         score = max(score, _policy_float("nextjs_caps", "strong_app_router_score", 0.82))
     return {
         "score": round(score, 3),
+        "framework_identity": "nextjs" if framework_identity_proven else "unknown",
+        "framework_identity_evidence": sorted(framework_identity_evidence),
+        "runtime_trait": runtime_trait,
+        "runtime_trait_evidence_status": "PROVEN" if runtime_trait != "unknown" else "UNKNOWN",
         "app_router_files": app_router,
         "pages_router_files": pages_router,
         "route_convention_files": route_handlers,
         "next_boundary_markers": server_client_markers,
+        "path_only_app_router_candidates": app_router_candidates if not framework_identity_proven else 0,
+        "path_only_pages_router_candidates": pages_router_candidates if not framework_identity_proven else 0,
     }
 
 
@@ -571,6 +933,54 @@ def _classify_project(project_key: str, files: dict[str, Any], deps: dict[str, A
     plugin_platform_profile = _policy_str("classification", "plugin_platform_profile_name", "PLUGIN_PLATFORM")
     mixed_profile = _policy_str("classification", "mixed_profile_name", "MIXED_ARCHITECTURE")
 
+    if file_count == 0:
+        score_profiles = {
+            fsd_profile,
+            nextjs_profile,
+            clean_profile,
+            sovereign_profile,
+            package_library_profile,
+            turborepo_saas_profile,
+            plugin_platform_profile,
+            modular_profile,
+            mixed_profile,
+        }
+        return {
+            "project": project_key,
+            "file_count": 0,
+            "dependency_edges": dep_count,
+            "classification_status": INSUFFICIENT_SOURCE_EVIDENCE,
+            "recommended_profile": None,
+            "blueprint": {
+                "canonical_profile": None,
+                "topology": None,
+                "runtime": None,
+                "repository_shape": None,
+                "composition_model": None,
+                "evidence_status": "insufficient_source_evidence",
+                "seal_policy": "not_proposable",
+            },
+            "confidence": 0.0,
+            "seal_ready": False,
+            "requires_human_approval": True,
+            "scores": {profile: 0.0 for profile in sorted(score_profiles)},
+            "evidence": {
+                "source": {
+                    "status": INSUFFICIENT_SOURCE_EVIDENCE,
+                    "atlas_file_count": 0,
+                    "interpretation": (
+                        "The project is present in runtime scope, but Atlas contains no analyzable "
+                        "source files from which to infer architecture."
+                    ),
+                }
+            },
+            "seal_proposal": {
+                "status": "NOT_PROPOSED",
+                "doctrine_profile": None,
+                "reason": "Architecture cannot be proposed without analyzable Atlas source evidence.",
+            },
+        }
+
     scores = {
         fsd_profile: fsd["score"],
         nextjs_profile: nextjs["score"],
@@ -628,6 +1038,7 @@ def _classify_project(project_key: str, files: dict[str, Any], deps: dict[str, A
         "project": project_key,
         "file_count": file_count,
         "dependency_edges": dep_count,
+        "classification_status": "CLASSIFIED",
         "recommended_profile": recommended,
         "blueprint": blueprint,
         "confidence": round(confidence, 3),
@@ -670,14 +1081,56 @@ def build_architecture_oracle(atlas: dict[str, Any] | None = None, *, use_discov
         profile_counts = Counter(project.get("recommended_profile") for project in projects)
         top_profile = profile_counts.most_common(1)[0][0]
 
+    scope_artifact: dict[str, Any] = {}
     scope_authority = {}
+    snapshot_binding = {
+        "status": "NOT_EVALUATED_EXPLICIT_INPUT",
+        "atlas_snapshot_id": None,
+        "atlas_sha256": None,
+        "errors": [],
+    }
     if runtime_execution:
-        _scope_artifact, scope_authority = load_scope_authority_for_consumer(RAW_DIR)
+        scope_artifact, scope_authority = load_scope_authority_for_consumer(RAW_DIR)
         scope_authority = bind_consumer_projects(
             scope_authority,
             layer="architecture_oracle",
             observed_projects=(project.get("project") for project in projects),
         )
+        system_kinds = scope_authority.get("project_system_kinds")
+        system_kinds = system_kinds if isinstance(system_kinds, dict) else {}
+        language_capabilities = scope_authority.get("project_language_capabilities")
+        language_capabilities = language_capabilities if isinstance(language_capabilities, dict) else {}
+        for project in projects:
+            project["project_system_kind"] = system_kinds.get(
+                str(project.get("project") or ""),
+                {
+                    "kind": "unknown",
+                    "authority": "system_kind_not_available_to_architecture_oracle",
+                    "confidence": "none",
+                    "evidence": [],
+                    "candidate_kinds": [],
+                },
+            )
+            project["project_language_capability"] = language_capabilities.get(
+                str(project.get("project") or ""),
+                {
+                    "contract": "project_language_engine_capability_v1",
+                    "status": "UNAVAILABLE",
+                    "recognized_language_families": [],
+                    "engine_available_language_families": [],
+                    "engine_unavailable_language_families": [],
+                    "recognition_does_not_authorize_engine_activation": True,
+                },
+            )
+        snapshot_binding = _scope_snapshot_binding(scope_artifact)
+
+    _bind_project_proposal_identities(projects, scope_authority, snapshot_binding)
+
+    repository_blueprint = build_repository_composition_blueprint(
+        projects,
+        scope_authority,
+        snapshot_binding,
+    )
 
     return {
         "meta": {
@@ -695,8 +1148,10 @@ def build_architecture_oracle(atlas: dict[str, Any] | None = None, *, use_discov
             "status": "PROPOSE_SEAL" if ready else "ADVISORY_ONLY",
             "hard_gate_enforced": False,
             "scope_evidence_status": scope_authority.get("evidence_status", "NOT_EVALUATED_EXPLICIT_INPUT"),
+            "repository_blueprint_status": repository_blueprint.get("classification_status"),
         },
         "projects": projects,
+        "repository_blueprint": repository_blueprint,
         "scope_authority": scope_authority,
         "policy": {
             "pre_atlas_discovery_role": "scope_alias_driver_selection_only",
@@ -721,6 +1176,7 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- top recommended profile: `{summary.get('top_recommended_profile')}`",
         f"- hard gate enforced: `{summary.get('hard_gate_enforced')}`",
         f"- scope evidence: `{summary.get('scope_evidence_status')}`",
+        f"- repository blueprint: `{summary.get('repository_blueprint_status')}`",
         "",
         "| Project | Files | Edges | Profile | Confidence | Seal Ready | FSD Direction | Encapsulation |",
         "|---|---:|---:|---|---:|---|---:|---:|",
@@ -753,6 +1209,13 @@ def run_architecture_oracle() -> dict[str, Any]:
     payload = build_architecture_oracle()
     save_json_atomic(RAW_DIR / "architecture_oracle.json", payload)
     save_text_atomic(REPORTS_DIR / "architecture_oracle.md", render_report(payload))
+    approval_ledger = load_json_file(RAW_DIR / "hitl_approval_ledger.json", {})
+    effective_policy = build_effective_architecture_policy(payload, approval_ledger)
+    save_json_atomic(RAW_DIR / "effective_architecture_policy.json", effective_policy)
+    save_text_atomic(
+        REPORTS_DIR / "effective_architecture_policy.md",
+        render_effective_architecture_policy(effective_policy),
+    )
     logger.info(
         "Architecture Oracle completed: projects=%s status=%s",
         payload.get("summary", {}).get("project_count"),

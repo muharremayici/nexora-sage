@@ -37,6 +37,7 @@ def sequence_java_file_with_evidence(file_path: str):
 
     # Types
     for match in type_pattern.finditer(clean_content):
+        visibility = (match.group(1) or "").strip()
         kind = match.group(3)
         name = match.group(4)
         symbols.append({
@@ -44,7 +45,8 @@ def sequence_java_file_with_evidence(file_path: str):
             "kind": kind.capitalize(),
             "detail": f"{kind} {name}",
             "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
-            "symbols_referenced": []
+            "symbols_referenced": [],
+            "exported": visibility == "public",
         })
 
     # Methods with Internal Reference Detection
@@ -71,7 +73,8 @@ def sequence_java_file_with_evidence(file_path: str):
             "kind": "Method",
             "detail": f"method {name}({args})",
             "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
-            "symbols_referenced": sorted(list(set(refs)))
+            "symbols_referenced": sorted(list(set(refs))),
+            "exported": False,
         })
 
     for symbol in symbols:

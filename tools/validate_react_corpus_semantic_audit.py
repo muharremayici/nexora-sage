@@ -13,7 +13,6 @@ if str(ROOT) not in sys.path:
 from tools.core.config import CODE_MAPS_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.evidence_status import evidence_passed
 from tools.core.json_io import load_json_file
-from tools.core.release_identity import matches_current_release_claim
 
 
 def _utc_now() -> str:
@@ -59,6 +58,9 @@ def validate_react_corpus_semantic_audit() -> dict[str, Any]:
     saturation = _load_raw("react_corpus_saturation_report.json")
     saturation_summary = saturation.get("summary", {}) if isinstance(saturation.get("summary"), dict) else {}
     readiness_summary = _summary("react_universal_readiness.json")
+    release_identity = load_json_file(CODE_MAPS_DIR / "config" / "release_identity.json", {})
+    release_claim = release_identity.get("release_claim", {}) if isinstance(release_identity, dict) else {}
+    identity_claim = str(release_claim.get("allowed") or "") if isinstance(release_claim, dict) else ""
     external_smoke = _load_raw("external_react_smoke_validation.json")
     external_summary = external_smoke.get("summary", {}) if isinstance(external_smoke.get("summary"), dict) else {}
     corpus_doc = _read(corpus_doc_path)
@@ -107,7 +109,9 @@ def validate_react_corpus_semantic_audit() -> dict[str, Any]:
         ),
         _check(
             "release_claim_is_static_evidence_backed_and_runtime_bounded",
-            matches_current_release_claim(readiness_summary.get("allowed_claim"))
+            bool(identity_claim)
+            and readiness_summary.get("allowed_claim") == identity_claim
+            and readiness_summary.get("release_identity_claim") == identity_claim
             and readiness_summary.get("universal_ready") is True
             and "needs_runtime_proof" in str(readiness_summary.get("runtime_boundary", "")),
             {
@@ -169,6 +173,7 @@ def validate_react_corpus_semantic_audit() -> dict[str, Any]:
             "output/.raw/react_corpus_saturation_report.json",
             "output/.raw/react_universal_readiness.json",
             "output/.raw/external_react_smoke_validation.json",
+            "config/release_identity.json",
             str(corpus_doc_path.relative_to(CODE_MAPS_DIR)),
         ],
     }

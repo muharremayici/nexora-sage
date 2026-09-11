@@ -1,4 +1,5 @@
 import argparse
+import copy
 import importlib
 import importlib.util
 import json
@@ -98,6 +99,7 @@ from tools.core.config import (
     CONFIG_FILE,
     RAW_DIR,
     ROOT,
+    _target_output_slug,
     BOOTSTRAP_FILE as BOOTSTRAP_SCRIPT,
 )
 from tools.core.execution_identity import resolve_execution_identity
@@ -277,20 +279,126 @@ def _target_root_env(args):
         return False
     env = _with_git_safe_directory(_safe_command_env(os.environ), target_path)
     env["CODEMAPS_TARGET_ROOT"] = str(target_path)
+    reuse_mode = str(env.get("CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE") or "").strip()
+    reuse_authorized = (
+        reuse_mode == "installation_proof"
+        and bool(env.get("CODEMAPS_TARGET_PREFLIGHT_RECEIPT"))
+        and bool(env.get("CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"))
+    )
+    if not reuse_authorized:
+        env.pop("CODEMAPS_TARGET_PREFLIGHT_RECEIPT", None)
+        env.pop("CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256", None)
+        env.pop("CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE", None)
+        env.pop("CODEMAPS_TARGET_PROJECTS", None)
+    if getattr(args, "projects", None):
+        env["CODEMAPS_TARGET_PROJECTS"] = str(args.projects)
     print(f"[TARGET] Analyzing external target root: {target_path}")
     return env
 
 
-def _run_external_target_preflight_if_needed(args):
+def _run_external_target_preflight_if_needed(args, target_env=None):
     target_root = getattr(args, "target_root", None)
     if not target_root:
         return 0
+    if (
+        isinstance(target_env, dict)
+        and target_env.get("CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE") == "installation_proof"
+    ):
+        try:
+            from tools.core.config import load_external_target_preflight_receipt
+            from tools.external_target_preflight import persist_preflight, preflight_receipt_transport
+
+            target_path = Path(str(target_env["CODEMAPS_TARGET_ROOT"])).resolve()
+            receipt = load_external_target_preflight_receipt(
+                target_path,
+                source_env=target_env,
+                require_freshness=True,
+            )
+            if receipt is None:
+                raise RuntimeError("installation-proof Preflight receipt is missing")
+            previous_run_id = str(receipt.get("meta", {}).get("run_id") or "")
+            previous_hash = str(target_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"])
+            rebound = copy.deepcopy(receipt)
+            rebound_meta = rebound.setdefault("meta", {})
+            rebound_meta.pop("run_id", None)
+            rebound_meta.pop("artifact_semantics", None)
+            rebound_meta["receipt_reuse"] = {
+                "mode": "installation_proof",
+                "reused_from_run_id": previous_run_id,
+                "reused_from_sha256": previous_hash,
+                "freshness_check": "target_observation_identity_match",
+            }
+            target_output_dir = (
+                CODE_MAPS_DIR
+                / "output"
+                / "external_targets"
+                / _target_output_slug(str(target_path))
+            )
+            external_run_id = str(target_env.get("CODEMAPS_EXTERNAL_RUN_ID") or "")
+            if not external_run_id:
+                raise RuntimeError("installation-proof Preflight reuse lacks an external generation identity")
+            rebound.setdefault("target", {})["output_dir"] = str(
+                target_output_dir / "generations" / external_run_id
+            )
+            persist_preflight(rebound)
+            transport = preflight_receipt_transport(rebound)
+            target_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT"] = transport["path"]
+            target_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] = transport["sha256"]
+            print(
+                "[TARGET] Reused the init Preflight receipt after a current target-observation freshness check."
+            )
+            return 0
+        except Exception as exc:
+            print(f"[TARGET] Preflight receipt reuse failed closed: {type(exc).__name__}: {exc}")
+            return 2
     if getattr(args, "skip_target_preflight", False):
         return 0
     cmd = ["python", str(EXTERNAL_TARGET_PREFLIGHT), str(Path(target_root).expanduser())]
     if getattr(args, "projects", None):
         cmd.extend(["--projects", args.projects])
-    return run_command(cmd)
+    result = (
+        run_command(cmd, env=target_env)
+        if isinstance(target_env, dict) and target_env.get("CODEMAPS_EXTERNAL_RUN_ID")
+        else run_command(cmd)
+    )
+    if result != 0 or not isinstance(target_env, dict):
+        return result
+    target_path = Path(str(target_env["CODEMAPS_TARGET_ROOT"])).resolve()
+    target_output_dir = (
+        CODE_MAPS_DIR
+        / "output"
+        / "external_targets"
+        / _target_output_slug(str(target_path))
+    )
+    external_run_id = str(target_env.get("CODEMAPS_EXTERNAL_RUN_ID") or "")
+    if external_run_id:
+        target_output_dir = target_output_dir / "generations" / external_run_id
+    receipt_path = (target_output_dir / ".raw" / "external_target_preflight.json").resolve()
+    try:
+        from tools.external_target_preflight import preflight_receipt_transport
+
+        payload = load_json_file(receipt_path, {})
+        transport = preflight_receipt_transport(payload)
+    except Exception as exc:
+        print(f"[TARGET] Preflight receipt transport failed: {type(exc).__name__}: {exc}")
+        return 2
+    target_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT"] = transport["path"]
+    target_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] = transport["sha256"]
+    return 0
+
+
+def _begin_external_target_generation(target_env: dict, *, prefix: str = "sage-run"):
+    from tools.core.external_target_generation import (
+        begin_external_target_generation,
+        new_external_target_run_id,
+    )
+
+    run_id = new_external_target_run_id(prefix)
+    target_env["CODEMAPS_EXTERNAL_RUN_ID"] = run_id
+    target_path = Path(str(target_env["CODEMAPS_TARGET_ROOT"])).resolve()
+    target_dir = CODE_MAPS_DIR / "output" / "external_targets" / _target_output_slug(str(target_path))
+    begin_external_target_generation(target_dir, run_id, target_path)
+    return target_dir, run_id
 
 
 def _runtime_truth_status() -> dict:
@@ -588,6 +696,7 @@ def _refresh_stale_validation_artifacts() -> int:
 def cmd_init(args):
     print("=== INITIALIZING NEXORA SAGE v1 ===", flush=True)
     target_root = getattr(args, "target_root", None)
+    projects = getattr(args, "projects", None)
     skip_deps = bool(getattr(args, "skip_deps", False))
     plan_only = bool(getattr(args, "plan_only", False))
     if PUBLIC_DISTRIBUTION_MANIFEST.is_file() and not target_root:
@@ -604,12 +713,14 @@ def cmd_init(args):
             plan_cmd.append("--skip-deps")
         if target_root:
             plan_cmd.extend(["--target-root", str(target_root)])
+        if projects:
+            plan_cmd.extend(["--projects", str(projects)])
         return run_command(plan_cmd, timeout=None)
 
     mode = "full" if bool(getattr(args, "full", False)) else "setup_only"
     mode_contract = init_mode_contract(mode)
     print("\n--- Execution Preflight ---")
-    for line in render_init_preflight(mode):
+    for line in render_init_preflight(mode, target_root=target_root):
         print(line)
 
     print("\n--- Phase 0: Pre-flight Check ---")
@@ -631,6 +742,8 @@ def cmd_init(args):
         full_cmd.append("--skip-deps")
     if target_root:
         full_cmd.extend(["--target-root", str(target_root)])
+    if projects:
+        full_cmd.extend(["--projects", str(projects)])
     init_code = run_command(full_cmd, timeout=setup_wizard_step_timeout_seconds())
     if init_code != 0:
         print(f"\n[FAIL] Initialization bootstrap failed with exit code {init_code}.")
@@ -651,11 +764,30 @@ def cmd_run(args):
     target_env = _target_root_env(args)
     if target_env is False:
         return 2
-    preflight_code = _run_external_target_preflight_if_needed(args)
+    external_generation = None
+    if target_env:
+        external_generation = _begin_external_target_generation(target_env)
+    preflight_code = _run_external_target_preflight_if_needed(args, target_env)
     if preflight_code != 0:
+        if external_generation:
+            from tools.core.external_target_generation import finalize_external_target_generation
+
+            finalize_external_target_generation(
+                *external_generation,
+                exit_code=preflight_code,
+                require_audit=False,
+            )
         return preflight_code
     truth_code = ensure_runtime_truth("run", allow_self_heal=target_env is None)
     if truth_code != 0:
+        if external_generation:
+            from tools.core.external_target_generation import finalize_external_target_generation
+
+            finalize_external_target_generation(
+                *external_generation,
+                exit_code=truth_code,
+                require_audit=False,
+            )
         return truth_code
 
     cmd = ["python", str(PIPELINE_SCRIPT)]
@@ -683,6 +815,19 @@ def cmd_run(args):
         cmd.append("--skip-audit")
     run_code = run_command(cmd, env=target_env, timeout=None)
     if target_env:
+        from tools.core.external_target_generation import finalize_external_target_generation
+
+        target_dir, run_id = external_generation
+        generation = finalize_external_target_generation(
+            target_dir,
+            run_id,
+            exit_code=run_code,
+            require_audit=not bool(args.skip_audit),
+            require_preflight=not bool(args.skip_target_preflight),
+        )
+        if run_code == 0 and generation.get("state") != "VALIDATED":
+            print(f"[TARGET] Generation validation failed: {generation.get('validation_error')}")
+            run_code = 3
         run_command(["python", str(EXTERNAL_TARGET_INDEX)])
     return run_code
 
@@ -691,6 +836,8 @@ def cmd_run_status(args):
     target_env = _target_root_env(args)
     if target_env is False:
         return 2
+    if target_env and args.run_id:
+        target_env["CODEMAPS_EXTERNAL_RUN_ID"] = str(args.run_id)
     cmd = ["python", str(CODE_MAPS_DIR / "tools" / "query_pipeline_run_receipt.py")]
     if args.run_id:
         cmd.extend(["--run-id", args.run_id])
@@ -715,8 +862,27 @@ def cmd_watch(args):
     target_env = _target_root_env(args)
     if target_env is False:
         return 2
+    external_generation = None
+    if target_env:
+        external_generation = _begin_external_target_generation(target_env, prefix="sage-watch")
+
+    def close_external_watch(exit_code: int, reason: str) -> None:
+        if external_generation:
+            from tools.core.external_target_generation import close_external_target_generation_without_promotion
+
+            close_external_target_generation_without_promotion(
+                *external_generation,
+                exit_code=exit_code,
+                reason=reason,
+            )
+
+    preflight_code = _run_external_target_preflight_if_needed(args, target_env)
+    if preflight_code != 0:
+        close_external_watch(preflight_code, "external_watch_preflight_failed")
+        return preflight_code
     truth_code = ensure_runtime_truth("watch", allow_self_heal=target_env is None)
     if truth_code != 0:
+        close_external_watch(truth_code, "external_watch_runtime_truth_failed")
         return truth_code
     if not import_target_available("watchdog.events", "FileSystemEventHandler"):
         blocked = _permission_blocked_locations("watchdog")
@@ -727,6 +893,7 @@ def cmd_watch(args):
             )
         else:
             print("[WATCH] Missing optional dependency: watchdog. Install via `pip install -r requirements.txt`.")
+        close_external_watch(1, "external_watch_dependency_unavailable")
         return 1
 
     env = python_subprocess_env(
@@ -754,7 +921,13 @@ def cmd_watch(args):
         public_command.append("--once")
     env["SAGE_WATCHDOG_PRODUCER_COMMAND"] = json.dumps(public_command)
     
-    return run_command(cmd, env=env, timeout=None)
+    try:
+        watch_code = run_command(cmd, env=env, timeout=None)
+    except BaseException:
+        close_external_watch(130, "external_watch_interrupted")
+        raise
+    close_external_watch(watch_code, "external_watch_is_not_atomic_current_eligible")
+    return watch_code
 
 
 def cmd_validate(args):
@@ -1806,6 +1979,10 @@ def build_parser():
     init_parser.add_argument(
         "--target-root",
         help="Repository root to initialize. Public product projections require this explicit boundary.",
+    )
+    init_parser.add_argument(
+        "--projects",
+        help="Optional comma-separated project filter for the adopted target workspace.",
     )
     init_parser.set_defaults(func=cmd_init)
 

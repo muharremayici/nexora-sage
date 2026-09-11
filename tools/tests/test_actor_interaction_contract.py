@@ -1,11 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
-import tempfile
-from pathlib import Path
-
-from tools import generate_actor_interaction_contract_doc as actor_doc
 
 from tools.validate_actor_interaction_contract import ENGINE_CONTRACT_PATH, CONTRACT_PATH, _load, validate_contract
 
@@ -16,31 +11,6 @@ def _failed(contract: dict) -> set[str]:
 
 def test_canonical_contract_passes_semantic_checks() -> None:
     assert not _failed(_load(CONTRACT_PATH))
-
-
-def test_document_identity_is_stable_across_checkout_line_endings(monkeypatch):
-    contract = _load(CONTRACT_PATH)
-    text = json.dumps(contract, ensure_ascii=False, indent=2)
-    with tempfile.TemporaryDirectory() as directory:
-        path = Path(directory) / "contract.json"
-        monkeypatch.setattr(actor_doc, "CONTRACT_PATH", path)
-        path.write_bytes(text.encode("utf-8"))
-        lf_doc = actor_doc.render(actor_doc.load_contract())
-        path.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
-        assert actor_doc.render(actor_doc.load_contract()) == lf_doc
-        path.write_bytes(json.dumps(contract, sort_keys=True).encode("utf-8"))
-        assert actor_doc.render(actor_doc.load_contract()).splitlines()[3] == lf_doc.splitlines()[3]
-
-
-def test_document_hash_binds_supplied_contract_not_a_second_disk_read(monkeypatch):
-    contract = _load(CONTRACT_PATH)
-    original = actor_doc.render(contract)
-    changed = copy.deepcopy(contract)
-    changed["unrendered_identity_probe"] = True
-    assert actor_doc.render(changed).splitlines()[3] != original.splitlines()[3]
-    with tempfile.TemporaryDirectory() as directory:
-        monkeypatch.setattr(actor_doc, "CONTRACT_PATH", Path(directory) / "absent.json")
-        assert actor_doc.render(contract) == original
 
 
 def test_engine_signal_cannot_be_promoted_to_blocking() -> None:

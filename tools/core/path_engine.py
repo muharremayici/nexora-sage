@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from tools.core.config import DYNAMIC_CONFIG, ENVIRONMENT, PRIMARY_ALIAS, normalize_path
 from tools.core.language_registry import index_files, language_extensions
@@ -10,11 +11,13 @@ from tools.core.path_identity import strip_current_directory_prefix
 
 _NEAREST_CONFIG_ROOT_CACHE: dict[tuple[str, str], str] = {}
 _WORKSPACE_PACKAGE_ROOT_CACHE: dict[str, dict[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {}
+_GO_MODULE_ROOT_CACHE: dict[tuple[str, str], dict[str, tuple[str, ...]]] = {}
 
 
 def reset_path_resolution_caches() -> None:
     _NEAREST_CONFIG_ROOT_CACHE.clear()
     _WORKSPACE_PACKAGE_ROOT_CACHE.clear()
+    _GO_MODULE_ROOT_CACHE.clear()
 
 
 def to_posix_path(path: str) -> str:
@@ -153,6 +156,83 @@ def _resolve_workspace_package_import(source: str, project_root: str) -> str:
     return ""
 
 
+def _go_module_roots(project_root: str, current_file_dir: str) -> dict[str, tuple[str, ...]]:
+    """Return Go modules on the caller's bounded ancestor path.
+
+    Go imports are module-qualified, so joining the complete import text to the
+    repository root loses valid internal edges. The module declaration is the
+    source of truth; no repository-name or hosting-provider heuristic is used.
+    Walking only ancestors avoids a second repository crawl during Atlas while
+    preserving the ordinary Go rule that a file belongs to its nearest module.
+    """
+    root = os.path.abspath(project_root)
+    current = os.path.abspath(current_file_dir or project_root)
+    try:
+        if os.path.commonpath([root, current]) != root:
+            return {}
+    except ValueError:
+        return {}
+    cache_key = (root, current)
+    cached = _GO_MODULE_ROOT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    discovered: dict[str, list[str]] = {}
+    cursor = current if os.path.isdir(current) else os.path.dirname(current)
+    while True:
+        manifest_path = os.path.join(cursor, "go.mod")
+        try:
+            with open(manifest_path, "r", encoding="utf-8-sig") as handle:
+                content = handle.read()
+        except FileNotFoundError:
+            content = ""
+        except (OSError, UnicodeError):
+            content = ""
+        match = re.search(r"(?m)^\s*module\s+([^\s]+)\s*$", content)
+        if match:
+            module_name = match.group(1).strip()
+            if module_name:
+                discovered.setdefault(module_name, []).append(os.path.normpath(cursor))
+        if cursor == root:
+            break
+        parent = os.path.dirname(cursor)
+        if parent == cursor or os.path.commonpath([root, parent]) != root:
+            break
+        cursor = parent
+
+    resolved = {
+        module_name: tuple(sorted(set(module_roots)))
+        for module_name, module_roots in discovered.items()
+    }
+    _GO_MODULE_ROOT_CACHE[cache_key] = resolved
+    return resolved
+
+
+def _resolve_go_module_import(source: str, project_root: str, current_file_dir: str) -> str:
+    module_roots_by_name = _go_module_roots(project_root, current_file_dir)
+    matching_modules = [
+        module_name
+        for module_name in module_roots_by_name
+        if source == module_name or source.startswith(f"{module_name}/")
+    ]
+    if not matching_modules:
+        return ""
+
+    module_name = max(matching_modules, key=len)
+    module_roots = module_roots_by_name[module_name]
+    if len(module_roots) != 1:
+        return ""
+    module_root = module_roots[0]
+    subpath = source[len(module_name):].lstrip("/\\")
+    candidate_abs = os.path.join(module_root, to_os_path(subpath)) if subpath else module_root
+    if os.path.isdir(candidate_abs):
+        return to_posix_path(os.path.relpath(candidate_abs, project_root))
+    for candidate in expand_filesystem_candidates(candidate_abs):
+        if os.path.isfile(candidate):
+            return to_posix_path(os.path.relpath(candidate, project_root))
+    return ""
+
+
 def _scoped_alias_map(current_file_dir: str, project_root: str) -> dict[str, str]:
     scopes = ENVIRONMENT.get("scoped_path_aliases", []) or []
     if not current_file_dir or not project_root or not isinstance(scopes, list):
@@ -227,6 +307,10 @@ def resolve_project_import(source: str, current_file_dir: str, workspace_root: s
         for candidate in expand_filesystem_candidates(candidate_abs):
             if os.path.isfile(candidate):
                 return to_posix_path(os.path.relpath(candidate, project_root))
+    if language == "go" and not source.startswith(".") and not os.path.isabs(source):
+        go_module_target = _resolve_go_module_import(source, project_root, current_file_dir)
+        if go_module_target:
+            return go_module_target
     if language in {"java", "csharp", "go"} and not source.startswith(".") and not os.path.isabs(source):
         package_path = source.replace(".", os.sep).replace("/", os.sep)
         candidate_abs = os.path.join(project_root, package_path)

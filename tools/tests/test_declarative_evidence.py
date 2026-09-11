@@ -10,7 +10,6 @@ from tools.core.declarative_evidence import evaluate_evidence_contract
 
 
 class DeclarativeEvidenceTests(unittest.TestCase):
-
     @staticmethod
     def _write(path: Path, payload: dict) -> None:
         path.write_text(json.dumps(payload), encoding="utf-8")

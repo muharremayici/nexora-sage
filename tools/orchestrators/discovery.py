@@ -22,6 +22,7 @@ from tools.core.jsonc import loads_jsonc
 
 from tools.core.config import (
     DISCOVERY_FILE,
+    DYNAMIC_CONFIG,
     ROOT,
     CODE_MAPS_DIR,
     PROFILES_FILE,
@@ -47,6 +48,7 @@ from tools.core.installation_identity import (
     runtime_installation_excluded_roots,
 )
 from tools.core.quality_gate_policy import quality_gate_discovery_seed
+from tools.core.target_policy_profile import inventory_project_target_policy
 from tools.core.distribution_policy import is_managed_clean_mirror_path
 from tools.core.repository_topology import (
     classify_project_roles as classify_repository_project_roles,
@@ -479,7 +481,7 @@ def _detect_source_root(proj_path: Path, ts_paths: dict[str, Any], is_monorepo: 
     return source_root, _confidence_label(score), evidence
 
 
-def read_workspace_signals(proj_path: Path):
+def read_workspace_signals(proj_path: Path, *, project: str | None = None):
     package_json, package_path = load_package_json(proj_path)
     pkg_dir = package_path.parent if package_path else proj_path
     pkg_name = package_json.get("name") if isinstance(package_json, dict) else None
@@ -513,6 +515,13 @@ def read_workspace_signals(proj_path: Path):
         "monorepo": _classify_evidence(monorepo_evidence),
         "source_root": _classify_evidence(source_root_evidence),
     }
+    target_policy = inventory_project_target_policy(
+        proj_path,
+        project=project or proj_path.name or "MAIN",
+        package_json=package_json,
+        package_path=package_path,
+        workspace_root=ROOT_DIR,
+    )
 
     return {
         "package_name": pkg_name,
@@ -530,6 +539,7 @@ def read_workspace_signals(proj_path: Path):
         "source_root_confidence": source_root_confidence,
         "source_root_evidence": source_root_evidence,
         "signal_quality": signal_quality,
+        "target_policy": target_policy,
         "signal_sources": {
             "config_files": [
                 name
@@ -543,8 +553,8 @@ def read_workspace_signals(proj_path: Path):
     }
 
 
-def detect_module_root(proj_path: Path):
-    workspace_signals = read_workspace_signals(proj_path)
+def detect_module_root(proj_path: Path, *, workspace_signals: dict | None = None):
+    workspace_signals = workspace_signals or read_workspace_signals(proj_path)
     if workspace_signals.get("source_root") == "src":
         src_path = proj_path / "src"
         if src_path.exists():
@@ -579,13 +589,18 @@ def detect_module_root(proj_path: Path):
     return ".", proj_path
 
 
-def detect_structure(abs_path: Path, *, profile: str = "full"):
+def detect_structure(
+    abs_path: Path,
+    *,
+    profile: str = "full",
+    workspace_signals: dict | None = None,
+):
     """Autonomous DNA Matcher using ARCH_PROFILES."""
-    module_root_name, src_path = detect_module_root(abs_path)
+    signals = workspace_signals or read_workspace_signals(abs_path)
+    module_root_name, src_path = detect_module_root(abs_path, workspace_signals=signals)
     if not src_path.exists():
         return ["MODULAR_FLAT"], module_root_name, "MODULAR_FLAT"
     if profile == "entrypoint-smoke":
-        signals = read_workspace_signals(abs_path)
         bundler = signals.get("bundler")
         if bundler == "nextjs":
             return ["NEXTJS_APP"], module_root_name, "NEXTJS_APP"
@@ -648,9 +663,9 @@ def detect_structure(abs_path: Path, *, profile: str = "full"):
     return final_arch, module_root_name, best_profile
 
 
-def scan_package_libraries(proj_path: Path):
+def scan_package_libraries(proj_path: Path, *, workspace_signals: dict | None = None):
     plugins = set()
-    signals = read_workspace_signals(proj_path)
+    signals = workspace_signals or read_workspace_signals(proj_path)
     deps = signals.get("deps", {}) or {}
     plugins.update(plugins_for_dependencies(deps))
     plugins.update(plugins_for_bundler(signals.get("bundler")))
@@ -666,6 +681,89 @@ def resolve_discovery_topology(*, profile: str = "full") -> dict:
     """Resolve canonical repository topology for the active workspace."""
 
     print(f"[SCOUT] Starting recursive evidence-first crawl at: {ROOT_DIR}")
+    target_override = (
+        DYNAMIC_CONFIG.get("_target_root_override")
+        if isinstance(DYNAMIC_CONFIG.get("_target_root_override"), dict)
+        else {}
+    )
+    if (
+        profile == "full"
+        and target_override.get("enabled") is True
+        and target_override.get("observation_source") == "external_target_preflight_receipt"
+        and Path(str(target_override.get("target_root") or "")).resolve() == ROOT_DIR.resolve()
+    ):
+        required_fields = {
+            "selected_projects",
+            "project_candidate_roles",
+            "project_candidate_relationship_roles",
+            "project_candidate_role_authority",
+            "project_candidate_system_kinds",
+            "project_candidate_selection_evidence",
+            "relationship_operation_projects",
+            "coverage_only_projects",
+            "excluded_projects",
+            "excluded_project_reasons",
+            "project_ownership_exclusions",
+            "file_ownership_contract",
+            "relationship_role_contract",
+            "system_kind_contract",
+            "analysis_coverage_contract",
+            "comparative_analysis_enabled",
+            "ontology_contract",
+            "topology_authority_id",
+        }
+        missing_fields = sorted(required_fields - set(target_override))
+        if missing_fields:
+            raise RuntimeError(
+                "Preflight topology receipt is incomplete for Discovery: "
+                + ", ".join(missing_fields)
+            )
+        print(
+            "     [REUSE] Exact Preflight topology receipt "
+            f"authority={target_override['topology_authority_id']}"
+        )
+        return {
+            "requested_mode": target_override["topology_mode"],
+            "discovered_topology": target_override["discovered_topology"],
+            "analysis_projection": target_override["analysis_projection"],
+            "selection_mode": target_override["selection_mode"],
+            "project_candidates": target_override["project_candidates"],
+            "project_candidate_roles": target_override["project_candidate_roles"],
+            "project_candidate_relationship_roles": target_override[
+                "project_candidate_relationship_roles"
+            ],
+            "project_candidate_role_authority": target_override[
+                "project_candidate_role_authority"
+            ],
+            "project_candidate_system_kinds": target_override[
+                "project_candidate_system_kinds"
+            ],
+            "project_candidate_selection_evidence": target_override[
+                "project_candidate_selection_evidence"
+            ],
+            "selected_projects": target_override["selected_projects"],
+            "selected_project_roles": DYNAMIC_CONFIG.get("project_roles", {}),
+            "relationship_operation_projects": target_override[
+                "relationship_operation_projects"
+            ],
+            "coverage_only_projects": target_override["coverage_only_projects"],
+            "excluded_projects": target_override["excluded_projects"],
+            "excluded_project_reasons": target_override["excluded_project_reasons"],
+            "project_ownership_exclusions": target_override[
+                "project_ownership_exclusions"
+            ],
+            "file_ownership_contract": target_override["file_ownership_contract"],
+            "relationship_role_contract": target_override["relationship_role_contract"],
+            "system_kind_contract": target_override["system_kind_contract"],
+            "analysis_coverage_contract": target_override["analysis_coverage_contract"],
+            "comparative_analysis_enabled": target_override[
+                "comparative_analysis_enabled"
+            ],
+            "ontology_contract": target_override["ontology_contract"],
+            "topology_authority_id": target_override["topology_authority_id"],
+            "source_mode": "external_target_preflight_receipt",
+            "repository_root": str(ROOT_DIR.resolve()),
+        }
     ws_patterns = detect_workspace_boundaries()
     if ws_patterns:
         print(f"     [SIGNAL] Workspace boundaries detected: {', '.join(ws_patterns)}")
@@ -763,9 +861,13 @@ def run_discovery(*, profile: str = "full", output_path: Path | None = None, wri
         abs_path = ROOT_DIR / rel_path
         print(f"  [SCAN] {name:<25} | Path: {rel_path}")
 
-        plugins = scan_package_libraries(abs_path)
-        arch_types, mod_root, best_profile = detect_structure(abs_path, profile=profile)
-        workspace_signals = read_workspace_signals(abs_path)
+        workspace_signals = read_workspace_signals(abs_path, project=name)
+        plugins = scan_package_libraries(abs_path, workspace_signals=workspace_signals)
+        arch_types, mod_root, best_profile = detect_structure(
+            abs_path,
+            profile=profile,
+            workspace_signals=workspace_signals,
+        )
         languages, is_polyglot = detect_languages(abs_path, profile=profile)
 
         metadata_report[name] = {

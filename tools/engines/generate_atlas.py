@@ -4,6 +4,7 @@ import re
 import hashlib
 import copy
 import concurrent.futures
+import queue
 import sys
 from bisect import bisect_left
 from pathlib import Path
@@ -18,7 +19,11 @@ from tools.core.config import CONFIG_FILE, ROOT, RAW_DIR, SOURCE_EXTENSIONS, SKI
 from tools.core.artifact_validator import ensure_valid_payload
 from tools.core.json_io import load_json_file
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
-from tools.core.polyglot_imports import extract_imports as extract_polyglot_imports
+from tools.core.polyglot_imports import (
+    extract_go_qualified_imports,
+    extract_imports as extract_polyglot_imports,
+    extract_typescript_import_evidence,
+)
 from tools.core.source_files import count_source_lines, is_analysis_source_file
 from tools.core.language_registry import extension_language_map, extensions_for_language, language_for_extension, structure_extensions
 from tools.core.language_agnostic_symbols import canonical_symbol_type, normalization_profile_for_language
@@ -40,6 +45,7 @@ from tools.core.package_contracts import build_package_public_contracts
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.operational_limits import atlas_batch_sequencer_timeout_seconds
 from tools.core.subprocess_telemetry import run_observed_subprocess
+from tools.core.node_ast_worker import NodeAstWorkerError, NodeAstWorkerSession
 
 # Paths
 CODE_MAPS_DIR = Path(__file__).resolve().parent.parent.parent
@@ -71,7 +77,7 @@ class SizeBoundedDict(dict):
 
 
 GLOBAL_ATLAS_CACHE = SizeBoundedDict(max_size=10)
-AST_CONTRACT_VERSION = "v18.5-form-binding-evidence"
+AST_CONTRACT_VERSION = "v18.6-syntax-import-evidence"
 PYTHON_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_python.py"
 JAVA_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_java.py"
 CS_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_cs.py"
@@ -93,6 +99,37 @@ DYNAMIC_MEMBER_RE = re.compile(
     r"import\(\s*['\"](.+?)['\"]\s*\)\s*\.then\(\s*\(?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)?\s*=>[\s\S]*?\b\2\.([A-Za-z_][A-Za-z0-9_]*)",
     re.DOTALL
 )
+
+
+def _decode_node_batch_response(
+    stdout: str,
+    *,
+    request_id: str,
+    expected_paths: set[str],
+) -> tuple[dict, dict, str | None]:
+    try:
+        decoded = json.loads(stdout.strip() or "{}")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {}, {}, "malformed_json"
+    if not isinstance(decoded, dict):
+        return {}, {}, "response_not_object"
+    batch_meta = decoded.get("batchMeta", {})
+    response_results = decoded.get("results", {})
+    if not isinstance(batch_meta, dict) or not isinstance(response_results, dict):
+        return {}, {}, "response_envelope_invalid"
+    if str(batch_meta.get("requestId") or "") != request_id:
+        return {}, batch_meta, "request_identity_mismatch"
+    expected_count = len(expected_paths)
+    if (
+        int(batch_meta.get("filesRequested", -1) or -1) != expected_count
+        or int(batch_meta.get("filesReported", -1) or -1) != expected_count
+    ):
+        return {}, batch_meta, "response_count_mismatch"
+    if set(response_results) != expected_paths:
+        return {}, batch_meta, "response_file_set_mismatch"
+    return response_results, batch_meta, None
+
+
 FINGERPRINT_CHUNK_SIZE = 4096
 
 
@@ -1259,6 +1296,12 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 env_workers,
                 strategy.get("safe_worker_cap"),
             )
+        if strategy.get("session_pool_memory_clamped"):
+            logger.info(
+                "[PROFILE] Node AST workers reduced to %s by host-memory cap=%s.",
+                strategy.get("workers"),
+                strategy.get("session_pool_memory_worker_cap"),
+            )
         return strategy
 
     def _sequence_via_node_batch(file_paths: List[str], atlas_project_workers: int = 1, on_chunk=None):
@@ -1273,6 +1316,49 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         strategy["strategy"] = "node-ast"
         chunk_size = strategy["chunk_size"]
         requested_paths = {Path(path).resolve().as_posix() for path in file_paths}
+        chunk_jobs = [
+            (offset, file_paths[offset:offset + chunk_size])
+            for offset in range(0, len(file_paths), chunk_size)
+        ]
+        max_workers = min(strategy["workers"], len(chunk_jobs))
+        session_pool_override = os.getenv("CODEMAPS_AST_SESSION_POOL", "").strip().lower()
+        if session_pool_override in {"0", "false", "no", "off"}:
+            session_pool_enabled = False
+        elif session_pool_override in {"1", "true", "yes", "on"}:
+            session_pool_enabled = True
+        else:
+            session_pool_enabled = bool(strategy.get("session_pool_enabled", False))
+        session_pool_enabled = (
+            session_pool_enabled
+            and len(file_paths) >= int(strategy.get("session_pool_min_files", 48) or 48)
+        )
+        strategy["session_pool_enabled"] = session_pool_enabled
+        strategy["session_pool_override"] = session_pool_override or None
+        strategy["chunk_jobs"] = len(chunk_jobs)
+        strategy["workers_effective"] = max_workers
+        strategy["session_pool_workers"] = max_workers if session_pool_enabled else 0
+
+        worker_queue: queue.Queue[NodeAstWorkerSession] | None = None
+        worker_sessions: list[NodeAstWorkerSession] = []
+        if session_pool_enabled:
+            from tools.core.config import CONFIG_FILE
+            doctrine_file = CONFIG_FILE.parent / "architecture_doctrine.json"
+            worker_cmd = [
+                "node",
+                str(js_engine),
+                "--worker-jsonl",
+                "--max-requests",
+                str(int(strategy.get("session_worker_max_requests", 200) or 200)),
+                "--max-rss-bytes",
+                str(int(strategy.get("session_worker_max_rss_bytes", 805306368) or 805306368)),
+            ]
+            if doctrine_file.exists():
+                worker_cmd.extend(["--doctrine-json", str(doctrine_file)])
+            worker_queue = queue.Queue()
+            for _ in range(max_workers):
+                session = NodeAstWorkerSession(worker_cmd, cwd=CODE_MAPS_DIR, log=logger.info)
+                worker_sessions.append(session)
+                worker_queue.put(session)
 
         def normalize_batch_key(path_str: str) -> str:
             return Path(path_str).resolve().as_posix()
@@ -1280,6 +1366,17 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         def run_chunk(offset_and_chunk):
             offset, chunk = offset_and_chunk
             key_map = {}
+            chunk_metrics = {
+                "batch_process_starts": 0 if worker_queue is not None else 1,
+                "fallback_process_starts": 0,
+                "batch_failures": 0,
+                "fallback_chunks": 0,
+                "response_identity_failures": 0,
+                "worker_restarts": 0,
+                "request_replays": 0,
+                "subprocess_duration_seconds": 0.0,
+                "node_reported_rss_max_bytes": 0,
+            }
 
             def payload_for(fpath):
                 abs_path = Path(fpath).resolve()
@@ -1299,35 +1396,108 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 payload_path = payload_for(fpath)
                 b64_path = base64.b64encode(payload_path.encode('utf-8')).decode('utf-8')
                 cmd.extend(["--path-entry", b64_path])
+            request_id = hashlib.sha256(
+                ("\n".join(key_map) + f"\n{offset}").encode("utf-8")
+            ).hexdigest()[:24]
+            cmd.extend(["--batch-metrics", "--request-id", request_id])
             timeout_seconds = max(30, len(chunk) * 3)
-            res, duration = run_observed_subprocess(
-                cmd,
-                cwd=CODE_MAPS_DIR,
-                label=f"atlas_node_batch_offset_{offset}",
-                timeout=timeout_seconds,
-                log=logger.info,
-            )
+            worker_session = None
+            if worker_queue is not None:
+                worker_session = worker_queue.get()
+                request_started = perf_counter()
+                try:
+                    worker_stdout, worker_metrics = worker_session.request(
+                        request_id=request_id,
+                        paths=list(key_map),
+                        timeout_seconds=timeout_seconds,
+                    )
+                    returncode = 0
+                    stderr = ""
+                    clean_stdout = worker_stdout.strip()
+                    chunk_metrics["batch_process_starts"] += int(
+                        worker_metrics.get("worker_process_starts", 0) or 0
+                    )
+                    chunk_metrics["worker_restarts"] += int(
+                        worker_metrics.get("worker_restarts", 0) or 0
+                    )
+                    chunk_metrics["request_replays"] += int(
+                        worker_metrics.get("request_replays", 0) or 0
+                    )
+                except NodeAstWorkerError as exc:
+                    returncode = 1
+                    stderr = str(exc)
+                    clean_stdout = ""
+                    chunk_metrics["batch_process_starts"] += int(
+                        exc.metrics.get("worker_process_starts", 0) or 0
+                    )
+                    chunk_metrics["worker_restarts"] += int(
+                        exc.metrics.get("worker_restarts", 0) or 0
+                    )
+                    chunk_metrics["request_replays"] += int(
+                        exc.metrics.get("request_replays", 0) or 0
+                    )
+                finally:
+                    duration = perf_counter() - request_started
+            else:
+                res, duration = run_observed_subprocess(
+                    cmd,
+                    cwd=CODE_MAPS_DIR,
+                    label=f"atlas_node_batch_offset_{offset}",
+                    timeout=timeout_seconds,
+                    log=logger.info,
+                )
+                returncode = res.returncode
+                stderr = res.stderr or ""
+                clean_stdout = res.stdout.strip()
+            chunk_metrics["subprocess_duration_seconds"] += float(duration or 0.0)
             raw_results = {}
-            if res.returncode != 0:
+            if returncode != 0:
+                chunk_metrics["batch_failures"] += 1
                 logger.debug(
                     "Node batch sequencing failed for chunk starting at %s after %.3fs, falling back to per-file mode: %s",
                     offset,
                     duration,
-                    (res.stderr or "").strip(),
+                    stderr.strip(),
                 )
             else:
-                clean_stdout = res.stdout.strip()
                 if not clean_stdout:
                     clean_stdout = "{}"
-                raw_results = json.loads(clean_stdout)
+                response_results, batch_meta, response_error = _decode_node_batch_response(
+                    clean_stdout,
+                    request_id=request_id,
+                    expected_paths=set(key_map),
+                )
+                if response_error:
+                    if worker_session is not None:
+                        worker_session.restart()
+                        chunk_metrics["worker_restarts"] += 1
+                    chunk_metrics["batch_failures"] += 1
+                    chunk_metrics["response_identity_failures"] += 1
+                    logger.debug(
+                        "Node batch response rejected for chunk starting at %s; "
+                        "reason=%s expected request_id=%s files=%s",
+                        offset,
+                        response_error,
+                        request_id,
+                        len(chunk),
+                    )
+                else:
+                    raw_results = response_results
+                    chunk_metrics["node_reported_rss_max_bytes"] = int(
+                        batch_meta.get("rssMaxObservedBytes", 0) or 0
+                    )
+            if worker_session is not None and worker_queue is not None:
+                worker_queue.put(worker_session)
             normalized_results = {}
             for raw_key, value in raw_results.items():
                 normalized_results[key_map.get(raw_key, normalize_batch_key(raw_key))] = value
             if normalized_results:
-                return normalized_results
+                return normalized_results, chunk_metrics
 
             # Fallback: recover per-file if batch output was empty/mismatched.
+            chunk_metrics["fallback_chunks"] += 1
             for fpath in chunk:
+                chunk_metrics["fallback_process_starts"] += 1
                 payload_path = payload_for(fpath)
                 single_cmd = ["node", str(js_engine)]
                 from tools.core.config import CONFIG_FILE
@@ -1342,6 +1512,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     timeout=timeout_seconds,
                     log=logger.info,
                 )
+                chunk_metrics["subprocess_duration_seconds"] += float(single_duration or 0.0)
                 if single.returncode != 0 or not single.stdout.strip():
                     logger.debug(
                         "Node single-file sequencing skipped %s rc=%s duration_seconds=%.3f",
@@ -1351,30 +1522,62 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     )
                     continue
                 normalized_results[key_map[payload_path]] = json.loads(single.stdout.strip())
-            return normalized_results
+            return normalized_results, chunk_metrics
 
-        chunk_jobs = [
-            (offset, file_paths[offset:offset + chunk_size])
-            for offset in range(0, len(file_paths), chunk_size)
-        ]
-        max_workers = min(strategy["workers"], len(chunk_jobs))
-        strategy["chunk_jobs"] = len(chunk_jobs)
-        strategy["workers_effective"] = max_workers
+        lifecycle_metrics = {
+            "batch_process_starts": 0,
+            "fallback_process_starts": 0,
+            "batch_failures": 0,
+            "fallback_chunks": 0,
+            "response_identity_failures": 0,
+            "worker_restarts": 0,
+            "request_replays": 0,
+            "subprocess_duration_seconds": 0.0,
+            "node_reported_rss_max_bytes": 0,
+            "checkpoint_callbacks": 0,
+            "checkpoint_files": 0,
+            "checkpoint_seconds": 0.0,
+        }
+
+        def accept_chunk(chunk_payload):
+            chunk_result, chunk_metrics = chunk_payload
+            for metric_name in (
+                "batch_process_starts",
+                "fallback_process_starts",
+                "batch_failures",
+                "fallback_chunks",
+                "response_identity_failures",
+                "worker_restarts",
+                "request_replays",
+            ):
+                lifecycle_metrics[metric_name] += int(chunk_metrics.get(metric_name, 0) or 0)
+            lifecycle_metrics["subprocess_duration_seconds"] += float(
+                chunk_metrics.get("subprocess_duration_seconds", 0.0) or 0.0
+            )
+            lifecycle_metrics["node_reported_rss_max_bytes"] = max(
+                lifecycle_metrics["node_reported_rss_max_bytes"],
+                int(chunk_metrics.get("node_reported_rss_max_bytes", 0) or 0),
+            )
+            if on_chunk is not None and chunk_result:
+                checkpoint_start = perf_counter()
+                on_chunk(chunk_result)
+                lifecycle_metrics["checkpoint_seconds"] += perf_counter() - checkpoint_start
+                lifecycle_metrics["checkpoint_callbacks"] += 1
+                lifecycle_metrics["checkpoint_files"] += len(chunk_result)
+            return chunk_result
+
         try:
             if max_workers <= 1:
                 results = {}
                 for job in chunk_jobs:
-                    chunk_result = run_chunk(job)
+                    chunk_result = accept_chunk(run_chunk(job))
                     results.update(chunk_result)
-                    if on_chunk is not None and chunk_result:
-                        on_chunk(chunk_result)
             else:
                 results = {}
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    for chunk_result in executor.map(run_chunk, chunk_jobs):
+                    for chunk_payload in executor.map(run_chunk, chunk_jobs):
+                        chunk_result = accept_chunk(chunk_payload)
                         results.update(chunk_result)
-                        if on_chunk is not None and chunk_result:
-                            on_chunk(chunk_result)
         except AtlasStagingWriteError:
             raise
         except Exception as e:
@@ -1382,6 +1585,9 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             strategy["workers_effective"] = 0
             strategy["error"] = str(e)
             results = {}
+        finally:
+            for session in worker_sessions:
+                session.close()
 
         normalized_results = {
             normalize_batch_key(path): value
@@ -1420,6 +1626,14 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             "status_counts": status_counts,
             "claim_status": claim_status,
             "non_observed_file_samples": non_observed[:20],
+            "process_starts": (
+                lifecycle_metrics["batch_process_starts"]
+                + lifecycle_metrics["fallback_process_starts"]
+            ),
+            **{
+                key: round(value, 6) if isinstance(value, float) else value
+                for key, value in lifecycle_metrics.items()
+            },
         })
         if non_observed:
             strategy["warning"] = (
@@ -1882,6 +2096,17 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
 
                 for source in _raw_import_sources_not_in_records(raw_imports, records):
                     add_record(source, "*", "module")
+            elif language == "go":
+                qualified_sources = set()
+                for record in extract_go_qualified_imports(content):
+                    source = str(record.get("source") or "")
+                    name = str(record.get("name") or "")
+                    if source and name:
+                        add_record(source, name, "qualified-member")
+                        qualified_sources.add(source)
+                for source in raw_imports or []:
+                    if source not in qualified_sources:
+                        add_record(source)
             else:
                 for source in raw_imports or []:
                     add_record(source)
@@ -2273,6 +2498,55 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 for detail in strategy_details
                 if isinstance(detail, dict) and detail.get("warning")
             ],
+            "process_starts": sum(
+                int(detail.get("process_starts", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "batch_process_starts": sum(
+                int(detail.get("batch_process_starts", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "fallback_process_starts": sum(
+                int(detail.get("fallback_process_starts", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "batch_failures": sum(
+                int(detail.get("batch_failures", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "fallback_chunks": sum(
+                int(detail.get("fallback_chunks", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "response_identity_failures": sum(
+                int(detail.get("response_identity_failures", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "worker_restarts": sum(
+                int(detail.get("worker_restarts", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "request_replays": sum(
+                int(detail.get("request_replays", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "session_pool_workers": max(
+                [int(detail.get("session_pool_workers", 0) or 0) for detail in strategy_details if isinstance(detail, dict)]
+                or [0]
+            ),
+            "node_files_requested": sum(
+                int(detail.get("files_requested", 0) or 0)
+                for detail in strategy_details
+                if isinstance(detail, dict) and detail.get("strategy") == "node-ast"
+            ),
+            "subprocess_duration_seconds": sum(
+                float(detail.get("subprocess_duration_seconds", 0.0) or 0.0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "node_reported_rss_max_bytes": max(
+                [int(detail.get("node_reported_rss_max_bytes", 0) or 0) for detail in strategy_details if isinstance(detail, dict)]
+                or [0]
+            ),
+            "checkpoint_callbacks": sum(
+                int(detail.get("checkpoint_callbacks", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "checkpoint_files": sum(
+                int(detail.get("checkpoint_files", 0) or 0) for detail in strategy_details if isinstance(detail, dict)
+            ),
+            "checkpoint_seconds": sum(
+                float(detail.get("checkpoint_seconds", 0.0) or 0.0) for detail in strategy_details if isinstance(detail, dict)
+            ),
         }
         ast_elapsed = perf_counter() - ast_start
 
@@ -2383,7 +2657,50 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 ast_symbols.append(sym_entry)
                 if sym_entry.get('features'):
                     ast_features.extend(sym_entry['features'])
-            if f_lang == "python":
+            if f_lang in {"typescript", "javascript"}:
+                syntax_imports = extract_typescript_import_evidence(raw_node_results)
+                import_records = []
+                for record in syntax_imports["records"]:
+                    raw_source = record["source"]
+                    import_records.append({
+                        "source": resolve_import_local(
+                            raw_source,
+                            current_dir,
+                            str(project_root),
+                            language=f_lang,
+                        ),
+                        "raw_source": raw_source,
+                        "name": record["name"],
+                        "kind": record["kind"],
+                        "scope": record["scope"],
+                    })
+
+                def _resolved_runtime_sources(raw_sources):
+                    return sorted(set(
+                        resolve_import_local(source, current_dir, str(project_root), language=f_lang)
+                        for source in raw_sources
+                        if not source.startswith(("react", "vue", "lucide", "@tiptap", "@tanstack", "zod", "zustand", "framer-motion", "next"))
+                    ))
+
+                resolved_imports = _resolved_runtime_sources(syntax_imports["eager_sources"])
+                lazy_resolved_imports = _resolved_runtime_sources(syntax_imports["lazy_sources"])
+
+                def _internalize_typescript_deps(sources):
+                    deps = sorted(set(
+                        source
+                        for source in sources
+                        if source.startswith(("src/", "./", "../"))
+                        or path_exists_local(os.path.join(str(project_root), source.replace("/", os.sep)))
+                    ))
+                    return sorted(set(
+                        to_posix_path(os.path.relpath(os.path.normpath(os.path.join(current_dir, source)), str(project_root)))
+                        if source.startswith(".") else to_posix_path(source)
+                        for source in deps
+                    ))
+
+                internal_deps = _internalize_typescript_deps(resolved_imports)
+                lazy_internal_deps = _internalize_typescript_deps(lazy_resolved_imports)
+            elif f_lang == "python":
                 import_records = python_import_records_from_symbols(ast_symbols, current_dir, str(project_root))
                 top_level_sources = {
                     str(record.get("source") or "")
@@ -2581,6 +2898,21 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             "ast_batch_jobs": int(ast_strategy.get("chunk_jobs", 0) or 0),
             "ast_batch_adaptive": bool(ast_strategy.get("adaptive_mode", False)),
             "ast_strategy": ast_strategy.get("strategy", "none"),
+            "ast_process_starts": int(ast_strategy.get("process_starts", 0) or 0),
+            "ast_batch_process_starts": int(ast_strategy.get("batch_process_starts", 0) or 0),
+            "ast_fallback_process_starts": int(ast_strategy.get("fallback_process_starts", 0) or 0),
+            "ast_batch_failures": int(ast_strategy.get("batch_failures", 0) or 0),
+            "ast_fallback_chunks": int(ast_strategy.get("fallback_chunks", 0) or 0),
+            "ast_response_identity_failures": int(ast_strategy.get("response_identity_failures", 0) or 0),
+            "ast_worker_restarts": int(ast_strategy.get("worker_restarts", 0) or 0),
+            "ast_request_replays": int(ast_strategy.get("request_replays", 0) or 0),
+            "ast_session_pool_workers": int(ast_strategy.get("session_pool_workers", 0) or 0),
+            "ast_node_files_requested": int(ast_strategy.get("node_files_requested", 0) or 0),
+            "ast_subprocess_s": round(float(ast_strategy.get("subprocess_duration_seconds", 0.0) or 0.0), 3),
+            "ast_node_rss_max_bytes": int(ast_strategy.get("node_reported_rss_max_bytes", 0) or 0),
+            "ast_checkpoint_callbacks": int(ast_strategy.get("checkpoint_callbacks", 0) or 0),
+            "ast_checkpoint_files": int(ast_strategy.get("checkpoint_files", 0) or 0),
+            "ast_checkpoint_s": round(float(ast_strategy.get("checkpoint_seconds", 0.0) or 0.0), 3),
             "sequencer_warnings": ast_strategy.get("warnings", []),
             "enrich_s": round(enrich_elapsed, 3),
             "index_s": round(index_elapsed, 3),
@@ -2782,6 +3114,28 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         logger.info(f"[TEST] [DRY-RUN] Atlas data generated but not written to disk.")
     total_elapsed = perf_counter() - atlas_start
     if project_metrics:
+        logger.info(
+            "[PROFILE] Atlas Node AST lifecycle | process_starts=%s batch_starts=%s fallback_starts=%s "
+            "batch_failures=%s fallback_chunks=%s identity_failures=%s worker_restarts=%s "
+            "request_replays=%s files_requested=%s "
+            "checkpoint_callbacks=%s checkpoint_files=%s subprocess=%.3fs checkpoint=%.3fs node_rss_max_bytes=%s"
+            % (
+                sum(m.get("ast_process_starts", 0) for m in project_metrics),
+                sum(m.get("ast_batch_process_starts", 0) for m in project_metrics),
+                sum(m.get("ast_fallback_process_starts", 0) for m in project_metrics),
+                sum(m.get("ast_batch_failures", 0) for m in project_metrics),
+                sum(m.get("ast_fallback_chunks", 0) for m in project_metrics),
+                sum(m.get("ast_response_identity_failures", 0) for m in project_metrics),
+                sum(m.get("ast_worker_restarts", 0) for m in project_metrics),
+                sum(m.get("ast_request_replays", 0) for m in project_metrics),
+                sum(m.get("ast_node_files_requested", 0) for m in project_metrics),
+                sum(m.get("ast_checkpoint_callbacks", 0) for m in project_metrics),
+                sum(m.get("ast_checkpoint_files", 0) for m in project_metrics),
+                sum(m.get("ast_subprocess_s", 0.0) for m in project_metrics),
+                sum(m.get("ast_checkpoint_s", 0.0) for m in project_metrics),
+                max([m.get("ast_node_rss_max_bytes", 0) for m in project_metrics] or [0]),
+            )
+        )
         logger.info(
             "[PROFILE] Atlas persistence | mode=%s parts=%s chars=%s bytes=%s serialize=%.3fs encode=%.3fs hash=%.3fs sqlite=%.3fs relational=%.3fs total=%.3fs"
             % (

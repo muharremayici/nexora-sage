@@ -390,6 +390,71 @@ def test_progress_wrapper_records_exact_target_preflight_duration(monkeypatch):
     )
 
 
+def test_explicit_init_reuses_one_preflight_for_plan_and_discovery_transport(monkeypatch):
+    target_root = Path("C:/fixture")
+    preflight = {
+        "meta": {"kind": "external_target_preflight", "run_id": "preflight-fixture"},
+        "target": {"root": str(target_root), "output_dir": "C:/output/fixture"},
+        "summary": {"status": "PASS"},
+    }
+    calls = []
+    expected_plan = {"summary": {"status": "READY"}}
+    monkeypatch.setattr(
+        bootstrap_env,
+        "heartbeat_cadence_selection",
+        lambda _scope: {"interval_seconds": 30, "basis": "test"},
+    )
+    monkeypatch.setattr(
+        bootstrap_env,
+        "local_duration_guidance",
+        lambda _guidance: {
+            "basis": "insufficient_exact_phase_samples",
+            "phases": {"canonical_target_preflight": {"status": "unavailable", "sample_count": 0}},
+        },
+    )
+    monkeypatch.setattr(
+        external_target_preflight,
+        "build_preflight",
+        lambda root, projects=None: calls.append(("build", root, projects)) or preflight,
+    )
+    monkeypatch.setattr(
+        external_target_preflight,
+        "persist_preflight",
+        lambda payload: calls.append(("persist", payload)) or payload,
+    )
+    monkeypatch.setattr(
+        external_target_preflight,
+        "preflight_receipt_transport",
+        lambda payload: {
+            "path": "C:/output/fixture/.raw/external_target_preflight.json",
+            "sha256": "a" * 64,
+            "run_id": payload["meta"]["run_id"],
+        },
+    )
+
+    def build_plan(root, **kwargs):
+        calls.append(("plan", root, kwargs))
+        return expected_plan
+
+    monkeypatch.setattr(bootstrap_env, "build_installation_plan", build_plan)
+    monkeypatch.setattr(bootstrap_env, "record_execution_duration", lambda *_args: None)
+    monkeypatch.delenv("CODEMAPS_TARGET_PROJECTS", raising=False)
+
+    result = bootstrap_env._build_installation_plan_with_progress(
+        target_root,
+        dependency_install_enabled=True,
+        persist_target_preflight=True,
+        projects="MAIN",
+    )
+
+    assert result is expected_plan
+    assert [call[0] for call in calls] == ["build", "persist", "plan"]
+    assert calls[0][2] == "MAIN"
+    assert calls[-1][2]["target_preflight"] is preflight
+    assert bootstrap_env.os.environ["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
+    assert bootstrap_env.os.environ["CODEMAPS_TARGET_PROJECTS"] == "MAIN"
+
+
 def test_failed_progress_sample_uses_non_authoritative_duration_identifier(monkeypatch):
     recorded = []
     monkeypatch.setattr(

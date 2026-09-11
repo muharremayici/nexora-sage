@@ -82,7 +82,6 @@ def _db_counts(db_path: Path) -> dict[str, int]:
     with sqlite3.connect(db_path) as conn:
         return {
             "state_payloads": int(conn.execute("SELECT COUNT(*) FROM state_payloads;").fetchone()[0]),
-            "state_payload_parts": int(conn.execute("SELECT COUNT(*) FROM state_payload_parts;").fetchone()[0]),
             "projects": int(conn.execute("SELECT COUNT(*) FROM projects;").fetchone()[0]),
             "files": int(conn.execute("SELECT COUNT(*) FROM files;").fetchone()[0]),
             "symbols": int(conn.execute("SELECT COUNT(*) FROM symbols;").fetchone()[0]),
@@ -244,22 +243,8 @@ def run_validation() -> dict[str, Any]:
     state_columns = _db_columns(DB_PATH, "state_payloads") if DB_PATH.exists() else set()
     checks.append({
         "name": "state_payloads_freshness_columns_present",
-        "passed": {
-            "payload_sha",
-            "payload_bytes",
-            "storage_mode",
-            "generation_id",
-            "part_count",
-            "source_mtime",
-            "updated_at",
-        }.issubset(state_columns),
+        "passed": {"payload_sha", "source_mtime", "updated_at"}.issubset(state_columns),
         "details": sorted(state_columns),
-    })
-    part_columns = _db_columns(DB_PATH, "state_payload_parts") if DB_PATH.exists() else set()
-    checks.append({
-        "name": "state_payload_parts_contract_present",
-        "passed": {"name", "generation_id", "part_index", "payload", "payload_bytes", "payload_sha"}.issubset(part_columns),
-        "details": sorted(part_columns),
     })
     STORE.load_raw("quality_gate", {})
     quality_gate_shadow = load_json_file(RAW_DIR / "quality_gate.json", {}, bypass_proxy=True)

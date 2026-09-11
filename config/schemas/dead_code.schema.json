@@ -126,6 +126,18 @@
         }
       }
     },
+    "contract_triage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contractTriageItem"
+      }
+    },
+    "unresolved_reachability": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unresolvedReachabilityItem"
+      }
+    },
     "compatibility_exclusions": {
       "type": "array",
       "items": {
@@ -157,6 +169,30 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "meta": {
+            "properties": {
+              "version": {
+                "const": "dead_code_v3"
+              }
+            },
+            "required": [
+              "version"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "contract_triage",
+          "unresolved_reachability"
+        ]
+      }
+    }
+  ],
   "$defs": {
     "deadItem": {
       "type": "object",
@@ -311,6 +347,129 @@
           "type": "string"
         }
       }
+    },
+    "contractTriageItem": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/exclusionItem"
+        },
+        {
+          "type": "object",
+          "required": [
+            "contract_class",
+            "contract_status",
+            "recommended_action",
+            "mutation_proposed",
+            "evidence"
+          ],
+          "properties": {
+            "contract_class": {
+              "type": "string",
+              "enum": [
+                "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE",
+                "TEST_RUNNER_DISCOVERY",
+                "DB_MIGRATION_SURFACE",
+                "WORKER_ENTRYPOINT_CANDIDATE",
+                "CODEGEN_TEMPLATE",
+                "CODEGEN_SURFACE",
+                "PUBLIC_PACKAGE_API"
+              ]
+            },
+            "contract_status": {
+              "type": "string",
+              "enum": [
+                "runtime_binding_unknown",
+                "source_grounded_test_surface",
+                "source_grounded_migration_surface",
+                "source_grounded_template",
+                "source_grounded_generated_surface",
+                "externally_reachable"
+              ]
+            },
+            "recommended_action": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mutation_proposed": {
+              "const": false
+            },
+            "evidence": {
+              "type": "object",
+              "minProperties": 1
+            }
+          }
+        }
+      ]
+    },
+    "unresolvedReachabilityItem": {
+      "type": "object",
+      "required": [
+        "project",
+        "file",
+        "symbol",
+        "reason",
+        "status",
+        "language",
+        "capability_mode",
+        "recommended_action",
+        "mutation_proposed",
+        "evidence"
+      ],
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "reason": {
+          "const": "language_reachability_unavailable"
+        },
+        "status": {
+          "const": "UNKNOWN"
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capability_mode": {
+          "enum": [
+            "candidate_analysis",
+            "inventory_only"
+          ]
+        },
+        "recommended_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mutation_proposed": {
+          "const": false
+        },
+        "evidence": {
+          "type": "object",
+          "required": [
+            "parser_status",
+            "parser_kind",
+            "semantic_depth"
+          ],
+          "properties": {
+            "parser_status": {
+              "type": "string"
+            },
+            "parser_kind": {
+              "type": "string"
+            },
+            "semantic_depth": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
     }
   }
 }

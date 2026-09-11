@@ -16,7 +16,15 @@ from tools.core.logger import logger
 from tools.core.react_evidence import atlas_evidence_kinds, attach_react_evidence_contract, first_pattern_line
 from tools.core.report_surface_limits import report_surface_limit
 from tools.core.source_evidence import read_atlas_bound_source
-from tools.engines.react_source_scanner import call_snippets, component_body_snippets
+from tools.engines.react_source_scanner import (
+    balanced_brace_block,
+    balanced_paren_end,
+    call_snippets,
+    component_body_snippets,
+    jsx_attribute_names,
+    jsx_opening_tag_snippets,
+    mask_js_comments_and_strings,
+)
 
 
 REACT_EXTENSIONS = (".tsx", ".jsx", ".ts", ".js")
@@ -36,6 +44,17 @@ EFFECT_RESOURCE_CLEANUP_RE = re.compile(
     r"\b(?:clearInterval|clearTimeout|removeEventListener|\.disconnect\s*\(|\.close\s*\(|\.unsubscribe\s*\(|return\s*\(\s*\)\s*=>|return\s+function)",
     re.MULTILINE,
 )
+RETURNED_CLEANUP_FUNCTION_RE = re.compile(r"\breturn\s+(?:\(\s*\)\s*=>|function\b)")
+EFFECT_CONCISE_CALL_RE = re.compile(
+    r"\buse(?:Effect|LayoutEffect|InsertionEffect)\s*\(\s*(?:\(\s*\)|[A-Za-z_$][\w$]*)\s*=>\s*"
+    r"([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*\("
+)
+EFFECT_RETURNED_CALL_RE = re.compile(
+    r"\breturn\s+([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*\("
+)
+EFFECT_RETURNED_IDENTIFIER_RE = re.compile(
+    r"\breturn\s+([A-Za-z_$][\w$]*)\s*(?=;|})"
+)
 MEMO_REACTIVE_READ_RE = re.compile(r"\b(?:props|params|router|searchParams|pathname|project|items|user|selected|id)\b")
 IMPERATIVE_REACTIVE_READ_RE = re.compile(r"\b(?:props|params|project|items|user|selected|id|value|open|on[A-Z][A-Za-z0-9_]*)\b")
 INLINE_CALLBACK_REF_RE = re.compile(r"\bref\s*=\s*{\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>")
@@ -47,30 +66,28 @@ INLINE_OBJECT_PROP_RE = re.compile(r"\b[A-Za-z_$][\w$]*\s*=\s*{{")
 USE_STATE_RE = re.compile(r"\buseState\s*<[^>]+>\s*\(|\buseState\s*\(")
 DERIVED_STATE_RE = re.compile(r"\buseState\s*\([^)]*(?:props\.|[A-Za-z0-9_]+\.map\(|[A-Za-z0-9_]+\.filter\()", re.DOTALL)
 QUERY_KEY_RE = re.compile(r"\bqueryKey\s*:\s*(\[[^\]]*\]|[A-Za-z_$][\w$]*)", re.DOTALL)
+QUERY_KEY_PRESENT_RE = re.compile(r"\bqueryKey\s*:")
 USE_QUERY_RE = re.compile(r"\buse(?:Suspense)?Query\s*\(")
+DIRECT_USE_QUERY_RE = re.compile(r"(?<!\.)\buse(?:Suspense)?Query\s*\(")
 USE_MUTATION_RE = re.compile(r"\buseMutation\s*\(")
 INVALIDATE_RE = re.compile(r"\binvalidateQueries\s*\(")
-LAZY_COMPONENT_RE = re.compile(r"\b(?:React\.)?lazy\s*\(|\bdynamic\s*\(", re.MULTILINE)
+REACT_LAZY_CALL_RE = re.compile(r"\bReact\.lazy\s*\(")
+BARE_REACT_LAZY_CALL_RE = re.compile(r"(?<![.$])\blazy\s*\(")
+NEXT_DYNAMIC_IMPORT_RE = re.compile(r"\bimport\s+([A-Za-z_$][\w$]*)\s+from\s*['\"]next/dynamic['\"]")
 LAZY_FALLBACK_RE = re.compile(r"<Suspense\b|\bfallback\s*=|\bloading\s*:", re.MULTILINE)
 LAZY_ERROR_BOUNDARY_RE = re.compile(r"\b(?:ErrorBoundary|errorElement|componentDidCatch|getDerivedStateFromError|onError)\b")
 POLICY_PATH = CONFIG_DIR / "react_ecosystem_policy.json"
 _POLICY_CACHE: dict[str, Any] | None = None
 FORM_HOOK_RE = re.compile(r"\buseForm\s*(?:<[^>]+>)?\s*\(")
 VALIDATION_SCHEMA_RE = re.compile(r"\b(?:zodResolver|yupResolver|superstructResolver|valibotResolver|resolver\s*:|schema\s*:)")
-SERVER_ACTION_FORM_RE = re.compile(r"\b(?:action|formAction)\s*=")
+SERVER_ACTION_FORM_RE = re.compile(r"<form\b[^>]*\baction\s*=\s*{|<[^>]+\bformAction\s*=\s*{", re.DOTALL)
 CONCURRENT_UX_RE = re.compile(r"\b(?:useTransition|startTransition|useOptimistic|useActionState|useFormStatus|useDeferredValue)\s*\(")
 PENDING_FEEDBACK_RE = re.compile(r"\b(?:isPending|pending|isLoading|isSubmitting|disabled\s*=|aria-busy|loading)\b", re.IGNORECASE)
 ASYNC_EVENT_HANDLER_RE = re.compile(r"\bon[A-Z][A-Za-z0-9_]*\s*=\s*{\s*async\b|\bon[A-Z][A-Za-z0-9_]*\s*=\s*{\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*async\b", re.DOTALL)
-ASYNC_HANDLER_ERROR_RE = re.compile(r"\b(?:try\s*{|catch\s*\(|\.catch\s*\(|toast\.|setError\s*\(|error\s*=|onError\s*:)\b", re.IGNORECASE)
+ASYNC_HANDLER_ERROR_RE = re.compile(r"\b(?:try\s*{|catch\s*\(|\.catch\s*\(|toast\.|setError\s*\(|error\s*=|onError\s*:)", re.IGNORECASE)
 EXPENSIVE_LIST_DERIVATION_RE = re.compile(r"\.(?:filter|sort|map)\s*\([^)]*\)\s*\.(?:filter|sort|map)\s*\(", re.DOTALL)
 INDEX_KEY_RE = re.compile(r"\bkey\s*=\s*{\s*(?:index|idx|i)\s*}")
-VIRTUALIZATION_RE = re.compile(r"\b(?:useVirtualizer|FixedSizeList|VariableSizeList|Virtualized|react-window|react-virtual|virtualizer|useDeferredValue)\b")
-FORM_CONTROL_RE = re.compile(r"<(?:input|select|textarea)\b([^>]*)>", re.IGNORECASE | re.DOTALL)
-VALUE_PROP_RE = re.compile(r"\bvalue\s*=")
-DEFAULT_VALUE_PROP_RE = re.compile(r"\bdefaultValue\s*=")
-CHECKED_PROP_RE = re.compile(r"\bchecked\s*=")
-DEFAULT_CHECKED_PROP_RE = re.compile(r"\bdefaultChecked\s*=")
-CHANGE_CONTRACT_RE = re.compile(r"\b(?:onChange|readOnly|disabled)\s*=")
+HIDDEN_CONTROL_RE = re.compile(r"\btype\s*=\s*(?:['\"]hidden['\"]|{\s*['\"]hidden['\"]\s*})", re.IGNORECASE)
 TOKEN_CLASS_RE = re.compile(
     r"className\s*=\s*(?:\"[^\"]*(?:#[0-9a-fA-F]{3,8}|px-\[[^\]]+\]|text-\[[^\]]+\]|bg-\[[^\]]+\]|style=)[^\"]*\"|'[^']*(?:#[0-9a-fA-F]{3,8}|px-\[[^\]]+\]|text-\[[^\]]+\]|bg-\[[^\]]+\]|style=)[^']*')"
 )
@@ -78,7 +95,10 @@ STYLE_PROP_RE = re.compile(r"\bstyle\s*=\s*{{")
 ACCESSIBILITY_GAP_RE = re.compile(r"<(?:div|span)\b(?=[^>]*\bonClick\s*=)(?![^>]*(?:role=|tabIndex=|onKeyDown=))", re.IGNORECASE)
 ROUTE_FILE_RE = re.compile(r"(?:^|/)(?:app|pages)/.*(?:page|layout|route)\.(?:tsx|jsx|ts|js)$")
 FEATURE_FLAG_RE = re.compile(
-    r"\b(?:featureFlags?|flags?|isEnabled|useFeature|useFlag|growthbook|posthog|launchDarkly|process\.env\.(?:NEXT_PUBLIC_)?FEATURE|import\.meta\.env\.(?:VITE_)?FEATURE)\b",
+    r"\b(?:isFeatureEnabled|getFeatureFlag|useFeatureFlag(?:Enabled|Payload)?|useFlag)\s*\("
+    r"|\b(?:featureFlags?|flags)\s*(?:\[|\.)"
+    r"|\bprocess\.env\.(?:NEXT_PUBLIC_)?FEATURE[A-Za-z0-9_]*"
+    r"|\bimport\.meta\.env\.(?:VITE_)?FEATURE[A-Za-z0-9_]*",
     re.IGNORECASE,
 )
 HYDRATION_SENSITIVE_RE = re.compile(
@@ -91,6 +111,8 @@ GENERATED_CLIENT_RE = re.compile(
     re.IGNORECASE,
 )
 GENERATED_BOUNDARY_RE = re.compile(r"\b(?:adapter|repository|service|clientBoundary|apiContract|schema|z\.object|safeParse)\b", re.IGNORECASE)
+REACT_EMAIL_IMPORT_RE = re.compile(r"\b(?:from\s*|require\s*\(\s*)['\"](?:@react-email|react-email)(?:/[^'\"]*)?['\"]", re.IGNORECASE)
+STATIC_DOCUMENT_RENDERER_IMPORT_RE = re.compile(r"\b(?:from\s*|require\s*\(\s*)['\"](?:@react-pdf/renderer|@react-email(?:/[^'\"]*)?|react-email(?:/[^'\"]*)?)['\"]", re.IGNORECASE)
 
 
 def _policy_string_list(section: dict[str, Any], key: str) -> list[str]:
@@ -210,7 +232,6 @@ def _is_react_source(rel_path: str, content: str) -> bool:
         or "useEffect(" in content
         or "useQuery(" in content
         or "useForm(" in content
-        or "<" in content and ">" in content
     )
 
 
@@ -270,6 +291,62 @@ def _data_cache_action(content: str) -> str:
         if regex is not None and regex.search(content):
             return str(provider.get("action") or policy.get("default_data_cache", {}).get("action") or "")
     return str(policy.get("default_data_cache", {}).get("action") or "")
+
+
+def _missing_direct_query_key_count(content: str) -> int:
+    """Count only direct object-literal query calls that prove key ownership locally."""
+    missing = 0
+    for snippet in call_snippets(content, DIRECT_USE_QUERY_RE.pattern, executable_only=True):
+        code = mask_js_comments_and_strings(snippet, mask_jsx_text=True)
+        if QUERY_KEY_PRESENT_RE.search(code):
+            continue
+        open_paren = code.find("(")
+        arguments = code[open_paren + 1 : -1].lstrip() if open_paren >= 0 else ""
+        if not arguments.startswith("{"):
+            # Member calls (for example tRPC), legacy positional keys, named options,
+            # and options factories own their key outside this local call surface.
+            continue
+        if "..." in arguments:
+            continue
+        missing += 1
+    return missing
+
+
+def _lazy_component_match(content: str) -> re.Match[str] | None:
+    """Return a source-grounded React/Next lazy call, excluding member-name collisions."""
+    code = mask_js_comments_and_strings(content)
+    match = REACT_LAZY_CALL_RE.search(code)
+    if match:
+        return match
+
+    react_named_import = re.search(
+        r"\bimport\s+(?:[A-Za-z_$][\w$]*\s*,\s*)?{(?P<specifiers>[^}]*)}"
+        r"\s*from\s*['\"]react['\"]",
+        content,
+        re.DOTALL,
+    )
+    if react_named_import:
+        lazy_binding = re.search(
+            r"(?:^|,)\s*lazy(?:\s+as\s+(?P<alias>[A-Za-z_$][\w$]*))?\s*(?=,|$)",
+            react_named_import.group("specifiers"),
+        )
+        local_name = lazy_binding.group("alias") if lazy_binding and lazy_binding.group("alias") else (
+            "lazy" if lazy_binding else ""
+        )
+        match = re.search(rf"(?<![.$])\b{re.escape(local_name)}\s*\(", code) if local_name else None
+        if match:
+            return match
+
+    for import_match in NEXT_DYNAMIC_IMPORT_RE.finditer(content):
+        dynamic_name = re.escape(import_match.group(1))
+        match = re.search(rf"(?<![.$])\b{dynamic_name}\s*\(", code)
+        if match:
+            return match
+    return None
+
+
+def _hydration_rule_applies(rel_path: str, content: str) -> bool:
+    return _source_surface_context(rel_path) == "production_source" and not REACT_EMAIL_IMPORT_RE.search(content)
 
 
 def _finding(
@@ -341,15 +418,136 @@ def _looks_like_jsx_map_callback(snippet: str) -> bool:
 
 
 def _effect_call_snippets(content: str) -> list[str]:
-    return call_snippets(content, r"\buse(?:Effect|LayoutEffect|InsertionEffect)\s*\(")
+    return call_snippets(
+        content,
+        r"\buse(?:Effect|LayoutEffect|InsertionEffect)\s*\(",
+        executable_only=True,
+    )
+
+
+def _body_returns_cleanup_function(body: str) -> bool:
+    code = mask_js_comments_and_strings(body)
+    matches = {match.start() for match in RETURNED_CLEANUP_FUNCTION_RE.finditer(code)}
+    if not matches:
+        return False
+    depth = 0
+    for pos, char in enumerate(code):
+        if pos in matches and depth == 0:
+            return True
+        if char == "{":
+            depth += 1
+        elif char == "}" and depth:
+            depth -= 1
+    return False
+
+
+def _same_file_callable_body(content: str, callee: str) -> str:
+    parts = callee.split(".")
+    if len(parts) == 2:
+        owner, method = (re.escape(part) for part in parts)
+        code = mask_js_comments_and_strings(content)
+        owner_match = re.search(
+            rf"\b(?:const|let|var)\s+{owner}\s*(?::[^=]+)?=\s*{{",
+            code,
+        )
+        if not owner_match:
+            return ""
+        owner_body = balanced_brace_block(content, owner_match.end() - 1)
+        owner_code = mask_js_comments_and_strings(owner_body)
+        for method_match in re.finditer(rf"\b{method}\s*\(", owner_code):
+            if owner_code[: method_match.start()].count("{") != owner_code[: method_match.start()].count("}"):
+                continue
+            params_end = balanced_paren_end(owner_body, method_match.end() - 1)
+            declaration_tail = owner_code[params_end : params_end + 300]
+            brace_offset = declaration_tail.find("{")
+            semicolon_offset = declaration_tail.find(";")
+            if brace_offset >= 0 and (semicolon_offset < 0 or brace_offset < semicolon_offset):
+                return balanced_brace_block(owner_body, params_end)
+        property_match = re.search(
+            rf"\b{method}\s*:\s*(?:async\s+)?(?:function\s*)?\([^)]*\)\s*(?:=>)?\s*{{",
+            owner_code,
+        )
+        if property_match:
+            return balanced_brace_block(owner_body, property_match.end() - 1)
+        return ""
+
+    if len(parts) != 1:
+        return ""
+    name = re.escape(parts[0])
+    code = mask_js_comments_and_strings(content)
+    function_match = re.search(rf"\bfunction\s+{name}\s*\(", code)
+    if function_match:
+        params_end = balanced_paren_end(content, function_match.end() - 1)
+        return balanced_brace_block(content, params_end)
+    arrow_match = re.search(
+        rf"\b(?:const|let)\s+{name}\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*{{",
+        code,
+    )
+    if arrow_match:
+        return balanced_brace_block(content, arrow_match.end() - 1)
+    return ""
+
+
+def _same_file_callable_returns_cleanup(content: str, callee: str) -> bool:
+    body = _same_file_callable_body(content, callee)
+    return bool(body) and _body_returns_cleanup_function(body)
+
+
+def _effect_has_source_grounded_cleanup_return(content: str, effect_body: str) -> bool:
+    code = mask_js_comments_and_strings(effect_body)
+    direct_callees = [match.group(1) for match in EFFECT_CONCISE_CALL_RE.finditer(code)]
+    direct_callees.extend(match.group(1) for match in EFFECT_RETURNED_CALL_RE.finditer(code))
+    if any(_same_file_callable_returns_cleanup(content, callee) for callee in direct_callees):
+        return True
+
+    for return_match in EFFECT_RETURNED_IDENTIFIER_RE.finditer(code):
+        identifier = re.escape(return_match.group(1))
+        assignment = re.search(
+            rf"\b(?:const|let)\s+{identifier}\s*=\s*"
+            r"([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*\(",
+            code[: return_match.start()],
+        )
+        if assignment and _same_file_callable_returns_cleanup(content, assignment.group(1)):
+            return True
+    return False
 
 
 def _memo_call_snippets(content: str) -> list[str]:
-    return call_snippets(content, r"\buse(?:Memo|Callback)\s*\(")
+    return call_snippets(content, r"\buse(?:Memo|Callback)\s*\(", executable_only=True)
+
+
+def _memo_snippet_has_unshadowed_reactive_read(snippet: str) -> bool:
+    reactive_names = {match.group(0) for match in MEMO_REACTIVE_READ_RE.finditer(snippet)}
+    if not reactive_names:
+        return False
+    callback_parameters: set[str] = set()
+    for match in re.finditer(
+        r"(?:\(([^()]*)\)|\b([A-Za-z_$][\w$]*))\s*=>",
+        snippet,
+    ):
+        raw = match.group(1) if match.group(1) is not None else match.group(2)
+        callback_parameters.update(
+            token
+            for token in re.findall(r"[A-Za-z_$][\w$]*", raw or "")
+            if token in reactive_names
+        )
+    return bool(reactive_names - callback_parameters)
 
 
 def _imperative_handle_snippets(content: str) -> list[str]:
-    return call_snippets(content, r"\buseImperativeHandle\s*\(")
+    return call_snippets(content, r"\buseImperativeHandle\s*\(", executable_only=True)
+
+
+def _rendered_nested_component_names(body: str) -> list[str]:
+    """Return nested declarations that are instantiated as direct JSX elements."""
+    code = mask_js_comments_and_strings(body)
+    candidates = NESTED_COMPONENT_FUNCTION_RE.findall(code) + NESTED_COMPONENT_ARROW_RE.findall(code)
+    rendered: list[str] = []
+    for name in candidates:
+        direct_jsx = re.compile(rf"<{re.escape(name)}(?=\s|/?>)")
+        if direct_jsx.search(code) and name not in rendered:
+            rendered.append(name)
+    return rendered
 
 
 def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atlas_file: dict[str, Any] | None = None) -> dict[str, Any] | None:
@@ -357,6 +555,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
         return None
 
     normalized = rel_path.replace("\\", "/")
+    executable_content = mask_js_comments_and_strings(content, mask_jsx_text=True)
     file_evidence_kinds = atlas_evidence_kinds(atlas_file)
     atlas_features = set(str(feature) for feature in ((atlas_file or {}).get("features") or []) if str(feature or "").strip())
     if not atlas_features:
@@ -403,10 +602,12 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
             )
         )
 
-    nested_component_defs = 0
+    nested_component_names: list[str] = []
     for body in component_body_snippets(content, COMPONENT_RE, ARROW_COMPONENT_RE):
-        nested_component_defs += len(NESTED_COMPONENT_FUNCTION_RE.findall(body))
-        nested_component_defs += len(NESTED_COMPONENT_ARROW_RE.findall(body))
+        for name in _rendered_nested_component_names(body):
+            if name not in nested_component_names:
+                nested_component_names.append(name)
+    nested_component_defs = len(nested_component_names)
     if nested_component_defs:
         findings.append(
             _finding(
@@ -465,8 +666,11 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
 
     for full in _effect_call_snippets(content):
         effect_body = full
-        has_resource_setup = bool(EFFECT_RESOURCE_SETUP_RE.search(effect_body))
-        has_resource_cleanup = bool(EFFECT_RESOURCE_CLEANUP_RE.search(effect_body))
+        effect_code = mask_js_comments_and_strings(effect_body)
+        has_resource_setup = bool(EFFECT_RESOURCE_SETUP_RE.search(effect_code))
+        has_resource_cleanup = bool(EFFECT_RESOURCE_CLEANUP_RE.search(effect_code))
+        if has_resource_setup and not has_resource_cleanup:
+            has_resource_cleanup = _effect_has_source_grounded_cleanup_return(content, effect_body)
         risks: list[str] = []
         score = 0
         if "fetch(" in effect_body and "AbortController" not in effect_body:
@@ -518,7 +722,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
         if not deps:
             memo_without_deps += 1
             continue
-        if not deps.group(1).strip() and MEMO_REACTIVE_READ_RE.search(full):
+        if not deps.group(1).strip() and _memo_snippet_has_unshadowed_reactive_read(full):
             empty_deps_with_reactive_reads += 1
     if memo_without_deps:
         memo_score += min(6, memo_without_deps * 3)
@@ -577,10 +781,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
 
     state_risks: list[str] = []
     state_score = 0
-    if state_count >= 6 and any(token in content for token in ("useQuery(", "useMutation(", "useForm(", "useSearchParams(", "useParams(")):
-        state_risks.append("local state coexists with URL/server/form state")
-        state_score += 4
-    if DERIVED_STATE_RE.search(content):
+    if DERIVED_STATE_RE.search(executable_content):
         state_risks.append("possible derived state stored locally")
         state_score += 3
     if "create(" in content and "zustand" in content and state_count:
@@ -599,19 +800,20 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
             )
         )
 
-    query_count = len(USE_QUERY_RE.findall(content))
-    mutation_count = len(USE_MUTATION_RE.findall(content))
-    query_keys = QUERY_KEY_RE.findall(content)
+    query_count = len(USE_QUERY_RE.findall(executable_content))
+    mutation_count = len(USE_MUTATION_RE.findall(executable_content))
+    query_keys = QUERY_KEY_RE.findall(executable_content)
     if query_count or mutation_count:
         query_score = 0
         query_risks: list[str] = []
-        if query_count and not query_keys:
-            query_score += 4
-            query_risks.append("query call without visible queryKey contract")
-        if mutation_count and "onSuccess" not in content and not INVALIDATE_RE.search(content):
+        missing_direct_query_keys = _missing_direct_query_key_count(content)
+        if missing_direct_query_keys:
+            query_score += min(8, missing_direct_query_keys * 4)
+            query_risks.append(f"{missing_direct_query_keys} direct query option object(s) lack a visible queryKey contract")
+        if mutation_count and "onSuccess" not in executable_content and not INVALIDATE_RE.search(executable_content):
             query_score += 4
             query_risks.append("mutation without visible invalidation/onSuccess contract")
-        if any("[" in key and re.search(r"\b(?:id|projectId|params|searchParams)\b", content) and "undefined" not in content for key in query_keys):
+        if any("[" in key and re.search(r"\b(?:id|projectId|params|searchParams)\b", executable_content) and "undefined" not in executable_content for key in query_keys):
             query_score += 2
             query_risks.append("query key likely depends on route/user input")
         if query_risks:
@@ -628,7 +830,8 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
                 )
             )
 
-    if LAZY_COMPONENT_RE.search(content):
+    lazy_component_match = _lazy_component_match(content)
+    if lazy_component_match:
         lazy_score = 0
         lazy_risks: list[str] = []
         if not LAZY_FALLBACK_RE.search(content):
@@ -647,11 +850,12 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
                     "; ".join(lazy_risks),
                     lazy_score,
                     "Wrap lazy/dynamic surfaces with Suspense/loading fallback and an error boundary before treating the split point as production-safe.",
-                    line=_first_line(content, LAZY_COMPONENT_RE),
+                    line=_line_for(content, content[lazy_component_match.start() : lazy_component_match.end()]),
                 )
             )
 
-    if FEATURE_FLAG_RE.search(content):
+    feature_flag_match = FEATURE_FLAG_RE.search(executable_content)
+    if feature_flag_match:
         findings.append(
             _finding(
                 project,
@@ -661,12 +865,13 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
                 "feature flag or environment-gated render branch detected",
                 4,
                 "Pair static review with ContextOS/local telemetry or a fixture that exercises enabled and disabled branches.",
-                line=_first_line(content, FEATURE_FLAG_RE),
+                line=_line_for(content, content[feature_flag_match.start() : feature_flag_match.end()]),
                 evidence_kinds={"static_regex", "needs_runtime_proof"},
             )
         )
 
-    if HYDRATION_SENSITIVE_RE.search(content) and not HYDRATION_GUARD_RE.search(content):
+    hydration_match = HYDRATION_SENSITIVE_RE.search(executable_content)
+    if _hydration_rule_applies(normalized, content) and hydration_match and not HYDRATION_GUARD_RE.search(executable_content):
         findings.append(
             _finding(
                 project,
@@ -676,7 +881,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
                 "render path reads time/random/browser-only value without visible client/hydration guard",
                 5,
                 "Move non-deterministic or browser-only reads behind a client effect, ssr:false boundary, or explicit hydration guard.",
-                line=_first_line(content, HYDRATION_SENSITIVE_RE),
+                line=_line_for(content, content[hydration_match.start() : hydration_match.end()]),
                 evidence_kinds={"static_regex", "ssr_hydration"},
             )
         )
@@ -698,15 +903,16 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
 
     concurrency_score = 0
     concurrency_risks: list[str] = []
-    has_concurrency_contract = bool(CONCURRENT_UX_RE.search(content))
-    has_pending_feedback = bool(PENDING_FEEDBACK_RE.search(content))
-    if (mutation_count or SERVER_ACTION_FORM_RE.search(content)) and not has_concurrency_contract:
+    has_concurrency_contract = bool(CONCURRENT_UX_RE.search(executable_content))
+    has_pending_feedback = bool(PENDING_FEEDBACK_RE.search(executable_content))
+    server_action_form = SERVER_ACTION_FORM_RE.search(executable_content)
+    if (mutation_count or server_action_form) and not has_concurrency_contract:
         concurrency_score += 4
         concurrency_risks.append("async mutation/server action without transition/action-state contract")
-    if (mutation_count or SERVER_ACTION_FORM_RE.search(content)) and not has_pending_feedback:
+    if (mutation_count or server_action_form) and not has_pending_feedback:
         concurrency_score += 3
         concurrency_risks.append("async user action without visible pending/disabled feedback")
-    if EXPENSIVE_LIST_DERIVATION_RE.search(content) and "useDeferredValue" not in content and not has_concurrency_contract:
+    if EXPENSIVE_LIST_DERIVATION_RE.search(executable_content) and "useDeferredValue" not in executable_content and not has_concurrency_contract:
         concurrency_score += 3
         concurrency_risks.append("expensive list derivation without deferred/transition boundary")
     if concurrency_risks:
@@ -723,10 +929,10 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
             )
         )
 
-    async_handlers = len(ASYNC_EVENT_HANDLER_RE.findall(content))
+    async_handlers = len(ASYNC_EVENT_HANDLER_RE.findall(executable_content))
     async_handler_score = 0
     async_handler_risks: list[str] = []
-    if async_handlers and not ASYNC_HANDLER_ERROR_RE.search(content):
+    if async_handlers and not ASYNC_HANDLER_ERROR_RE.search(executable_content):
         async_handler_score += min(6, async_handlers * 3)
         async_handler_risks.append(f"{async_handlers} async event handler(s) without visible error handling")
     if async_handlers and not has_pending_feedback:
@@ -747,7 +953,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
         )
 
     list_snippets = _map_render_snippets(content)
-    if list_snippets:
+    if list_snippets and not STATIC_DOCUMENT_RENDERER_IMPORT_RE.search(content):
         list_score = 0
         list_risks: list[str] = []
         missing_key = sum(1 for snippet in list_snippets if "key=" not in snippet)
@@ -758,9 +964,6 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
         if index_key:
             list_score += min(4, index_key * 2)
             list_risks.append(f"{index_key} mapped JSX list(s) use index-like key")
-        if len(list_snippets) >= 2 and not VIRTUALIZATION_RE.search(content):
-            list_score += 2
-            list_risks.append("multiple list render surfaces without visible virtualization/deferred boundary")
         if list_risks:
             findings.append(
                 _finding(
@@ -770,7 +973,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
                     "unstable_or_unbounded_list_render_contract",
                     "; ".join(list_risks),
                     list_score,
-                    "Use stable domain keys and add virtualization/deferred rendering for large or repeated list surfaces.",
+                    "Use stable domain keys when collection identity can change across renders.",
                     line=_line_for(content, list_snippets[0][:40]),
                 )
             )
@@ -784,7 +987,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
         if (FORM_HOOK_RE.search(content) or "ReactForm" in atlas_features) and not has_validation_contract:
             form_score += 4
             form_risks.append("form hook without resolver/schema contract")
-        if SERVER_ACTION_FORM_RE.search(content) and "useFormState" not in content and "useActionState" not in content:
+        if server_action_form and "useFormState" not in executable_content and "useActionState" not in executable_content:
             form_score += 3
             form_risks.append("server action form without action-state/error mapping")
         if has_form_error_state and not re.search(r"aria-(?:invalid|describedby)", content):
@@ -809,18 +1012,21 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
     mixed_value = 0
     mixed_checked = 0
     missing_change = 0
-    for match in FORM_CONTROL_RE.finditer(content):
-        attrs = match.group(1) or ""
-        has_value = bool(VALUE_PROP_RE.search(attrs))
-        has_default_value = bool(DEFAULT_VALUE_PROP_RE.search(attrs))
-        has_checked = bool(CHECKED_PROP_RE.search(attrs))
-        has_default_checked = bool(DEFAULT_CHECKED_PROP_RE.search(attrs))
-        has_change_contract = bool(CHANGE_CONTRACT_RE.search(attrs))
+    control_tags = jsx_opening_tag_snippets(content, {"input", "select", "textarea"})
+    for tag in control_tags:
+        attrs = jsx_attribute_names(tag)
+        has_value = "value" in attrs
+        has_default_value = "defaultValue" in attrs
+        has_checked = "checked" in attrs
+        has_default_checked = "defaultChecked" in attrs
+        has_change_contract = bool(
+            attrs & {"onChange", "onValueChange", "onCheckedChange", "readOnly", "disabled", "isDisabled"}
+        )
         if has_value and has_default_value:
             mixed_value += 1
         if has_checked and has_default_checked:
             mixed_checked += 1
-        if (has_value or has_checked) and not has_change_contract:
+        if (has_value or has_checked) and not has_change_contract and not HIDDEN_CONTROL_RE.search(tag):
             missing_change += 1
     if mixed_value:
         control_score += min(6, mixed_value * 3)
@@ -841,7 +1047,7 @@ def analyze_react_ecosystem_file(project: str, rel_path: str, content: str, atla
                 "; ".join(control_risks),
                 control_score,
                 "Choose controlled or uncontrolled ownership per field and wire onChange/readOnly/disabled explicitly.",
-                line=_first_line(content, FORM_CONTROL_RE),
+                line=_line_for(content, control_tags[0]) if control_tags else 1,
             )
         )
 

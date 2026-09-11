@@ -217,6 +217,39 @@
       "webpack.config.js",
       "webpack.dev.ts",
       "webpack.prod.ts"
+    ],
+    "eslint": [
+      "eslint.config.js",
+      "eslint.config.cjs",
+      "eslint.config.mjs",
+      "eslint.config.ts",
+      "eslint.config.cts",
+      "eslint.config.mts",
+      ".eslintrc",
+      ".eslintrc.json",
+      ".eslintrc.js",
+      ".eslintrc.cjs",
+      ".eslintrc.yml",
+      ".eslintrc.yaml"
+    ],
+    "biome": [
+      "biome.json",
+      "biome.jsonc"
+    ],
+    "sonar": [
+      "sonar-project.properties"
+    ],
+    "stylelint": [
+      "stylelint.config.js",
+      "stylelint.config.cjs",
+      "stylelint.config.mjs",
+      "stylelint.config.ts",
+      ".stylelintrc",
+      ".stylelintrc.json",
+      ".stylelintrc.js",
+      ".stylelintrc.cjs",
+      ".stylelintrc.yml",
+      ".stylelintrc.yaml"
     ]
   },
   "manifest_file_markers": {

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import argparse
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,7 +19,6 @@ from tools.core.config import (
     save_json_atomic,
     save_text_atomic,
 )
-from tools.core.repository_topology import runtime_project_projection
 
 
 def _read(path: Path) -> str:
@@ -52,10 +50,8 @@ def _listify(value: Any) -> list[str]:
     return [str(value)]
 
 
-def _declared_project_root_details(projects: str | None = None) -> dict[str, Any]:
+def _declared_project_root_details() -> dict[str, Any]:
     variations = DYNAMIC_CONFIG.get("variations", {}) or {}
-    projection = runtime_project_projection({"selected_projects": variations}, projects)
-    selected = projection["effective_runtime_projects"]
     project_roles = DYNAMIC_CONFIG.get("project_roles", {}) or {}
     missing: list[dict[str, str]] = []
     escaping: list[dict[str, str]] = []
@@ -66,7 +62,7 @@ def _declared_project_root_details(projects: str | None = None) -> dict[str, Any
         for raw_path in _listify(raw_paths):
             candidate = (ANALYSIS_ROOT / raw_path).resolve()
             resolved.setdefault(str(name), []).append(str(candidate))
-            if name in selected and (not candidate.exists() or not candidate.is_dir()):
+            if not candidate.exists() or not candidate.is_dir():
                 missing.append({"project": str(name), "path": str(candidate)})
             if not _is_relative_to(candidate, ANALYSIS_ROOT):
                 escaping.append({"project": str(name), "path": str(candidate)})
@@ -79,12 +75,7 @@ def _declared_project_root_details(projects: str | None = None) -> dict[str, Any
         "workspace_root": str(DYNAMIC_CONFIG.get("workspace_root", "")),
         "main_path": variations.get("MAIN"),
         "main_role": project_roles.get("MAIN"),
-        "project_count": len(selected),
-        "declared_project_count": len(variations),
-        "requested_project_filter": projection["requested_project_filter"],
-        "unavailable_requested_projects": projection["unavailable_requested_projects"],
-        "checked_project_keys": sorted(selected),
-        "excluded_from_presence_check": sorted(set(variations) - set(selected)),
+        "project_count": len(variations),
         "resolved": resolved,
         "missing": missing,
         "escaping": escaping,
@@ -92,7 +83,7 @@ def _declared_project_root_details(projects: str | None = None) -> dict[str, Any
     }
 
 
-def run_validation(projects: str | None = None) -> dict[str, Any]:
+def run_validation() -> dict[str, Any]:
     discovery_path = ROOT / "tools" / "orchestrators" / "discovery.py"
     oracle_path = ROOT / "tools" / "engines" / "architecture_oracle.py"
     language_registry_path = CONFIG_DIR / "language_registry.json"
@@ -112,13 +103,12 @@ def run_validation(projects: str | None = None) -> dict[str, Any]:
         '"**/api/index.ts"',
     ]
     hardcoded_hits = [fragment for fragment in forbidden_discovery_fragments if fragment in discovery_text]
-    project_root_details = _declared_project_root_details(projects)
+    project_root_details = _declared_project_root_details()
 
     checks = [
         _check(
             "declared_project_roots_exist_and_stay_outside_sage_workspace",
             bool(project_root_details["project_count"])
-            and not project_root_details["unavailable_requested_projects"]
             and project_root_details["main_path"] is not None
             and project_root_details["main_role"] == "host"
             and Path(project_root_details["analysis_root"]).exists()
@@ -217,10 +207,7 @@ def run_validation(projects: str | None = None) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate discovery contracts and declared project roots.")
-    parser.add_argument("--projects", help="Comma-separated presence-check scope; default checks every declared project.")
-    args = parser.parse_args()
-    payload = run_validation(args.projects)
+    payload = run_validation()
     print(json.dumps(payload["summary"], ensure_ascii=False))
     return 0 if payload["summary"]["failed_checks"] == 0 else 1
 

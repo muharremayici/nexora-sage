@@ -55,11 +55,35 @@ def resolve_loc_finding_semantics(
     symbol_name: str = "unknown",
     start_line: int | None = None,
     end_line: int | None = None,
+    project: str | None = None,
+    file_path: str | None = None,
+    effective_target_policy: dict | None = None,
 ):
     kind = str(symbol_kind or "unknown").strip().lower() or "unknown"
     limits = get_audit_loc_limits()
     threshold_kind = kind if kind in limits else "default"
     limit = int(limits[threshold_kind])
+    target_policy_resolution = {
+        "status": "not_requested_missing_project_or_file_context",
+        "limit": limit,
+        "limit_authority": "sage_default",
+        "matched_rules": [],
+        "unresolved_reasons": [],
+        "native_execution": "not_run",
+    }
+    if str(project or "").strip() and str(file_path or "").strip():
+        from tools.core.target_policy_profile import resolve_target_symbol_loc_policy
+
+        target_policy_resolution = resolve_target_symbol_loc_policy(
+            effective_target_policy
+            if isinstance(effective_target_policy, dict)
+            else DYNAMIC_CONFIG.get("effective_target_policy", {}),
+            project=str(project),
+            file_path=str(file_path),
+            symbol_kind=kind,
+            sage_default_limit=limit,
+        )
+        limit = int(target_policy_resolution["limit"])
     contract = get_loc_finding_contract()
     finding = {
         "rule": contract["kind_rule_map"].get(kind, contract["generic_rule"]),
@@ -70,6 +94,8 @@ def resolve_loc_finding_semantics(
         "end_line": int(end_line) if end_line is not None else None,
         "observed_loc": int(observed_loc),
         "limit": limit,
+        "limit_authority": str(target_policy_resolution.get("limit_authority") or "sage_default"),
+        "target_policy_resolution": target_policy_resolution,
     }
     missing_fields = [field for field in contract["required_evidence_fields"] if field not in finding]
     if missing_fields:

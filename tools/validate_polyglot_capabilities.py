@@ -69,6 +69,7 @@ def run_validation() -> dict[str, Any]:
     registry_languages = registry.get("languages", {})
     validation_contract = capabilities.get("validation_contract", {})
     required_levels = validation_contract.get("required_claim_levels", {})
+    required_dead_code_modes = validation_contract.get("required_dead_code_reachability_modes", {})
     compiler_grade_forbidden_claims = validation_contract.get("compiler_grade_forbidden_claims", {})
     required_not_claimed = validation_contract.get("required_not_claimed_by_language", {})
     required_roadmap_candidates = validation_contract.get("required_roadmap_candidates_by_language", {})
@@ -121,6 +122,21 @@ def run_validation() -> dict[str, Any]:
                 "missing_not_claimed": missing_forbidden_tokens,
                 "accidental_evidence_claims": accidental_compiler_claims,
             },
+        )
+    )
+    dead_code_mode_mismatches = {
+        name: {
+            "expected": mode,
+            "actual": (languages.get(name, {}).get("dead_code_reachability") or {}).get("mode"),
+        }
+        for name, mode in required_dead_code_modes.items()
+        if (languages.get(name, {}).get("dead_code_reachability") or {}).get("mode") != mode
+    }
+    checks.append(
+        _check(
+            "dead_code_reachability_modes_match_semantic_capability",
+            not dead_code_mode_mismatches,
+            dead_code_mode_mismatches or "all language reachability modes are explicit",
         )
     )
 

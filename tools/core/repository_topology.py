@@ -10,6 +10,205 @@ from typing import Any, Callable, Iterable
 TOPOLOGY_MODES = {"auto", "single_project", "multi_project"}
 
 
+def _string_set(values: Any) -> set[str]:
+    return {
+        str(value).strip().lower()
+        for value in (values if isinstance(values, list) else [])
+        if str(value).strip()
+    }
+
+
+def classify_project_system_kind(
+    inventory: dict[str, Any],
+    manifest: dict[str, Any] | None,
+    policy: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Classify technical system kind from bounded static evidence, or stay unknown."""
+
+    evidence = inventory if isinstance(inventory, dict) else {}
+    package = manifest if isinstance(manifest, dict) else {}
+    rules = policy if isinstance(policy, dict) else {}
+    allowed = _string_set(rules.get("allowed_kinds"))
+    kind_precedence = [
+        str(value).strip().lower()
+        for value in rules.get("kind_precedence", [])
+        if str(value).strip()
+    ]
+    confidence_precedence = [
+        str(value).strip().lower()
+        for value in rules.get("confidence_precedence", [])
+        if str(value).strip()
+    ]
+    precedence_is_complete = (
+        len(kind_precedence) == len(set(kind_precedence))
+        and set(kind_precedence) == allowed - {"unknown"}
+        and len(confidence_precedence) == len(set(confidence_precedence))
+        and bool(confidence_precedence)
+    )
+    if not allowed or "unknown" not in allowed or not precedence_is_complete:
+        return {
+            "kind": "unknown",
+            "authority": "system_kind_policy_unavailable",
+            "confidence": "none",
+            "evidence": [],
+            "candidate_kinds": [],
+        }
+    if bool(evidence.get("inventory_truncated")):
+        return {
+            "kind": "unknown",
+            "authority": "inventory_truncated",
+            "confidence": "none",
+            "evidence": ["project_inventory_truncated"],
+            "candidate_kinds": [],
+        }
+
+    file_count = max(0, int(evidence.get("file_count") or 0))
+    analysis_sources = max(0, int(evidence.get("analysis_source_file_count") or 0))
+    analysis_configs = max(0, int(evidence.get("analysis_config_file_count") or 0))
+    non_config_analysis_sources = max(0, analysis_sources - analysis_configs)
+    extension_counts = {
+        str(key).lower(): max(0, int(value or 0))
+        for key, value in (evidence.get("extension_counts") or {}).items()
+    }
+    manifest_files = {
+        str(path)
+        for paths in (evidence.get("manifest_files") or {}).values()
+        for path in (paths if isinstance(paths, list) else [])
+    }
+    manifest_count = len(manifest_files)
+    dependency_names_by_section = {
+        str(section): {
+            str(name).lower()
+            for name in (
+                package.get(str(section), {}).keys()
+                if isinstance(package.get(str(section)), dict)
+                else []
+            )
+        }
+        for section in rules.get("manifest_dependency_sections", [])
+    }
+    dependency_names = set().union(*dependency_names_by_section.values()) if dependency_names_by_section else set()
+
+    def dependencies_in_sections(rule_key: str) -> set[str]:
+        return set().union(*(
+            dependency_names_by_section.get(str(section), set())
+            for section in rules.get(rule_key, [])
+        ))
+    scripts = package.get("scripts") if isinstance(package.get("scripts"), dict) else {}
+    script_names = {str(name).lower() for name in scripts}
+    script_text = " ".join(str(command).lower() for command in scripts.values())
+    dominance = max(0.0, min(1.0, float(rules.get("dominance_threshold") or 0.6)))
+    minimum_files = max(1, int(rules.get("minimum_dominant_file_count") or 1))
+
+    def extension_total(rule_key: str) -> int:
+        return sum(extension_counts.get(extension, 0) for extension in _string_set(rules.get(rule_key)))
+
+    def dominates(count: int) -> bool:
+        return count >= minimum_files and count / max(file_count, 1) >= dominance
+
+    def dominates_non_manifest_files(count: int) -> bool:
+        return count >= minimum_files and count / max(file_count - manifest_count, 1) >= dominance
+
+    candidates: list[tuple[str, str, str]] = []
+    documentation_count = extension_total("documentation_extensions")
+    configuration_count = max(0, extension_total("configuration_extensions") - manifest_count)
+    asset_count = extension_total("asset_extensions")
+    documentation_dependencies = dependency_names & _string_set(rules.get("documentation_dependency_markers"))
+    documentation_tokens = _string_set(rules.get("documentation_script_tokens"))
+    if (
+        documentation_dependencies
+        or any(token in script_text for token in documentation_tokens)
+        or (non_config_analysis_sources == 0 and dominates(documentation_count))
+    ):
+        candidates.append(("documentation", "high", "documentation_inventory_or_manifest_signal"))
+    manifest_file_patterns = package.get("files") if isinstance(package.get("files"), list) else []
+    manifest_declares_config_payload = bool(manifest_file_patterns) and all(
+        any(str(pattern).lower().endswith(extension) for extension in _string_set(rules.get("configuration_extensions")))
+        or "*.json" in str(pattern).lower()
+        for pattern in manifest_file_patterns
+    )
+    if non_config_analysis_sources == 0 and (
+        dominates_non_manifest_files(configuration_count) or manifest_declares_config_payload
+    ):
+        candidates.append(("configuration", "high", "configuration_dominant_without_program_source"))
+    if non_config_analysis_sources == 0 and dominates(asset_count):
+        candidates.append(("asset_bundle", "high", "asset_dominant_without_program_source"))
+    if any(field in package and package.get(field) for field in rules.get("tool_manifest_fields", [])):
+        candidates.append(("tool", "high", "executable_manifest_field"))
+    service_dependencies = dependencies_in_sections("service_dependency_sections") & _string_set(
+        rules.get("service_dependency_markers")
+    )
+    if non_config_analysis_sources > 0 and service_dependencies:
+        candidates.append(("service", "high", "service_framework_dependency"))
+    application_dependencies = dependencies_in_sections("application_dependency_sections") & _string_set(
+        rules.get("application_dependency_markers")
+    )
+    application_scripts = script_names & _string_set(rules.get("application_script_names"))
+    if non_config_analysis_sources > 0 and application_dependencies and application_scripts:
+        candidates.append(("application", "high", "application_framework_and_runtime_script"))
+    if non_config_analysis_sources > 0 and any(
+        field in package and package.get(field)
+        for field in rules.get("library_manifest_fields", [])
+    ):
+        candidates.append(("library", "medium", "library_export_manifest_field"))
+
+    candidates = [candidate for candidate in candidates if candidate[0] in allowed]
+    if not candidates:
+        return {
+            "kind": "unknown",
+            "authority": "insufficient_static_system_kind_evidence",
+            "confidence": "none",
+            "evidence": [],
+            "candidate_kinds": [],
+        }
+    confidence_rank = {value: index for index, value in enumerate(confidence_precedence)}
+    kind_rank = {value: index for index, value in enumerate(kind_precedence)}
+    candidates.sort(
+        key=lambda candidate: (
+            confidence_rank.get(candidate[1], len(confidence_rank)),
+            kind_rank.get(candidate[0], len(kind_rank)),
+        )
+    )
+    highest_confidence = candidates[0][1]
+    highest_candidates = [candidate for candidate in candidates if candidate[1] == highest_confidence]
+    candidate_kinds = [candidate[0] for candidate in candidates]
+    if (
+        len(highest_candidates) > 1
+        and str(rules.get("same_confidence_conflict_policy") or "unknown").strip().lower()
+        == "unknown"
+    ):
+        return {
+            "kind": "unknown",
+            "authority": "ambiguous_static_system_kind_evidence",
+            "confidence": "none",
+            "evidence": [candidate[2] for candidate in highest_candidates],
+            "candidate_kinds": candidate_kinds,
+        }
+    kind, confidence, reason = candidates[0]
+    return {
+        "kind": kind,
+        "authority": str(rules.get("contract") or "technical_system_kind_static_inventory_v1"),
+        "confidence": confidence,
+        "evidence": [reason],
+        "candidate_kinds": candidate_kinds,
+    }
+
+
+def classify_project_system_kinds(
+    project_inventory: dict[str, dict[str, Any]],
+    manifests: dict[str, dict[str, Any]],
+    policy: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    return {
+        str(project): classify_project_system_kind(
+            inventory,
+            manifests.get(str(project), {}),
+            policy,
+        )
+        for project, inventory in project_inventory.items()
+    }
+
+
 def normalize_project_filter(projects: Iterable[str] | str | None) -> list[str]:
     if isinstance(projects, str):
         values = projects.split(",")

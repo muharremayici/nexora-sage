@@ -3,7 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from tools.core.config import ARCH_CONFIG, DYNAMIC_CONFIG, ENVIRONMENT, PLUGINS
-from tools.core.architecture_blueprints import effective_profile_ids
+from tools.core.architecture_blueprints import (
+    canonical_profile_id,
+    canonical_profiles,
+    load_effective_architecture_policy_context,
+    resolve_effective_architecture_project,
+)
 from tools.core.doctrine_contract import require_doctrine_mapping
 from tools.core.import_classifier import is_target_relative_import, should_enforce_alias_for_local_import
 
@@ -152,11 +157,13 @@ def get_audit_runtime_context(project_count: int | None = None) -> Dict[str, Any
         path_aliases = list((ENVIRONMENT.get("path_aliases") or {}).keys())
     return {
         "architecture_type": str(ARCH_CONFIG.get("type", "") or "").lower(),
+        "detected_profile": str(ARCH_CONFIG.get("detected_profile", "MODULAR_FLAT") or "MODULAR_FLAT"),
         "module_root": str(ARCH_CONFIG.get("module_root", "") or ""),
         "plugins": sorted(str(plugin) for plugin in PLUGINS),
         "path_aliases": path_aliases,
         "project_count": int(inferred_project_count or 0),
         "rules_config": DYNAMIC_CONFIG.get("audit", {}).get("rules", {}),
+        "effective_target_policy": DYNAMIC_CONFIG.get("effective_target_policy", {}),
     }
 
 
@@ -168,11 +175,18 @@ def _requirement_satisfied(requirement: Dict[str, Any], context: Dict[str, Any])
     if kind == "architecture_type":
         return str(context.get("architecture_type", "")).lower() == str(value or "").lower()
     if kind == "profile":
-        detected_profile = ARCH_CONFIG.get("detected_profile", "MODULAR_FLAT")
-        effective_profiles = effective_profile_ids(str(detected_profile))
-        if isinstance(value, list):
-            return bool(effective_profiles.intersection(set(value)))
-        return str(value) in effective_profiles
+        detected_profile = canonical_profile_id(str(context.get("detected_profile") or "MODULAR_FLAT"))
+        profiles = canonical_profiles()
+        applicable_profiles = {detected_profile}
+        pending = list(profiles.get(detected_profile, {}).get("implies", []) or [])
+        while pending:
+            implied = canonical_profile_id(str(pending.pop()))
+            if implied in applicable_profiles:
+                continue
+            applicable_profiles.add(implied)
+            pending.extend(profiles.get(implied, {}).get("implies", []) or [])
+        required_profiles = value if isinstance(value, list) else [value]
+        return bool(applicable_profiles.intersection({canonical_profile_id(str(item)) for item in required_profiles}))
     if kind == "plugin":
         return str(value or "") in set(context.get("plugins", []))
     if kind == "path_alias":
@@ -253,4 +267,122 @@ def build_rule_taxonomy(project_count: int | None = None) -> Dict[str, Any]:
             "by_mode": dict(sorted(by_mode.items())),
         },
         "profiles": profiles,
+    }
+
+
+def build_effective_project_rule_taxonomy(
+    project: str,
+    effective_policy: Dict[str, Any] | None,
+    *,
+    expected_snapshot_id: str = "",
+    project_count: int | None = None,
+    runtime_context: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Resolve rule applicability from the exact post-Atlas project policy."""
+
+    project_state = resolve_effective_architecture_project(
+        effective_policy,
+        project,
+        expected_snapshot_id=expected_snapshot_id,
+    )
+    policy_status = str(project_state["effective_policy_status"])
+    activation_allowed = bool(project_state["architecture_sensitive_rules_enabled"])
+    context = get_audit_runtime_context(project_count=project_count)
+    if isinstance(runtime_context, dict):
+        context.update(runtime_context)
+    context["detected_profile"] = str(project_state.get("recommended_profile") or "")
+
+    resolved_profiles: Dict[str, Dict[str, Any]] = {}
+    for rule_key in sorted(RULE_DEFINITIONS):
+        profile = get_rule_profile(rule_key, context)
+        metadata = RULE_DEFINITIONS.get(rule_key, {})
+        if metadata.get("layer") == "architectural":
+            requirements_satisfied = all(
+                _requirement_satisfied(requirement, context)
+                for requirement in metadata.get("requires", [])
+            )
+            if not activation_allowed:
+                profile["mode"] = "disabled"
+                profile["applicability_reason"] = "effective_architecture_policy_not_active"
+            elif not requirements_satisfied:
+                profile["mode"] = "disabled"
+                profile["applicability_reason"] = "effective_profile_not_applicable"
+            else:
+                profile["applicability_reason"] = "active_effective_profile"
+        else:
+            profile["applicability_reason"] = "non_architecture_rule"
+        resolved_profiles[rule_key] = profile
+
+    return {
+        "project": str(project),
+        "effective_policy_status": policy_status,
+        "expected_snapshot_id": str(expected_snapshot_id or "") or None,
+        "observed_snapshot_id": project_state.get("observed_snapshot_id"),
+        "recommended_profile": project_state.get("recommended_profile"),
+        "architecture_sensitive_rules_enabled": activation_allowed,
+        "profiles": resolved_profiles,
+    }
+
+
+def filter_violations_by_project_taxonomy(
+    violations: Dict[str, list[Dict[str, Any]]],
+    project_taxonomies: Dict[str, Dict[str, Any]],
+) -> tuple[Dict[str, list[Dict[str, Any]]], Dict[str, Any]]:
+    """Suppress findings whose exact project policy does not activate the rule."""
+
+    filtered = {str(rule): [] for rule in violations}
+    suppressed_by_project_rule: Dict[str, Dict[str, int]] = {}
+    for rule_key, findings in violations.items():
+        for finding in findings:
+            project = str(finding.get("project") or "UNKNOWN")
+            taxonomy = project_taxonomies.get(project, {})
+            profiles = taxonomy.get("profiles") if isinstance(taxonomy, dict) else {}
+            profile = profiles.get(rule_key, {}) if isinstance(profiles, dict) else {}
+            if str(profile.get("mode") or "disabled").strip().lower() == "disabled":
+                project_counts = suppressed_by_project_rule.setdefault(project, {})
+                project_counts[rule_key] = project_counts.get(rule_key, 0) + 1
+                continue
+            filtered.setdefault(rule_key, []).append(finding)
+
+    projects = {
+        project: {
+            "effective_policy_status": taxonomy.get("effective_policy_status"),
+            "recommended_profile": taxonomy.get("recommended_profile"),
+            "architecture_sensitive_rules_enabled": bool(
+                taxonomy.get("architecture_sensitive_rules_enabled")
+            ),
+            "expected_snapshot_id": taxonomy.get("expected_snapshot_id"),
+            "observed_snapshot_id": taxonomy.get("observed_snapshot_id"),
+            "enabled_architecture_rules": sorted(
+                rule_key
+                for rule_key, profile in (taxonomy.get("profiles") or {}).items()
+                if isinstance(profile, dict)
+                and profile.get("layer") == "architectural"
+                and str(profile.get("mode") or "disabled").strip().lower()
+                != "disabled"
+            ),
+            "suppressed_by_rule": dict(
+                sorted(suppressed_by_project_rule.get(project, {}).items())
+            ),
+        }
+        for project, taxonomy in sorted(project_taxonomies.items())
+    }
+    return filtered, {
+        "authority": "effective_architecture_policy_v1",
+        "projects": projects,
+        "architecture_enabled_projects": sorted(
+            project
+            for project, row in projects.items()
+            if row["architecture_sensitive_rules_enabled"]
+        ),
+        "architecture_incomplete_projects": sorted(
+            project
+            for project, row in projects.items()
+            if not row["architecture_sensitive_rules_enabled"]
+        ),
+        "suppressed_finding_count": sum(
+            count
+            for counts in suppressed_by_project_rule.values()
+            for count in counts.values()
+        ),
     }

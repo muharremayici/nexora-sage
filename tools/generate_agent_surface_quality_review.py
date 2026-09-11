@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from tools.core.config import OUTPUT_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic, _target_output_slug
 from tools.core.agent_packet_budget import BOUNDED_AGENT_PACKET_TOKENS, estimate_tokens, token_budget_class
 from tools.core.atlas_io import load_atlas_data
+from tools.core.external_target_generation import resolve_external_target_artifact_dir
 from tools.core.json_io import load_json_file
 from tools.core.text_normalizer import SUSPICIOUS_MARKERS, has_suspicious_text
 from tools.mcp import server as mcp_server
@@ -44,13 +45,17 @@ def _utc_now() -> str:
 def _raw_dir_for_review(target_root: str = "") -> Path:
     if not target_root:
         return RAW_DIR
-    return OUTPUT_DIR / "external_targets" / _target_output_slug(str(Path(target_root).resolve())) / ".raw"
+    target_dir = OUTPUT_DIR / "external_targets" / _target_output_slug(str(Path(target_root).resolve()))
+    artifact_dir, _reason = resolve_external_target_artifact_dir(target_dir)
+    return artifact_dir / ".raw"
 
 
 def _reports_dir_for_review(target_root: str = "") -> Path:
     if not target_root:
         return REPORTS_DIR
-    return OUTPUT_DIR / "external_targets" / _target_output_slug(str(Path(target_root).resolve())) / "reports"
+    target_dir = OUTPUT_DIR / "external_targets" / _target_output_slug(str(Path(target_root).resolve()))
+    artifact_dir, _reason = resolve_external_target_artifact_dir(target_dir)
+    return artifact_dir / "reports"
 
 
 def _analysis_root_for_review(target_root: str = "") -> Path:

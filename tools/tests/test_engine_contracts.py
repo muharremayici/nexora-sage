@@ -32,6 +32,7 @@ from tools.core.config import (
 )
 from tools.core.evidence_status import evidence_failed_checks, normalize_evidence_status
 from tools.core.language_registry import is_config_or_manifest_file, language_extensions
+from tools.core.target_inventory import repository_and_selected_project_inventory
 from tools.core import config as core_config
 from tools.core import artifact_store
 from tools.core.artifact_store import ArtifactPrimaryWriteError, ArtifactStore, _artifact_profile_log
@@ -111,7 +112,7 @@ from tools.engines.react_ecosystem_analyzer import analyze_react_ecosystem_file
 from tools.engines.react_runtime_intelligence import analyze_runtime_intelligence_file
 from tools.engines.react_runtime_intelligence import _calibrate_with_ecosystem
 from tools.engines.react_runtime_intelligence import _load_runtime_policy
-from tools.engines.react_runtime_intelligence import _render_mutation_lines
+from tools.engines.react_runtime_intelligence import _react_mutation_contexts
 from tools.engines.react_compiler_readiness import _normalize_finding as normalize_compiler_finding
 from tools.engines.react_frontier_intelligence import analyze_frontier_file
 from tools.engines.react_frontier_intelligence import _evidence_readiness, _hot_profiler_entries, _large_assets
@@ -131,12 +132,17 @@ from tools.core import test_impact_profiles as test_impact_profile_core
 from tools.core.state_flow import summarize_state_flow_features
 from tools.core.react_evidence import attach_react_evidence_contract
 from tools.core import audit_report as audit_report_core
+from tools.core import audit_rules as audit_rules_core
 from tools.core.audit_rules import RULE_DEFINITIONS, RULE_PROFILE_CONTRACT, _requirement_satisfied
+from tools.core.layer_resolver import resolve_layer
 from tools.core.architecture_blueprints import (
     architecture_governance_context,
+    build_effective_architecture_policy,
     blueprint_axes_valid,
+    blueprint_coordinates,
     canonical_profile_id,
     effective_profile_ids,
+    resolve_effective_architecture_project,
 )
 from tools.core.language_registry import index_files, language_for_extension, watch_extensions
 from tools.core.pipeline_registry import filter_catalog_for_system_scope
@@ -148,12 +154,22 @@ from tools.orchestrators.orchestrator import (
     pre_warm_cache,
     select_steps_smart,
 )
-from tools.engines.capability_activation_planner import _refresh_project_dna_profile
+from tools.engines.capability_activation_planner import (
+    _refresh_project_dna_profile,
+    build_capability_activation_plan,
+)
+from tools.engines.architecture_oracle import (
+    _bind_project_proposal_identities,
+    _score_next,
+    build_architecture_oracle,
+    build_repository_composition_blueprint,
+)
 from tools.engines.project_dna_profiler import _dependency_names
 from tools.validate_merge_intelligence_regression import build_regression_checks
 from tools.engines.validation_oracle import ValidationOracle
 from tools.core.package_contracts import build_package_public_contracts
 from tools.validate_performance_budget import (
+    _latest_atlas_ast_lifecycle_profile,
     _latest_atlas_persistence_profile,
     _latest_atlas_phase_profile,
     _latest_completed_forced_session,
@@ -339,6 +355,101 @@ class AuditRuleProfileContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported audit rule requirement kind"):
             _requirement_satisfied({"kind": "future_unknown_kind", "value": True}, {})
 
+    def test_layer_resolution_matches_segments_not_dynamic_route_tokens(self):
+        self.assertEqual(resolve_layer("app/[domain]/[key]/inspect/card.tsx"), "unknown")
+        self.assertEqual(resolve_layer("src/domain/order/entity.ts"), "domain/logic")
+        self.assertEqual(resolve_layer("src/widgets/OrderCard.tsx"), "widgets")
+
+    def test_effective_policy_requires_exact_active_project_before_architecture_rules(self):
+        policy = {
+            "meta": {"kind": "effective_architecture_policy", "version": "v1"},
+            "invalidation": {"atlas_snapshot_id": "snapshot-a"},
+            "projects": {
+                "NEXT": {"status": "ACTIVE", "policy_activation_allowed": True, "recommended_profile": "NEXTJS_APP_ROUTER", "feature_flags": {"architecture_sensitive_rules": "enabled"}},
+                "FSD": {"status": "ACTIVE", "policy_activation_allowed": True, "recommended_profile": "FSD_STRICT", "feature_flags": {"architecture_sensitive_rules": "enabled"}},
+                "CLEAN": {"status": "ACTIVE", "policy_activation_allowed": True, "recommended_profile": "CLEAN_ARCHITECTURE", "feature_flags": {"architecture_sensitive_rules": "enabled"}},
+                "WAITING": {"status": "ADVISORY_AWAITING_HITL", "policy_activation_allowed": False, "recommended_profile": "CLEAN_ARCHITECTURE", "feature_flags": {"architecture_sensitive_rules": "advisory_only"}},
+            },
+        }
+
+        runtime_context = {"path_aliases": ["@/"]}
+        next_rules = audit_rules_core.build_effective_project_rule_taxonomy("NEXT", policy, expected_snapshot_id="snapshot-a", runtime_context=runtime_context)["profiles"]
+        fsd_rules = audit_rules_core.build_effective_project_rule_taxonomy("FSD", policy, expected_snapshot_id="snapshot-a", runtime_context=runtime_context)["profiles"]
+        clean_rules = audit_rules_core.build_effective_project_rule_taxonomy("CLEAN", policy, expected_snapshot_id="snapshot-a", runtime_context=runtime_context)["profiles"]
+        waiting_rules = audit_rules_core.build_effective_project_rule_taxonomy("WAITING", policy, expected_snapshot_id="snapshot-a", runtime_context=runtime_context)["profiles"]
+
+        self.assertEqual(next_rules["fsd_shared_features"]["mode"], "disabled")
+        self.assertEqual(next_rules["hexagonal_layer_violation"]["mode"], "disabled")
+        self.assertNotEqual(next_rules["relative_imports_no_alias"]["mode"], "disabled")
+        self.assertNotEqual(fsd_rules["fsd_shared_features"]["mode"], "disabled")
+        self.assertEqual(fsd_rules["hexagonal_layer_violation"]["mode"], "disabled")
+        self.assertNotEqual(clean_rules["hexagonal_layer_violation"]["mode"], "disabled")
+        self.assertEqual(clean_rules["fsd_shared_features"]["mode"], "disabled")
+        self.assertEqual(waiting_rules["hexagonal_layer_violation"]["mode"], "disabled")
+
+        stale = audit_rules_core.build_effective_project_rule_taxonomy("CLEAN", policy, expected_snapshot_id="snapshot-b")
+        self.assertEqual(stale["effective_policy_status"], "STALE_SNAPSHOT")
+        self.assertEqual(stale["profiles"]["hexagonal_layer_violation"]["mode"], "disabled")
+
+    def test_project_policy_filter_does_not_cross_promote_architecture_findings(self):
+        policy = {
+            "meta": {"kind": "effective_architecture_policy", "version": "v1"},
+            "invalidation": {"atlas_snapshot_id": "snapshot-a"},
+            "projects": {
+                "NEXT": {
+                    "status": "ACTIVE",
+                    "policy_activation_allowed": True,
+                    "recommended_profile": "NEXTJS_APP_ROUTER",
+                    "feature_flags": {"architecture_sensitive_rules": "enabled"},
+                },
+                "CLEAN": {
+                    "status": "ACTIVE",
+                    "policy_activation_allowed": True,
+                    "recommended_profile": "CLEAN_ARCHITECTURE",
+                    "feature_flags": {"architecture_sensitive_rules": "enabled"},
+                },
+                "WAITING": {
+                    "status": "ADVISORY_AWAITING_HITL",
+                    "policy_activation_allowed": False,
+                    "recommended_profile": "CLEAN_ARCHITECTURE",
+                    "feature_flags": {"architecture_sensitive_rules": "advisory_only"},
+                },
+            },
+        }
+        taxonomies = {
+            project: audit_rules_core.build_effective_project_rule_taxonomy(
+                project,
+                policy,
+                expected_snapshot_id="snapshot-a",
+                runtime_context={"path_aliases": ["@/"]},
+            )
+            for project in policy["projects"]
+        }
+        findings = {
+            "hexagonal_layer_violation": [
+                {"project": "NEXT", "file": "app/[domain]/page.tsx"},
+                {"project": "CLEAN", "file": "src/domain/order.ts"},
+                {"project": "WAITING", "file": "src/domain/waiting.ts"},
+            ],
+            "relative_imports_no_alias": [
+                {"project": "NEXT", "file": "src/pages/Home.tsx"},
+            ],
+        }
+
+        filtered, application = audit_rules_core.filter_violations_by_project_taxonomy(
+            findings,
+            taxonomies,
+        )
+
+        self.assertEqual(
+            [row["project"] for row in filtered["hexagonal_layer_violation"]],
+            ["CLEAN"],
+        )
+        self.assertEqual(len(filtered["relative_imports_no_alias"]), 1)
+        self.assertEqual(application["architecture_enabled_projects"], ["CLEAN", "NEXT"])
+        self.assertEqual(application["architecture_incomplete_projects"], ["WAITING"])
+        self.assertEqual(application["suppressed_finding_count"], 2)
+
     def test_runtime_requirement_contract_equals_modular_doctrine(self):
         pack_path = CODE_MAPS_DIR / "config" / "doctrines" / "governance" / "audit_rules.json"
         profile_contract = json.loads(pack_path.read_text(encoding="utf-8"))["audit_rule_profile_contract"]
@@ -364,6 +475,87 @@ class AstSequencerStateFlowContractTests(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
+
+    def test_react_mutation_contexts_are_syntax_ast_derived(self):
+        symbols = self._run_ast_sequencer(
+            """
+cache.value = 0;
+export function Demo() {
+  ref.current = true;
+  useEffect(() => { ref.current = false; }, []);
+  const handleClick = useCallback(() => { ref.current = true; }, []);
+  return <button onClick={handleClick}>Run</button>;
+}
+"""
+        )
+        meta = next(symbol for symbol in symbols if symbol["name"] == "__file_meta__")
+        mutation_features = {
+            feature for feature in meta["features"] if feature.startswith("React:MutableAssignment:")
+        }
+        self.assertEqual(
+            mutation_features,
+            {
+                "React:MutableAssignment:module:2",
+                "React:MutableAssignment:render:4",
+                "React:MutableAssignment:effect:5",
+                "React:MutableAssignment:event:6",
+            },
+        )
+
+    def test_uppercase_non_jsx_functions_are_not_components(self):
+        symbols = self._run_ast_sequencer(
+            """
+export const DataProvider = () => ({ load: true });
+export const ProjectFns = function () { return { save: true }; };
+export const Panel = () => <section />;
+export const LegacyPanel = () => React.createElement('section');
+export const TypedPanel: React.FC = () => null;
+"""
+        )
+        by_name = {symbol["name"]: symbol for symbol in symbols}
+        self.assertEqual(by_name["DataProvider"]["type"], "Arrow")
+        self.assertEqual(by_name["DataProvider"]["canonicalSymbolType"], "function")
+        self.assertEqual(by_name["ProjectFns"]["type"], "Arrow")
+        self.assertEqual(by_name["ProjectFns"]["canonicalSymbolType"], "function")
+        for name in ("Panel", "LegacyPanel", "TypedPanel"):
+            self.assertEqual(by_name[name]["type"], "Component")
+            self.assertEqual(by_name[name]["canonicalSymbolType"], "component")
+
+    def test_batch_metrics_envelope_binds_request_and_reports_rss(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not available")
+        sequencer = Path(__file__).resolve().parents[1] / "engines" / "ast_sequencer.cjs"
+        with tempfile.TemporaryDirectory() as tmp:
+            first = Path(tmp) / "first.ts"
+            second = Path(tmp) / "second.tsx"
+            first.write_text("export const first = 1;\n", encoding="utf-8")
+            second.write_text("export function Second() { return <main />; }\n", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    node,
+                    str(sequencer),
+                    "--batch-json",
+                    "--batch-metrics",
+                    "--request-id",
+                    "test-request-1",
+                    str(first),
+                    str(second),
+                ],
+                cwd=Path(__file__).resolve().parents[2],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            payload = json.loads(result.stdout)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(payload["batchMeta"]["protocolVersion"], 1)
+        self.assertEqual(payload["batchMeta"]["requestId"], "test-request-1")
+        self.assertEqual(payload["batchMeta"]["filesRequested"], 2)
+        self.assertEqual(payload["batchMeta"]["filesReported"], 2)
+        self.assertGreater(payload["batchMeta"]["rssMaxObservedBytes"], 0)
+        self.assertEqual(set(payload["results"]), {str(first), str(second)})
 
     def test_jotai_store_named_hooks_are_not_zustand_consumers(self):
         symbols = self._run_ast_sequencer(
@@ -913,6 +1105,22 @@ class ConfidenceEngineInputHonestyTests(unittest.TestCase):
         self.assertIn("unavailable", result["verdict"].lower())
         self.assertEqual(result["input_evidence"]["circular_deps"]["status"], "UNKNOWN")
 
+    @patch(
+        "tools.engines.confidence_engine._dependency_graph_evidence",
+        return_value=({}, {"status": "UNKNOWN", "source": "missing", "shape_status": "invalid"}),
+    )
+    @patch("tools.engines.confidence_engine.load_atlas_data", return_value={})
+    def test_generated_import_text_does_not_inflate_architecture_drift(self, _atlas, _evidence):
+        result = evaluate_file_confidence(
+            "MAIN::src/generator.ts",
+            content="export const template = `import x from '../domain/fake';`;\n",
+        )
+
+        self.assertEqual(result["confidence_matrix"]["architecture_drift_certainty"], 0.1)
+        self.assertTrue(
+            any("not inferred from raw text" in reason for reason in result["metrics"]["risk_mitigation_reasons"])
+        )
+
     def test_confidence_brief_routes_unknown_evidence_to_refresh(self):
         brief = _render_confidence_brief(
             {
@@ -1108,30 +1316,55 @@ class ReactEvidenceContractTests(unittest.TestCase):
         self.assertEqual(item["runtime_proof_status"], "needs_runtime_proof")
         self.assertIn("runtime_proof_required", item["evidence_ladder"])
 
+    def test_bundle_stats_remain_build_evidence_not_runtime_proof(self):
+        item = attach_react_evidence_contract(
+            {
+                "project": "APP",
+                "file": ".next/stats.json",
+                "dimension": "real_bundle_evidence",
+                "risk": "large_bundle_asset_or_chunk",
+                "score": 8,
+                "confidence": "confirmed",
+            },
+            evidence_kinds={"bundle_stats"},
+        )
+
+        self.assertIn("build_artifact", item["evidence_ladder"])
+        self.assertNotIn("runtime_smoke", item["evidence_ladder"])
+        self.assertEqual(item["runtime_proof_status"], "build_correlated")
+
+    def test_runtime_profile_remains_runtime_proof(self):
+        item = attach_react_evidence_contract(
+            {
+                "project": "APP",
+                "file": "reports/react-profiler.json",
+                "dimension": "react_profiler_runtime",
+                "risk": "expensive_runtime_render_component",
+                "score": 9,
+            },
+            evidence_kinds={"runtime_profile"},
+        )
+
+        self.assertIn("runtime_smoke", item["evidence_ladder"])
+        self.assertEqual(item["runtime_proof_status"], "runtime_confirmed")
+
 
 class ReactRuntimeSurfaceContextTests(unittest.TestCase):
-    def test_render_mutation_detector_ignores_event_handler_ref_mutations(self):
-        source = """
-export function usePanZoom() {
-  const lastMousePos = useRef(null);
-  const handleMouseMove = useCallback((event) => {
-    lastMousePos.current = { x: event.clientX, y: event.clientY };
-  }, []);
-  return { handleMouseMove };
-}
-"""
-
-        self.assertEqual(_render_mutation_lines(source), [])
-
-    def test_render_mutation_detector_reports_top_level_render_mutation(self):
-        source = """
-export function BadComponent(props) {
-  props.value = 1;
-  return null;
-}
-"""
-
-        self.assertEqual(_render_mutation_lines(source), [3])
+    def test_render_mutation_context_parser_preserves_ast_contexts(self):
+        contexts = _react_mutation_contexts(
+            {
+                "React:MutableAssignment:render:3",
+                "React:MutableAssignment:event:6",
+                "React:MutableAssignment:effect:9",
+                "React:MutableAssignment:module:1",
+                "React:MutableAssignment:unresolved:12",
+            }
+        )
+        self.assertEqual(contexts["render"], [3])
+        self.assertEqual(contexts["event"], [6])
+        self.assertEqual(contexts["effect"], [9])
+        self.assertEqual(contexts["module"], [1])
+        self.assertEqual(contexts["unresolved"], [12])
 
     def test_docs_demo_runtime_finding_keeps_signal_but_lowers_actionability(self):
         calibrated = _calibrate_with_ecosystem(
@@ -1176,6 +1409,54 @@ export function BadComponent(props) {
 
         self.assertEqual(normalized["readiness_status"], "observe")
         self.assertEqual(normalized["source_context"], "docs_demo")
+
+    def test_compiler_readiness_never_blocks_high_score_reference_surface(self):
+        normalized = normalize_compiler_finding(
+            {
+                "project": "APP",
+                "file": "docs/Demo.test.tsx",
+                "dimension": "react_compiler_readiness",
+                "risk": "compiler_or_memoization_contract_risk",
+                "risk_tier": "high",
+                "score": 10,
+                "calibration_lane": "act_now",
+                "actionability": "reference_only",
+            },
+            "react_runtime_intelligence",
+        )
+        self.assertEqual(normalized["readiness_status"], "observe")
+
+    def test_compiler_readiness_reviews_high_score_static_signal(self):
+        normalized = normalize_compiler_finding(
+            {
+                "project": "APP",
+                "file": "src/Panel.tsx",
+                "dimension": "react_compiler_readiness",
+                "risk": "compiler_static_contract_risk",
+                "risk_tier": "high",
+                "score": 10,
+                "calibration_lane": "act_now",
+                "actionability": "production_actionable",
+            },
+            "react_runtime_intelligence",
+        )
+        self.assertEqual(normalized["readiness_status"], "review")
+
+    def test_compiler_readiness_blocks_explicit_native_diagnostic(self):
+        normalized = normalize_compiler_finding(
+            {
+                "project": "APP",
+                "file": "src/Panel.tsx",
+                "dimension": "react_compiler_readiness",
+                "risk": "react_compiler_native_blocking_diagnostic",
+                "risk_tier": "high",
+                "score": 10,
+                "calibration_lane": "act_now",
+                "actionability": "production_actionable",
+            },
+            "target_native_react_compiler",
+        )
+        self.assertEqual(normalized["readiness_status"], "blocked")
 
 
 class ValidationOracleContractTests(unittest.TestCase):
@@ -1900,10 +2181,13 @@ class ProofObligationsContractTests(unittest.TestCase):
     def test_quality_gate_does_not_imply_target_native_policy_enforcement(self):
         from tools.engines import quality_gate
 
-        authority = quality_gate._audit_enforcement_authority()
+        authority = quality_gate._audit_enforcement_authority({})
 
         self.assertEqual(authority["native_enforcement"], "sage_native_audit_taxonomy")
-        self.assertEqual(authority["target_native_enforcement"], "not_ingested")
+        self.assertEqual(
+            authority["target_native_enforcement"],
+            "not_observed_in_configured_taxonomy",
+        )
         self.assertEqual(authority["combined_verdict"], "not_available")
         self.assertIn("Target repository", authority["claim_boundary"])
 
@@ -2467,6 +2751,99 @@ class TargetRootOverrideContractTests(unittest.TestCase):
         self.assertFalse(payload["summary"]["react_signal"])
         self.assertTrue(payload["target"]["exists"])
 
+    def test_external_target_preflight_builds_repository_and_project_inventory_in_one_walk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src").mkdir()
+            (root / "src" / "app.ts").write_text("export const app = 1;\n", encoding="utf-8")
+            (root / "package.json").write_text(
+                json.dumps({"devDependencies": {"typescript": "5.7.0"}}),
+                encoding="utf-8",
+            )
+            original_rglob = Path.rglob
+            inventory_walks = []
+
+            def counted_rglob(path, pattern):
+                if path.resolve() == root.resolve() and pattern == "*":
+                    inventory_walks.append(path.resolve())
+                return original_rglob(path, pattern)
+
+            with patch.object(Path, "rglob", counted_rglob):
+                payload = build_preflight(root)
+
+        self.assertEqual(inventory_walks, [root.resolve()])
+        self.assertEqual(payload["summary"]["inventory_file_count"], 2)
+        self.assertEqual(payload["summary"]["analysis_scope"]["project_file_counts"], {"MAIN": 1})
+        self.assertEqual(payload["summary"]["target_observation_identity"]["status"], "complete")
+        self.assertEqual(
+            payload["summary"]["target_observation_identity"]["entry_count"],
+            3,
+        )
+
+    def test_external_target_preflight_identity_changes_when_target_paths_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "package.json").write_text(
+                json.dumps({"devDependencies": {"typescript": "5.7.0"}}),
+                encoding="utf-8",
+            )
+            first = build_preflight(root)["summary"]["target_observation_identity"]
+            (root / "src").mkdir()
+            (root / "src" / "app.ts").write_text(
+                "export const app = 1;\n",
+                encoding="utf-8",
+            )
+            second = build_preflight(root)["summary"]["target_observation_identity"]
+
+        self.assertEqual(first["status"], "complete")
+        self.assertEqual(second["status"], "complete")
+        self.assertNotEqual(first["fingerprint"], second["fingerprint"])
+        self.assertGreater(second["entry_count"], first["entry_count"])
+
+    def test_single_walk_continues_after_repository_limit_for_later_selected_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a-root.txt").write_text("repository evidence\n", encoding="utf-8")
+            project_root = root / "packages" / "late"
+            project_root.mkdir(parents=True)
+            (project_root / "app.ts").write_text("export const app = 1;\n", encoding="utf-8")
+            topology = {
+                "selected_projects": {"LATE": "packages/late"},
+                "project_ownership_exclusions": {"LATE": []},
+            }
+            policy = {
+                "file_count_limit": 1,
+                "root_only_skip_dirs": [],
+                "framework_source_evidence": {
+                    "react": {"source_extensions": [".ts", ".tsx"], "excluded_path_segments": []}
+                },
+            }
+            original_rglob = Path.rglob
+            inventory_walks = []
+
+            def counted_rglob(path, pattern):
+                if path.resolve() == root.resolve() and pattern == "*":
+                    inventory_walks.append(path.resolve())
+                return original_rglob(path, pattern)
+
+            with patch.object(Path, "rglob", counted_rglob):
+                repository, selected = repository_and_selected_project_inventory(
+                    root,
+                    topology,
+                    policy,
+                    [],
+                    {"node": ["package.json"]},
+                    {},
+                )
+
+        self.assertEqual(inventory_walks, [root.resolve()])
+        self.assertEqual(repository[0], 1)
+        self.assertTrue(repository[1])
+        self.assertEqual(selected[0], 1)
+        self.assertTrue(selected[1])
+        self.assertEqual(selected[8], {"LATE": 1})
+        self.assertEqual(selected[9]["LATE"]["analysis_language_counts"], {"typescript": 1})
+
     def test_external_target_preflight_detects_react_package_signal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -2851,6 +3228,13 @@ class TargetRootOverrideContractTests(unittest.TestCase):
         self.assertEqual(summary["manifest_files"], {"rust": ["Cargo.toml"]})
         self.assertEqual(authority["effective_claim_level"], "not_available")
         self.assertEqual(authority["unsupported_language_families"], ["rust"])
+        project_capability = summary["analysis_scope"]["scope_authority"][
+            "project_language_capabilities"
+        ]["MAIN"]
+        self.assertEqual(project_capability["status"], "RECOGNIZED_NO_ENGINE")
+        self.assertEqual(project_capability["recognized_language_families"], ["rust"])
+        self.assertEqual(project_capability["engine_unavailable_language_families"], ["rust"])
+        self.assertTrue(project_capability["recognition_does_not_authorize_engine_activation"])
         self.assertEqual(
             summary["inventory_evidence"]["language_taxonomy_scope"]["observation_only_families"],
             ["rust", "svelte", "vue"],
@@ -3068,6 +3452,12 @@ class TargetRootOverrideContractTests(unittest.TestCase):
         self.assertEqual(authority["unsupported_framework_families"], ["solid", "svelte", "vue"])
         self.assertEqual(authority["framework_authority"]["react"]["effective_claim_level"], "deep_specialist")
         self.assertEqual(authority["framework_authority"]["solid"]["effective_claim_level"], "not_available")
+        project_capabilities = summary["analysis_scope"]["scope_authority"][
+            "project_language_capabilities"
+        ]
+        self.assertEqual(project_capabilities["REACT"]["status"], "ENGINE_AVAILABLE")
+        self.assertEqual(project_capabilities["VUE"]["status"], "RECOGNIZED_NO_ENGINE")
+        self.assertEqual(project_capabilities["SVELTE"]["status"], "RECOGNIZED_NO_ENGINE")
         self.assertIn(".git", summary["inventory_evidence"]["skipped_directory_names"])
 
     def test_external_target_preflight_uses_root_package_identity_as_framework_evidence(self):
@@ -3473,6 +3863,118 @@ class OrchestratorContractTests(unittest.TestCase):
 
         self.assertEqual([step["name"] for step in selected], ["Atlas"])
         build_plan.assert_called_once_with(refresh_dna=True)
+
+    def test_capability_activation_preserves_architecture_policy_producer_and_consumers(self):
+        class Args:
+            step = None
+            from_step = None
+            force = False
+            profile = "full"
+
+        catalog = [
+            {"name": "Architecture Oracle", "depends_on": [], "category": "derived"},
+            {"name": "Audit", "depends_on": ["Architecture Oracle"], "category": "derived"},
+            {"name": "Framework Route Analyzer", "depends_on": [], "category": "derived"},
+        ]
+        plan = {
+            "summary": {
+                "status": "PASS",
+                "architecture_policy_step_policy": {
+                    "always_preserve_steps": ["Architecture Oracle", "Audit"],
+                },
+            },
+            "projects": [
+                {
+                    "project": "MAIN",
+                    "enabled_capabilities": [
+                        {"id": "atlas_sequencing", "status": "enabled"},
+                    ],
+                }
+            ],
+        }
+
+        with patch(
+            "tools.engines.capability_activation_planner.build_capability_activation_plan",
+            return_value=plan,
+        ):
+            selected = apply_capability_activation(catalog, catalog, Args())
+
+        self.assertEqual(
+            [step["name"] for step in selected],
+            ["Architecture Oracle", "Audit"],
+        )
+
+    def test_capability_plan_binds_exact_project_architecture_policy(self):
+        dna = {
+            "meta": {"kind": "project_dna_profile"},
+            "projects": [
+                {"project": "MAIN", "display_name": "Main", "activation_intents": []},
+                {"project": "WEB", "display_name": "Web", "activation_intents": []},
+            ],
+        }
+        capability_map = {
+            "architecture_governance": {
+                "id": "architecture_governance",
+                "title": "Architecture governance",
+                "domain": "architecture",
+                "maturity": "production_candidate",
+                "language_scope": ["language_agnostic"],
+                "engines": ["Architecture Oracle", "Audit", "Quality Gates"],
+                "artifacts": [],
+                "validators": [],
+                "claim_boundary": "Exact project policy activates sensitive rules.",
+            }
+        }
+        policy = {
+            "meta": {"kind": "effective_architecture_policy", "version": "v1"},
+            "invalidation": {"atlas_snapshot_id": "snapshot-a"},
+            "projects": {
+                "MAIN": {
+                    "project": "MAIN",
+                    "status": "ACTIVE",
+                    "policy_activation_allowed": True,
+                    "recommended_profile": "clean_architecture",
+                    "feature_flags": {"architecture_sensitive_rules": "enabled"},
+                },
+                "WEB": {
+                    "project": "WEB",
+                    "status": "ADVISORY_AWAITING_HITL",
+                    "policy_activation_allowed": False,
+                    "recommended_profile": "next_app_router",
+                    "feature_flags": {"architecture_sensitive_rules": "disabled"},
+                },
+            },
+        }
+
+        with (
+            patch(
+                "tools.engines.capability_activation_planner.load_json_file",
+                return_value=dna,
+            ),
+            patch(
+                "tools.engines.capability_activation_planner._capability_by_id",
+                return_value=capability_map,
+            ),
+            patch(
+                "tools.engines.capability_activation_planner.load_effective_architecture_policy_context",
+                return_value=(policy, "snapshot-a"),
+            ),
+        ):
+            plan = build_capability_activation_plan()
+
+        project_policy = {
+            row["project"]: row["architecture_policy"]
+            for row in plan["projects"]
+        }
+        self.assertEqual(plan["summary"]["architecture_policy_context_status"], "BOUND")
+        self.assertEqual(plan["summary"]["architecture_rules_enabled_projects"], ["MAIN"])
+        self.assertEqual(
+            plan["summary"]["architecture_policy_step_policy"]["always_preserve_steps"],
+            ["Architecture Oracle", "Audit", "Quality Gates"],
+        )
+        self.assertTrue(project_policy["MAIN"]["architecture_sensitive_rules_enabled"])
+        self.assertFalse(project_policy["WEB"]["architecture_sensitive_rules_enabled"])
+        self.assertEqual(project_policy["WEB"]["effective_policy_status"], "ADVISORY_AWAITING_HITL")
 
     def test_capability_activation_project_dna_refresh_persists_raw_and_report_pair(self):
         payload = {"meta": {"kind": "project_dna_profile"}, "projects": []}
@@ -3893,26 +4395,46 @@ class PerformanceBudgetContractTests(unittest.TestCase):
                     r"workload=([0-9.]+)s ram_cache=([0-9.]+)s"
                 ),
                 "atlas_persistence_pattern": (
-                    r"Atlas persistence \| chars=(\d+) bytes=(\d+) serialize=([0-9.]+)s "
+                    r"Atlas persistence \| mode=([^ ]+) parts=(\d+) chars=(\d+) bytes=(\d+) serialize=([0-9.]+)s "
                     r"encode=([0-9.]+)s hash=([0-9.]+)s sqlite=([0-9.]+)s "
                     r"relational=([0-9.]+)s total=([0-9.]+)s"
+                ),
+                "atlas_ast_lifecycle_pattern": (
+                    r"Atlas Node AST lifecycle \| process_starts=(\d+) batch_starts=(\d+) "
+                    r"fallback_starts=(\d+) batch_failures=(\d+) fallback_chunks=(\d+) "
+                    r"identity_failures=(\d+) worker_restarts=(\d+) request_replays=(\d+) "
+                    r"files_requested=(\d+) checkpoint_callbacks=(\d+) "
+                    r"checkpoint_files=(\d+) subprocess=([0-9.]+)s checkpoint=([0-9.]+)s "
+                    r"node_rss_max_bytes=(\d+)"
                 ),
             }
         }
         text = (
             "[PROFILE] Atlas phases | pre_build=1.095s build=1.513s bridge=0.046s "
             "validate=3.687s persist=1.689s commit=3.425s workload=0.107s ram_cache=0.000s\n"
-            "[PROFILE] Atlas persistence | chars=44715717 bytes=44729565 serialize=0.985s "
+            "[PROFILE] Atlas persistence | mode=partitioned parts=8 chars=44715717 bytes=44729565 serialize=0.985s "
             "encode=0.063s hash=0.128s sqlite=0.270s relational=0.213s total=1.689s\n"
+            "[PROFILE] Atlas Node AST lifecycle | process_starts=1670 batch_starts=1667 fallback_starts=3 "
+            "batch_failures=1 fallback_chunks=1 identity_failures=0 worker_restarts=1 request_replays=1 "
+            "files_requested=40000 "
+            "checkpoint_callbacks=1667 checkpoint_files=40000 subprocess=812.500s checkpoint=4.250s "
+            "node_rss_max_bytes=188743680\n"
         )
 
         phases = _latest_atlas_phase_profile(text, config)
         payload_profile = _latest_atlas_persistence_profile(text, config)
+        ast_lifecycle = _latest_atlas_ast_lifecycle_profile(text, config)
 
         self.assertEqual(phases["validate"], 3.687)
         self.assertEqual(phases["commit"], 3.425)
         self.assertEqual(payload_profile["state_payload_bytes"], 44729565)
         self.assertEqual(payload_profile["state_payload_sqlite_seconds"], 0.27)
+        self.assertEqual(payload_profile["state_payload_storage_mode"], "partitioned")
+        self.assertEqual(payload_profile["state_payload_part_count"], 8)
+        self.assertEqual(ast_lifecycle["process_starts"], 1670)
+        self.assertEqual(ast_lifecycle["fallback_process_starts"], 3)
+        self.assertEqual(ast_lifecycle["files_requested"], 40000)
+        self.assertEqual(ast_lifecycle["node_reported_rss_max_bytes"], 188743680)
 
     def test_force_and_normal_pipeline_samples_are_not_mixed(self):
         log = """
@@ -5688,19 +6210,6 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
         self.assertFalse(profile["mutation_proposed"])
         self.assertNotIn("complete_integration", profile["allowed_outcomes"])
 
-    def test_dynamic_import_destructuring_consumes_named_exports(self):
-        imports = DeadCodeDetector._parse_dynamic_named_imports(
-            """
-            afterEach(async () => {
-              const { resetJobsWorkerRegistrationForTests } = await import("./instrumentation-jobs");
-              await import("./flags").then(({ getPostHogClientFeatureFlag }) => getPostHogClientFeatureFlag());
-            });
-            """
-        )
-
-        self.assertIn(("./instrumentation-jobs", ["resetJobsWorkerRegistrationForTests"]), imports)
-        self.assertIn(("./flags", ["getPostHogClientFeatureFlag"]), imports)
-
     def test_dynamic_import_destructuring_resolves_extensionless_relative_target(self):
         target = DeadCodeDetector._resolve_dynamic_import_target(
             "apps/web/instrumentation-jobs.test.ts",
@@ -5845,6 +6354,69 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
                 )
             )
 
+    def test_package_wildcard_subpath_projects_to_existing_source_surface(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_dir = root / "src"
+            source_dir.mkdir()
+            (source_dir / "traditional.ts").write_text(
+                "export function createWithEqualityFn() {}\n",
+                encoding="utf-8",
+            )
+            manifest = root / "package.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "name": "example",
+                        "exports": {
+                            "./*": {
+                                "types": "./*.d.ts",
+                                "default": "./*.js",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            detector = DeadCodeDetector()
+            detector.projects = {"MAIN": root}
+            public_contracts = build_package_public_contracts(root, [manifest])
+
+            self.assertIn("src/*.*", public_contracts["entry_patterns"])
+            self.assertTrue(
+                detector._is_package_public_export_surface(
+                    "MAIN",
+                    "src/traditional.ts",
+                    {"public_contracts": public_contracts},
+                )
+            )
+
+    def test_package_bin_projects_to_existing_typescript_source_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "src" / "bin" / "index.ts"
+            source.parent.mkdir(parents=True)
+            source.write_text("export function main() {}\n", encoding="utf-8")
+            manifest = root / "package.json"
+            manifest.write_text(
+                json.dumps({"name": "cli", "bin": {"cli": "./bin/index.js"}}),
+                encoding="utf-8",
+            )
+
+            public_contracts = build_package_public_contracts(root, [manifest])
+
+            self.assertIn("src/bin/index.ts", public_contracts["entry_patterns"])
+
+    def test_test_runner_surfaces_are_visible_contracts(self):
+        self.assertTrue(DeadCodeDetector._is_test_support_surface("tests/conftest.py"))
+        self.assertTrue(DeadCodeDetector._is_test_support_surface("internal/config/config_test.go"))
+        self.assertTrue(DeadCodeDetector._is_test_support_surface("bdd/features/environment.py"))
+        self.assertFalse(DeadCodeDetector._is_test_support_surface("src/environment.py"))
+        contract = DeadCodeDetector._test_support_contract("internal/config/config_test.go")
+        self.assertEqual(contract["contract_class"], "TEST_RUNNER_DISCOVERY")
+        self.assertFalse(contract["mutation_proposed"])
+
     def test_star_barrel_chain_from_package_entry_marks_deep_exports_public(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -5956,6 +6528,317 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
 
             self.assertEqual(analysis["dead"], [])
             self.assertEqual(analysis["compatibility_exclusions"][0]["reason"], "active_public_export_chain")
+            self.assertEqual(
+                analysis["compatibility_exclusions"][0]["contract_class"],
+                "PUBLIC_PACKAGE_API",
+            )
+            self.assertFalse(analysis["compatibility_exclusions"][0]["mutation_proposed"])
+
+    def test_runtime_decorator_contracts_are_visible_without_claiming_runtime_binding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sources = {
+                "src/ssrf-validator.ts": "@ValidatorConstraint({ name: 'safe' })\nexport class SafeUrlValidator {}\n",
+                "src/error.filter.ts": "@Catch(DomainError)\nexport class DomainErrorFilter {}\n",
+                "src/mixed.ts": "@Catch(DomainError)\nexport class BoundFilter {}\nexport class PlainSibling {}\n",
+                "src/plain.ts": "export class PlainUnused {}\n",
+            }
+            for rel_path, content in sources.items():
+                path = root / rel_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+
+            detector = DeadCodeDetector()
+            detector.projects = {"MAIN": root}
+            project_data = {
+                "files": {
+                    "src/ssrf-validator.ts": {"exports": [{"name": "SafeUrlValidator", "type": "Class"}]},
+                    "src/error.filter.ts": {"exports": [{"name": "DomainErrorFilter", "type": "Class"}]},
+                    "src/mixed.ts": {
+                        "exports": [
+                            {"name": "BoundFilter", "type": "Class"},
+                            {"name": "PlainSibling", "type": "Class"},
+                        ]
+                    },
+                    "src/plain.ts": {"exports": [{"name": "PlainUnused", "type": "Class"}]},
+                }
+            }
+            analysis = detector._analyze_project_exports(
+                project="MAIN",
+                project_data=project_data,
+                imported_files_for_project=set(),
+                namespace_imported_files_for_project=set(),
+                propagated_consumed_for_project=set(),
+                public_export_chain_files=set(),
+                public_export_chain_symbols=set(),
+                all_imported_names=set(),
+                symbol_usage_files_for_project={},
+            )
+
+            contract_rows = [
+                item
+                for item in analysis["compatibility_exclusions"]
+                if item.get("contract_class") == "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE"
+            ]
+            self.assertEqual(
+                {item["symbol"] for item in contract_rows},
+                {"SafeUrlValidator", "DomainErrorFilter", "BoundFilter"},
+            )
+            self.assertTrue(all(item["contract_status"] == "runtime_binding_unknown" for item in contract_rows))
+            self.assertTrue(all(item["mutation_proposed"] is False for item in contract_rows))
+            self.assertEqual(
+                [item["symbol"] for item in analysis["dead"]],
+                ["PlainSibling", "PlainUnused"],
+            )
+
+    def test_config_runtime_module_reference_downgrades_exact_module_without_hiding_arbitrary_strings(self):
+        config_source = """
+            export default {
+              plugins: ['./scripts/stylelint-valid-theme-tokens.mjs'],
+              notes: ['./scripts/not-a-runtime-module.mjs'],
+              // plugins: ['./scripts/commented-out.mjs'],
+            };
+        """
+        self.assertEqual(
+            DeadCodeDetector._config_runtime_module_references(
+                "stylelint.config.mjs",
+                config_source,
+            ),
+            ["./scripts/stylelint-valid-theme-tokens.mjs"],
+        )
+        self.assertEqual(
+            DeadCodeDetector._config_runtime_module_references(
+                "src/theme.ts",
+                config_source,
+            ),
+            [],
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            module = root / "scripts" / "stylelint-valid-theme-tokens.mjs"
+            module.parent.mkdir(parents=True)
+            module.write_text("export const rule = () => true;\n", encoding="utf-8")
+            detector = DeadCodeDetector()
+            detector.projects = {"MAIN": root}
+            analysis = detector._analyze_project_exports(
+                project="MAIN",
+                project_data={
+                    "files": {
+                        "scripts/stylelint-valid-theme-tokens.mjs": {
+                            "exports": [{"name": "rule", "type": "Variable"}]
+                        }
+                    }
+                },
+                imported_files_for_project={"scripts/stylelint-valid-theme-tokens.mjs"},
+                namespace_imported_files_for_project=set(),
+                propagated_consumed_for_project=set(),
+                public_export_chain_files=set(),
+                public_export_chain_symbols=set(),
+                all_imported_names=set(),
+                symbol_usage_files_for_project={},
+            )
+            self.assertEqual(len(analysis["dead"]), 1)
+            self.assertEqual(analysis["dead"][0]["confidence"], "MEDIUM")
+            self.assertFalse(analysis["dead"][0]["actionability"]["mutation_proposed"])
+
+    def test_statically_consumed_decorated_class_is_not_reported_as_unbound_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "src" / "service.ts"
+            source.parent.mkdir(parents=True)
+            source.write_text("@Injectable()\nexport class LiveService {}\n", encoding="utf-8")
+            detector = DeadCodeDetector()
+            detector.projects = {"MAIN": root}
+            analysis = detector._analyze_project_exports(
+                project="MAIN",
+                project_data={"files": {"src/service.ts": {"exports": [{"name": "LiveService", "type": "Class"}]}}},
+                imported_files_for_project={"src/service.ts"},
+                namespace_imported_files_for_project=set(),
+                propagated_consumed_for_project={("src/service.ts", "LiveService")},
+                public_export_chain_files=set(),
+                public_export_chain_symbols=set(),
+                all_imported_names={"LiveService"},
+                symbol_usage_files_for_project={},
+            )
+
+            self.assertEqual(analysis["dead"], [])
+            self.assertFalse(
+                any(item.get("contract_class") == "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE" for item in analysis["compatibility_exclusions"])
+            )
+
+    def test_codegen_template_requires_filename_and_content_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            positive = root / "src" / "generate" / "client-template.ts"
+            negative = root / "src" / "ui" / "card-template.ts"
+            positive.parent.mkdir(parents=True)
+            negative.parent.mkdir(parents=True)
+            positive.write_text(
+                "// generated code this template gets injected into\n// __STRIPPED_DURING_INJECTION_START__\nexport class GeneratedClient {}\n",
+                encoding="utf-8",
+            )
+            negative.write_text("export class CardTemplate {}\n", encoding="utf-8")
+
+            detector = DeadCodeDetector()
+            detector.projects = {"MAIN": root}
+            analysis = detector._analyze_project_exports(
+                project="MAIN",
+                project_data={
+                    "files": {
+                        "src/generate/client-template.ts": {"exports": [{"name": "GeneratedClient", "type": "Class"}]},
+                        "src/ui/card-template.ts": {"exports": [{"name": "CardTemplate", "type": "Class"}]},
+                    }
+                },
+                imported_files_for_project=set(),
+                namespace_imported_files_for_project=set(),
+                propagated_consumed_for_project=set(),
+                public_export_chain_files=set(),
+                public_export_chain_symbols=set(),
+                all_imported_names=set(),
+                symbol_usage_files_for_project={},
+            )
+
+            template_rows = [item for item in analysis["compatibility_exclusions"] if item.get("contract_class") == "CODEGEN_TEMPLATE"]
+            self.assertEqual([item["symbol"] for item in template_rows], ["GeneratedClient"])
+            self.assertEqual([item["symbol"] for item in analysis["dead"]], ["CardTemplate"])
+
+    def test_structural_language_symbols_remain_unknown_without_reachability_adapter(self):
+        detector = DeadCodeDetector()
+        detector.projects = {"MAIN": Path(".")}
+        project_data = {
+            "files": {
+                "internal/config/config.go": {
+                    "language": "go",
+                    "parser_evidence": {
+                        "status": "observed",
+                        "parser_kind": "regex_structural",
+                        "semantic_depth": "signature_only",
+                    },
+                    "exports": ["LoadConfig"],
+                    "symbols": [{"name": "LoadConfig", "exported": True, "type": "Function"}],
+                }
+            }
+        }
+
+        analysis = detector._analyze_project_exports(
+            project="MAIN",
+            project_data=project_data,
+            imported_files_for_project=set(),
+            namespace_imported_files_for_project=set(),
+            propagated_consumed_for_project=set(),
+            public_export_chain_files=set(),
+            public_export_chain_symbols=set(),
+            all_imported_names=set(),
+            symbol_usage_files_for_project={},
+        )
+
+        self.assertEqual(analysis["dead"], [])
+        self.assertEqual(len(analysis["unresolved_reachability"]), 1)
+        self.assertEqual(analysis["unresolved_reachability"][0]["status"], "UNKNOWN")
+        self.assertEqual(analysis["unresolved_reachability"][0]["capability_mode"], "inventory_only")
+        self.assertFalse(analysis["unresolved_reachability"][0]["mutation_proposed"])
+
+    def test_observed_typescript_reachability_still_emits_manual_intent_candidate(self):
+        detector = DeadCodeDetector()
+        detector.projects = {"MAIN": Path(".")}
+        project_data = {
+            "files": {
+                "src/orphan.ts": {
+                    "language": "typescript",
+                    "parser_evidence": {
+                        "status": "observed",
+                        "parser_kind": "typescript_compiler_api",
+                        "semantic_depth": "logic_normalized",
+                    },
+                    "exports": [{"name": "orphan", "type": "Function"}],
+                    "symbols": [{"name": "orphan", "exported": True, "type": "Function"}],
+                }
+            }
+        }
+
+        analysis = detector._analyze_project_exports(
+            project="MAIN",
+            project_data=project_data,
+            imported_files_for_project=set(),
+            namespace_imported_files_for_project=set(),
+            propagated_consumed_for_project=set(),
+            public_export_chain_files=set(),
+            public_export_chain_symbols=set(),
+            all_imported_names=set(),
+            symbol_usage_files_for_project={},
+        )
+
+        self.assertEqual([row["symbol"] for row in analysis["dead"]], ["orphan"])
+        self.assertEqual(analysis["unresolved_reachability"], [])
+        self.assertEqual(analysis["dead"][0]["actionability"]["level"], "manual_intent_decision")
+
+    def test_django_and_spring_contracts_require_source_grounded_framework_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            python_source = root / "backend" / "apps.py"
+            java_source = root / "server" / "Service.java"
+            plain_source = root / "server" / "Plain.java"
+            python_source.parent.mkdir(parents=True)
+            java_source.parent.mkdir(parents=True)
+            python_source.write_text(
+                "from django.apps import AppConfig\nclass AccessControlConfig(AppConfig):\n    pass\n",
+                encoding="utf-8",
+            )
+            java_source.write_text(
+                "@Service\npublic class BillingService {}\n",
+                encoding="utf-8",
+            )
+            plain_source.write_text(
+                "public class PlainService {}\n",
+                encoding="utf-8",
+            )
+            detector = DeadCodeDetector()
+            detector.projects = {"MAIN": root}
+
+            django = detector._framework_runtime_contract(
+                "MAIN",
+                "backend/apps.py",
+                "AccessControlConfig",
+                {
+                    "language": "python",
+                    "symbols": [{"name": "AccessControlConfig", "extends": ["AppConfig"]}],
+                },
+            )
+            spring = detector._framework_runtime_contract(
+                "MAIN",
+                "server/Service.java",
+                "BillingService",
+                {"language": "java", "symbols": [{"name": "BillingService"}]},
+            )
+            plain = detector._framework_runtime_contract(
+                "MAIN",
+                "server/Plain.java",
+                "PlainService",
+                {"language": "java", "symbols": [{"name": "PlainService"}]},
+            )
+
+            self.assertEqual(django["contract_class"], "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE")
+            self.assertEqual(django["contract_status"], "runtime_binding_unknown")
+            self.assertEqual(spring["evidence"]["framework_family"], "java_spring")
+            self.assertIsNone(plain)
+
+    def test_migration_registry_supports_python_and_java_without_deletion_authority(self):
+        detector = DeadCodeDetector()
+        python_row = detector._match_contract_registry(
+            "MAIN",
+            "backend/migrations/0001_initial.py",
+            "Migration",
+        )
+        java_row = detector._match_contract_registry(
+            "MAIN",
+            "server/changelog/DatabaseChangelog0.java",
+            "DatabaseChangelog0",
+        )
+
+        self.assertEqual(python_row["contract_class"], "DB_MIGRATION_SURFACE")
+        self.assertEqual(java_row["contract_class"], "DB_MIGRATION_SURFACE")
+        self.assertFalse(python_row["mutation_proposed"])
 
     def test_typescript_declaration_and_augmentation_surfaces_are_registry_matched(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -5989,6 +6872,97 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
 
 
 class A11yI18nContractAnalyzerTests(unittest.TestCase):
+    def test_textual_i18n_interpolation_is_not_a_plural_risk(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/GroupLabel.tsx",
+            'export function GroupLabel({ label }){ return <p>{t("Group by {{label}}", { label })}</p>; }',
+        )
+
+        self.assertIsNotNone(row)
+        self.assertIn("i18n_interpolation_contract", row["signals"])
+        self.assertNotIn("i18n_interpolation_without_plural_or_count_contract", row["risks"])
+
+    def test_count_like_i18n_interpolation_without_count_contract_is_flagged(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/EventCount.tsx",
+            'export function EventCount({ numEvents }){ return <p>{t("{{numEvents}} events", { numEvents })}</p>; }',
+        )
+
+        self.assertIsNotNone(row)
+        self.assertIn("i18n_interpolation_without_plural_or_count_contract", row["risks"])
+
+    def test_explicit_count_option_satisfies_same_call_i18n_contract(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/EventCount.tsx",
+            'export function EventCount({ numEvents }){ return <p>{t("events", { count: numEvents })}</p>; }',
+        )
+
+        self.assertIsNotNone(row)
+        self.assertNotIn("i18n_interpolation_without_plural_or_count_contract", row["risks"])
+
+    def test_unrelated_count_call_does_not_hide_missing_count_contract(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/EventCount.tsx",
+            """
+            export function EventCount({ label, numEvents, count }){
+              return <p>
+                {t("Group by {{label}}", { label })}
+                {t("{{numEvents}} events", { numEvents })}
+                {t("events", { count })}
+              </p>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        self.assertIn("i18n_interpolation_without_plural_or_count_contract", row["risks"])
+
+    def test_unknown_i18n_placeholder_is_not_promoted_to_count_risk(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/Value.tsx",
+            'export function Value({ value }){ return <p>{t("Current: {{value}}", { value })}</p>; }',
+        )
+
+        self.assertIsNotNone(row)
+        self.assertNotIn("i18n_interpolation_without_plural_or_count_contract", row["risks"])
+
+    def test_i18n_examples_in_comments_strings_and_jsx_text_are_not_calls(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/Examples.tsx",
+            """
+            export function Examples(){
+              // t("{{numItems}} items", { numItems })
+              const example = 't("{{total}} items", { total })';
+              return <p>Example: t("{{count}} items", {count})</p>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row["counts"]["i18n_interpolations"], 0)
+        self.assertNotIn("i18n_interpolation_without_plural_or_count_contract", row["risks"])
+
+    def test_dynamic_i18n_examples_in_non_code_text_are_not_calls(self):
+        row = analyze_a11y_i18n_file(
+            "APP",
+            "src/components/Examples.tsx",
+            """
+            export function Examples(){
+              // t(keyName)
+              const example = "i18n.t(dynamicKey)";
+              return <p>Example: t(statusKey)</p>;
+            }
+            """,
+        )
+
+        self.assertIsNone(row)
+
     def test_dialog_without_focus_contract_is_flagged(self):
         row = analyze_a11y_i18n_file(
             "APP",
@@ -6368,6 +7342,166 @@ class ReactEcosystemAnalyzerTests(unittest.TestCase):
         dimensions = {item["dimension"] for item in row["findings"]}
         self.assertNotIn("effect_cleanup_contract", dimensions)
 
+    def test_effect_cleanup_contract_accepts_concise_same_file_cleanup_producer(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/hooks/useLocation.tsx",
+            """
+            const LocationMonitor = {
+              subscribe(...listeners: Array<(location: Location) => void>) {
+                listeners.forEach((listener) => listeners.add(listener));
+                return () => listeners.forEach((listener) => listeners.delete(listener));
+              },
+            };
+            export function UseLocation() {
+              useEffect(() => LocationMonitor.subscribe(onLocation), []);
+              return <div />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("effect_cleanup_contract", dimensions)
+
+    def test_effect_cleanup_contract_accepts_returned_identifier_from_same_file_cleanup_producer(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/hooks/useStore.tsx",
+            """
+            const Store = {
+              subscribe(listener) {
+                listeners.add(listener);
+                return () => listeners.delete(listener);
+              },
+            };
+            export function UseStore() {
+              useEffect(() => {
+                const unsubscribe = Store.subscribe(onChange);
+                return unsubscribe;
+              }, []);
+              return <div />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("effect_cleanup_contract", dimensions)
+
+    def test_effect_cleanup_contract_keeps_unknown_concise_subscription_unproven(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/hooks/useFeed.tsx",
+            """
+            export function UseFeed() {
+              useEffect(() => observable.subscribe(onValue), []);
+              return <div />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        cleanup = [item for item in row["findings"] if item["dimension"] == "effect_cleanup_contract"]
+        self.assertEqual(len(cleanup), 1)
+
+    def test_effect_cleanup_contract_keeps_same_file_non_function_subscription_unproven(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/hooks/useObservable.tsx",
+            """
+            const Observable = {
+              subscribe(listener) {
+                listeners.add(listener);
+                return { unsubscribe() { listeners.delete(listener); } };
+              },
+            };
+            export function UseObservable() {
+              useEffect(() => Observable.subscribe(onValue), []);
+              return <div />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        cleanup = [item for item in row["findings"] if item["dimension"] == "effect_cleanup_contract"]
+        self.assertEqual(len(cleanup), 1)
+
+    def test_effect_cleanup_contract_binds_cleanup_to_each_effect_call(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/hooks/useClock.tsx",
+            """
+            export function UseClock() {
+              useEffect(() => {
+                const id = setInterval(tick, 1000);
+                return () => clearInterval(id);
+              }, []);
+              useEffect(() => {
+                setTimeout(refresh, 10000);
+              }, []);
+              return <div />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        cleanup = [item for item in row["findings"] if item["dimension"] == "effect_cleanup_contract"]
+        self.assertEqual(len(cleanup), 1)
+
+    def test_effect_cleanup_contract_ignores_non_executable_effect_lookalikes(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/Example.tsx",
+            """
+            export function Example() {
+              const example = "useEffect(() => store.subscribe(onValue), [])";
+              // useEffect(() => store.subscribe(onValue), []);
+              return <div>useEffect(() =&gt; store.subscribe(onValue), [])</div>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("effect_cleanup_contract", dimensions)
+
+    def test_effect_cleanup_contract_ignores_subscription_outside_effect(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/Feed.tsx",
+            """
+            const subscription = observable.subscribe(onValue);
+            export function Feed() {
+              return <div />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("effect_cleanup_contract", dimensions)
+
+    def test_hook_dependency_contracts_ignore_non_executable_call_lookalikes(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/Example.tsx",
+            """
+            export function Example() {
+              const memoExample = "useMemo(() => props.id)";
+              const refExample = "useImperativeHandle(ref, () => ({ open: props.open }))";
+              // useMemo(() => props.id);
+              // useImperativeHandle(ref, () => ({ open: props.open }));
+              return <div>useMemo(() =&gt; props.id)</div>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("memo_dependency_contract", dimensions)
+        self.assertNotIn("ref_imperative_contract", dimensions)
+
     def test_lazy_boundary_contract_detects_missing_fallback_and_error_boundary(self):
         row = analyze_react_ecosystem_file(
             "APP",
@@ -6477,6 +7611,38 @@ class ReactEcosystemAnalyzerTests(unittest.TestCase):
         dimensions = {item["dimension"] for item in row["findings"]}
         self.assertNotIn("memo_dependency_contract", dimensions)
 
+    def test_memo_dependency_contract_ignores_shadowed_callback_parameter(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/Formatter.tsx",
+            """
+            export function Formatter() {
+              const normalize = useMemo(() => (id) => id.trim(), []);
+              return <span>{normalize('x')}</span>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("memo_dependency_contract", dimensions)
+
+    def test_memo_dependency_contract_retains_free_reactive_identifier(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/Formatter.tsx",
+            """
+            export function Formatter({ id }) {
+              const normalized = useMemo(() => id.trim(), []);
+              return <span>{normalized}</span>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertIn("memo_dependency_contract", dimensions)
+
     def test_ref_imperative_contract_detects_unstable_imperative_surface(self):
         row = analyze_react_ecosystem_file(
             "APP",
@@ -6556,6 +7722,90 @@ class ReactEcosystemAnalyzerTests(unittest.TestCase):
         dimensions = {item["dimension"] for item in row["findings"]}
         self.assertNotIn("nested_component_contract", dimensions)
 
+    def test_nested_component_contract_accepts_uppercase_jsx_helper_call(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/ProjectPanel.tsx",
+            """
+            export function ProjectPanel({ project }) {
+              const ProjectBadge = () => <span>{project.name}</span>;
+              return <div>{ProjectBadge()}</div>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("nested_component_contract", dimensions)
+
+    def test_nested_component_contract_accepts_unused_uppercase_helper(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/ProjectPanel.tsx",
+            """
+            export function ProjectPanel() {
+              const ProjectBadge = () => <span>Preview</span>;
+              return <div>Panel</div>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("nested_component_contract", dimensions)
+
+    def test_nested_component_contract_ignores_comment_string_and_member_lookalikes(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/ProjectPanel.tsx",
+            """
+            export function ProjectPanel() {
+              const ProjectBadge = () => <span>Preview</span>;
+              // <ProjectBadge /> is documentation, not an instantiation.
+              const example = "<ProjectBadge />";
+              return <ProjectBadge.Icon label={example} />;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        dimensions = {item["dimension"] for item in row["findings"]}
+        self.assertNotIn("nested_component_contract", dimensions)
+
+    def test_nested_component_contract_keeps_jsx_text_apostrophes_out_of_string_state(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/ProjectPanel.tsx",
+            """
+            export function ProjectPanel() {
+              const ProjectBadge = () => <span>Preview</span>;
+              return <div>Don't hide <ProjectBadge /></div>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        nested = [item for item in row["findings"] if item["dimension"] == "nested_component_contract"]
+        self.assertEqual(len(nested), 1)
+
+    def test_nested_component_contract_ignores_braces_inside_comments_and_strings(self):
+        row = analyze_react_ecosystem_file(
+            "APP",
+            "src/components/ProjectPanel.tsx",
+            """
+            export function ProjectPanel() {
+              const ProjectBadge = () => <span>Preview</span>;
+              const example = "} is documentation";
+              /* } must not close the parent component body. */
+              return <div data-example={example}><ProjectBadge /></div>;
+            }
+            """,
+        )
+
+        self.assertIsNotNone(row)
+        nested = [item for item in row["findings"] if item["dimension"] == "nested_component_contract"]
+        self.assertEqual(len(nested), 1)
+
     def test_async_event_contract_detects_missing_error_and_pending_feedback(self):
         row = analyze_react_ecosystem_file(
             "APP",
@@ -6624,12 +7874,69 @@ class ReactRuntimeIntelligenceTests(unittest.TestCase):
         dimensions = {item["dimension"] for item in row["findings"]}
         risks = {item["risk"] for item in row["findings"]}
         self.assertIn("bundle_boundary", dimensions)
-        self.assertIn("react_compiler_readiness", dimensions)
+        self.assertIn("memoization_density", dimensions)
+        self.assertNotIn("react_compiler_readiness", dimensions)
         self.assertIn("client_boundary_imports_server_only_module", risks)
         self.assertIn("client_boundary_pulls_heavy_dependency", risks)
         server_only = next(item for item in row["findings"] if item["risk"] == "client_boundary_imports_server_only_module")
         self.assertEqual(server_only["calibration_lane"], "act_now")
         self.assertEqual(server_only["false_positive_risk"], "low")
+
+    def test_render_mutation_requires_ast_render_context(self):
+        source = """
+        export function EditorPage(props) {
+          props.count = 1;
+          return <div>{props.count}</div>;
+        }
+        """
+        render_row = analyze_runtime_intelligence_file(
+            "APP",
+            "src/EditorPage.tsx",
+            source,
+            atlas_file={
+                "symbols": [
+                    {
+                        "name": "__file_meta__",
+                        "features": ["React:MutableAssignment:render:3"],
+                    }
+                ]
+            },
+        )
+        event_row = analyze_runtime_intelligence_file(
+            "APP",
+            "src/EditorPage.tsx",
+            source,
+            atlas_file={
+                "symbols": [
+                    {
+                        "name": "__file_meta__",
+                        "features": ["React:MutableAssignment:event:3"],
+                    }
+                ]
+            },
+        )
+
+        self.assertIsNotNone(render_row)
+        self.assertIsNotNone(event_row)
+        self.assertIn(
+            "react_compiler_readiness",
+            {item["dimension"] for item in render_row["findings"]},
+        )
+        render_finding = next(
+            item
+            for item in render_row["findings"]
+            if item["dimension"] == "react_compiler_readiness"
+        )
+        self.assertIn("atlas_feature", render_finding["evidence_kinds"])
+        self.assertNotIn("react_compiler", render_finding["evidence_kinds"])
+        self.assertEqual(
+            render_finding["evidence_spans"][0]["source"],
+            "typescript_syntax_ast",
+        )
+        self.assertNotIn(
+            "react_compiler_readiness",
+            {item["dimension"] for item in event_row["findings"]},
+        )
 
     def test_route_auth_error_mutation_and_test_intent_are_detected(self):
         row = analyze_runtime_intelligence_file(
@@ -6643,7 +7950,6 @@ class ReactRuntimeIntelligenceTests(unittest.TestCase):
               return <Dialog><button onClick={() => mutation.mutate()}>Save</button><div className="p-1 m-1 text-sm bg-white rounded shadow border flex gap-1 items-center justify-center w-full h-full overflow-auto">Admin</div></Dialog>;
             }
             """,
-            runtime_routes={"src/app/admin/page.tsx"},
         )
 
         self.assertIsNotNone(row)
@@ -6653,6 +7959,39 @@ class ReactRuntimeIntelligenceTests(unittest.TestCase):
         self.assertIn("error_recovery_map", dimensions)
         self.assertIn("accessibility_journey", dimensions)
         self.assertIn("test_coverage_intent", dimensions)
+        recovery = next(item for item in row["findings"] if item["dimension"] == "error_recovery_map")
+        self.assertNotEqual(recovery["confidence"], "confirmed")
+        self.assertNotEqual(recovery["runtime_proof_status"], "runtime_confirmed")
+
+    def test_uncorrelated_passed_smoke_does_not_confirm_every_file_finding(self):
+        smoke_index = {
+            ("APP", "src/app/admin/page.tsx"): [
+                {
+                    "status": "passed",
+                    "spec_path": "output/scripts/ui_smoke_specs/admin.spec.ts",
+                    "route": "/admin",
+                    "execution_command": "npx playwright test admin.spec.ts",
+                }
+            ]
+        }
+        row = analyze_runtime_intelligence_file(
+            "APP",
+            "src/app/admin/page.tsx",
+            """
+            export async function AdminPage() {
+              const data = await loadAdmin();
+              return <main>{data.name}</main>;
+            }
+            """,
+            smoke_index=smoke_index,
+        )
+
+        self.assertIsNotNone(row)
+        recovery = next(item for item in row["findings"] if item["dimension"] == "error_recovery_map")
+        self.assertIn("runtime_smoke_ready", recovery["evidence_kinds"])
+        self.assertNotIn("runtime_smoke", recovery["evidence_kinds"])
+        self.assertNotEqual(recovery["confidence"], "confirmed")
+        self.assertEqual(recovery["runtime_proof_status"], "runtime_smoke_ready")
 
     def test_runtime_css_token_intelligence_reads_configured_class_composition_helpers(self):
         row = analyze_runtime_intelligence_file(
@@ -7782,6 +9121,387 @@ class HardcodedDecisionInventoryContractTests(unittest.TestCase):
 
 
 class ArchitectureBlueprintRegistryContractTests(unittest.TestCase):
+    @staticmethod
+    def _repository_scope(*, evidence_status="COMPLETE_REPOSITORY", full_repository=True):
+        return {
+            "scope_authority_id": "sha256:scope",
+            "topology_authority_id": "sha256:topology",
+            "project_system_kind_identity": "sha256:kinds",
+            "project_relationship_identity": "sha256:relationships",
+            "project_language_capability_identity": "sha256:languages",
+            "evidence_status": evidence_status,
+            "full_repository_claim_eligible": full_repository,
+            "discovered_topology": "multi_project",
+            "discovered_candidate_count": 2,
+            "effective_runtime_projects": {"MAIN": ".", "WEB": "packages/web"},
+            "project_system_kinds": {
+                "MAIN": {"kind": "service"},
+                "WEB": {"kind": "application"},
+            },
+            "project_relationship_roles": {"MAIN": "host", "WEB": "companion"},
+            "project_language_capabilities": {
+                "MAIN": {
+                    "status": "ENGINE_AVAILABLE",
+                    "recognized_language_families": ["python"],
+                    "engine_unavailable_language_families": [],
+                },
+                "WEB": {
+                    "status": "ENGINE_AVAILABLE",
+                    "recognized_language_families": ["typescript"],
+                    "engine_unavailable_language_families": [],
+                },
+            },
+        }
+
+    @staticmethod
+    def _repository_projects():
+        return [
+            {
+                "project": "MAIN",
+                "file_count": 18,
+                "classification_status": "CLASSIFIED",
+                "recommended_profile": "CLEAN_ARCHITECTURE",
+            },
+            {
+                "project": "WEB",
+                "file_count": 24,
+                "classification_status": "CLASSIFIED",
+                "recommended_profile": "NEXTJS_APP_ROUTER",
+            },
+        ]
+
+    @staticmethod
+    def _bound_snapshot():
+        return {
+            "status": "BOUND",
+            "atlas_snapshot_id": "snapshot-a",
+            "atlas_sha256": "a" * 64,
+            "errors": [],
+        }
+
+    def test_repository_composition_requires_complete_bound_scope_and_remains_advisory(self):
+        blueprint = build_repository_composition_blueprint(
+            self._repository_projects(),
+            self._repository_scope(),
+            self._bound_snapshot(),
+        )
+
+        self.assertEqual(blueprint["classification_status"], "OBSERVED")
+        self.assertEqual(blueprint["composition_model"], "heterogeneous_workspace")
+        self.assertEqual(blueprint["relationship_model"], "host_with_related_projects")
+        self.assertEqual(blueprint["proposal_identity_status"], "BOUND")
+        self.assertTrue(str(blueprint["proposal_identity"]).startswith("sha256:"))
+        self.assertEqual(blueprint["seal_proposal"]["status"], "NOT_PROPOSED")
+        self.assertFalse(blueprint["policy_activation_allowed"])
+
+    def test_project_proposal_identity_changes_with_bound_scope_subject(self):
+        def project_rows():
+            rows = self._repository_projects()
+            scope = self._repository_scope()
+            for row in rows:
+                project_id = row["project"]
+                row["blueprint"] = blueprint_coordinates(row["recommended_profile"])
+                row["project_system_kind"] = scope["project_system_kinds"][project_id]
+                row["project_language_capability"] = scope["project_language_capabilities"][project_id]
+            return rows
+
+        first = project_rows()
+        _bind_project_proposal_identities(first, self._repository_scope(), self._bound_snapshot())
+        changed_scope = self._repository_scope()
+        changed_scope["scope_authority_id"] = "sha256:changed-scope"
+        second = project_rows()
+        _bind_project_proposal_identities(second, changed_scope, self._bound_snapshot())
+        unbound = project_rows()
+        _bind_project_proposal_identities(
+            unbound,
+            self._repository_scope(),
+            {"status": "UNAVAILABLE", "atlas_snapshot_id": None},
+        )
+
+        self.assertTrue(all(row["proposal_identity_status"] == "BOUND" for row in first))
+        self.assertNotEqual(first[0]["proposal_identity"], second[0]["proposal_identity"])
+        self.assertTrue(all(row["proposal_identity_status"] == "UNAVAILABLE" for row in unbound))
+
+    def test_repository_composition_refuses_bounded_projection_and_unbound_snapshot(self):
+        bounded = build_repository_composition_blueprint(
+            self._repository_projects(),
+            self._repository_scope(
+                evidence_status="BOUNDED_PROJECT_SELECTION",
+                full_repository=False,
+            ),
+            self._bound_snapshot(),
+        )
+        unbound = build_repository_composition_blueprint(
+            self._repository_projects(),
+            self._repository_scope(),
+            {
+                "status": "UNAVAILABLE",
+                "atlas_snapshot_id": None,
+                "atlas_sha256": None,
+                "errors": ["missing"],
+            },
+        )
+
+        self.assertEqual(bounded["classification_status"], "BOUNDED_PROJECTION_ONLY")
+        self.assertIsNone(bounded["composition_model"])
+        self.assertEqual(bounded["proposal_identity_status"], "UNAVAILABLE")
+        self.assertEqual(unbound["classification_status"], "SNAPSHOT_UNBOUND")
+        self.assertIsNone(unbound["proposal_identity"])
+
+    def test_repository_composition_preserves_partial_project_evidence(self):
+        projects = self._repository_projects()
+        projects[1]["classification_status"] = "INSUFFICIENT_SOURCE_EVIDENCE"
+        projects[1]["recommended_profile"] = None
+        scope = self._repository_scope()
+        scope["project_system_kinds"]["WEB"] = {"kind": "unknown"}
+
+        blueprint = build_repository_composition_blueprint(
+            projects,
+            scope,
+            self._bound_snapshot(),
+        )
+
+        self.assertEqual(blueprint["classification_status"], "PARTIAL_EVIDENCE")
+        self.assertEqual(blueprint["composition_model"], "mixed_evidence_workspace")
+        self.assertEqual(blueprint["insufficient_source_projects"], ["WEB"])
+        self.assertEqual(blueprint["unknown_system_kind_projects"], ["WEB"])
+        self.assertEqual(blueprint["proposal_identity_status"], "BOUND")
+
+    def test_repository_blueprint_is_not_reused_for_a_filtered_project_context(self):
+        repository_blueprint = build_repository_composition_blueprint(
+            self._repository_projects(),
+            self._repository_scope(),
+            self._bound_snapshot(),
+        )
+        oracle = {
+            "summary": {"status": "ADVISORY_ONLY"},
+            "projects": self._repository_projects(),
+            "repository_blueprint": repository_blueprint,
+        }
+
+        full_context = architecture_governance_context(oracle, {}, project_ids={"MAIN", "WEB"})
+        filtered_context = architecture_governance_context(oracle, {}, project_ids={"WEB"})
+
+        self.assertEqual(full_context["repository_blueprint_applicability"], "MATCHING_CONTEXT")
+        self.assertEqual(
+            filtered_context["repository_blueprint_applicability"],
+            "PROJECT_FILTER_SCOPE_MISMATCH",
+        )
+        self.assertFalse(filtered_context["policy_activation_allowed"])
+
+    def test_effective_architecture_policy_requires_exact_proposal_identity(self):
+        oracle = {
+            "projects": [{
+                "project": "WEB",
+                "classification_status": "CLASSIFIED",
+                "recommended_profile": "NEXTJS_APP_ROUTER",
+                "blueprint": blueprint_coordinates("NEXTJS_APP_ROUTER"),
+                "proposal_identity_status": "BOUND",
+                "proposal_identity": "sha256:proposal-web",
+                "project_system_kind": {"kind": "application"},
+                "project_language_capability": {"status": "ENGINE_AVAILABLE"},
+            }],
+            "scope_authority": {
+                "scope_authority_id": "sha256:scope",
+                "project_system_kind_identity": "sha256:kinds",
+                "project_language_capability_identity": "sha256:languages",
+            },
+        }
+        awaiting = build_effective_architecture_policy(oracle, {"entries": []})
+        stale = build_effective_architecture_policy(oracle, {"entries": [{
+            "id": "scope-only",
+            "gate": "architecture_doctrine_seal",
+            "scope": "WEB",
+            "decision": "approved",
+            "revoked_by": "",
+            "evidence": [],
+        }]})
+        active = build_effective_architecture_policy(oracle, {"entries": [{
+            "id": "exact-proposal",
+            "gate": "architecture_doctrine_seal",
+            "scope": "WEB",
+            "decision": "approved",
+            "revoked_by": "",
+            "evidence": ["architecture_proposal_identity:sha256:proposal-web"],
+        }]})
+
+        self.assertEqual(awaiting["projects"]["WEB"]["status"], "ADVISORY_AWAITING_HITL")
+        self.assertFalse(awaiting["projects"]["WEB"]["policy_activation_allowed"])
+        self.assertEqual(stale["projects"]["WEB"]["status"], "STALE_OR_UNBOUND_APPROVAL")
+        self.assertEqual(active["projects"]["WEB"]["status"], "ACTIVE")
+        self.assertTrue(active["projects"]["WEB"]["policy_activation_allowed"])
+        self.assertTrue(active["summary"]["policy_activation_allowed"])
+
+    def test_effective_architecture_project_resolution_fails_closed_on_snapshot_drift(self):
+        policy = {
+            "meta": {"kind": "effective_architecture_policy", "version": "v1"},
+            "invalidation": {"atlas_snapshot_id": "snapshot-a"},
+            "projects": {
+                "WEB": {
+                    "status": "ACTIVE",
+                    "policy_activation_allowed": True,
+                    "recommended_profile": "NEXTJS_APP_ROUTER",
+                    "feature_flags": {"architecture_sensitive_rules": "enabled"},
+                }
+            },
+        }
+
+        stale = resolve_effective_architecture_project(
+            policy,
+            "WEB",
+            expected_snapshot_id="snapshot-b",
+        )
+        missing_snapshot = resolve_effective_architecture_project(policy, "WEB")
+
+        self.assertEqual(stale["effective_policy_status"], "STALE_SNAPSHOT")
+        self.assertFalse(stale["architecture_sensitive_rules_enabled"])
+        self.assertEqual(
+            missing_snapshot["effective_policy_status"],
+            "ATLAS_SNAPSHOT_UNAVAILABLE",
+        )
+        self.assertFalse(missing_snapshot["architecture_sensitive_rules_enabled"])
+
+    def test_recognized_language_without_engine_cannot_be_activated_by_hitl(self):
+        oracle = {
+            "projects": [{
+                "project": "RUST_TOOL",
+                "classification_status": "CLASSIFIED",
+                "recommended_profile": "MODULAR_FLAT",
+                "blueprint": blueprint_coordinates("MODULAR_FLAT"),
+                "proposal_identity_status": "BOUND",
+                "proposal_identity": "sha256:rust-proposal",
+                "project_system_kind": {"kind": "tool"},
+                "project_language_capability": {
+                    "status": "RECOGNIZED_NO_ENGINE",
+                    "recognized_language_families": ["rust"],
+                    "engine_unavailable_language_families": ["rust"],
+                },
+            }],
+        }
+        policy = build_effective_architecture_policy(oracle, {"entries": [{
+            "id": "exact-but-no-engine",
+            "gate": "architecture_doctrine_seal",
+            "scope": "RUST_TOOL",
+            "decision": "approved",
+            "revoked_by": "",
+            "evidence": ["architecture_proposal_identity:sha256:rust-proposal"],
+        }]})
+
+        self.assertEqual(policy["projects"]["RUST_TOOL"]["status"], "BLOCKED_INSUFFICIENT_EVIDENCE")
+        self.assertEqual(
+            policy["projects"]["RUST_TOOL"]["feature_flags"]["language_engine_activation"],
+            "unavailable",
+        )
+        self.assertFalse(policy["summary"]["policy_activation_allowed"])
+
+    def test_agent_context_consumes_only_materialized_effective_policy(self):
+        oracle = {
+            "summary": {"status": "PROPOSE_SEAL"},
+            "projects": [{
+                "project": "WEB",
+                "classification_status": "CLASSIFIED",
+                "recommended_profile": "NEXTJS_APP_ROUTER",
+                "blueprint": blueprint_coordinates("NEXTJS_APP_ROUTER"),
+                "proposal_identity_status": "BOUND",
+                "proposal_identity": "sha256:proposal-web",
+                "project_language_capability": {"status": "ENGINE_AVAILABLE"},
+            }],
+        }
+        ledger = {"entries": [{
+            "id": "exact-proposal",
+            "gate": "architecture_doctrine_seal",
+            "scope": "WEB",
+            "decision": "approved",
+            "revoked_by": "",
+            "evidence": ["architecture_proposal_identity:sha256:proposal-web"],
+        }]}
+        policy = build_effective_architecture_policy(oracle, ledger)
+
+        context = architecture_governance_context(
+            oracle,
+            ledger,
+            policy,
+            project_ids={"WEB"},
+        )
+
+        self.assertEqual(context["effective_policy_status"], "ACTIVE")
+        self.assertEqual(context["activated_project_count"], 1)
+        self.assertTrue(context["policy_activation_allowed"])
+        self.assertEqual(context["projects"][0]["effective_policy_status"], "ACTIVE")
+        self.assertEqual(
+            context["projects"][0]["feature_flags"]["architecture_sensitive_rules"],
+            "enabled",
+        )
+
+    def test_zero_source_project_remains_unclassified_and_cannot_borrow_a_human_seal(self):
+        oracle = build_architecture_oracle(
+            {"TOOLING": {"files": {}, "dependencies": {}}},
+            use_discovery_prior=False,
+        )
+        project = oracle["projects"][0]
+        project["project_system_kind"] = {
+            "kind": "configuration",
+            "authority": "technical_system_kind_static_inventory_v1",
+            "confidence": "high",
+            "evidence": ["configuration_dominant_without_program_source"],
+            "candidate_kinds": ["configuration"],
+        }
+        context = architecture_governance_context(oracle, {"entries": [{
+            "gate": "architecture_doctrine_seal",
+            "scope": "TOOLING",
+            "decision": "approved",
+            "revoked_by": "",
+        }]})
+
+        self.assertEqual(project["classification_status"], "INSUFFICIENT_SOURCE_EVIDENCE")
+        self.assertIsNone(project["recommended_profile"])
+        self.assertEqual(project["confidence"], 0.0)
+        self.assertEqual(project["seal_proposal"]["status"], "NOT_PROPOSED")
+        self.assertTrue(all(score == 0.0 for score in project["scores"].values()))
+        self.assertIsNone(oracle["summary"]["top_recommended_profile"])
+        self.assertEqual(context["seal_state"], "PROPOSAL_ONLY")
+        self.assertEqual(context["projects"][0]["seal_state"], "EVIDENCE_INSUFFICIENT")
+        self.assertEqual(context["projects"][0]["project_system_kind"]["kind"], "configuration")
+        self.assertEqual(context["unmatched_active_seal_approvals"], 1)
+
+    def test_next_runtime_trait_requires_identity_and_rooted_router_paths(self):
+        appsmith_like = _score_next({
+            "src/pages/Applications/index.tsx": {"features": ["ClientComponent"]},
+            "src/pages/Editor/index.tsx": {},
+        })
+        remix_like = _score_next({
+            "app/entry.server.tsx": {},
+            "app/entry.client.tsx": {},
+            "app/routes/dashboard.tsx": {},
+        })
+        app_router_with_nested_pages = _score_next({
+            "next.config.js": {},
+            "src/app/layout.tsx": {},
+            "src/app/[channel]/pages/[slug]/page.tsx": {},
+        })
+        pages_router = _score_next({
+            "next.config.mjs": {},
+            "src/pages/_app.tsx": {},
+            "src/pages/index.tsx": {},
+        })
+        hybrid = _score_next({
+            "next.config.ts": {},
+            "app/layout.tsx": {},
+            "app/page.tsx": {},
+            "pages/_app.tsx": {},
+        })
+
+        self.assertEqual(appsmith_like["runtime_trait"], "unknown")
+        self.assertEqual(appsmith_like["score"], 0.0)
+        self.assertEqual(appsmith_like["pages_router_files"], 0)
+        self.assertEqual(appsmith_like["path_only_pages_router_candidates"], 2)
+        self.assertEqual(remix_like["runtime_trait"], "unknown")
+        self.assertEqual(remix_like["app_router_files"], 0)
+        self.assertEqual(app_router_with_nested_pages["runtime_trait"], "next_app_router")
+        self.assertEqual(app_router_with_nested_pages["pages_router_files"], 0)
+        self.assertEqual(pages_router["runtime_trait"], "next_pages_router")
+        self.assertEqual(hybrid["runtime_trait"], "next_hybrid")
+
     def test_legacy_profile_aliases_resolve_to_canonical_ids(self):
         self.assertEqual(canonical_profile_id("FSD_STANDARD"), "FSD_STRICT")
         self.assertEqual(canonical_profile_id("HEXAGONAL_PURE"), "CLEAN_ARCHITECTURE")
@@ -7815,12 +9535,61 @@ class ArchitectureBlueprintRegistryContractTests(unittest.TestCase):
         sealed = architecture_governance_context(oracle, {"entries": [{
             "gate": "architecture_doctrine_seal", "scope": "MAIN", "decision": "approved", "revoked_by": ""
         }]})
+        unrelated_release_seal = architecture_governance_context(oracle, {"entries": [{
+            "gate": "architecture_doctrine_seal",
+            "scope": "v1.0.4_agent_surface_human_seal",
+            "decision": "approved",
+            "revoked_by": "",
+        }]})
 
         self.assertEqual(proposal["seal_state"], "PROPOSAL_ONLY")
         self.assertEqual(scope_missing["seal_state"], "PROPOSAL_ONLY")
         self.assertEqual(sealed["seal_state"], "HUMAN_SEALED")
+        self.assertEqual(sealed["projects"][0]["seal_state"], "HUMAN_SEALED")
+        self.assertEqual(unrelated_release_seal["seal_state"], "PROPOSAL_ONLY")
+        self.assertEqual(unrelated_release_seal["unmatched_active_seal_approvals"], 1)
+        self.assertEqual(sealed["effective_policy_status"], "NOT_MATERIALIZED")
+        self.assertFalse(sealed["policy_activation_allowed"])
+        self.assertIn("does not prove a compiled or activated effective policy", sealed["agent_rule"])
         self.assertEqual(proposal["projects"][0]["topology"], "feature_sliced")
         self.assertEqual(proposal["projects"][0]["composition_model"], "vertical_slices")
+
+    def test_governance_context_does_not_promote_one_project_seal_to_all_projects(self):
+        oracle = {
+            "summary": {"status": "PROPOSE_SEAL"},
+            "projects": [
+                {"project": "MAIN", "recommended_profile": "MINIMAL", "blueprint": {}},
+                {"project": "WEB", "recommended_profile": "NEXTJS_APP_ROUTER", "blueprint": {}},
+            ],
+        }
+        context = architecture_governance_context(oracle, {"entries": [{
+            "gate": "architecture_doctrine_seal",
+            "scope": "MAIN",
+            "decision": "approved",
+            "revoked_by": "",
+        }]})
+
+        self.assertEqual(context["seal_state"], "PROPOSAL_ONLY")
+        self.assertEqual(context["sealed_project_count"], 1)
+        self.assertEqual(context["selected_project_count"], 2)
+        self.assertEqual(
+            {project["project"]: project["seal_state"] for project in context["projects"]},
+            {"MAIN": "HUMAN_SEALED", "WEB": "PROPOSAL_ONLY"},
+        )
+
+        bounded = architecture_governance_context(
+            oracle,
+            {"entries": [{
+                "gate": "architecture_doctrine_seal",
+                "scope": "MAIN",
+                "decision": "approved",
+                "revoked_by": "",
+            }]},
+            max_projects=1,
+        )
+        self.assertEqual(bounded["selected_project_count"], 1)
+        self.assertEqual(len(bounded["projects"]), 1)
+        self.assertEqual(bounded["seal_state"], "HUMAN_SEALED")
 
     def test_governance_context_filters_unrelated_projects(self):
         oracle = {

@@ -119,6 +119,33 @@ def _named_public_reexport_fixture() -> dict[str, Any]:
         }
 
 
+def _wildcard_public_subpath_fixture() -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="nexora_dead_code_wildcard_public_") as tmp:
+        root = Path(tmp)
+        _write(
+            root / "package.json",
+            json.dumps(
+                {
+                    "name": "@fixture/wildcard",
+                    "exports": {"./*": {"types": "./*.d.ts", "default": "./*.js"}},
+                },
+                indent=2,
+            ),
+        )
+        _write(root / "src" / "traditional.ts", "export function createWithEqualityFn() {}\n")
+        public_contracts = build_package_public_contracts(root, [root / "package.json"])
+        detector = DeadCodeDetector()
+        detector.projects = {"FIXTURE": root}
+        return {
+            "entry_patterns": public_contracts.get("entry_patterns", []),
+            "protected": detector._is_package_public_export_surface(
+                "FIXTURE",
+                "src/traditional.ts",
+                {"public_contracts": public_contracts},
+            ),
+        }
+
+
 def _typescript_declaration_fixture() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="nexora_dead_code_aug_") as tmp:
         root = Path(tmp)
@@ -144,6 +171,7 @@ def run_validation() -> dict[str, Any]:
 
     star_fixture = _public_export_chain_fixture()
     named_fixture = _named_public_reexport_fixture()
+    wildcard_fixture = _wildcard_public_subpath_fixture()
     declaration_fixture = _typescript_declaration_fixture()
 
     checks = [
@@ -168,6 +196,11 @@ def run_validation() -> dict[str, Any]:
             "named_reexport_chain_protects_named_symbol",
             bool(named_fixture["named_symbol_protected"]),
             named_fixture,
+        ),
+        _check(
+            "wildcard_package_subpath_projects_to_existing_source",
+            bool(wildcard_fixture["protected"]),
+            wildcard_fixture,
         ),
         _check(
             "typescript_declaration_and_augmentation_contracts_are_doctrine_driven",

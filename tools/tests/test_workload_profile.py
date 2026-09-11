@@ -191,6 +191,13 @@ class WorkloadProfileTests(unittest.TestCase):
                     "safe_worker_cap": 4,
                     "cpu_reserve": 0,
                     "default_chunk_size": 24,
+                    "session_pool_enabled_by_default": True,
+                    "session_pool_min_files": 48,
+                    "session_worker_max_requests": 200,
+                    "session_worker_max_rss_bytes": 805306368,
+                    "session_worker_estimated_rss_bytes": 536870912,
+                    "session_pool_memory_fraction": 0.30,
+                    "session_pool_host_memory_reserve_bytes": 1073741824,
                     "large_file_threshold": 1200,
                     "large_chunk_size": 12,
                     "large_cpu_divisor": 2,
@@ -206,17 +213,58 @@ class WorkloadProfileTests(unittest.TestCase):
                 }
             }
         }
-        strategy = ast_batch_strategy(900, 1, policy=policy, cpu_count=8)
+        strategy = ast_batch_strategy(
+            900,
+            1,
+            policy=policy,
+            cpu_count=8,
+            physical_memory_bytes=16 * 1024**3,
+        )
         self.assertEqual(strategy["chunk_size"], 14)
         self.assertEqual(strategy["workers"], 4)
         self.assertTrue(strategy["adaptive_mode"])
+        self.assertTrue(strategy["session_pool_enabled"])
+        self.assertEqual(strategy["session_worker_max_requests"], 200)
 
-        project_parallel_strategy = ast_batch_strategy(900, 2, policy=policy, cpu_count=8)
+        project_parallel_strategy = ast_batch_strategy(
+            900,
+            2,
+            policy=policy,
+            cpu_count=8,
+            physical_memory_bytes=16 * 1024**3,
+        )
         self.assertEqual(project_parallel_strategy["workers"], 1)
 
-        override_strategy = ast_batch_strategy(900, 1, policy=policy, cpu_count=8, env_workers=12)
+        override_strategy = ast_batch_strategy(
+            900,
+            1,
+            policy=policy,
+            cpu_count=8,
+            physical_memory_bytes=16 * 1024**3,
+            env_workers=12,
+        )
         self.assertEqual(override_strategy["workers"], 4)
         self.assertTrue(override_strategy["worker_override_clamped"])
+
+        legacy_strategy = ast_batch_strategy(
+            900,
+            1,
+            policy=policy,
+            cpu_count=8,
+            physical_memory_bytes=16 * 1024**3,
+            force_legacy=True,
+        )
+        self.assertFalse(legacy_strategy["session_pool_enabled"])
+
+        low_memory_strategy = ast_batch_strategy(
+            900,
+            1,
+            policy=policy,
+            cpu_count=8,
+            physical_memory_bytes=4 * 1024**3,
+        )
+        self.assertEqual(low_memory_strategy["workers"], 1)
+        self.assertTrue(low_memory_strategy["session_pool_memory_clamped"])
 
 
 class ValidationOraclePreflightTests(unittest.TestCase):
@@ -262,6 +310,10 @@ class PerformanceLedgerFailureTests(unittest.TestCase):
                             "performance_evidence_status": "stale_after_non_release_activity",
                             "physical_atlas_phase_timings": {"validate": 3.687, "commit": 3.425},
                             "physical_atlas_state_payload_profile": {"state_payload_bytes": 44729565},
+                            "physical_atlas_ast_lifecycle_profile": {
+                                "process_starts": 1670,
+                                "fallback_process_starts": 3,
+                            },
                         },
                         "checks": [],
                     }
@@ -280,6 +332,7 @@ class PerformanceLedgerFailureTests(unittest.TestCase):
             row = json.loads(ledger_path.read_text(encoding="utf-8"))["runs"][0]
             self.assertEqual(row["physical_atlas_phase_timings"]["validate"], 3.687)
             self.assertEqual(row["physical_atlas_state_payload_profile"]["state_payload_bytes"], 44729565)
+            self.assertEqual(row["physical_atlas_ast_lifecycle_profile"]["process_starts"], 1670)
             self.assertEqual(row["budget_authority_session_mode"], "normal_full")
             self.assertEqual(row["physical_latest_session_mode"], "watchdog_save_pulse")
             self.assertFalse(row["physical_profile_is_budget_authority"])

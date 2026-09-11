@@ -971,7 +971,7 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
         {"name": "Landscape Mapper", "func": run_landscape_impl, "kwargs": {}, "heavy": True, "category": "core", "depends_on": []},
         {"name": "Dead Code Detector", "func": run_dead_code_impl, "kwargs": {}, "heavy": True, "category": "core", "depends_on": ["Nuclear Sequencing"]},
         {"name": "Circular Dependency Finder", "func": run_circular_impl, "kwargs": {}, "heavy": True, "full_only": True, "category": "derived", "depends_on": ["Nuclear Sequencing"]},
-        {"name": "Audit", "func": run_audit_impl, "kwargs": {}, "heavy": False, "skip_when": args.skip_audit, "category": "core", "depends_on": ["Nuclear Sequencing"]},
+        {"name": "Audit", "func": run_audit_impl, "kwargs": {}, "heavy": False, "skip_when": args.skip_audit, "category": "core", "depends_on": ["Nuclear Sequencing", "Architecture Oracle"]},
         {"name": "AST Structural Diff", "func": run_nanometric_diff_impl, "kwargs": {}, "heavy": True, "full_only": True, "category": "derived", "depends_on": ["Nuclear Sequencing"]},
         {"name": "Variation Engine", "func": run_variation_engine_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Nuclear Sequencing"]},
         {"name": "Test-Impact Matcher", "func": run_test_impact_matcher_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Nuclear Sequencing"]},
@@ -996,7 +996,7 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
         {"name": "State/Data Graph Analyzer", "func": run_state_data_graph_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["State Flow Scanner"]},
         {"name": "A11y/i18n Contract Analyzer", "func": run_a11y_i18n_contracts_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Atlas"]},
         {"name": "React Ecosystem Analyzer", "func": run_react_ecosystem_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Atlas"]},
-        {"name": "React Runtime Intelligence", "func": run_react_runtime_intelligence_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Atlas", "React Ecosystem Analyzer", "UI Smoke Spec Generator", "UI Smoke Execution Readiness"]},
+        {"name": "React Runtime Intelligence", "func": run_react_runtime_intelligence_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Atlas", "React Ecosystem Analyzer", "UI Smoke Execution Readiness"]},
         {"name": "React Compiler Readiness", "func": run_react_compiler_readiness_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["React Runtime Intelligence", "React Ecosystem Analyzer"]},
         {"name": "React Frontier Intelligence", "func": run_react_frontier_intelligence_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Atlas"]},
         {"name": "Merge Dependency Packager", "func": run_merge_dependency_packager_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": ["Atlas", "UI Runtime Contract Analyzer"]},
@@ -1031,7 +1031,11 @@ def should_include_step(step, args):
         return False
     profile_keep_slugs = _profile_keep_slugs(execution_profile(args))
     profile_keeps_step = normalize_step_slug(step.get("name", "")) in profile_keep_slugs
-    if step.get("full_only") and not args.full and not profile_keeps_step:
+    profile_requests_full = (
+        bool(str(getattr(args, "profile", "") or "").strip() or getattr(args, "force", False))
+        and _profile_policy(execution_profile(args)).get("include_full_only") is True
+    )
+    if step.get("full_only") and not args.full and not profile_keeps_step and not profile_requests_full:
         return False
     if (
         step.get("release_deep_only")
@@ -1256,6 +1260,15 @@ def apply_capability_activation(selected, catalog, args, changed_files=None):
             for row in project.get("enabled_capabilities", [])
             if isinstance(row, dict) and row.get("status") == "enabled"
         }
+        architecture_policy_steps = {
+            str(step_name)
+            for step_name in (
+                plan.get("summary", {})
+                .get("architecture_policy_step_policy", {})
+                .get("always_preserve_steps", [])
+            )
+            if str(step_name).strip()
+        }
         contracts = {
             str(step.get("name")): {str(item) for item in step.get("capabilities", [])}
             for step in step_registry_from_catalog(catalog).get("steps", [])
@@ -1264,6 +1277,9 @@ def apply_capability_activation(selected, catalog, args, changed_files=None):
         filtered = []
         removed = []
         for step in selected:
+            if str(step.get("name")) in architecture_policy_steps:
+                filtered.append(step)
+                continue
             capability_ids = contracts.get(str(step.get("name")), set())
             if not capability_ids or capability_ids & enabled:
                 filtered.append(step)
@@ -1685,7 +1701,7 @@ def main(args=None, changed_files_override=None):
     requested_projects = (
         [item.strip().upper() for item in str(getattr(args, "projects", "") or "").split(",") if item.strip()]
     )
-    _PIPELINE_SHADOW_RUN_ID = f"sage-run-{uuid.uuid4()}"
+    _PIPELINE_SHADOW_RUN_ID = os.environ.get("CODEMAPS_EXTERNAL_RUN_ID", "").strip() or f"sage-run-{uuid.uuid4()}"
     _PIPELINE_RUN_RECEIPT = start_pipeline_run_receipt(
         command_profile=_pipeline_command_profile(args),
         scope=str(execution_identity.get("system_scope") or "SAGE_ON_REPOSITORY"),

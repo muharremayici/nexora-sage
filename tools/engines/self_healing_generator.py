@@ -312,18 +312,15 @@ class CodeHealer:
         if not tsconfig_path.exists():
             return False
 
-        try:
-            config = loads_jsonc(tsconfig_path.read_text(encoding="utf-8"))
-            paths = ((config.get("compilerOptions") or {}).get("paths") or {})
-            targets = paths.get("@/*") or paths.get("@/")
-            if isinstance(targets, str):
-                targets = [targets]
-            return any(
-                strip_current_directory_prefix(str(target).replace("\\", "/")) == "src/*"
-                for target in (targets or [])
-            )
-        except Exception:
-            return False
+        config = loads_jsonc(tsconfig_path.read_text(encoding="utf-8"))
+        paths = ((config.get("compilerOptions") or {}).get("paths") or {})
+        targets = paths.get("@/*") or paths.get("@/")
+        if isinstance(targets, str):
+            targets = [targets]
+        return any(
+            strip_current_directory_prefix(str(target).replace("\\", "/")) == "src/*"
+            for target in (targets or [])
+        )
 
     def _harmonize_i18n_usage(self, content: str, violation: Dict) -> str:
         """Replace legacy/banned i18n calls with the doctrine-approved patterns."""

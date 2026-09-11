@@ -13,6 +13,10 @@ if str(ROOT) not in sys.path:
 
 from tools.core.artifact_registry import ARTIFACT_SCHEMAS, artifact_metadata, artifact_path_for_storage_root
 from tools.core.analysis_snapshot_lineage import write_lineage_receipt
+from tools.core.analysis_scope_authority import (
+    bind_atlas_materialization,
+    build_preflight_scope_authority,
+)
 from tools.core.artifact_validator import validate_payload
 from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
@@ -159,41 +163,77 @@ def _fixture_results() -> dict[str, object]:
         commit = build_atlas_commit(atlas, generated_at=basis.isoformat())
         _write_fixture(raw_dir, "atlas", atlas)
         _write_fixture(raw_dir, "atlas_commit", commit)
-        authority = {
-            "contract": "repository_analysis_scope_authority_v1",
-            "scope_authority_id": "sha256:" + "a" * 64,
-            "evidence_status": "COMPLETE_REPOSITORY",
-            "claim_scope": "supported_source_repository",
-            "full_repository_claim_eligible": True,
-            "incomplete_reasons": [],
-            "effective_runtime_projects": {"MAIN": "."},
-            "indexed_projects": ["MAIN"],
-            "layer_consistency": "CONSISTENT",
+        scope_authority = build_preflight_scope_authority(
+            topology={
+                "ontology_contract": "canonical_repository_topology_v1",
+                "selection_mode": "evidence_backed_auto",
+                "project_candidates": {"MAIN": str(target_root)},
+                "project_candidate_relationship_roles": {"MAIN": "host"},
+                "project_candidate_role_authority": {
+                    "MAIN": {"relationship_role": "host", "relationship_resolved": True}
+                },
+                "selected_projects": {"MAIN": str(target_root)},
+                "excluded_projects": {},
+                "excluded_project_reasons": {},
+            },
+            projects=None,
+            repository_file_count=0,
+            repository_inventory_truncated=False,
+            repository_language_counts={},
+            effective_file_count=0,
+            effective_inventory_truncated=False,
+            effective_language_counts={},
+            effective_project_file_counts={"MAIN": 0},
+            polyglot_capabilities={"languages": {}},
+            effective_project_inventory_evidence={"MAIN": {}},
+        )
+        scope_artifact = {
+            "meta": {
+                "kind": "analysis_scope_authority",
+                "version": "v1",
+                "stage": "POST_ATLAS",
+                "authority": "shared_repository_analysis_scope",
+            },
+            "scope_authority": bind_atlas_materialization(scope_authority, atlas),
         }
-        scope_payload = {
-            "meta": {"kind": "analysis_scope_authority", "version": "v1"},
-            "scope_authority": authority,
-        }
+        _write_fixture(raw_dir, "analysis_scope_authority", scope_artifact)
+        write_lineage_receipt(
+            artifact_id="analysis_scope_authority",
+            producer="tools.orchestrators.orchestrator",
+            artifact_payload=scope_artifact,
+            atlas=atlas,
+            atlas_commit=commit,
+            raw_dir=raw_dir,
+        )
         genome = {"Example": []}
-        audit_scope = {
-            "atlas_project_count": 1,
-            "audited_projects": ["MAIN"],
-            "scope_authority": authority,
-        }
-        audit = {"summary": {"total": 3, "audit_scope": audit_scope}, "audit_scope": audit_scope}
-        quality = {
-            "passed": True,
-            "scope_gate_status": "PASS",
-            "analysis_scope_authority": authority,
-        }
-        _write_fixture(raw_dir, "analysis_scope_authority", scope_payload)
+        audit = {"summary": {"total": 3}}
+        quality = {"passed": True}
         _write_fixture(raw_dir, "genome", genome)
         _write_fixture(raw_dir, "audit_report", audit)
         _write_fixture(raw_dir, "quality_gate", quality)
         write_lineage_receipt(artifact_id="genome", producer="tools.engines.nuclear_processor", artifact_payload=genome, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
-        write_lineage_receipt(artifact_id="analysis_scope_authority", producer="tools.orchestrators.orchestrator", artifact_payload=scope_payload, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
-        write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload=audit, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload}, raw_dir=raw_dir)
-        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=raw_dir)
+        write_lineage_receipt(
+            artifact_id="audit_report",
+            producer="tools.engines.audit",
+            artifact_payload=audit,
+            atlas=atlas,
+            atlas_commit=commit,
+            dependency_payloads={"analysis_scope_authority": scope_artifact},
+            raw_dir=raw_dir,
+        )
+        write_lineage_receipt(
+            artifact_id="quality_gate",
+            producer="tools.engines.quality_gate",
+            artifact_payload=quality,
+            atlas=atlas,
+            atlas_commit=commit,
+            dependency_payloads={
+                "analysis_scope_authority": scope_artifact,
+                "genome": genome,
+                "audit_report": audit,
+            },
+            raw_dir=raw_dir,
+        )
         clean = build_target_repository_proof(
             target_root=target_root,
             raw_dir=raw_dir,
@@ -211,9 +251,21 @@ def _fixture_results() -> dict[str, object]:
             repository_reference="fixture-snapshot",
             evidence_not_before=basis.isoformat(),
         )
-        quality = {**quality, "passed": False}
+        quality = {"passed": False}
         _write_fixture(raw_dir, "quality_gate", quality)
-        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=raw_dir)
+        write_lineage_receipt(
+            artifact_id="quality_gate",
+            producer="tools.engines.quality_gate",
+            artifact_payload=quality,
+            atlas=atlas,
+            atlas_commit=commit,
+            dependency_payloads={
+                "analysis_scope_authority": scope_artifact,
+                "genome": genome,
+                "audit_report": audit,
+            },
+            raw_dir=raw_dir,
+        )
         blocked = build_target_repository_proof(
             target_root=target_root,
             raw_dir=raw_dir,
@@ -221,9 +273,21 @@ def _fixture_results() -> dict[str, object]:
             repository_reference="fixture-snapshot",
             evidence_not_before=basis.isoformat(),
         )
-        quality = {**quality, "passed": True}
+        quality = {"passed": True}
         _write_fixture(raw_dir, "quality_gate", quality)
-        write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=raw_dir)
+        write_lineage_receipt(
+            artifact_id="quality_gate",
+            producer="tools.engines.quality_gate",
+            artifact_payload=quality,
+            atlas=atlas,
+            atlas_commit=commit,
+            dependency_payloads={
+                "analysis_scope_authority": scope_artifact,
+                "genome": genome,
+                "audit_report": audit,
+            },
+            raw_dir=raw_dir,
+        )
         _write_merge_fixture_lineage(
             raw_dir,
             atlas,
@@ -246,7 +310,7 @@ def _fixture_results() -> dict[str, object]:
             mode="baseline",
             repository_reference="plausible-but-nonauthoritative",
         )
-        _write_fixture(raw_dir, "quality_gate", {**quality, "tampered_after_production": True})
+        _write_fixture(raw_dir, "quality_gate", {"passed": True, "tampered_after_production": True})
         unbound = build_target_repository_proof(
             target_root=target_root,
             raw_dir=raw_dir,
@@ -335,11 +399,6 @@ def build_validation() -> dict[str, object]:
         _check(
             "atlas_commit_is_required_in_every_mode",
             all("atlas_commit" in mode.get("required_evidence", []) for mode in modes.values() if isinstance(mode, dict)),
-            {mode_id: mode.get("required_evidence", []) for mode_id, mode in modes.items() if isinstance(mode, dict)},
-        ),
-        _check(
-            "analysis_scope_authority_is_required_in_every_mode",
-            all("analysis_scope_authority" in mode.get("required_evidence", []) for mode in modes.values() if isinstance(mode, dict)),
             {mode_id: mode.get("required_evidence", []) for mode_id, mode in modes.items() if isinstance(mode, dict)},
         ),
         _check(

@@ -22,8 +22,8 @@ EVIDENCE_KIND_TO_LADDER = {
     "atlas_feature": "atlas_feature",
     "ast_span": "ast_span",
     "typescript_compiler": "typescript_diagnostic",
+    "bundle_stats": "build_artifact",
     "runtime_smoke_ready": "runtime_smoke_ready",
-    "bundle_stats": "runtime_smoke",
     "runtime_profile": "runtime_smoke",
     "runtime_smoke": "runtime_smoke",
     "needs_runtime_proof": "runtime_proof_required",
@@ -35,6 +35,7 @@ EVIDENCE_LADDER_ORDER = [
     "atlas_feature",
     "ast_span",
     "typescript_diagnostic",
+    "build_artifact",
     "runtime_smoke_ready",
     "runtime_smoke",
     "runtime_proof_required",
@@ -96,6 +97,8 @@ def confidence_from_ladder(score: int, evidence_ladder: list[str], current: str 
 def runtime_proof_status(evidence_ladder: list[str]) -> str:
     if "runtime_smoke" in evidence_ladder:
         return "runtime_confirmed"
+    if "build_artifact" in evidence_ladder:
+        return "build_correlated"
     if "runtime_smoke_ready" in evidence_ladder:
         return "runtime_smoke_ready"
     if "runtime_proof_required" in evidence_ladder:

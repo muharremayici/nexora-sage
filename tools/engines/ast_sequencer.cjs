@@ -1584,6 +1584,51 @@ function canonicalSymbolType(rawType, name, features = [], frameworkTags = []) {
     return canonical.has(lowered) ? lowered : 'metadata';
 }
 
+const REACT_RENDER_EVIDENCE_CACHE = new WeakMap();
+
+function hasDirectReactRenderEvidence(node, sourceFile) {
+    if (!node) return false;
+    if (REACT_RENDER_EVIDENCE_CACHE.has(node)) return REACT_RENDER_EVIDENCE_CACHE.get(node);
+    let found = false;
+    function walk(inner) {
+        if (found) return;
+        if (inner !== node && ts.isFunctionLike(inner)) return;
+        if (
+            ts.isJsxElement(inner)
+            || ts.isJsxSelfClosingElement(inner)
+            || ts.isJsxFragment(inner)
+        ) {
+            found = true;
+            return;
+        }
+        if (
+            ts.isCallExpression(inner)
+            && getExpressionName(inner.expression, sourceFile) === 'createElement'
+        ) {
+            found = true;
+            return;
+        }
+        ts.forEachChild(inner, walk);
+    }
+    walk(node.body || node);
+    REACT_RENDER_EVIDENCE_CACHE.set(node, found);
+    return found;
+}
+
+function hasDeclaredReactComponentType(functionNode, declaration, sourceFile) {
+    const typeNodes = [functionNode?.type, declaration?.type].filter(Boolean);
+    return typeNodes.some(typeNode =>
+        /^(?:React\.)?(?:FC|FunctionComponent|ComponentType)(?:<|$)|^(?:JSX\.)?Element(?:<|$)|^ReactNode$/.test(
+            typeNode.getText(sourceFile).replace(/\s+/g, '')
+        )
+    );
+}
+
+function hasReactComponentEvidence(functionNode, declaration, sourceFile) {
+    return hasDirectReactRenderEvidence(functionNode, sourceFile)
+        || hasDeclaredReactComponentType(functionNode, declaration, sourceFile);
+}
+
 function semanticSignature(node, sourceFile, type, name, frameworkTags = []) {
     const rawSignature = extractSignature(node, sourceFile);
     let paramCount = 0;
@@ -1631,6 +1676,137 @@ function buildLogicIdentity(name, type, node, sourceFile) {
         parserKind: profile.parser_kind || 'typescript_compiler_api',
         parserVersion: ts.version || 'unknown',
     };
+}
+
+function collectReactMutationContextFeatures(sourceFile) {
+    const fileFeatures = new Set();
+    const synchronousRenderCallbacks = new Set([
+        'map', 'flatMap', 'filter', 'reduce', 'reduceRight', 'forEach',
+        'find', 'findIndex', 'some', 'every', 'sort', 'useMemo', 'useCallback'
+    ]);
+    const effectCalls = new Set(['useEffect', 'useLayoutEffect', 'useInsertionEffect']);
+    const assignmentOperators = new Set([
+        ts.SyntaxKind.EqualsToken,
+        ts.SyntaxKind.PlusEqualsToken,
+        ts.SyntaxKind.MinusEqualsToken,
+        ts.SyntaxKind.AsteriskEqualsToken,
+        ts.SyntaxKind.SlashEqualsToken,
+        ts.SyntaxKind.PercentEqualsToken,
+        ts.SyntaxKind.AmpersandEqualsToken,
+        ts.SyntaxKind.BarEqualsToken,
+        ts.SyntaxKind.CaretEqualsToken,
+        ts.SyntaxKind.LessThanLessThanEqualsToken,
+        ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
+        ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
+        ts.SyntaxKind.AsteriskAsteriskEqualsToken,
+        ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+        ts.SyntaxKind.BarBarEqualsToken,
+        ts.SyntaxKind.QuestionQuestionEqualsToken,
+    ]);
+
+    function functionName(node) {
+        if (node.name && ts.isIdentifier(node.name)) return node.name.text;
+        if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
+            return node.parent.name.text;
+        }
+        if (
+            ts.isCallExpression(node.parent)
+            && ts.isVariableDeclaration(node.parent.parent)
+            && ts.isIdentifier(node.parent.parent.name)
+        ) {
+            return node.parent.parent.name.text;
+        }
+        return '';
+    }
+
+    function isDefaultExportFunction(node) {
+        return Boolean(node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword));
+    }
+
+    function isWrapperComponentCallback(node) {
+        const parent = node.parent;
+        if (!parent || !ts.isCallExpression(parent) || !parent.arguments.includes(node)) return false;
+        const callName = getExpressionName(parent.expression, sourceFile);
+        return ['memo', 'React.memo', 'forwardRef', 'React.forwardRef'].includes(callName);
+    }
+
+    function isComponentRenderFunction(node) {
+        if (!hasReactComponentEvidence(node, node.parent, sourceFile)) return false;
+        const name = functionName(node);
+        return /^[A-Z]/.test(name) || isDefaultExportFunction(node) || isWrapperComponentCallback(node);
+    }
+
+    function enclosingFunction(node) {
+        let cursor = node.parent;
+        while (cursor) {
+            if (ts.isFunctionLike(cursor)) return cursor;
+            cursor = cursor.parent;
+        }
+        return null;
+    }
+
+    function enclosingComponentFunction(node) {
+        let cursor = node.parent;
+        while (cursor) {
+            if (ts.isFunctionLike(cursor) && isComponentRenderFunction(cursor)) return cursor;
+            cursor = cursor.parent;
+        }
+        return null;
+    }
+
+    function callbackCallName(fn) {
+        const parent = fn?.parent;
+        if (!parent || !ts.isCallExpression(parent) || !parent.arguments.includes(fn)) return '';
+        return getExpressionName(parent.expression, sourceFile);
+    }
+
+    function isJsxEventCallback(fn) {
+        let cursor = fn?.parent;
+        while (cursor && !ts.isFunctionLike(cursor)) {
+            if (ts.isJsxAttribute(cursor)) {
+                const name = cursor.name?.getText(sourceFile) || '';
+                return /^on[A-Z]/.test(name);
+            }
+            cursor = cursor.parent;
+        }
+        return false;
+    }
+
+    function assignmentContext(node) {
+        const fn = enclosingFunction(node);
+        if (!fn) return 'module';
+        const callName = callbackCallName(fn);
+        if (effectCalls.has(callName)) return 'effect';
+        const name = functionName(fn);
+        if (isJsxEventCallback(fn) || /^(?:handle|on)[A-Z]/.test(name)) return 'event';
+        if (isComponentRenderFunction(fn)) return 'render';
+        if (synchronousRenderCallbacks.has(callName) && enclosingComponentFunction(fn)) return 'render';
+        return 'unresolved';
+    }
+
+    function isMutableAssignment(node) {
+        if (ts.isBinaryExpression(node)) {
+            const operator = node.operatorToken.kind;
+            return assignmentOperators.has(operator)
+                && (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left));
+        }
+        if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+            return [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)
+                && (ts.isPropertyAccessExpression(node.operand) || ts.isElementAccessExpression(node.operand));
+        }
+        return false;
+    }
+
+    function visit(node) {
+        if (isMutableAssignment(node)) {
+            const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+            fileFeatures.add(`React:MutableAssignment:${assignmentContext(node)}:${line}`);
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(sourceFile);
+    return fileFeatures;
 }
 
 function detectRuntimeExportContract(targetFile, fileFeatures, symbolName) {
@@ -1750,6 +1926,122 @@ function detectGraphQLExportContract(sourceFile, sourceCode, targetFile, symbolN
     return { matched: true, kind: 'graphql_document' };
 }
 
+function collectModuleImportEvidence(sourceFile) {
+    const records = [];
+    const seen = new Set();
+
+    function add(source, name, kind, scope = 'top_level') {
+        const normalizedSource = String(source || '').trim();
+        if (!normalizedSource) return;
+        const record = {
+            source: normalizedSource,
+            name: String(name || '*').trim() || '*',
+            kind: String(kind || 'module').trim() || 'module',
+            scope,
+        };
+        const key = `${record.source}\u0000${record.name}\u0000${record.kind}\u0000${record.scope}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            records.push(record);
+        }
+    }
+
+    function moduleSource(node) {
+        return node && ts.isStringLiteralLike(node) ? node.text : '';
+    }
+
+    function scopeFor(node) {
+        let current = node.parent;
+        while (current && !ts.isSourceFile(current)) {
+            if (ts.isFunctionLike(current)) return 'local';
+            current = current.parent;
+        }
+        return 'top_level';
+    }
+
+    function addDynamicMembers(importCall, source, scope) {
+        let valueNode = importCall;
+        if (ts.isAwaitExpression(valueNode.parent)) valueNode = valueNode.parent;
+        if (ts.isVariableDeclaration(valueNode.parent) && valueNode.parent.initializer === valueNode) {
+            const binding = valueNode.parent.name;
+            if (ts.isObjectBindingPattern(binding)) {
+                for (const element of binding.elements) {
+                    const importedName = element.propertyName?.getText(sourceFile) || element.name.getText(sourceFile);
+                    add(source, importedName, 'dynamic_member', scope);
+                }
+            }
+        }
+
+        const access = importCall.parent;
+        const thenCall = access && ts.isPropertyAccessExpression(access) && access.name.text === 'then'
+            ? access.parent
+            : null;
+        if (thenCall && ts.isCallExpression(thenCall)) {
+            const callback = thenCall.arguments[0];
+            const binding = callback && ts.isFunctionLike(callback) ? callback.parameters[0]?.name : null;
+            if (binding && ts.isObjectBindingPattern(binding)) {
+                for (const element of binding.elements) {
+                    const importedName = element.propertyName?.getText(sourceFile) || element.name.getText(sourceFile);
+                    add(source, importedName, 'dynamic_member', scopeFor(thenCall));
+                }
+            }
+        }
+    }
+
+    function visit(node) {
+        if (ts.isImportDeclaration(node)) {
+            const source = moduleSource(node.moduleSpecifier);
+            const clause = node.importClause;
+            if (!clause) {
+                add(source, '*', 'side_effect');
+            } else {
+                const clauseIsTypeOnly = Boolean(clause.isTypeOnly);
+                if (clause.name) {
+                    add(source, 'default', clauseIsTypeOnly ? 'type' : 'default');
+                }
+                const bindings = clause.namedBindings;
+                if (bindings && ts.isNamespaceImport(bindings)) {
+                    add(source, bindings.name.text, clauseIsTypeOnly ? 'type' : 'namespace');
+                } else if (bindings && ts.isNamedImports(bindings)) {
+                    for (const element of bindings.elements) {
+                        const importedName = element.propertyName?.text || element.name.text;
+                        add(source, importedName, clauseIsTypeOnly || element.isTypeOnly ? 'type' : 'named');
+                    }
+                }
+            }
+        } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+            add(moduleSource(node.moduleReference.expression), node.name.text, node.isTypeOnly ? 'type' : 'require');
+        } else if (ts.isExportDeclaration(node)) {
+            const source = moduleSource(node.moduleSpecifier);
+            if (source) {
+                if (!node.exportClause) {
+                    add(source, '*', node.isTypeOnly ? 'type' : 'reexport_all');
+                } else if (ts.isNamespaceExport(node.exportClause)) {
+                    add(source, node.exportClause.name.text, node.isTypeOnly ? 'type' : 'reexport_namespace');
+                } else if (ts.isNamedExports(node.exportClause)) {
+                    for (const element of node.exportClause.elements) {
+                        const importedName = element.propertyName?.text || element.name.text;
+                        add(source, importedName, node.isTypeOnly || element.isTypeOnly ? 'type' : 'reexport');
+                    }
+                }
+            }
+        } else if (ts.isCallExpression(node)) {
+            const source = moduleSource(node.arguments[0]);
+            if (source && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+                const scope = scopeFor(node);
+                add(source, '*', 'dynamic', scope);
+                addDynamicMembers(node, source, scope);
+            } else if (source && ts.isIdentifier(node.expression) && node.expression.text === 'require') {
+                add(source, '*', 'require', scopeFor(node));
+            }
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(sourceFile);
+    return records;
+}
+
 function analyzeFile(targetFile) {
     let sourceCode;
     try {
@@ -1771,6 +2063,7 @@ function analyzeFile(targetFile) {
             parserKind: 'typescript_compiler_api',
             semanticDepth: 'unavailable',
             parserDiagnosticCount: 0,
+            moduleImports: [],
             features: [
                 'Error:FileReadFailed',
                 'ParserStatus:unavailable',
@@ -1809,6 +2102,9 @@ function analyzeFile(targetFile) {
     for (const feature of collectReactHookFlowFeatures(sourceFile, importBindings)) {
         fileFeatures.add(feature);
     }
+    for (const feature of collectReactMutationContextFeatures(sourceFile)) {
+        fileFeatures.add(feature);
+    }
     for (const feature of collectFormValidationFeatures(sourceFile, importBindings)) {
         fileFeatures.add(feature);
     }
@@ -1834,7 +2130,11 @@ function analyzeFile(targetFile) {
                 const spanEndNode = decl.initializer || decl;
                 while (init && (ts.isAsExpression(init) || ts.isParenthesizedExpression(init))) init = init.expression;
                 if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
-                    type = varName.startsWith('use') ? 'Hook' : (/^[A-Z]/.test(varName) ? 'Component' : 'Arrow');
+                    type = varName.startsWith('use')
+                        ? 'Hook'
+                        : (/^[A-Z]/.test(varName) && hasReactComponentEvidence(init, decl, sourceFile))
+                            ? 'Component'
+                            : 'Arrow';
                 }
                 if (isExported || type === 'Hook' || type === 'Component') {
                     addSymbolEntry(varName, type, decl, node, {
@@ -2093,6 +2393,7 @@ function analyzeFile(targetFile) {
         semanticDepth: parserStatus === 'observed' ? 'ast_normalized' : 'partial_ast',
         parserDiagnosticCount: parseDiagnostics.length,
         parserDiagnosticCodes: [...new Set(parseDiagnostics.map(item => String(item.code)))].slice(0, 20),
+        moduleImports: collectModuleImportEvidence(sourceFile),
         features: [
             ...fileFeatures,
             `ParserStatus:${parserStatus}`,
@@ -2110,11 +2411,40 @@ function analyzeFile(targetFile) {
 const args = process.argv.slice(2);
 const targetFiles = [];
 let batchJson = false;
+let batchMetrics = false;
+let workerJsonl = false;
+let requestId = '';
+let workerMaxRequests = 200;
+let workerMaxRssBytes = 805306368;
 
 for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "--batch-json") {
         batchJson = true;
+        continue;
+    }
+    if (arg === "--batch-metrics") {
+        batchMetrics = true;
+        continue;
+    }
+    if (arg === "--worker-jsonl") {
+        workerJsonl = true;
+        batchMetrics = true;
+        continue;
+    }
+    if (arg === "--request-id" && args[i + 1]) {
+        requestId = args[i + 1];
+        i += 1;
+        continue;
+    }
+    if (arg === "--max-requests" && args[i + 1]) {
+        workerMaxRequests = Math.max(1, Number.parseInt(args[i + 1], 10) || workerMaxRequests);
+        i += 1;
+        continue;
+    }
+    if (arg === "--max-rss-bytes" && args[i + 1]) {
+        workerMaxRssBytes = Math.max(1, Number.parseInt(args[i + 1], 10) || workerMaxRssBytes);
+        i += 1;
         continue;
     }
     if (arg === "--doctrine-json" && args[i + 1]) {
@@ -2144,17 +2474,82 @@ for (let i = 0; i < args.length; i += 1) {
     targetFiles.push(arg);
 }
 
-if (!targetFiles.length) {
-    process.exit(1);
+function analyzeBatch(batchFiles, batchRequestId) {
+    const results = {};
+    const startedAt = process.hrtime.bigint();
+    const rssStartBytes = process.memoryUsage().rss;
+    let rssMaxObservedBytes = rssStartBytes;
+    for (const targetFile of batchFiles) {
+        results[targetFile] = analyzeFile(targetFile);
+        rssMaxObservedBytes = Math.max(rssMaxObservedBytes, process.memoryUsage().rss);
+    }
+    const elapsedMilliseconds = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    return {
+        batchMeta: {
+            protocolVersion: 1,
+            requestId: batchRequestId,
+            filesRequested: batchFiles.length,
+            filesReported: Object.keys(results).length,
+            rssStartBytes,
+            rssMaxObservedBytes,
+            elapsedMilliseconds
+        },
+        results
+    };
 }
 
-try {
-    if (batchJson || targetFiles.length > 1) {
-        const results = {};
-        for (const targetFile of targetFiles) {
-            results[targetFile] = analyzeFile(targetFile);
+if (workerJsonl) {
+    const readline = require('readline');
+    let requestsHandled = 0;
+    const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+    input.on('line', (line) => {
+        if (!line.trim()) return;
+        let incomingRequestId = '';
+        try {
+            const request = JSON.parse(line);
+            incomingRequestId = String(request.requestId || '');
+            if (request.command === 'shutdown') {
+                input.close();
+                return;
+            }
+            if (request.protocolVersion !== 1 || !incomingRequestId || !Array.isArray(request.paths)) {
+                throw new Error('invalid_worker_request');
+            }
+            const envelope = analyzeBatch(request.paths.map(String), incomingRequestId);
+            requestsHandled += 1;
+            const rssBytes = Number(envelope.batchMeta.rssMaxObservedBytes || 0);
+            if (requestsHandled >= workerMaxRequests) {
+                envelope.batchMeta.workerRetireReason = 'request_limit';
+            } else if (rssBytes >= workerMaxRssBytes) {
+                envelope.batchMeta.workerRetireReason = 'rss_limit';
+            }
+            process.stdout.write(JSON.stringify(envelope) + '\n');
+            if (envelope.batchMeta.workerRetireReason) {
+                input.close();
+            }
+        } catch (err) {
+            process.stdout.write(JSON.stringify({
+                batchMeta: {
+                    protocolVersion: 1,
+                    requestId: incomingRequestId,
+                    filesRequested: 0,
+                    filesReported: 0
+                },
+                results: {},
+                error: String(err && err.message ? err.message : err)
+            }) + '\n');
         }
-        process.stdout.write(JSON.stringify(results));
+    });
+} else if (!targetFiles.length) {
+    process.exit(1);
+} else try {
+    if (batchJson || targetFiles.length > 1) {
+        const envelope = analyzeBatch(targetFiles, requestId);
+        if (batchMetrics) {
+            process.stdout.write(JSON.stringify(envelope));
+        } else {
+            process.stdout.write(JSON.stringify(envelope.results));
+        }
     } else {
         const results = analyzeFile(targetFiles[0]);
         process.stdout.write(JSON.stringify(results));

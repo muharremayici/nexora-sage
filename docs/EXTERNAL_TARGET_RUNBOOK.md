@@ -103,6 +103,11 @@ SAGE runs a preflight automatically before the external target analysis. To skip
 python .\sage.py run --full --target-root "<absolute-path-to-target-repo>" --skip-target-preflight
 ```
 
+The promoted generation records this choice as
+`preflight_status: SKIPPED_BY_OPERATOR`; it is never reported as a validated
+Preflight observation. Pipeline-receipt, Audit (unless separately skipped) and
+authoritative SQLite Atlas identity checks still apply before promotion.
+
 Targeted step example:
 
 ```powershell
@@ -410,9 +415,27 @@ External target outputs are isolated under:
 
 ```text
 output/external_targets/<target-name-and-hash>/
+├── current.json
+└── generations/
+    └── <run-id>/
+        ├── generation.json
+        ├── .raw/
+        ├── reports/
+        └── logs/
 ```
 
 This keeps quality-control runs from overwriting the default analysis artifacts.
+Each material external run writes into its own generation directory. A run
+becomes current only after its pipeline receipt, required report shadows and
+authoritative SQLite Atlas identity validate for that exact run. Promotion
+replaces `current.json` atomically; readers therefore resolve either the
+previous validated generation or the newly validated generation, never a
+partially replaced mixture.
+
+Interrupted, failed, validation-failed and Watchdog-only generations remain
+inspectable under `generations/`, but they do not replace the current pointer.
+If `current.json` or its bound manifest identity is invalid, SAGE reports the
+target as unvalidated instead of falling back to mixed current truth.
 
 `output/external_targets/` is runtime evidence, not a durable archive. Before
 cleaning runtime artifacts or packaging a release, promote any external-corpus

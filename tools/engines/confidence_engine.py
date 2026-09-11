@@ -148,6 +148,8 @@ def evaluate_file_confidence(target_path_or_node: str, content: str = None) -> D
     """
     atlas, _execution_scope = project_runtime_atlas(load_atlas_data())
     
+    content_was_supplied = content is not None
+
     # 1. Target Normalization
     project_key = "MAIN"
     target_rel = target_path_or_node
@@ -165,6 +167,11 @@ def evaluate_file_confidence(target_path_or_node: str, content: str = None) -> D
                     break
                     
     target_rel = target_rel.replace("\\", "/")
+    atlas_file_data = (
+        atlas.get(project_key, {}).get("files", {}).get(target_rel, {})
+        if isinstance(atlas, dict)
+        else {}
+    )
     
     # 2. Retrieve actual file content if not provided
     if content is None:
@@ -227,20 +234,39 @@ def evaluate_file_confidence(target_path_or_node: str, content: str = None) -> D
         reasons.append(f"High codebase complexity (> {loc_complexity_threshold} LOC: count is {loc_count})")
         
     # 6. Architecture Drift Certainty Score
-    # Check for relative imports traversal
-    drift_certainty = drift_base
-    relative_count = len(re.findall(r"\.\./", content or ""))
-    if relative_count > 0:
-        drift_certainty = min(0.95, round(drift_base + relative_count * drift_relative_factor, 2))
-        reasons.append(f"Contains {relative_count} raw relative imports traversal (Doctrine standard alias violation)")
-        
-    # Check for layer integrity violations via mock-governance check
-    from tools.engines.mcp_governance_engine import extract_imports
+    from tools.core.polyglot_imports import extract_imports
     from tools.core.layer_resolver import resolve_layer, is_violation
-    
+
     file_ext = Path(target_rel).suffix.lower()
     f_lang = language_for_extension(file_ext)
-    imports = extract_imports(content or "", f_lang)
+    import_evidence_ready = True
+    if f_lang in {"typescript", "javascript"}:
+        if content_was_supplied or not isinstance(atlas_file_data, dict):
+            imports = []
+            import_evidence_ready = False
+        else:
+            import_records = atlas_file_data.get("import_records")
+            if not isinstance(import_records, list):
+                imports = []
+                import_evidence_ready = False
+            else:
+                imports = []
+                for record in import_records:
+                    if not isinstance(record, dict) or str(record.get("kind") or "").lower() == "type":
+                        continue
+                    source = str(record.get("raw_source") or record.get("source") or "").strip()
+                    if source and source not in imports:
+                        imports.append(source)
+    else:
+        imports = extract_imports(content or "", f_lang)
+
+    drift_certainty = drift_base
+    relative_count = sum(str(source).count("../") for source in imports)
+    if relative_count > 0:
+        drift_certainty = min(0.95, round(drift_base + relative_count * drift_relative_factor, 2))
+        reasons.append(f"Contains {relative_count} syntax-grounded relative import traversal (Doctrine standard alias violation)")
+    if not import_evidence_ready:
+        reasons.append("Syntax-grounded JS/TS import evidence is unavailable for the supplied or unindexed source; architecture drift was not inferred from raw text.")
     current_layer = resolve_layer(target_rel)
     
     for imp in imports:

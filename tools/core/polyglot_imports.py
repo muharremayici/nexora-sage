@@ -47,8 +47,53 @@ def strip_comments_for_import_scan(content: str) -> str:
     return without_python_comments
 
 
-def extract_imports(content: str, language: str) -> list[str]:
-    """Extract language-aware import specifiers and normalize dot packages to slash paths."""
+def extract_typescript_import_evidence(parser_entries: list[dict] | None) -> dict:
+    """Normalize syntax-grounded JS/TS module edges emitted by the Node parser."""
+    meta = next(
+        (
+            entry
+            for entry in parser_entries or []
+            if isinstance(entry, dict) and entry.get("name") == "__file_meta__"
+        ),
+        None,
+    )
+    if not isinstance(meta, dict) or not isinstance(meta.get("moduleImports"), list):
+        return {"status": "unavailable", "records": [], "eager_sources": [], "lazy_sources": []}
+
+    records: list[dict[str, str]] = []
+    eager_sources: list[str] = []
+    lazy_sources: list[str] = []
+    seen_records: set[tuple[str, str, str, str]] = set()
+    for raw_record in meta["moduleImports"]:
+        if not isinstance(raw_record, dict):
+            continue
+        source = str(raw_record.get("source") or "").strip()
+        name = str(raw_record.get("name") or "*").strip() or "*"
+        kind = str(raw_record.get("kind") or "module").strip().lower()
+        scope = str(raw_record.get("scope") or "top_level").strip().lower()
+        if not source or scope not in {"top_level", "local"}:
+            continue
+        key = (source, name, kind, scope)
+        if key in seen_records:
+            continue
+        seen_records.add(key)
+        records.append({"source": source, "name": name, "kind": kind, "scope": scope})
+        if kind == "type":
+            continue
+        bucket = lazy_sources if kind == "dynamic" or scope == "local" else eager_sources
+        if source not in bucket:
+            bucket.append(source)
+
+    return {
+        "status": str(meta.get("parserStatus") or "unavailable").strip().lower(),
+        "records": records,
+        "eager_sources": eager_sources,
+        "lazy_sources": lazy_sources,
+    }
+
+
+def extract_imports(content: str, language: str, *, parser_entries: list[dict] | None = None) -> list[str]:
+    """Extract module specifiers without treating JS/TS source text as syntax evidence."""
     imports: list[str] = []
     clean_content = strip_comments_for_import_scan(content)
     language = (language or "typescript").lower()
@@ -58,7 +103,11 @@ def extract_imports(content: str, language: str) -> list[str]:
         if normalized and normalized not in imports:
             imports.append(normalized)
 
-    if language in {"typescript", "javascript", "vue"}:
+    if language in {"typescript", "javascript"}:
+        evidence = extract_typescript_import_evidence(parser_entries)
+        for source in evidence["eager_sources"] + evidence["lazy_sources"]:
+            add(source)
+    elif language == "vue":
         matches = []
         for match in re.finditer(r"\bimport\s+([\s\S]*?)\s+from\s+['\"](.+?)['\"]", clean_content):
             if _ts_import_clause_has_runtime(match.group(1)):
@@ -90,3 +139,46 @@ def extract_imports(content: str, language: str) -> list[str]:
             add(match.group(1).replace(".", "/"))
 
     return imports
+
+
+def extract_go_qualified_imports(content: str) -> list[dict[str, str]]:
+    """Return source-grounded Go package member uses.
+
+    A Go import addresses a package, not a file. Qualified calls such as
+    config.LoadConfig are the symbol-level evidence needed by downstream
+    reachability consumers.
+    """
+    clean_content = strip_comments_for_import_scan(content)
+    aliases: dict[str, str] = {}
+
+    for alias, source in re.findall(
+        r"\bimport\s+(?:(\w+)\s+)?\"([^\"]+)\"",
+        clean_content,
+    ):
+        package_alias = alias or source.rsplit("/", 1)[-1]
+        if package_alias not in {"_", "."}:
+            aliases[package_alias] = source
+
+    for block in re.findall(r"\bimport\s*\((.*?)\)", clean_content, re.DOTALL):
+        for alias, source in re.findall(r"(?m)^\s*(?:(\w+)\s+)?\"([^\"]+)\"", block):
+            package_alias = alias or source.rsplit("/", 1)[-1]
+            if package_alias not in {"_", "."}:
+                aliases[package_alias] = source
+
+    records: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for package_alias, source in sorted(aliases.items()):
+        for member in re.findall(rf"\b{re.escape(package_alias)}\.([A-Za-z_]\w*)", clean_content):
+            key = (source, member)
+            if key in seen:
+                continue
+            seen.add(key)
+            records.append(
+                {
+                    "source": source,
+                    "name": member,
+                    "kind": "qualified-member",
+                    "alias": package_alias,
+                }
+            )
+    return records

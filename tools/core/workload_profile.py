@@ -265,12 +265,46 @@ def atlas_project_worker_count(
     return max(1, min(projects, platform_cap, cpu_capacity, load_workers))
 
 
+def _physical_memory_bytes() -> int:
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            status = MemoryStatus()
+            status.dwLength = ctypes.sizeof(MemoryStatus)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.ullTotalPhys)
+        except (AttributeError, OSError, ValueError):
+            return 0
+        return 0
+    try:
+        page_size = int(os.sysconf("SC_PAGE_SIZE"))
+        physical_pages = int(os.sysconf("SC_PHYS_PAGES"))
+        return max(0, page_size * physical_pages)
+    except (AttributeError, OSError, TypeError, ValueError):
+        return 0
+
+
 def ast_batch_strategy(
     file_count: int,
     atlas_project_workers: int = 1,
     *,
     policy: dict[str, Any] | None = None,
     cpu_count: int | None = None,
+    physical_memory_bytes: int | None = None,
     force_legacy: bool = False,
     env_chunk_size: int | None = None,
     env_workers: int | None = None,
@@ -309,7 +343,7 @@ def ast_batch_strategy(
             workers = 1
         else:
             detected_cpu = max(1, int(cpu_count if cpu_count is not None else (os.cpu_count() or 2)))
-            workers = min(6, max(1, detected_cpu // 2))
+            workers = min(safe_cap, max(1, detected_cpu // 2))
         clamped_worker_override = False
     else:
         detected_cpu = max(1, int(cpu_count if cpu_count is not None else (os.cpu_count() or 2)))
@@ -335,6 +369,35 @@ def ast_batch_strategy(
                 workers = 1
         clamped_worker_override = False
 
+    detected_memory = (
+        max(0, int(physical_memory_bytes))
+        if physical_memory_bytes is not None
+        else _physical_memory_bytes()
+    )
+    estimated_worker_rss = max(
+        1,
+        int(config.get("session_worker_estimated_rss_bytes", 536870912) or 536870912),
+    )
+    memory_fraction = max(
+        0.05,
+        min(0.90, float(config.get("session_pool_memory_fraction", 0.30) or 0.30)),
+    )
+    host_memory_reserve = max(
+        0,
+        int(config.get("session_pool_host_memory_reserve_bytes", 1073741824) or 1073741824),
+    )
+    if detected_memory > 0:
+        pool_memory_budget = max(
+            estimated_worker_rss,
+            int(detected_memory * memory_fraction) - host_memory_reserve,
+        )
+        memory_worker_cap = max(1, pool_memory_budget // estimated_worker_rss)
+        memory_clamped = workers > memory_worker_cap
+        workers = min(workers, memory_worker_cap)
+    else:
+        memory_worker_cap = safe_cap
+        memory_clamped = False
+
     return {
         "chunk_size": max(1, int(chunk_size)),
         "workers": max(1, int(workers)),
@@ -344,6 +407,16 @@ def ast_batch_strategy(
         "env_worker_override": bool(env_workers),
         "worker_override_clamped": bool(clamped_worker_override),
         "safe_worker_cap": int(safe_cap),
+        "session_pool_enabled": bool(config.get("session_pool_enabled_by_default", False)) and not force_legacy,
+        "session_pool_min_files": max(1, int(config.get("session_pool_min_files", 48) or 48)),
+        "session_worker_max_requests": max(1, int(config.get("session_worker_max_requests", 200) or 200)),
+        "session_worker_max_rss_bytes": max(
+            1,
+            int(config.get("session_worker_max_rss_bytes", 805306368) or 805306368),
+        ),
+        "physical_memory_bytes": detected_memory,
+        "session_pool_memory_worker_cap": int(memory_worker_cap),
+        "session_pool_memory_clamped": bool(memory_clamped),
     }
 
 

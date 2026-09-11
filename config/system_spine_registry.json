@@ -30,6 +30,8 @@
       "governance_registry",
       "capability_registry",
       "pipeline_execution_policy",
+      "cli_command_contract",
+      "installation_preflight_contract",
       "agent_surface_contracts",
       "actor_interaction_contract",
       "system_health_check",
@@ -115,6 +117,24 @@
       "release_proof_step": "pipeline_execution_contract",
       "raw_artifact": "output/.raw/pipeline_execution_contract_validation.json",
       "contract_guarantee": "binds scheduler classes, execution profiles, operational limits, report limits and subprocess policy"
+    },
+    {
+      "id": "cli_command_contract",
+      "role": "spinal_cord",
+      "source": "config/cli_command_contract.json",
+      "validator": "tools/validate_cli_command_contract.py",
+      "release_proof_step": "cli_command_contract",
+      "raw_artifact": "output/.raw/cli_command_contract_validation.json",
+      "contract_guarantee": "owns public and private command visibility, init modes, validation profiles and command-level claim boundaries"
+    },
+    {
+      "id": "installation_preflight_contract",
+      "role": "spinal_cord",
+      "source": "config/installation_preflight_contract.json",
+      "validator": "tools/validate_installation_contract.py",
+      "release_proof_step": "installation_contract",
+      "raw_artifact": "output/.raw/installation_contract_validation.json",
+      "contract_guarantee": "owns installation authority profiles, required local runtimes and the no-target-mutation preflight boundary"
     },
     {
       "id": "agent_surface_contracts",

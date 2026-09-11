@@ -31,12 +31,21 @@ def save_snapshot_and_diff():
 
     existing = sorted(SNAPSHOTS_DIR.glob("*.json"), reverse=True)
     previous = None
+    previous_error = None
     if existing:
         try:
             previous = json.loads(existing[0].read_text("utf-8"))
             logger.info(f"Comparing against snapshot: {existing[0].name}")
-        except Exception:
-            previous = None
+        except Exception as exc:
+            previous_error = {
+                "error_type": type(exc).__name__,
+                "snapshot": existing[0].name,
+            }
+            logger.warning(
+                "Previous temporal snapshot is unavailable: %s (%s)",
+                existing[0],
+                type(exc).__name__,
+            )
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     snapshot_path = SNAPSHOTS_DIR / f"{timestamp}_summary.json"
@@ -46,8 +55,14 @@ def save_snapshot_and_diff():
     if removed:
         logger.info(f"Pruned {removed} stale snapshots (retention={SNAPSHOT_RETENTION})")
 
-    if previous:
+    if previous is not None:
         diff = _compute_diff(previous, current)
+    elif previous_error:
+        diff = {
+            "status": "previous_snapshot_unavailable",
+            "message": "Previous snapshot could not be parsed; no temporal comparison claim was made.",
+            **previous_error,
+        }
     else:
         diff = {"status": "first_run", "message": "No previous snapshot to compare against."}
 
@@ -153,6 +168,14 @@ def _render_diff_md(diff):
         lines.append("**First run - no previous snapshot to compare.**")
         lines.append("")
         lines.append("Future runs will show what changed between executions.")
+        return lines
+    if diff.get("status") == "previous_snapshot_unavailable":
+        lines.append("**Previous snapshot unavailable - no temporal comparison claim was made.**")
+        lines.append("")
+        lines.append(
+            f"Snapshot: `{diff.get('snapshot', '?')}`; error type: "
+            f"`{diff.get('error_type', 'unknown')}`."
+        )
         return lines
 
     lines.append(f"**Comparing:** `{diff.get('previous_date', '?')}` -> `{diff.get('current_date', '?')}`")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -33,11 +34,10 @@ def artifact_state_meta(raw_dir: Path, artifact: str) -> dict[str, Any]:
     db_path = raw_dir / "codemaps.db"
     if db_path.exists():
         try:
-            with sqlite3.connect(db_path) as conn:
+            with closing(sqlite3.connect(db_path)) as conn:
                 conn.row_factory = sqlite3.Row
                 row = conn.execute(
-                    "SELECT source_mtime, updated_at, payload_sha, "
-                    "COALESCE(payload_bytes, length(payload)) AS payload_bytes "
+                    "SELECT payload_sha, source_mtime, updated_at, length(payload) AS payload_bytes "
                     "FROM state_payloads WHERE name = ?;",
                     (artifact,),
                 ).fetchone()
@@ -66,10 +66,9 @@ def artifact_state_meta(raw_dir: Path, artifact: str) -> dict[str, Any]:
             "content_mtime": shadow_mtime,
             "validation_mtime": shadow_mtime,
             "updated_at": "",
-            "payload_sha": "",
             "payload_bytes": int(json_path.stat().st_size),
         }
-    return {"exists": False, "source": "missing", "mtime": 0.0, "updated_at": "", "payload_sha": "", "payload_bytes": 0}
+    return {"exists": False, "source": "missing", "mtime": 0.0, "updated_at": "", "payload_bytes": 0}
 
 
 def _state_payload_meta(raw_dir: Path, artifact: str) -> dict[str, Any]:

@@ -49,7 +49,8 @@ def sequence_cs_file_with_evidence(file_path: str):
             "name": name,
             "kind": "Namespace",
             "detail": f"namespace {name}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": False,
         })
 
     # Types
@@ -61,7 +62,8 @@ def sequence_cs_file_with_evidence(file_path: str):
             "name": name,
             "kind": kind.capitalize(),
             "detail": f"{visibility} {kind} {name}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": visibility == "public",
         })
 
     # Methods
@@ -78,7 +80,8 @@ def sequence_cs_file_with_evidence(file_path: str):
             "name": name,
             "kind": "Method",
             "detail": f"{visibility} {ret_type} {name}({args})",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": False,
         })
 
     # Properties
@@ -91,7 +94,8 @@ def sequence_cs_file_with_evidence(file_path: str):
             "name": name,
             "kind": "Property",
             "detail": f"{visibility} {type_name} {name} {{ get; set; }}",
-            "location": {"line": clean_content.count('\n', 0, match.start()) + 1}
+            "location": {"line": clean_content.count('\n', 0, match.start()) + 1},
+            "exported": False,
         })
 
     for symbol in symbols:

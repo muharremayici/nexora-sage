@@ -16,6 +16,8 @@ from tools.core.json_io import load_json_file
 
 DEAD_CODE_ENGINE = CODE_MAPS_DIR / "tools" / "engines" / "dead_code_detector.py"
 CONTRACT_PATH = CONFIG_DIR / "dead_code_language_agnostic_core_contract.json"
+DEAD_CODE_SCHEMA_PATH = CONFIG_DIR / "schemas" / "dead_code.schema.json"
+POLYGLOT_CAPABILITY_PATH = CONFIG_DIR / "polyglot_capabilities.json"
 
 
 def _check(name: str, passed: bool, details: str, evidence: Any = None) -> dict[str, Any]:
@@ -58,6 +60,8 @@ def run_validation() -> dict[str, Any]:
     source = DEAD_CODE_ENGINE.read_text(encoding="utf-8", errors="replace")
     lowered = source.lower()
     contract = load_json_file(CONTRACT_PATH, {})
+    dead_code_schema_source = DEAD_CODE_SCHEMA_PATH.read_text(encoding="utf-8", errors="replace")
+    polyglot_capabilities = load_json_file(POLYGLOT_CAPABILITY_PATH, {})
     heuristics = DOCTRINE.get("dead_code_heuristics", {})
     if not isinstance(heuristics, dict):
         heuristics = {}
@@ -68,6 +72,23 @@ def run_validation() -> dict[str, Any]:
     policy_owned_tokens = _doctrine_owned_surface_tokens(heuristics, contract)
     policy_token_hits = [token for token in policy_owned_tokens if token.lower() in lowered]
     missing_sections = [section for section in required_sections if section not in heuristics]
+    contract_triage_classes = _contract_list(contract, "contract_triage_classes")
+    missing_triage_schema_classes = [
+        class_name
+        for class_name in contract_triage_classes
+        if class_name not in dead_code_schema_source
+    ]
+    language_capabilities = (
+        polyglot_capabilities.get("languages", {})
+        if isinstance(polyglot_capabilities, dict)
+        else {}
+    )
+    reachability_missing_languages = [
+        language
+        for language, capability in sorted(language_capabilities.items())
+        if not isinstance(capability, dict)
+        or not isinstance(capability.get("dead_code_reachability"), dict)
+    ]
 
     checks = [
         _check(
@@ -110,6 +131,23 @@ def run_validation() -> dict[str, Any]:
             isinstance(heuristics.get("runtime_consumed_contracts"), list),
             "Runtime-discovered contracts should be doctrine-configured.",
             {"rules": len(heuristics.get("runtime_consumed_contracts") or [])},
+        ),
+        _check(
+            "contract_triage_classes_are_schema_bound",
+            bool(contract_triage_classes) and not missing_triage_schema_classes,
+            "Every contract triage class declared by the core contract must be accepted by the artifact schema.",
+            missing_triage_schema_classes,
+        ),
+        _check(
+            "polyglot_reachability_is_canonical_and_consumed",
+            not reachability_missing_languages
+            and "_language_capabilities" in source
+            and "unresolved_reachability" in source,
+            "Dead-code candidate authority must consume each language reachability mode from the canonical polyglot capability matrix.",
+            {
+                "source": contract.get("reachability_capability_source"),
+                "missing_languages": reachability_missing_languages,
+            },
         ),
     ]
 

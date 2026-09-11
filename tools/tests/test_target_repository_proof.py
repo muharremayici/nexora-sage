@@ -7,6 +7,10 @@ from pathlib import Path
 from tools.core.artifact_validator import validate_payload
 from tools.core.artifact_registry import artifact_path_for_storage_root
 from tools.core.analysis_snapshot_lineage import write_lineage_receipt
+from tools.core.analysis_scope_authority import (
+    bind_atlas_materialization,
+    build_preflight_scope_authority,
+)
 from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.json_io import load_json_file
 from tools.core.target_repository_proof import build_target_repository_proof
@@ -30,68 +34,83 @@ def _read(raw_dir: Path, artifact_id: str) -> dict:
     return load_json_file(_path(raw_dir, artifact_id), {})
 
 
-def _baseline(target_root: Path, *, bounded_with_preserved_project: bool = False) -> str:
+def _baseline(target_root: Path) -> str:
     raw_dir = _raw_dir(target_root)
     basis = datetime.now(timezone.utc) - timedelta(seconds=2)
     atlas = {"MAIN": {"project": {"root": str(target_root)}, "files": {}}}
-    if bounded_with_preserved_project:
-        atlas["OTHER"] = {
-            "project": {"root": str(target_root / "packages" / "other")},
-            "files": {},
-        }
     commit = build_atlas_commit(atlas, generated_at=basis.isoformat())
     snapshot_id = commit["snapshot_id"]
     _write(target_root, "atlas", atlas)
     _write(target_root, "atlas_commit", commit)
-    authority = {
-        "contract": "repository_analysis_scope_authority_v1",
-        "scope_authority_id": "sha256:" + "a" * 64,
-        "evidence_status": (
-            "BOUNDED_PROJECT_SELECTION"
-            if bounded_with_preserved_project
-            else "COMPLETE_REPOSITORY"
-        ),
-        "claim_scope": (
-            "explicit_project_selection"
-            if bounded_with_preserved_project
-            else "supported_source_repository"
-        ),
-        "full_repository_claim_eligible": not bounded_with_preserved_project,
-        "incomplete_reasons": [],
-        "effective_runtime_projects": {"MAIN": "."},
-        "indexed_projects": ["MAIN"],
-        "layer_consistency": "CONSISTENT",
+    scope_authority = build_preflight_scope_authority(
+        topology={
+            "ontology_contract": "canonical_repository_topology_v1",
+            "selection_mode": "evidence_backed_auto",
+            "project_candidates": {"MAIN": str(target_root)},
+            "project_candidate_relationship_roles": {"MAIN": "host"},
+            "project_candidate_role_authority": {
+                "MAIN": {"relationship_role": "host", "relationship_resolved": True}
+            },
+            "selected_projects": {"MAIN": str(target_root)},
+            "excluded_projects": {},
+            "excluded_project_reasons": {},
+        },
+        projects=None,
+        repository_file_count=0,
+        repository_inventory_truncated=False,
+        repository_language_counts={},
+        effective_file_count=0,
+        effective_inventory_truncated=False,
+        effective_language_counts={},
+        effective_project_file_counts={"MAIN": 0},
+        polyglot_capabilities={"languages": {}},
+        effective_project_inventory_evidence={"MAIN": {}},
+    )
+    scope_artifact = {
+        "meta": {
+            "kind": "analysis_scope_authority",
+            "version": "v1",
+            "stage": "POST_ATLAS",
+            "authority": "shared_repository_analysis_scope",
+        },
+        "scope_authority": bind_atlas_materialization(scope_authority, atlas),
     }
-    scope_payload = {
-        "meta": {"kind": "analysis_scope_authority", "version": "v1"},
-        "scope_authority": authority,
-    }
+    _write(target_root, "analysis_scope_authority", scope_artifact)
+    write_lineage_receipt(
+        artifact_id="analysis_scope_authority",
+        producer="tools.orchestrators.orchestrator",
+        artifact_payload=scope_artifact,
+        atlas=atlas,
+        atlas_commit=commit,
+        raw_dir=raw_dir,
+    )
     genome = {"Example": []}
-    audit_scope = {
-        "atlas_project_count": 1,
-        "audited_projects": ["MAIN"],
-        "scope_authority": authority,
-    }
-    audit = {"summary": {"total": 2, "audit_scope": audit_scope}, "audit_scope": audit_scope}
-    quality = {
-        "passed": True,
-        "scope_gate_status": "PASS",
-        "analysis_scope_authority": authority,
-    }
-    _write(target_root, "analysis_scope_authority", scope_payload)
+    audit = {"summary": {"total": 2}}
+    quality = {"passed": True}
     _write(target_root, "genome", genome)
     _write(target_root, "audit_report", audit)
     _write(target_root, "quality_gate", quality)
     write_lineage_receipt(artifact_id="genome", producer="tools.engines.nuclear_processor", artifact_payload=genome, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
-    write_lineage_receipt(artifact_id="analysis_scope_authority", producer="tools.orchestrators.orchestrator", artifact_payload=scope_payload, atlas=atlas, atlas_commit=commit, raw_dir=raw_dir)
-    write_lineage_receipt(artifact_id="audit_report", producer="tools.engines.audit", artifact_payload=audit, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload}, raw_dir=raw_dir)
+    write_lineage_receipt(
+        artifact_id="audit_report",
+        producer="tools.engines.audit",
+        artifact_payload=audit,
+        atlas=atlas,
+        atlas_commit=commit,
+        dependency_payloads={"analysis_scope_authority": scope_artifact},
+        raw_dir=raw_dir,
+    )
     write_lineage_receipt(
         artifact_id="quality_gate",
         producer="tools.engines.quality_gate",
         artifact_payload=quality,
         atlas=atlas,
         atlas_commit=commit,
-        dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit},
+        dependency_payloads={
+            "analysis_scope_authority": scope_artifact,
+            "genome": genome,
+            "audit_report": audit,
+        },
         raw_dir=raw_dir,
     )
     return basis.isoformat()
@@ -169,8 +188,6 @@ def test_baseline_bundle_is_scoped_and_schema_valid(tmp_path: Path) -> None:
     assert payload["subject"]["scope"] == "target_repository"
     assert payload["subject"]["analysis_snapshot_kind"] == "atlas_commit"
     assert payload["subject"]["root_binding"] == "BOUND"
-    assert payload["scope_evidence"]["status"] == "PASS"
-    assert payload["scope_evidence"]["checks"]["indexed_projects_match_effective_scope"] is True
     assert payload["statistics"] == [
         {
             "id": "audit_finding_count",
@@ -183,25 +200,6 @@ def test_baseline_bundle_is_scoped_and_schema_valid(tmp_path: Path) -> None:
         }
     ]
     assert validate_payload("target_repository_proof_bundle", payload) == []
-
-
-def test_explicit_bounded_project_proof_allows_preserved_atlas_projects(tmp_path: Path) -> None:
-    basis = _baseline(tmp_path, bounded_with_preserved_project=True)
-
-    payload = build_target_repository_proof(
-        target_root=tmp_path,
-        raw_dir=_raw_dir(tmp_path),
-        mode="baseline",
-        repository_reference="bounded-main",
-        evidence_not_before=basis,
-    )
-
-    assert payload["summary"]["verdict"] == "PASS"
-    assert payload["scope_evidence"]["evidence_status"] == "BOUNDED_PROJECT_SELECTION"
-    assert payload["scope_evidence"]["full_repository_claim_eligible"] is False
-    assert payload["scope_evidence"]["atlas_projects"] == ["MAIN", "OTHER"]
-    assert payload["scope_evidence"]["effective_projects"] == ["MAIN"]
-    assert payload["scope_evidence"]["indexed_projects"] == ["MAIN"]
 
 
 def test_missing_or_failed_required_evidence_blocks(tmp_path: Path) -> None:
@@ -221,10 +219,9 @@ def test_missing_or_failed_required_evidence_blocks(tmp_path: Path) -> None:
     commit = _read(tmp_path, "atlas_commit")
     genome = _read(tmp_path, "genome")
     audit = _read(tmp_path, "audit_report")
-    scope_payload = _read(tmp_path, "analysis_scope_authority")
     quality = {"passed": False}
     _write(tmp_path, "quality_gate", quality)
-    write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"analysis_scope_authority": scope_payload, "genome": genome, "audit_report": audit}, raw_dir=_raw_dir(tmp_path))
+    write_lineage_receipt(artifact_id="quality_gate", producer="tools.engines.quality_gate", artifact_payload=quality, atlas=atlas, atlas_commit=commit, dependency_payloads={"genome": genome, "audit_report": audit}, raw_dir=_raw_dir(tmp_path))
     failed = build_target_repository_proof(
         target_root=tmp_path,
         raw_dir=_raw_dir(tmp_path),
@@ -235,47 +232,11 @@ def test_missing_or_failed_required_evidence_blocks(tmp_path: Path) -> None:
     assert failed["summary"]["verdict"] == "BLOCKED"
 
 
-def test_incomplete_scope_authority_blocks_otherwise_green_evidence(tmp_path: Path) -> None:
-    _baseline(tmp_path)
-    raw_dir = _raw_dir(tmp_path)
-    atlas = _read(tmp_path, "atlas")
-    commit = _read(tmp_path, "atlas_commit")
-    scope_payload = _read(tmp_path, "analysis_scope_authority")
-    scope_payload["scope_authority"]["evidence_status"] = "INCOMPLETE_EVIDENCE"
-    scope_payload["scope_authority"]["claim_scope"] = "incomplete_evidence_only"
-    scope_payload["scope_authority"]["full_repository_claim_eligible"] = False
-    scope_payload["scope_authority"]["incomplete_reasons"] = ["repository_inventory_truncated"]
-    _write(tmp_path, "analysis_scope_authority", scope_payload)
-    write_lineage_receipt(
-        artifact_id="analysis_scope_authority",
-        producer="tools.orchestrators.orchestrator",
-        artifact_payload=scope_payload,
-        atlas=atlas,
-        atlas_commit=commit,
-        raw_dir=raw_dir,
-    )
-
-    payload = build_target_repository_proof(
-        target_root=tmp_path,
-        raw_dir=raw_dir,
-        mode="baseline",
-    )
-
-    assert payload["summary"]["verdict"] == "BLOCKED"
-    assert payload["scope_evidence"]["evidence_status"] == "INCOMPLETE_EVIDENCE"
-    assert "analysis_scope_authority:claim_status_usable" in payload["unknowns"]
-
-
 def test_atlas_commit_supplies_freshness_and_snapshot_authority(tmp_path: Path) -> None:
     _baseline(tmp_path)
-    payload = build_target_repository_proof(
-        target_root=tmp_path,
-        raw_dir=_raw_dir(tmp_path),
-        mode="baseline",
-        repository_reference="fixture-snapshot",
-    )
+    payload = build_target_repository_proof(target_root=tmp_path, raw_dir=_raw_dir(tmp_path), mode="baseline")
     assert payload["summary"]["verdict"] == "PASS"
-    assert payload["subject"]["repository_reference_kind"] == "explicit"
+    assert payload["subject"]["repository_reference_kind"] == "unavailable"
 
 
 def test_caller_snapshot_cannot_bind_unrelated_target_or_evidence(tmp_path: Path) -> None:

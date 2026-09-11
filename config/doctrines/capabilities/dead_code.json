@@ -759,15 +759,50 @@
         "label": "Database/framework migration exports discovered by runtime tooling",
         "reason": "contract_registry_migration_surface",
         "path_tokens": [
-          "/migrations/"
+          "/migrations/",
+          "/migration/",
+          "/changelog/"
         ],
         "file_globs": [
           "*.ts",
           "*.tsx",
           "*.js",
-          "*.jsx"
+          "*.jsx",
+          "*.py",
+          "*.java"
         ],
-        "symbol_regex": "^(?:Migration\\d+|Migration[A-Z0-9_].*|.*Migration)$"
+        "symbol_regex": "^(?:Migration\\d+|Migration[A-Z0-9_].*|.*Migration|DatabaseChangelog.*)$",
+        "contract_class": "DB_MIGRATION_SURFACE",
+        "contract_status": "source_grounded_migration_surface",
+        "recommended_action": "retain_migration_history",
+        "mutation_proposed": false
+      },
+      {
+        "id": "worker_entrypoint_contracts",
+        "enabled": true,
+        "label": "Worker entrypoints activated outside the ordinary import graph",
+        "reason": "contract_registry_worker_entrypoint_surface",
+        "path_tokens": [
+          "/workers/",
+          "/worker/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx",
+          "*.worker.ts",
+          "*.worker.js"
+        ],
+        "content_markers": [
+          "self.onmessage",
+          "addeventlistener(",
+          "postmessage("
+        ],
+        "contract_class": "WORKER_ENTRYPOINT_CANDIDATE",
+        "contract_status": "runtime_binding_unknown",
+        "recommended_action": "verify_worker_instantiation_or_retain_contract",
+        "mutation_proposed": false
       },
       {
         "id": "workflow_step_contracts",
@@ -954,14 +989,52 @@
       "@Module(",
       "@Injectable(",
       "@Controller(",
+      "@Catch(",
       "@Resolver(",
       "@InputType(",
       "@ObjectType(",
       "@ArgsType(",
+      "@ValidatorConstraint(",
+      "@Entity(",
       "@Schema(",
       "@Processor(",
       "@Gateway("
     ],
+    "framework_runtime_contracts": {
+      "python_django": {
+        "languages": [
+          "python"
+        ],
+        "extends_suffixes": [
+          "AppConfig",
+          "Model",
+          "ModelViewSet",
+          "ViewSet",
+          "APIView"
+        ],
+        "content_markers": [
+          "from django.",
+          "import django.",
+          "from rest_framework.",
+          "import rest_framework."
+        ],
+        "contract_status": "runtime_binding_unknown"
+      },
+      "java_spring": {
+        "languages": [
+          "java"
+        ],
+        "annotation_markers": [
+          "@RestController",
+          "@Controller",
+          "@Service",
+          "@Repository",
+          "@Configuration",
+          "@Component"
+        ],
+        "contract_status": "runtime_binding_unknown"
+      }
+    },
     "test_support_heuristics": {
       "path_tokens": [
         "/test/",
@@ -979,6 +1052,8 @@
         ".spec/"
       ],
       "file_suffixes": [
+        "conftest.py",
+        "_test.go",
         "fixture.ts",
         "fixture.tsx",
         "fixtures.ts",
@@ -1001,6 +1076,16 @@
         ".expected.jsx",
         ".expected.ts",
         ".expected.tsx"
+      ],
+      "file_globs": [
+        "test_*.py",
+        "*_test.py"
+      ],
+      "path_globs": [
+        "bdd/features/environment.py",
+        "features/environment.py",
+        "*/bdd/features/environment.py",
+        "*/features/environment.py"
       ]
     },
     "reference_example_heuristics": {
@@ -1037,7 +1122,23 @@
       "file_suffixes": [
         ".gen.ts",
         ".gen.tsx"
-      ]
+      ],
+      "template_contract": {
+        "file_suffixes": [
+          "-template.ts",
+          "-template.tsx",
+          ".template.ts",
+          ".template.tsx"
+        ],
+        "content_markers": [
+          "__STRIPPED_DURING_INJECTION_",
+          "@generated",
+          "generated code this template",
+          "code generation template",
+          "do not edit manually"
+        ],
+        "evidence_rule": "A template filename alone is insufficient; at least one configured content marker must also be present."
+      }
     },
     "dynamic_registry_heuristics": {
       "markers": [
@@ -1054,6 +1155,18 @@
         "dynamic(",
         "import.meta.glob"
       ]
+    },
+    "runtime_loaded_module_references": {
+      "config_file_globs": [
+        "*.config.js",
+        "*.config.cjs",
+        "*.config.mjs",
+        "*.config.ts"
+      ],
+      "collection_fields": [
+        "plugins"
+      ],
+      "evidence_rule": "Only configured module-loading fields and relative paths that resolve to a physical repository-owned source file seed module reachability. The reference proves module loading, not use of every export."
     }
   }
 }

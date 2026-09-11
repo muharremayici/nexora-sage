@@ -26,6 +26,11 @@ from tools.core.honesty_telemetry import (
 
 
 class MCPCallTelemetryTests(unittest.TestCase):
+    def test_record_without_active_capture_does_not_leak_into_later_calls(self) -> None:
+        self.assertEqual(current_mcp_call_capture(), {})
+        record_mcp_call_result("direct_python_call", time.perf_counter(), "fixture")
+        self.assertEqual(current_mcp_call_capture(), {})
+
     def _record(self, *, db_path: Path, trace_id: str, target_root: str = "") -> None:
         with patch.dict(os.environ, {MCP_OPERATIONAL_DB_ENV: str(db_path)}):
             token = activate_mcp_call_capture()
@@ -99,7 +104,6 @@ class MCPCallTelemetryTests(unittest.TestCase):
             self.assertEqual([row["trace_id"] for row in ledger["entries"]], ["trace-1", "trace-2"])
 
     def test_call_capture_is_context_scoped(self) -> None:
-        previous = current_mcp_call_capture()
         outer = activate_mcp_call_capture()
         try:
             record_mcp_call_result("outer", time.perf_counter(), "one")
@@ -114,17 +118,7 @@ class MCPCallTelemetryTests(unittest.TestCase):
             self.assertEqual(current_mcp_call_capture()["tool_name"], "outer")
         finally:
             reset_mcp_call_capture(outer)
-        self.assertEqual(current_mcp_call_capture(), previous)
-
-    def test_call_capture_restores_preexisting_result(self) -> None:
-        token = activate_mcp_call_capture()
-        try:
-            record_mcp_call_result("preceding_call", time.perf_counter(), "fixture")
-            previous = current_mcp_call_capture()
-            self.test_call_capture_is_context_scoped()
-            self.assertEqual(current_mcp_call_capture(), previous)
-        finally:
-            reset_mcp_call_capture(token)
+        self.assertEqual(current_mcp_call_capture(), {})
 
     def test_operational_paths_ignore_target_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

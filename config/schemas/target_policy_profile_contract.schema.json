@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "target_policy_profile_contract.schema.json",
+  "title": "Nexora SAGE Target Policy Profile Contract",
+  "type": "object",
+  "required": [
+    "_meta",
+    "authority",
+    "package_sections",
+    "static_projection",
+    "consumer_adapters",
+    "tools"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "purpose"
+      ],
+      "properties": {
+        "kind": {
+          "const": "target_policy_profile_contract"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "declared",
+        "not_observed",
+        "profile_incomplete",
+        "combined_without_execution",
+        "claim_boundary",
+        "quality_gate_projection"
+      ],
+      "properties": {
+        "declared": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_observed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile_incomplete": {
+          "type": "string",
+          "minLength": 1
+        },
+        "combined_without_execution": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quality_gate_projection": {
+          "type": "object",
+          "required": [
+            "target_native_enforcement_statuses",
+            "combined_verdict_statuses"
+          ],
+          "properties": {
+            "target_native_enforcement_statuses": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "combined_verdict_statuses": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    "package_sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "static_projection": {
+      "type": "object",
+      "required": [
+        "max_rules_per_config",
+        "typescript_compiler_options",
+        "sonar_property_allowlist"
+      ],
+      "properties": {
+        "max_rules_per_config": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "typescript_compiler_options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "sonar_property_allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "consumer_adapters": {
+      "type": "object",
+      "required": [
+        "symbol_loc_limit"
+      ],
+      "properties": {
+        "symbol_loc_limit": {
+          "type": "object",
+          "required": [
+            "authority",
+            "conflict_behavior",
+            "supported_rule_mappings"
+          ],
+          "properties": {
+            "authority": {
+              "type": "string",
+              "minLength": 1
+            },
+            "conflict_behavior": {
+              "const": "unresolved_fallback_to_sage_default"
+            },
+            "supported_rule_mappings": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "tool",
+                  "rule",
+                  "numeric_option",
+                  "symbol_kinds"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "config_groups",
+          "package_exact",
+          "package_prefixes",
+          "command_tokens"
+        ],
+        "properties": {
+          "config_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "package_exact": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "package_prefixes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "command_tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

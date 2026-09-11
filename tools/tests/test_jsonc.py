@@ -116,3 +116,18 @@ def test_self_healer_uses_jsonc_alias_glob(monkeypatch, tmp_path) -> None:
     healer.project_name = "MAIN"
 
     assert healer._project_alias_points_to_src_root() is True
+
+
+def test_self_healer_refuses_alias_rewrite_when_project_config_is_invalid(monkeypatch, tmp_path) -> None:
+    (tmp_path / "tsconfig.json").write_text('{"compilerOptions": ', encoding="utf-8")
+    monkeypatch.setattr(self_healing_generator, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        self_healing_generator,
+        "DYNAMIC_CONFIG",
+        {"variations": {"MAIN": "."}},
+    )
+    healer = object.__new__(self_healing_generator.CodeHealer)
+    healer.project_name = "MAIN"
+
+    with pytest.raises(ValueError):
+        healer._project_alias_points_to_src_root()

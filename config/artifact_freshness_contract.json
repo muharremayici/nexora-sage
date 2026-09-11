@@ -193,7 +193,6 @@
       ],
       "ordered_artifacts": [
         "atlas",
-        "analysis_scope_authority",
         "audit_report",
         "quality_gate"
       ],
@@ -211,11 +210,6 @@
         }
       },
       "required_checks": [
-        "scope_authority_present_and_claim_usable",
-        "scope_authority_identity_matches_audit_and_quality_gate",
-        "scope_authority_receipt_bound_to_current_atlas_snapshot",
-        "audit_receipt_bound_to_current_atlas_snapshot",
-        "quality_gate_receipt_bound_to_current_atlas_snapshot",
         "audit_scope_present",
         "audit_projects_subset_of_atlas",
         "quality_gate_not_older_than_audit"

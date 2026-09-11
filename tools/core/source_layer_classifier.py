@@ -47,6 +47,7 @@ ROOT_PUBLIC_FILES = {
 }
 
 VALIDATOR_OR_REPORT_FILES = {
+    "analyze_architecture_blueprint_corpus.py",
     "ci_release_check.py",
     "run_release_proof_bundle.py",
     "run_sage_self_audit.py",

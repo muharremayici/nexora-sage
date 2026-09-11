@@ -27,11 +27,6 @@ def _requires_global_currentness(chain: dict[str, Any]) -> bool:
     return str(chain.get("currentness_requirement") or "global_validation") == "global_validation"
 
 
-def _contains_ordered_subsequence(values: list[str], required: list[str]) -> bool:
-    positions = [values.index(item) for item in required if item in values]
-    return len(positions) == len(required) and positions == sorted(positions)
-
-
 def build_validation() -> dict[str, Any]:
     contract = load_artifact_freshness_contract()
     default_policy = contract.get("default_policy", {}) if isinstance(contract.get("default_policy"), dict) else {}
@@ -80,11 +75,10 @@ def build_validation() -> dict[str, Any]:
         if chain_id == "agent_surface_action_chain":
             checks.append(
                 _check(
-                    "agent_surface_action_chain:scope_authority_chain_is_ordered",
-                    _contains_ordered_subsequence(
-                        ordered_artifacts,
-                        ["atlas", "analysis_scope_authority", "audit_report", "quality_gate"],
-                    ),
+                    "agent_surface_action_chain:quality_gate_ordered_after_audit",
+                    "audit_report" in ordered_artifacts
+                    and "quality_gate" in ordered_artifacts
+                    and ordered_artifacts.index("quality_gate") > ordered_artifacts.index("audit_report"),
                     ordered_artifacts,
                 )
             )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -13,6 +15,16 @@ from tools.core.repository_topology import (
 COMPLETE_REPOSITORY = "COMPLETE_REPOSITORY"
 BOUNDED_PROJECT_SELECTION = "BOUNDED_PROJECT_SELECTION"
 INCOMPLETE_EVIDENCE = "INCOMPLETE_EVIDENCE"
+
+
+def _semantic_identity(payload: Any) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
 def extract_scope_authority(payload: Any) -> dict[str, Any] | None:
@@ -40,6 +52,13 @@ def fail_closed_scope_authority(reason: str) -> dict[str, Any]:
         "full_repository_claim_eligible": False,
         "incomplete_reasons": [str(reason)],
         "effective_runtime_projects": {},
+        "project_system_kinds": {},
+        "project_system_kind_identity": "",
+        "project_relationship_roles": {},
+        "project_relationship_role_authority": {},
+        "project_relationship_identity": "",
+        "project_language_capabilities": {},
+        "project_language_capability_identity": "",
         "claim_eligible_source_file_count": 0,
         "layer_consistency": INCOMPLETE_EVIDENCE,
     }
@@ -101,6 +120,86 @@ def supported_source_count(
     )
 
 
+def _effective_project_relationships(
+    topology: dict[str, Any],
+    effective_projects: dict[str, Any],
+) -> tuple[dict[str, str], dict[str, dict[str, Any]], str]:
+    candidate_roles = topology.get("project_candidate_relationship_roles")
+    candidate_roles = candidate_roles if isinstance(candidate_roles, dict) else {}
+    candidate_authority = topology.get("project_candidate_role_authority")
+    candidate_authority = candidate_authority if isinstance(candidate_authority, dict) else {}
+    roles = {
+        str(project): str(candidate_roles.get(str(project)) or "unresolved")
+        for project in effective_projects
+    }
+    authority = {
+        str(project): (
+            dict(candidate_authority.get(str(project)))
+            if isinstance(candidate_authority.get(str(project)), dict)
+            else {
+                "relationship_role": roles[str(project)],
+                "authority": "relationship_authority_not_available",
+                "confidence": "none",
+                "relationship_resolved": False,
+            }
+        )
+        for project in effective_projects
+    }
+    identity = _semantic_identity({"roles": roles, "authority": authority})
+    return roles, authority, identity
+
+
+def _effective_project_language_capabilities(
+    effective_projects: dict[str, Any],
+    project_inventory_evidence: dict[str, Any],
+    polyglot_capabilities: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], str]:
+    """Project recognized languages separately from available analysis engines."""
+
+    declared_languages = polyglot_capabilities.get("languages")
+    declared_languages = declared_languages if isinstance(declared_languages, dict) else {}
+    rows: dict[str, dict[str, Any]] = {}
+    for project in effective_projects:
+        evidence = project_inventory_evidence.get(str(project))
+        evidence = evidence if isinstance(evidence, dict) else {}
+        observed = {
+            str(language): max(0, int(count or 0))
+            for language, count in (evidence.get("language_counts") or {}).items()
+            if max(0, int(count or 0)) > 0
+        }
+        analysis_counts = {
+            str(language): max(0, int(count or 0))
+            for language, count in (evidence.get("analysis_language_counts") or {}).items()
+            if max(0, int(count or 0)) > 0
+        }
+        recognized = sorted(observed)
+        engine_available = sorted(language for language in recognized if language in declared_languages)
+        engine_unavailable = sorted(set(recognized) - set(engine_available))
+        if not recognized:
+            status = "NO_SOURCE_LANGUAGE_EVIDENCE"
+        elif engine_available and engine_unavailable:
+            status = "PARTIAL_ENGINE_COVERAGE"
+        elif engine_unavailable:
+            status = "RECOGNIZED_NO_ENGINE"
+        else:
+            status = "ENGINE_AVAILABLE"
+        rows[str(project)] = {
+            "contract": "project_language_engine_capability_v1",
+            "status": status,
+            "recognized_language_families": recognized,
+            "engine_available_language_families": engine_available,
+            "engine_unavailable_language_families": engine_unavailable,
+            "language_claim_levels": {
+                language: str((declared_languages.get(language) or {}).get("claim_level") or "not_available")
+                for language in recognized
+            },
+            "observed_language_counts": dict(sorted(observed.items())),
+            "analysis_language_counts": dict(sorted(analysis_counts.items())),
+            "recognition_does_not_authorize_engine_activation": True,
+        }
+    return rows, _semantic_identity(rows)
+
+
 def build_preflight_scope_authority(
     *,
     topology: dict[str, Any],
@@ -115,6 +214,7 @@ def build_preflight_scope_authority(
     polyglot_capabilities: dict[str, Any],
     repository_analysis_language_counts: dict[str, Any] | None = None,
     effective_analysis_language_counts: dict[str, Any] | None = None,
+    effective_project_inventory_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     runtime_projection = runtime_project_projection(topology, projects)
     requested = runtime_projection["requested_project_filter"]
@@ -132,6 +232,31 @@ def build_preflight_scope_authority(
         str(key)
         for key, value in role_authority.items()
         if isinstance(value, dict) and value.get("relationship_resolved") is not True
+    )
+    candidate_system_kinds = topology.get("project_candidate_system_kinds")
+    candidate_system_kinds = candidate_system_kinds if isinstance(candidate_system_kinds, dict) else {}
+    project_system_kinds = {
+        str(key): candidate_system_kinds.get(str(key), {
+            "kind": "unknown",
+            "authority": "system_kind_not_resolved_for_effective_project",
+            "confidence": "none",
+            "evidence": [],
+            "candidate_kinds": [],
+        })
+        for key in effective
+    }
+    (
+        project_relationship_roles,
+        project_relationship_role_authority,
+        project_relationship_identity,
+    ) = _effective_project_relationships(topology, effective)
+    (
+        project_language_capabilities,
+        project_language_capability_identity,
+    ) = _effective_project_language_capabilities(
+        effective,
+        effective_project_inventory_evidence if isinstance(effective_project_inventory_evidence, dict) else {},
+        polyglot_capabilities,
     )
     repository_observed_sources = sum(max(0, int(value or 0)) for value in repository_language_counts.values())
     effective_observed_sources = sum(max(0, int(value or 0)) for value in effective_language_counts.values())
@@ -191,12 +316,21 @@ def build_preflight_scope_authority(
             else "incomplete_evidence_only"
         ),
         "full_repository_claim_eligible": evidence_status == COMPLETE_REPOSITORY,
+        "discovered_topology": str(topology.get("discovered_topology") or "unknown"),
+        "analysis_projection": str(topology.get("analysis_projection") or "unknown"),
         "incomplete_reasons": sorted(set(reasons)),
         "discovered_candidate_count": len(candidates),
         "auto_selected_project_count": len(selected),
         "excluded_project_count": len(excluded),
         "unresolved_project_candidates": unresolved_candidates,
         **runtime_projection,
+        "project_system_kinds": project_system_kinds,
+        "project_system_kind_identity": _semantic_identity(project_system_kinds),
+        "project_relationship_roles": project_relationship_roles,
+        "project_relationship_role_authority": project_relationship_role_authority,
+        "project_relationship_identity": project_relationship_identity,
+        "project_language_capabilities": project_language_capabilities,
+        "project_language_capability_identity": project_language_capability_identity,
         "repository_inventory_file_count": max(0, int(repository_file_count or 0)),
         "repository_inventory_truncated": bool(repository_inventory_truncated),
         "repository_observed_source_file_count": repository_observed_sources,
@@ -336,6 +470,23 @@ def _fallback_scope_authority(
         status = BOUNDED_PROJECT_SELECTION
     else:
         status = COMPLETE_REPOSITORY
+    candidate_system_kinds = topology.get("project_candidate_system_kinds")
+    candidate_system_kinds = candidate_system_kinds if isinstance(candidate_system_kinds, dict) else {}
+    project_system_kinds = {
+        str(project): candidate_system_kinds.get(str(project), {
+            "kind": "unknown",
+            "authority": "system_kind_not_resolved_for_effective_project",
+            "confidence": "none",
+            "evidence": [],
+            "candidate_kinds": [],
+        })
+        for project in effective
+    }
+    (
+        project_relationship_roles,
+        project_relationship_role_authority,
+        project_relationship_identity,
+    ) = _effective_project_relationships(topology, effective)
     return {
         "contract": "repository_analysis_scope_authority_v1",
         "topology_authority_id": str(
@@ -351,6 +502,8 @@ def _fallback_scope_authority(
             else "incomplete_evidence_only"
         ),
         "full_repository_claim_eligible": status == COMPLETE_REPOSITORY,
+        "discovered_topology": str(topology.get("discovered_topology") or "unknown"),
+        "analysis_projection": str(topology.get("analysis_projection") or "unknown"),
         "incomplete_reasons": sorted(set(reasons)),
         "discovered_candidate_count": len(topology.get("project_candidates") or {}),
         "auto_selected_project_count": len(topology.get("selected_projects") or {}),
@@ -360,7 +513,14 @@ def _fallback_scope_authority(
             for key, value in (topology.get("project_candidate_role_authority") or {}).items()
             if isinstance(value, dict) and value.get("relationship_resolved") is not True
         ),
+        "project_relationship_roles": project_relationship_roles,
+        "project_relationship_role_authority": project_relationship_role_authority,
+        "project_relationship_identity": project_relationship_identity,
+        "project_language_capabilities": {},
+        "project_language_capability_identity": "",
         **runtime_projection,
+        "project_system_kinds": project_system_kinds,
+        "project_system_kind_identity": _semantic_identity(project_system_kinds),
         "repository_inventory_file_count": None,
         "repository_inventory_truncated": None,
         "repository_observed_source_file_count": None,

@@ -46,6 +46,9 @@
         "tools/core/json_io.py|load_raw_artifact_path|load_json_file|json_path": {
           "reason": "Managed raw artifacts return through the managed branch, while the JSON-shadow read is only the final external-target fallback after SQLite lookup cannot supply a payload."
         },
+        "tools/core/target_policy_profile.py|_static_projection|read_text|path": {
+          "reason": "The Sonar properties projection and JSON/JSONC projection are mutually exclusive format branches, so one config path is acquired at most once per invocation."
+        },
         "tools/engines/merge_script_generator.py|_hydrate_sanctuary_dependency_closure|read_text|source_abs": {
           "reason": "The second read is a Latin-1 decoding fallback attempted only after the UTF-8 acquisition fails. Keeping separate reads preserves fault isolation."
         },
@@ -103,6 +106,16 @@
       "class": "ingestion",
       "status": "accepted_bounded",
       "reason": "pre-Atlas target inventory bounded by canonical project ownership, skip policy and a global file-count limit"
+    },
+    "tools/core/package_contracts.py": {
+      "class": "ingestion",
+      "status": "accepted_bounded",
+      "reason": "expands package manifests and export surfaces beneath bounded workspace roots to establish package contract edges"
+    },
+    "tools/core/target_policy_profile.py": {
+      "class": "bootstrap_sensor",
+      "status": "accepted_bounded",
+      "reason": "enumerates only centrally declared policy-config patterns beneath one selected project root without executing target configuration"
     },
     "tools/core/artifact_store.py": {
       "class": "artifact_storage",

@@ -20,6 +20,23 @@
       "daily": "setup_only",
       "release": "setup_only"
     },
+    "target_state_modes": {
+      "embedded_default": {
+        "id": "configured_default_maintenance",
+        "writes_shared_workspace_truth": true,
+        "authority": "maintain the already configured default workspace through Discovery, governance sync and config compilation"
+      },
+      "explicit_target": {
+        "id": "configured_default_adoption",
+        "writes_shared_workspace_truth": true,
+        "authority": "adopt the explicit target and selected projects into shared Discovery, governance and compiled project truth"
+      },
+      "isolated_external_analysis": {
+        "id": "isolated_target_acquisition",
+        "writes_shared_workspace_truth": false,
+        "authority": "analyze an explicit target through a process-local Preflight receipt and generation without rewriting shared workspace configuration"
+      }
+    },
     "modes": {
       "full": {
         "public_flag": "--full",
@@ -610,6 +627,7 @@
       "intent": "explicit_heavyweight_workspace_truth_build",
       "execution_mode": "release_deep",
       "canonical_use": "Prepare dependencies and workspace configuration, then force the first complete analysis after an explicit execution preflight.",
+      "target_state_mode": "configured_default_adoption_when_target_root_is_explicit",
       "not_for": [
         "ordinary onboarding",
         "lightweight setup-only preparation",
@@ -619,11 +637,15 @@
     },
     {
       "id": "init_setup_only",
+      "argv": [
+        "init"
+      ],
       "surface": "python sage.py init",
       "canonical": true,
       "intent": "default_workspace_setup_without_analysis",
       "execution_mode": "operator_command",
       "canonical_use": "Default onboarding path. Prepare dependencies and workspace-local discovery/configuration without running the analysis pipeline. The legacy --setup-only spelling remains accepted; run a named analysis profile afterwards when evidence is needed.",
+      "target_state_mode": "configured_default_adoption_when_target_root_is_explicit",
       "not_for": [
         "analysis freshness claims",
         "release sealing"
@@ -637,6 +659,7 @@
       "intent": "read_only_target_aware_installation_plan",
       "execution_mode": "operator_command",
       "canonical_use": "Inspect the machine, canonical target preflight, default human-and-AI profile, and required SAGE-local dependency actions before setup. It does not install dependencies or run discovery/analysis.",
+      "target_state_mode": "read_only_no_adoption",
       "not_for": [
         "dependency installation",
         "repository analysis",
@@ -651,6 +674,7 @@
       "intent": "fast_development_loop",
       "execution_mode": "daily",
       "canonical_use": "Fast local development check with core truth, quality, and ContextOS surfaces.",
+      "target_state_mode": "isolated_target_acquisition_when_target_root_is_explicit",
       "not_for": [
         "release sealing",
         "clean install proof"
@@ -658,6 +682,10 @@
     },
     {
       "id": "run_full",
+      "argv": [
+        "run",
+        "--full"
+      ],
       "surface": "python sage.py run --full",
       "canonical": true,
       "intent": "normal_complete_analysis",

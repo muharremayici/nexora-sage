@@ -35,6 +35,11 @@ def compact_activation_summary(
         "pipeline_scheduler_enforced": summary.get("pipeline_scheduler_enforced"),
         "disabled_semantics": summary.get("disabled_semantics"),
         "dependency_change_policy": summary.get("dependency_change_policy"),
+        "architecture_policy_contract": summary.get("architecture_policy_contract"),
+        "architecture_policy_context_status": summary.get("architecture_policy_context_status"),
+        "architecture_policy_status_counts": summary.get("architecture_policy_status_counts", {}),
+        "architecture_rules_enabled_projects": summary.get("architecture_rules_enabled_projects", []),
+        "architecture_policy_step_policy": summary.get("architecture_policy_step_policy", {}),
         "enabled_capability_ids": _visible_ids("enabled_capability_ids"),
         "disabled_capability_ids": _visible_ids("disabled_capability_ids"),
         "system_scope_filter": sorted(allowed_system_scopes) if allowed_system_scopes is not None else [],
@@ -93,6 +98,7 @@ def relevant_activation_context(
                 "project": project.get("project"),
                 "display_name": project.get("display_name"),
                 "detected_signals": project.get("detected_signals", []),
+                "architecture_policy": project.get("architecture_policy", {}),
                 "capabilities": selected[: max(1, int(limit or 8))],
             }
         )

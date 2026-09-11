@@ -54,8 +54,14 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
         "writes": ["genome", "genome_analysis_snapshot_lineage", "surgical_discovery", "surgical_discovery_analysis_snapshot_lineage"],
     },
     "Architecture Oracle": {
-        "reads": ["atlas", "discovery", "analysis_scope_authority"],
-        "writes": ["architecture_oracle"],
+        "reads": [
+            "atlas",
+            "atlas_commit",
+            "discovery",
+            "analysis_scope_authority",
+            "analysis_scope_authority_analysis_snapshot_lineage",
+        ],
+        "writes": ["architecture_oracle", "effective_architecture_policy"],
     },
     "Fractal Mapping": {
         "reads": ["atlas", "atlas_commit", "genome", "genome_analysis_snapshot_lineage", "surgical_discovery", "surgical_discovery_analysis_snapshot_lineage", "fractal_map"],
@@ -92,7 +98,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     "Dead Code Detector": {"reads": ["atlas"], "writes": ["dead_code", "dead_code_tuning"]},
     "Circular Dependency Finder": {"reads": ["atlas"], "writes": ["circular_deps"]},
     "Audit": {
-        "reads": ["atlas", "analysis_scope_authority"],
+        "reads": ["atlas", "analysis_scope_authority", "effective_architecture_policy"],
         "writes": ["audit_report", "watchdog_audit_report"],
         "display_name": "Architectural Audit",
     },
@@ -148,7 +154,7 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     "A11y/i18n Contract Analyzer": {"reads": ["atlas", "atlas_bound_source"], "writes": ["a11y_i18n_contracts"]},
     "React Ecosystem Analyzer": {"reads": ["atlas", "atlas_bound_source"], "writes": ["react_ecosystem_analysis"]},
     "React Runtime Intelligence": {
-        "reads": ["atlas", "atlas_bound_source", "react_ecosystem_analysis", "ui_smoke_specs", "ui_smoke_execution"],
+        "reads": ["atlas", "atlas_bound_source", "react_ecosystem_analysis", "ui_smoke_execution"],
         "writes": ["react_runtime_intelligence"],
     },
     "React Compiler Readiness": {"reads": ["react_runtime_intelligence", "react_ecosystem_analysis"], "writes": ["react_compiler_readiness"]},
@@ -393,10 +399,10 @@ def normalize_step_slug(name: str) -> str:
 def load_pipeline_execution_policy() -> dict[str, Any]:
     if not PIPELINE_EXECUTION_POLICY_PATH.exists():
         return {}
-    try:
-        return json.loads(PIPELINE_EXECUTION_POLICY_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    payload = json.loads(PIPELINE_EXECUTION_POLICY_PATH.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("pipeline execution policy must be a JSON object")
+    return payload
 
 
 def pipeline_lock_policy(policy: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -839,6 +845,7 @@ def step_registry_from_catalog(catalog: list[dict[str, Any]]) -> dict[str, Any]:
         "execution_profiles": {
             str(profile): {
                 "mode": str(config.get("mode") or ""),
+                "include_full_only": config.get("include_full_only") is True,
                 "description": str(config.get("description") or ""),
                 "keep_slugs": list(config.get("keep_slugs", []) or []) if isinstance(config, dict) else [],
             }

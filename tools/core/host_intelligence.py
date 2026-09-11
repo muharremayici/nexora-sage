@@ -4,6 +4,7 @@ from typing import Dict
 
 from tools.core.artifact_contracts import HOST_INTELLIGENCE_JSON_PATH
 from tools.core.json_io import load_json_file
+from tools.core.logger import logger
 
 HOST_INTELLIGENCE_PATH = HOST_INTELLIGENCE_JSON_PATH
 
@@ -13,7 +14,8 @@ def load_host_intelligence() -> Dict:
         return {}
     try:
         return load_json_file(HOST_INTELLIGENCE_PATH, {})
-    except Exception:
+    except Exception as exc:
+        logger.warning("Host intelligence artifact load failed: %s", type(exc).__name__)
         return {}
 
 

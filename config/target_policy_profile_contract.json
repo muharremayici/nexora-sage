@@ -1,0 +1,156 @@
+{
+  "_meta": {
+    "kind": "target_policy_profile_contract",
+    "version": "v1",
+    "purpose": "Central taxonomy and authority semantics for repository-declared policy discovery and runtime projection."
+  },
+  "authority": {
+    "declared": "declared_not_evaluated",
+    "not_observed": "not_observed_in_configured_taxonomy",
+    "profile_incomplete": "profile_incomplete_refresh_required",
+    "combined_without_execution": "not_available",
+    "claim_boundary": "Configuration, package and script presence proves declared policy sources only. It does not prove the effective per-file configuration, successful native execution or a combined governance verdict.",
+    "quality_gate_projection": {
+      "target_native_enforcement_statuses": [
+        "declared_not_evaluated",
+        "not_observed_in_configured_taxonomy",
+        "profile_incomplete_refresh_required"
+      ],
+      "combined_verdict_statuses": [
+        "not_available"
+      ]
+    }
+  },
+  "package_sections": [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies"
+  ],
+  "static_projection": {
+    "max_rules_per_config": 500,
+    "typescript_compiler_options": [
+      "allowJs",
+      "checkJs",
+      "jsx",
+      "module",
+      "moduleResolution",
+      "noImplicitAny",
+      "strict",
+      "strictNullChecks",
+      "target"
+    ],
+    "sonar_property_allowlist": [
+      "sonar.exclusions",
+      "sonar.inclusions",
+      "sonar.projectKey",
+      "sonar.qualitygate.wait",
+      "sonar.sources",
+      "sonar.test.inclusions",
+      "sonar.tests"
+    ]
+  },
+  "consumer_adapters": {
+    "symbol_loc_limit": {
+      "authority": "declared_literal_policy_not_native_execution_proof",
+      "conflict_behavior": "unresolved_fallback_to_sage_default",
+      "supported_rule_mappings": [
+        {
+          "tool": "biome",
+          "rule": "complexity/noExcessiveLinesPerFunction",
+          "numeric_option": "maxLines",
+          "symbol_kinds": [
+            "function",
+            "hook",
+            "component"
+          ]
+        },
+        {
+          "tool": "eslint",
+          "rule": "max-lines-per-function",
+          "numeric_option": "max",
+          "symbol_kinds": [
+            "function",
+            "hook",
+            "component"
+          ]
+        }
+      ]
+    }
+  },
+  "tools": {
+    "eslint": {
+      "config_groups": [
+        "eslint"
+      ],
+      "package_exact": [
+        "eslint"
+      ],
+      "package_prefixes": [
+        "@eslint/",
+        "eslint-",
+        "@typescript-eslint/"
+      ],
+      "command_tokens": [
+        "eslint"
+      ]
+    },
+    "biome": {
+      "config_groups": [
+        "biome"
+      ],
+      "package_exact": [
+        "@biomejs/biome",
+        "biome"
+      ],
+      "package_prefixes": [],
+      "command_tokens": [
+        "biome"
+      ]
+    },
+    "typescript": {
+      "config_groups": [
+        "javascript_typescript"
+      ],
+      "package_exact": [
+        "typescript"
+      ],
+      "package_prefixes": [],
+      "command_tokens": [
+        "tsc",
+        "typescript"
+      ]
+    },
+    "sonar": {
+      "config_groups": [
+        "sonar"
+      ],
+      "package_exact": [
+        "sonarqube-scanner",
+        "sonar-scanner"
+      ],
+      "package_prefixes": [
+        "@sonar/"
+      ],
+      "command_tokens": [
+        "sonar-scanner",
+        "sonarqube-scanner"
+      ]
+    },
+    "stylelint": {
+      "config_groups": [
+        "stylelint"
+      ],
+      "package_exact": [
+        "stylelint"
+      ],
+      "package_prefixes": [
+        "stylelint-",
+        "@stylelint/"
+      ],
+      "command_tokens": [
+        "stylelint"
+      ]
+    }
+  }
+}

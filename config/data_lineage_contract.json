@@ -64,6 +64,7 @@
       "decision_evidence",
       "distribution_hardening_validation",
       "entrypoint_failure_validation",
+      "effective_architecture_policy",
       "generated_merge_scripts",
       "honesty_telemetry",
       "host_merge_intelligence",
@@ -116,6 +117,10 @@
       "architecture_oracle": {
         "category": "advisory_governance_surface",
         "reason": "Architecture Oracle is post-Atlas advisory evidence consumed through MCP, claim guard, and human seal workflows rather than a mandatory downstream transform."
+      },
+      "effective_architecture_policy": {
+        "category": "project_policy_authority",
+        "reason": "The snapshot-bound effective architecture policy is consumed by ContextOS, capability planning, scheduler preservation, Audit, and patch governance; architecture-sensitive rules fail closed when the exact project policy is inactive, unavailable, or stale."
       },
       "artifact_contract_validation": {
         "category": "validation_ledger",
@@ -672,6 +677,215 @@
         {
           "file": "config/artifact_freshness_contract.json",
           "contains": "fail_closed_for_agent_action"
+        }
+      ]
+    },
+    {
+      "id": "architecture_oracle_proposal_to_agent_authority",
+      "producer_markers": [
+        {
+          "file": "tools/engines/architecture_oracle.py",
+          "contains": "\"mode\": \"advisory_human_seal\""
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/architecture_blueprints.py",
+          "contains": "active_seals_by_scope.get(project_id)"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "architecture_governance_context("
+        },
+        {
+          "file": "tools/tests/test_engine_contracts.py",
+          "contains": "test_governance_context_does_not_promote_one_project_seal_to_all_projects"
+        }
+      ]
+    },
+    {
+      "id": "project_system_kind_preflight_to_architecture_context",
+      "producer_markers": [
+        {
+          "file": "tools/external_target_preflight.py",
+          "contains": "classify_project_system_kinds("
+        },
+        {
+          "file": "tools/core/analysis_scope_authority.py",
+          "contains": "\"project_system_kind_identity\": _semantic_identity(project_system_kinds)"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/engines/architecture_oracle.py",
+          "contains": "project[\"project_system_kind\"] = system_kinds.get("
+        },
+        {
+          "file": "tools/core/architecture_blueprints.py",
+          "contains": "\"project_system_kind\": project_system_kind"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "config/doctrines/discovery/defaults.json",
+          "contains": "technical_system_kind_static_inventory_v1"
+        },
+        {
+          "file": "tools/tests/test_repository_topology.py",
+          "contains": "test_static_system_kind_classifier_preserves_distinct_non_program_projects"
+        },
+        {
+          "file": "tools/tests/test_analysis_scope_authority.py",
+          "contains": "test_project_system_kind_has_a_separate_semantic_identity_and_survives_atlas_binding"
+        }
+      ]
+    },
+    {
+      "id": "repository_composition_scope_snapshot_to_agent_context",
+      "producer_markers": [
+        {
+          "file": "tools/engines/architecture_oracle.py",
+          "contains": "build_repository_composition_blueprint("
+        },
+        {
+          "file": "tools/core/analysis_scope_authority.py",
+          "contains": "\"project_relationship_identity\": project_relationship_identity"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/architecture_blueprints.py",
+          "contains": "\"repository_blueprint\": repository_blueprint"
+        },
+        {
+          "file": "tools/analyze_architecture_blueprint_corpus.py",
+          "contains": "repository_blueprint_classification_status"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "config/doctrines/oracle/architecture_oracle.json",
+          "contains": "repository_composition_blueprint_v1"
+        },
+        {
+          "file": "tools/tests/test_engine_contracts.py",
+          "contains": "test_repository_composition_requires_complete_bound_scope_and_remains_advisory"
+        },
+        {
+          "file": "tools/tests/test_architecture_blueprint_corpus_matrix.py",
+          "contains": "test_matrix_preserves_repository_blueprint_evidence_status_and_models"
+        }
+      ]
+    },
+    {
+      "id": "project_language_recognition_to_engine_capability_context",
+      "producer_markers": [
+        {
+          "file": "tools/core/language_registry.py",
+          "contains": "observation_only_extension_language_map"
+        },
+        {
+          "file": "tools/core/analysis_scope_authority.py",
+          "contains": "_effective_project_language_capabilities("
+        },
+        {
+          "file": "tools/external_target_preflight.py",
+          "contains": "effective_project_inventory_evidence=analysis_project_inventory_evidence"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/engines/architecture_oracle.py",
+          "contains": "project[\"project_language_capability\"] = language_capabilities.get("
+        },
+        {
+          "file": "tools/core/architecture_blueprints.py",
+          "contains": "\"project_language_capability\": project_language_capability"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "config/language_registry.json",
+          "contains": "observation_only_languages"
+        },
+        {
+          "file": "config/polyglot_capabilities.json",
+          "contains": "claim_level_order"
+        },
+        {
+          "file": "tools/tests/test_analysis_scope_authority.py",
+          "contains": "test_project_language_capability_distinguishes_recognition_from_engine_availability"
+        },
+        {
+          "file": "tools/tests/test_engine_contracts.py",
+          "contains": "RECOGNIZED_NO_ENGINE"
+        }
+      ]
+    },
+    {
+      "id": "architecture_oracle_proposal_to_effective_policy_and_agent_context",
+      "producer_markers": [
+        {
+          "file": "tools/engines/architecture_oracle.py",
+          "contains": "_bind_project_proposal_identities("
+        },
+        {
+          "file": "tools/core/architecture_blueprints.py",
+          "contains": "build_effective_architecture_policy("
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "effective_architecture_policy.json"
+        },
+        {
+          "file": "tools/core/architecture_blueprints.py",
+          "contains": "\"architecture_sensitive_rules\": \"enabled\" if status == \"ACTIVE\" else \"advisory_only\""
+        },
+        {
+          "file": "tools/engines/audit.py",
+          "contains": "filter_violations_by_project_taxonomy("
+        },
+        {
+          "file": "tools/engines/mcp_governance_engine.py",
+          "contains": "build_effective_project_rule_taxonomy("
+        },
+        {
+          "file": "tools/engines/capability_activation_planner.py",
+          "contains": "resolve_effective_architecture_project("
+        },
+        {
+          "file": "tools/orchestrators/orchestrator.py",
+          "contains": "architecture_policy_step_policy"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "config/artifact_registry.json",
+          "contains": "\"id\": \"effective_architecture_policy\""
+        },
+        {
+          "file": "tools/core/pipeline_registry.py",
+          "contains": "\"writes\": [\"architecture_oracle\", \"effective_architecture_policy\"]"
+        },
+        {
+          "file": "tools/tests/test_engine_contracts.py",
+          "contains": "test_effective_architecture_policy_requires_exact_proposal_identity"
+        },
+        {
+          "file": "tools/tests/test_engine_contracts.py",
+          "contains": "test_recognized_language_without_engine_cannot_be_activated_by_hitl"
+        },
+        {
+          "file": "tools/tests/test_phase5_engines.py",
+          "contains": "test_mcp_governance_requires_exact_project_policy_for_architecture_rules"
+        },
+        {
+          "file": "tools/tests/test_engine_contracts.py",
+          "contains": "test_capability_activation_preserves_architecture_policy_producer_and_consumers"
         }
       ]
     }

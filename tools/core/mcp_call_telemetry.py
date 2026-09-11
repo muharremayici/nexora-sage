@@ -21,9 +21,10 @@ from tools.core.json_io import load_json_file
 RETENTION_TARGET_ID = "mcp_call_telemetry"
 DEFAULT_LEDGER_NAME = "mcp_call_telemetry.db"
 MCP_OPERATIONAL_DB_ENV = "SAGE_MCP_OPERATIONAL_DB_PATH"
-_ACTIVE_CALL_RESULT: ContextVar[dict[str, Any] | None] = ContextVar(
+_INACTIVE_CALL_CAPTURE = object()
+_ACTIVE_CALL_RESULT: ContextVar[Any] = ContextVar(
     "sage_mcp_call_result",
-    default=None,
+    default=_INACTIVE_CALL_CAPTURE,
 )
 
 
@@ -65,12 +66,12 @@ def mcp_operational_honesty_path() -> Path:
     return db_path.parent / MCP_HONESTY_TELEMETRY_FILE.name
 
 
-def activate_mcp_call_capture() -> Token[dict[str, Any] | None]:
+def activate_mcp_call_capture() -> Token[Any]:
     """Begin one call-local result capture without writing persistent state."""
     return _ACTIVE_CALL_RESULT.set(None)
 
 
-def reset_mcp_call_capture(token: Token[dict[str, Any] | None]) -> None:
+def reset_mcp_call_capture(token: Token[Any]) -> None:
     _ACTIVE_CALL_RESULT.reset(token)
 
 
@@ -172,6 +173,8 @@ def record_mcp_call_result(
     fail_closed_reason: str = "",
 ) -> None:
     """Capture bounded result metadata; the outer MCP wrapper performs the single durable write."""
+    if _ACTIVE_CALL_RESULT.get() is _INACTIVE_CALL_CAPTURE:
+        return
     _ACTIVE_CALL_RESULT.set(
         {
             "tool_name": _safe_label(tool_name, default="unknown", limit=160),

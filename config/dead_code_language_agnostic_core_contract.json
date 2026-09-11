@@ -1,7 +1,7 @@
 {
   "meta": {
     "kind": "dead_code_language_agnostic_core_contract",
-    "version": "v1",
+    "version": "v2",
     "description": "Machine-readable scope for the dead-code language-agnostic core validator. The validator consumes this contract instead of owning legacy token lists or required doctrine sections locally."
   },
   "forbidden_engine_tokens": [
@@ -16,11 +16,13 @@
     "dynamic_import_resolutions",
     "barrel_public_surfaces",
     "nest_runtime_decorators",
+    "framework_runtime_contracts",
     "test_support_heuristics",
     "reference_example_heuristics",
     "e2e_page_object_heuristics",
     "generated_surfaces",
     "dynamic_registry_heuristics",
+    "runtime_loaded_module_references",
     "framework_discovered_exports",
     "contract_surface_registry",
     "runtime_consumed_contracts"
@@ -40,5 +42,17 @@
     "dynamic_registry_heuristics": [
       "markers"
     ]
-  }
+  },
+  "contract_triage_classes": [
+    "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE",
+    "TEST_RUNNER_DISCOVERY",
+    "DB_MIGRATION_SURFACE",
+    "WORKER_ENTRYPOINT_CANDIDATE",
+    "CODEGEN_TEMPLATE",
+    "CODEGEN_SURFACE",
+    "PUBLIC_PACKAGE_API"
+  ],
+  "contract_triage_invariant": "Graph non-consumption is not deletion authority; protected contract rows remain visible with mutation_proposed=false and explicit binding status.",
+  "reachability_capability_source": "config/polyglot_capabilities.json#languages.*.dead_code_reachability",
+  "reachability_unknown_invariant": "A structural inventory or degraded parser may expose symbols, but it cannot emit dead-code candidates until its language capability and file parser evidence satisfy the canonical reachability contract."
 }

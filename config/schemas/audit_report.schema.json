@@ -57,6 +57,41 @@
         "remediation_backlog": {
           "type": "array"
         },
+        "analysis_gap_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "analysis_gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "project",
+              "file",
+              "symbol",
+              "stage",
+              "error_type"
+            ],
+            "properties": {
+              "project": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "symbol": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "error_type": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
         "profile_timings": {
           "type": "object"
         }
@@ -207,6 +242,13 @@
           },
           "limit": {
             "type": "integer"
+          },
+          "limit_authority": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_policy_resolution": {
+            "type": "object"
           }
         },
         "allOf": [
@@ -231,7 +273,9 @@
                 "start_line",
                 "end_line",
                 "observed_loc",
-                "limit"
+                "limit",
+                "limit_authority",
+                "target_policy_resolution"
               ]
             }
           }

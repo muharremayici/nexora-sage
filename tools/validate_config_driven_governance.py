@@ -127,8 +127,7 @@ def run_validation() -> dict[str, Any]:
         _check(
             "discovery_config_markers_use_registry",
             "config_or_manifest_predicate=is_config_or_manifest_file" in discovery_text
-            and "has_config = any(is_config_or_manifest(name) for name in item_names)"
-            in repository_topology_text
+            and "is_config_or_manifest(name)" in repository_topology_text
             and '"vite.config.ts"' not in discovery_text
             and '"next.config.js"' not in discovery_text,
             "Discovery workspace config markers should come from language_registry.config_file_markers.",

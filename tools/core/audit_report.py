@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 from tools.core.config import RAW_DIR
 from tools.core.json_io import load_json_file
+from tools.core.logger import logger
 
 
 import functools
@@ -15,7 +16,8 @@ def _cached_audit_report() -> Dict[str, Any]:
     try:
         payload = load_json_file(path, {})
         return payload if isinstance(payload, dict) else {}
-    except Exception:
+    except Exception as exc:
+        logger.warning("Audit report cache load failed: %s", type(exc).__name__)
         return {}
 
 

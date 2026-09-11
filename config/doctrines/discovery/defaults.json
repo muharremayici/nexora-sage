@@ -69,5 +69,119 @@
     "companion_path_tokens": [
       "lifecycle-modules"
     ]
+  },
+  "discovery_project_system_kind_policy": {
+    "contract": "technical_system_kind_static_inventory_v1",
+    "allowed_kinds": [
+      "application",
+      "library",
+      "service",
+      "tool",
+      "configuration",
+      "documentation",
+      "asset_bundle",
+      "unknown"
+    ],
+    "confidence_precedence": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "kind_precedence": [
+      "documentation",
+      "configuration",
+      "asset_bundle",
+      "tool",
+      "service",
+      "application",
+      "library"
+    ],
+    "same_confidence_conflict_policy": "unknown",
+    "manifest_dependency_sections": [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+      "optionalDependencies"
+    ],
+    "documentation_extensions": [
+      ".md",
+      ".mdx",
+      ".rst",
+      ".adoc"
+    ],
+    "configuration_extensions": [
+      ".json",
+      ".jsonc",
+      ".yaml",
+      ".yml",
+      ".toml",
+      ".ini",
+      ".properties"
+    ],
+    "asset_extensions": [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".svg",
+      ".webp",
+      ".ico",
+      ".woff",
+      ".woff2",
+      ".ttf",
+      ".otf"
+    ],
+    "documentation_dependency_markers": [
+      "@docusaurus/core",
+      "mintlify",
+      "nextra",
+      "vitepress"
+    ],
+    "documentation_script_tokens": [
+      "docusaurus",
+      "mintlify",
+      "nextra",
+      "vitepress"
+    ],
+    "application_dependency_markers": [
+      "next",
+      "react-scripts",
+      "@remix-run/react",
+      "@tanstack/react-start",
+      "expo",
+      "vite"
+    ],
+    "service_dependency_markers": [
+      "@nestjs/core",
+      "express",
+      "fastify",
+      "h3",
+      "hono",
+      "koa"
+    ],
+    "application_dependency_sections": [
+      "dependencies",
+      "devDependencies"
+    ],
+    "service_dependency_sections": [
+      "dependencies",
+      "optionalDependencies"
+    ],
+    "application_script_names": [
+      "dev",
+      "start"
+    ],
+    "tool_manifest_fields": [
+      "bin"
+    ],
+    "library_manifest_fields": [
+      "exports",
+      "main",
+      "module",
+      "types",
+      "typings"
+    ],
+    "dominance_threshold": 0.6,
+    "minimum_dominant_file_count": 1
   }
 }

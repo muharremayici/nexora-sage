@@ -316,6 +316,11 @@ def run_validation() -> dict[str, Any]:
     clean_project = clean_payload["projects"][0] if clean_payload.get("projects") else {}
     sovereign_payload = build_architecture_oracle(_sovereign_hybrid_fixture_atlas(), use_discovery_prior=False)
     sovereign_project = sovereign_payload["projects"][0] if sovereign_payload.get("projects") else {}
+    empty_payload = build_architecture_oracle(
+        {"TOOLING": {"files": {}, "dependencies": {}}},
+        use_discovery_prior=False,
+    )
+    empty_project = empty_payload["projects"][0] if empty_payload.get("projects") else {}
     profiles_source = (ROOT / "config" / "architecture_profiles.json").read_text(encoding="utf-8")
     auto_doctrine_source = (ROOT / "tools" / "auto_doctrine.py").read_text(encoding="utf-8")
     audit_rules_source = (ROOT / "tools" / "core" / "audit_rules.py").read_text(encoding="utf-8")
@@ -367,6 +372,15 @@ def run_validation() -> dict[str, Any]:
             minimal_project.get("recommended_profile") == "MINIMAL"
             and minimal_project.get("confidence", 1) < 0.45,
             minimal_project,
+        ),
+        _check(
+            "architecture_oracle_does_not_invent_a_blueprint_without_source_evidence",
+            empty_project.get("classification_status") == "INSUFFICIENT_SOURCE_EVIDENCE"
+            and empty_project.get("recommended_profile") is None
+            and empty_project.get("confidence") == 0.0
+            and empty_project.get("seal_ready") is False
+            and (empty_project.get("seal_proposal") or {}).get("status") == "NOT_PROPOSED",
+            empty_project,
         ),
         _check(
             "architecture_oracle_detects_package_library_monorepo",

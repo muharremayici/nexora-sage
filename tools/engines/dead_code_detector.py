@@ -1,6 +1,9 @@
 """
-Dead Code Detector - finds exported symbols that are never imported anywhere.
-Reads the Atlas payload to cross-reference all exports vs all imports.
+Unreferenced symbol and contract triage over the Atlas import/export graph.
+
+Graph non-consumption is evidence, not deletion authority. Runtime framework
+contracts, generated/codegen surfaces and public package APIs remain visible in
+separate protected-contract classifications.
 """
 import json
 import os
@@ -22,6 +25,7 @@ from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.path_engine import to_posix_path
 from tools.core.projects_registry import project_display_name
+from tools.core.polyglot_imports import strip_comments_for_import_scan
 from tools.core.projects_registry import resolve_runtime_projects
 from tools.core.runtime_project_scope import canonical_project_keys, project_runtime_atlas
 from tools.core.source_snapshot_reader import load_source_text
@@ -30,17 +34,9 @@ from tools.core.source_files import is_analysis_source_file
 
 ALLOWLIST_FILENAME = "dead_code_intent_allowlist.json"
 DEAD_CODE_CACHE_FILENAME = ".dead_code_project_cache.json"
-DEAD_CODE_CACHE_VERSION = "dead_code_project_cache_v7"
-DEAD_CODE_ENGINE_SIGNATURE = "dead_code_logic_v33_atlas_public_contracts"
+DEAD_CODE_CACHE_VERSION = "dead_code_project_cache_v10"
+DEAD_CODE_ENGINE_SIGNATURE = "dead_code_logic_v38_atlas_public_contracts_syntax_grounded_import_reachability"
 VALID_SYMBOL_RE = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
-DYNAMIC_NAMED_IMPORT_RE = re.compile(
-    r"(?:const|let|var)\s*{(?P<names>[^}]+)}\s*=\s*(?:await\s+)?import\(\s*['\"](?P<src>[^'\"]+)['\"]\s*\)",
-    re.MULTILINE,
-)
-DYNAMIC_THEN_NAMED_IMPORT_RE = re.compile(
-    r"import\(\s*['\"](?P<src>[^'\"]+)['\"]\s*\)\s*\.then\s*\(\s*(?:\(\s*)?{(?P<names>[^}]+)}",
-    re.MULTILINE,
-)
 
 
 class SizeBoundedDict(dict):
@@ -80,12 +76,14 @@ class DeadCodeDetector:
             "dynamic_import_resolutions",
             "barrel_public_surfaces",
             "nest_runtime_decorators",
+            "framework_runtime_contracts",
             "test_support_heuristics",
             "reference_example_heuristics",
             "e2e_page_object_heuristics",
             "generated_surfaces",
             "dynamic_registry_heuristics",
-            "framework_discovered_exports"
+            "framework_discovered_exports",
+            "runtime_loaded_module_references",
         ]
         for key in required_keys:
             if key not in heuristics:
@@ -110,6 +108,12 @@ class DeadCodeDetector:
         self._package_public_export_patterns_cache = SizeBoundedDict(max_size=1000)
         self._dynamic_registry_usage_cache = SizeBoundedDict(max_size=1000)
         self._package_scan_stats = {}
+        capability_payload = load_json_file(CONFIG_DIR / "polyglot_capabilities.json", {})
+        self._language_capabilities = (
+            capability_payload.get("languages", {})
+            if isinstance(capability_payload, dict)
+            else {}
+        )
         self._contract_registry_rules = self._load_contract_registry_rules()
         self._allowlist_scope = get_allowlist_scope(CONFIG_DIR)
         self._allowlist_rules = self._load_intent_allowlist_rules()
@@ -141,6 +145,10 @@ class DeadCodeDetector:
                     "symbol_suffixes": [str(p) for p in (raw.get("symbol_suffixes") or []) if str(p).strip()],
                     "symbol_regex": str(raw.get("symbol_regex") or "").strip(),
                     "content_markers": [str(p).lower() for p in (raw.get("content_markers") or []) if str(p).strip()],
+                    "contract_class": str(raw.get("contract_class") or "").strip(),
+                    "contract_status": str(raw.get("contract_status") or "").strip(),
+                    "recommended_action": str(raw.get("recommended_action") or "").strip(),
+                    "mutation_proposed": bool(raw.get("mutation_proposed", False)),
                 }
             )
         return normalized
@@ -231,11 +239,8 @@ class DeadCodeDetector:
 
     @staticmethod
     def _stable_fingerprint(data) -> str:
-        try:
-            serialized = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-            return hashlib.sha1(serialized.encode("utf-8")).hexdigest()
-        except Exception:
-            return ""
+        serialized = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha1(serialized.encode("utf-8")).hexdigest()
 
     def _doctrine_signature(self) -> str:
         return self._stable_fingerprint(
@@ -251,6 +256,15 @@ class DeadCodeDetector:
             {
                 "scope": self._allowlist_scope,
                 "rules": self._allowlist_rules,
+            }
+        )
+
+    def _language_capability_signature(self) -> str:
+        return self._stable_fingerprint(
+            {
+                language: payload.get("dead_code_reachability", {})
+                for language, payload in sorted(self._language_capabilities.items())
+                if isinstance(payload, dict)
             }
         )
 
@@ -271,6 +285,8 @@ class DeadCodeDetector:
                     "hash": file_data.get("hash"),
                     "size": file_data.get("size"),
                     "fingerprint": file_data.get("fingerprint"),
+                    "language": file_data.get("language"),
+                    "parser_evidence": file_data.get("parser_evidence"),
                     "symbol_count": len(file_data.get("symbols", [])),
                     "export_count": len(file_data.get("exports", [])),
                     "import_record_count": len(file_data.get("import_records", [])),
@@ -404,35 +420,6 @@ class DeadCodeDetector:
         return clean
 
     @staticmethod
-    def _parse_dynamic_named_imports(content: str) -> list[tuple[str, list[str]]]:
-        """
-        Capture named symbols consumed through dynamic import destructuring:
-        const { exportedName } = await import("./module")
-        import("./module").then(({ exportedName }) => ...)
-        """
-        parsed: list[tuple[str, list[str]]] = []
-        if not content:
-            return parsed
-
-        for pattern in (DYNAMIC_NAMED_IMPORT_RE, DYNAMIC_THEN_NAMED_IMPORT_RE):
-            for match in pattern.finditer(content):
-                src = str(match.group("src") or "").strip()
-                names_blob = str(match.group("names") or "")
-                names: list[str] = []
-                for raw_name in names_blob.split(","):
-                    token = raw_name.strip()
-                    if not token:
-                        continue
-                    exported_name = token.split(":", 1)[0].strip()
-                    exported_name = exported_name.split("=", 1)[0].strip()
-                    canonical = DeadCodeDetector._canonical_symbol_name(exported_name)
-                    if canonical:
-                        names.append(canonical)
-                if src and names:
-                    parsed.append((src, names))
-        return parsed
-
-    @staticmethod
     def _resolve_dynamic_import_target(current_path: str, source: str, available_files: set[str]) -> str:
         source_norm = to_posix_path(source)
         if not source_norm.startswith("."):
@@ -455,6 +442,41 @@ class DeadCodeDetector:
             if normalized in available_files:
                 return normalized
         return ""
+
+    @staticmethod
+    def _config_runtime_module_references(rel_path: str, content: str) -> list[str]:
+        """Extract exact relative runtime modules from configured config fields.
+
+        Arbitrary strings in configuration are not import evidence.  Only fields
+        whose documented semantics load modules are admitted, and downstream
+        resolution still requires a physical repository-owned target.
+        """
+        policy = require_doctrine_mapping("dead_code_heuristics").get(
+            "runtime_loaded_module_references"
+        )
+        file_name = to_posix_path(rel_path).rsplit("/", 1)[-1]
+        file_globs = [str(value) for value in policy.get("config_file_globs", [])]
+        if not any(fnmatch.fnmatchcase(file_name, pattern) for pattern in file_globs):
+            return []
+
+        clean_content = strip_comments_for_import_scan(content)
+        references: list[str] = []
+        for field in policy.get("collection_fields", []):
+            field_name = str(field or "").strip()
+            if not field_name:
+                continue
+            field_pattern = re.compile(
+                rf"(?:['\"]{re.escape(field_name)}['\"]|\b{re.escape(field_name)}\b)\s*:\s*"
+                r"(?P<value>\[[\s\S]*?\]|['\"][^'\"]+['\"])",
+                flags=re.MULTILINE,
+            )
+            for match in field_pattern.finditer(clean_content):
+                value = match.group("value")
+                for quoted in re.findall(r"['\"]([^'\"]+)['\"]", value):
+                    candidate = str(quoted or "").strip()
+                    if candidate.startswith(".") and candidate not in references:
+                        references.append(candidate)
+        return references
 
     def _get_identifier_frequency(self, project: str, rel_path: str) -> Counter:
         cache_key = (project, rel_path)
@@ -531,37 +553,81 @@ class DeadCodeDetector:
             return True
         return False
 
-    def _is_nest_runtime_export(self, project: str, rel_path: str, symbol: str) -> bool:
+    def _runtime_decorator_contract(self, project: str, rel_path: str, symbol: str) -> dict | None:
         """
-        NestJS decorators often mark classes consumed by framework runtime/reflection,
-        not always by explicit import edges.
+        Return source-grounded reflection metadata for a decorated exported class.
+
+        A decorator is not proof that the class is registered or live. It changes
+        the result from a deletion candidate into a framework-contract candidate
+        whose binding remains UNKNOWN until configuration/runtime evidence closes it.
         """
         canonical = self._canonical_symbol_name(symbol)
         if not canonical:
-            return False
+            return None
 
         content = self._read_project_file(project, rel_path)
         if not content:
-            return False
+            return None
 
         heuristics = require_doctrine_mapping("dead_code_heuristics")
-        markers = heuristics.get("nest_runtime_decorators", [
-            "@Module(", "@Injectable(", "@Controller(", "@Resolver(",
-            "@InputType(", "@ObjectType(", "@ArgsType(", "@Schema(",
-            "@Processor(", "@Gateway("
-        ])
-        if not any(marker in content for marker in markers):
-            return False
-
+        markers = heuristics.get("nest_runtime_decorators", [])
         class_decl = re.search(
             rf"export\s+class\s+{re.escape(canonical)}\b",
             content,
             flags=re.MULTILINE,
         )
         if not class_decl:
-            return False
+            return None
+        # Read only decorator calls immediately adjacent to this declaration.
+        # A generic ``rfind('}')`` boundary is unsafe because decorator arguments
+        # may themselves contain object literals, for example
+        # ``@ValidatorConstraint({ name: 'safe' })``.  Walking balanced call
+        # parentheses also prevents a decorator on a preceding sibling class from
+        # leaking onto the current symbol.
+        prefix = content[max(0, class_decl.start() - 1200):class_decl.start()].rstrip()
+        decorator_blocks = []
+        while prefix.endswith(")"):
+            depth = 0
+            opening = None
+            for index in range(len(prefix) - 1, -1, -1):
+                char = prefix[index]
+                if char == ")":
+                    depth += 1
+                elif char == "(":
+                    depth -= 1
+                    if depth == 0:
+                        opening = index
+                        break
+            if opening is None:
+                break
+            decorator_name = re.search(
+                r"@[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*\s*$",
+                prefix[:opening],
+            )
+            if not decorator_name:
+                break
+            decorator_blocks.append(prefix[decorator_name.start():])
+            prefix = prefix[:decorator_name.start()].rstrip()
+        preamble = "\n".join(reversed(decorator_blocks))
+        matched_marker = next((marker for marker in markers if marker in preamble), None)
+        if not matched_marker:
+            return None
 
-        return True
+        return {
+            "contract_class": "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE",
+            "contract_status": "runtime_binding_unknown",
+            "recommended_action": "verify_registration_or_complete_integration",
+            "mutation_proposed": False,
+            "evidence": {
+                "decorator_marker": matched_marker,
+                "exported_class": canonical,
+                "runtime_binding": "unknown",
+            },
+        }
+
+    def _is_nest_runtime_export(self, project: str, rel_path: str, symbol: str) -> bool:
+        """Backward-compatible predicate for the doctrine-driven decorator contract."""
+        return self._runtime_decorator_contract(project, rel_path, symbol) is not None
 
     def _package_public_export_patterns(self, project: str, project_data: dict | None = None) -> list[str]:
         cached = self._package_public_export_patterns_cache.get(project)
@@ -692,9 +758,164 @@ class DeadCodeDetector:
         test_config = heuristics.get("test_support_heuristics", {})
         path_tokens = test_config.get("path_tokens", [])
         file_suffixes = test_config.get("file_suffixes", [])
+        file_globs = test_config.get("file_globs", [])
+        path_globs = test_config.get("path_globs", [])
         if any(token in f"/{rel_norm}" for token in path_tokens):
             return True
-        return any(file_name.endswith(s) for s in file_suffixes)
+        if any(file_name.endswith(s) for s in file_suffixes):
+            return True
+        if any(fnmatch.fnmatchcase(file_name, pattern) for pattern in file_globs):
+            return True
+        return any(fnmatch.fnmatchcase(rel_norm, pattern) for pattern in path_globs)
+
+    @staticmethod
+    def _test_support_contract(rel_path: str) -> dict:
+        return {
+            "contract_class": "TEST_RUNNER_DISCOVERY",
+            "contract_status": "source_grounded_test_surface",
+            "recommended_action": "retain_test_harness_or_verify_runner_discovery",
+            "mutation_proposed": False,
+            "evidence": {"path": to_posix_path(rel_path), "discovery": "test_convention"},
+        }
+
+    @staticmethod
+    def _symbol_metadata(file_data: dict, symbol: str) -> dict:
+        canonical = DeadCodeDetector._canonical_symbol_name(symbol)
+        for row in file_data.get("symbols", []) if isinstance(file_data, dict) else []:
+            if not isinstance(row, dict):
+                continue
+            if DeadCodeDetector._canonical_symbol_name(row.get("name")) == canonical:
+                return row
+        return {}
+
+    def _framework_runtime_contract(
+        self,
+        project: str,
+        rel_path: str,
+        symbol: str,
+        file_data: dict | None = None,
+    ) -> dict | None:
+        language = str((file_data or {}).get("language") or "").lower()
+        content = self._read_project_file(project, rel_path)
+        if not content:
+            return None
+        canonical = self._canonical_symbol_name(symbol)
+        framework_contracts = require_doctrine_mapping("dead_code_heuristics").get(
+            "framework_runtime_contracts",
+            {},
+        )
+
+        python_policy = framework_contracts.get("python_django", {})
+        if language == "python" and isinstance(python_policy, dict):
+            metadata = self._symbol_metadata(file_data or {}, canonical)
+            bases = [str(value) for value in metadata.get("extends", [])]
+            suffixes = [str(value) for value in python_policy.get("extends_suffixes", [])]
+            content_markers = [str(value).lower() for value in python_policy.get("content_markers", [])]
+            matched_base = next(
+                (base for base in bases if any(base == suffix or base.endswith(f".{suffix}") for suffix in suffixes)),
+                None,
+            )
+            matched_import = next(
+                (marker for marker in content_markers if marker in content.lower()),
+                None,
+            )
+            if matched_base and matched_import:
+                return {
+                    "contract_class": "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE",
+                    "contract_status": str(python_policy.get("contract_status") or "runtime_binding_unknown"),
+                    "recommended_action": "verify_framework_registration_or_retain_contract",
+                    "mutation_proposed": False,
+                    "evidence": {
+                        "framework_family": "python_django",
+                        "extends": matched_base,
+                        "framework_import_marker": matched_import,
+                        "runtime_binding": "unknown",
+                    },
+                }
+
+        if language == "java":
+            java_policy = framework_contracts.get("java_spring", {})
+            markers = java_policy.get("annotation_markers", []) if isinstance(java_policy, dict) else []
+            declaration = re.search(rf"\b(?:class|interface|enum)\s+{re.escape(canonical)}\b", content)
+            if declaration:
+                preamble = content[max(0, declaration.start() - 600):declaration.start()]
+                boundary = max(preamble.rfind("}"), preamble.rfind(";"))
+                preamble = preamble[boundary + 1:]
+                matched_marker = next((str(marker) for marker in markers if str(marker) in preamble), None)
+                if matched_marker:
+                    return {
+                        "contract_class": "FRAMEWORK_RUNTIME_CONTRACT_CANDIDATE",
+                        "contract_status": str(java_policy.get("contract_status") or "runtime_binding_unknown"),
+                        "recommended_action": "verify_component_scan_or_retain_contract",
+                        "mutation_proposed": False,
+                        "evidence": {
+                            "framework_family": "java_spring",
+                            "annotation_marker": matched_marker,
+                            "runtime_binding": "unknown",
+                        },
+                    }
+
+        return self._runtime_decorator_contract(project, rel_path, symbol)
+
+    def _reachability_unknown_contract(self, file_data: dict) -> dict | None:
+        if not isinstance(file_data, dict) or "language" not in file_data:
+            return None
+        language = str(file_data.get("language") or "").lower()
+        capability = self._language_capabilities.get(language, {})
+        policy = capability.get("dead_code_reachability", {}) if isinstance(capability, dict) else {}
+        mode = str(policy.get("mode") or "inventory_only")
+        parser_evidence = file_data.get("parser_evidence")
+        parser_evidence = parser_evidence if isinstance(parser_evidence, dict) else {}
+        parser_status = str(parser_evidence.get("status") or "unavailable")
+        semantic_depth = str(parser_evidence.get("semantic_depth") or "unavailable")
+        allowed_statuses = {str(value) for value in policy.get("required_parser_statuses", [])}
+        allowed_depths = {str(value) for value in policy.get("required_semantic_depths", [])}
+        if (
+            mode == "candidate_analysis"
+            and parser_status in allowed_statuses
+            and semantic_depth in allowed_depths
+        ):
+            return None
+        return {
+            "reason": "language_reachability_unavailable",
+            "status": "UNKNOWN",
+            "language": language or "unknown",
+            "capability_mode": mode,
+            "recommended_action": "retain_and_obtain_language_reachability_evidence",
+            "mutation_proposed": False,
+            "evidence": {
+                "parser_status": parser_status,
+                "parser_kind": str(parser_evidence.get("parser_kind") or "unknown"),
+                "semantic_depth": semantic_depth,
+                "required_parser_statuses": sorted(allowed_statuses),
+                "required_semantic_depths": sorted(allowed_depths),
+            },
+        }
+
+    @staticmethod
+    def _import_record_target_files(
+        source: str,
+        symbol: str,
+        available_files: set[str],
+        package_files_by_dir: dict[str, set[str]],
+        package_symbol_files: dict[tuple[str, str], set[str]],
+    ) -> set[str]:
+        """Resolve an Atlas import record to exact physical source files.
+
+        Most languages resolve an import to one file. Go resolves an import to
+        a package directory, so qualified member evidence is used to select the
+        file that exports the observed member. If the structural inventory
+        cannot identify that file, the complete package remains visible and the
+        downstream language capability gate keeps its reachability UNKNOWN.
+        """
+        normalized_source = to_posix_path(source)
+        if normalized_source in available_files:
+            return {normalized_source}
+        if normalized_source not in package_files_by_dir:
+            return {normalized_source}
+        canonical_symbol = DeadCodeDetector._canonical_symbol_name(symbol)
+        symbol_sources = package_symbol_files.get((normalized_source, canonical_symbol), set())
+        return set(symbol_sources or package_files_by_dir[normalized_source])
 
     @staticmethod
     def _is_reference_example_surface(rel_path: str) -> bool:
@@ -727,8 +948,7 @@ class DeadCodeDetector:
 
         return bool(re.fullmatch(symbol_regex, canonical))
 
-    @staticmethod
-    def _is_generated_surface(rel_path: str) -> bool:
+    def _generated_surface_contract(self, project: str, rel_path: str) -> dict | None:
         rel_norm = to_posix_path(rel_path).lower()
         file_name = rel_norm.rsplit("/", 1)[-1]
         heuristics = require_doctrine_mapping("dead_code_heuristics")
@@ -737,8 +957,46 @@ class DeadCodeDetector:
         file_suffixes = gen_config.get("file_suffixes", [])
         
         if any(tok in file_name for tok in file_tokens):
-            return True
-        return any(file_name.endswith(s) for s in file_suffixes)
+            return {
+                "contract_class": "CODEGEN_SURFACE",
+                "contract_status": "source_grounded_generated_surface",
+                "recommended_action": "retain_generated_contract",
+                "mutation_proposed": False,
+                "evidence": {"filename_token": next(tok for tok in file_tokens if tok in file_name)},
+            }
+        matched_suffix = next((suffix for suffix in file_suffixes if file_name.endswith(suffix)), None)
+        if matched_suffix:
+            return {
+                "contract_class": "CODEGEN_SURFACE",
+                "contract_status": "source_grounded_generated_surface",
+                "recommended_action": "retain_generated_contract",
+                "mutation_proposed": False,
+                "evidence": {"filename_suffix": matched_suffix},
+            }
+
+        template_config = gen_config.get("template_contract", {})
+        template_suffixes = template_config.get("file_suffixes", []) if isinstance(template_config, dict) else []
+        template_markers = template_config.get("content_markers", []) if isinstance(template_config, dict) else []
+        template_suffix = next((suffix for suffix in template_suffixes if file_name.endswith(suffix)), None)
+        if not template_suffix:
+            return None
+        content = self._read_project_file(project, rel_path)
+        content_marker = next((marker for marker in template_markers if content and marker in content), None)
+        if not content_marker:
+            return None
+        return {
+            "contract_class": "CODEGEN_TEMPLATE",
+            "contract_status": "source_grounded_template",
+            "recommended_action": "retain_codegen_template",
+            "mutation_proposed": False,
+            "evidence": {
+                "filename_suffix": template_suffix,
+                "content_marker": content_marker,
+            },
+        }
+
+    def _is_generated_surface(self, project: str, rel_path: str) -> bool:
+        return self._generated_surface_contract(project, rel_path) is not None
 
     def _is_deprecated_empty_export_surface(self, project: str, rel_path: str, symbol: str) -> bool:
         canonical = self._canonical_symbol_name(symbol)
@@ -861,11 +1119,22 @@ class DeadCodeDetector:
                 if not any(marker in lowered for marker in content_markers):
                     continue
 
-            return {
+            matched = {
                 "rule_id": str(rule.get("id") or ""),
                 "reason": str(rule.get("reason") or "contract_registry_surface"),
                 "label": str(rule.get("label") or ""),
             }
+            if rule.get("contract_class"):
+                matched.update(
+                    {
+                        "contract_class": str(rule["contract_class"]),
+                        "contract_status": str(rule.get("contract_status") or "runtime_binding_unknown"),
+                        "recommended_action": str(rule.get("recommended_action") or "retain_contract"),
+                        "mutation_proposed": False,
+                        "evidence": {"rule_id": str(rule.get("id") or ""), "source": "modular_doctrine"},
+                    }
+                )
+            return matched
         return None
 
     @staticmethod
@@ -1079,7 +1348,7 @@ class DeadCodeDetector:
         symbols = set()
         for rel_path in files.keys() if isinstance(files, dict) else []:
             rel_norm = to_posix_path(rel_path)
-            if not self._is_generated_surface(rel_norm):
+            if not self._is_generated_surface(project, rel_norm):
                 continue
             content = self._read_project_file(project, rel_norm)
             if not content:
@@ -1104,7 +1373,7 @@ class DeadCodeDetector:
         symbols = set()
         for rel_path, file_data in files.items() if isinstance(files, dict) else []:
             rel_norm = to_posix_path(rel_path)
-            if not self._is_generated_surface(rel_norm):
+            if not self._is_generated_surface(project, rel_norm):
                 continue
             if not isinstance(file_data, dict):
                 continue
@@ -1341,6 +1610,7 @@ class DeadCodeDetector:
         type_only_export_skips = []
         intent_allowlist_skips = []
         advisory_name_collision_skips = []
+        unresolved_reachability = []
         classification_reasons = Counter()
 
         files = project_data.get("files", {}) if isinstance(project_data, dict) else {}
@@ -1376,18 +1646,6 @@ class DeadCodeDetector:
                 if self._is_framework_export(rel_path, sym):
                     continue
 
-                if self._is_nest_runtime_export(project, rel_path, sym):
-                    compatibility_skips.append(
-                        {
-                            "project": project,
-                            "file": rel_path,
-                            "scoped_file": self._scoped_file(project, rel_path),
-                            "symbol": self._canonical_symbol_name(sym),
-                            "reason": "nestjs_runtime_export",
-                        }
-                    )
-                    continue
-
                 if n_file in public_export_chain_files or (n_file, canonical_sym) in public_export_chain_symbols:
                     compatibility_skips.append(
                         {
@@ -1396,6 +1654,11 @@ class DeadCodeDetector:
                             "scoped_file": self._scoped_file(project, rel_path),
                             "symbol": canonical_sym,
                             "reason": "active_public_export_chain",
+                            "contract_class": "PUBLIC_PACKAGE_API",
+                            "contract_status": "externally_reachable",
+                            "recommended_action": "retain_public_contract",
+                            "mutation_proposed": False,
+                            "evidence": {"source": "atlas_public_contracts", "reachability": "public_export_chain"},
                         }
                     )
                     continue
@@ -1408,11 +1671,17 @@ class DeadCodeDetector:
                             "scoped_file": self._scoped_file(project, rel_path),
                             "symbol": self._canonical_symbol_name(sym),
                             "reason": "package_public_export_surface",
+                            "contract_class": "PUBLIC_PACKAGE_API",
+                            "contract_status": "externally_reachable",
+                            "recommended_action": "retain_public_contract",
+                            "mutation_proposed": False,
+                            "evidence": {"source": "atlas_public_contracts", "reachability": "package_entrypoint"},
                         }
                     )
                     continue
 
-                if self._is_generated_surface(rel_path):
+                generated_contract = self._generated_surface_contract(project, rel_path)
+                if generated_contract:
                     compatibility_skips.append(
                         {
                             "project": project,
@@ -1420,6 +1689,7 @@ class DeadCodeDetector:
                             "scoped_file": self._scoped_file(project, rel_path),
                             "symbol": self._canonical_symbol_name(sym),
                             "reason": "generated_surface",
+                            **generated_contract,
                         }
                     )
                     continue
@@ -1432,6 +1702,7 @@ class DeadCodeDetector:
                             "scoped_file": self._scoped_file(project, rel_path),
                             "symbol": self._canonical_symbol_name(sym),
                             "reason": "test_support_surface",
+                            **self._test_support_contract(rel_path),
                         }
                     )
                     continue
@@ -1495,17 +1766,13 @@ class DeadCodeDetector:
 
                 registry_match = self._match_contract_registry(project, rel_path, sym)
                 if registry_match:
-                    contract_registry_skips.append(
-                        {
-                            "project": project,
-                            "file": rel_path,
-                            "scoped_file": self._scoped_file(project, rel_path),
-                            "symbol": self._canonical_symbol_name(sym),
-                            "reason": registry_match.get("reason") or "contract_registry_surface",
-                            "rule_id": registry_match.get("rule_id") or "",
-                            "label": registry_match.get("label") or "",
-                        }
-                    )
+                    contract_registry_skips.append({
+                        "project": project,
+                        "file": rel_path,
+                        "scoped_file": self._scoped_file(project, rel_path),
+                        "symbol": self._canonical_symbol_name(sym),
+                        **registry_match,
+                    })
                     continue
 
                 if self._is_graphql_document_surface(project, rel_path):
@@ -1603,6 +1870,25 @@ class DeadCodeDetector:
                 if self._has_local_symbol_usage(project, rel_path, canonical_sym):
                     continue
 
+                runtime_decorator_contract = self._framework_runtime_contract(
+                    project,
+                    rel_path,
+                    canonical_sym,
+                    f_data,
+                )
+                if runtime_decorator_contract:
+                    compatibility_skips.append(
+                        {
+                            "project": project,
+                            "file": rel_path,
+                            "scoped_file": self._scoped_file(project, rel_path),
+                            "symbol": canonical_sym,
+                            "reason": "framework_runtime_decorator_contract",
+                            **runtime_decorator_contract,
+                        }
+                    )
+                    continue
+
                 if self._is_compatibility_bridge_file(project, rel_path):
                     compatibility_skips.append(
                         {
@@ -1672,6 +1958,19 @@ class DeadCodeDetector:
                             "scoped_file": self._scoped_file(project, rel_path),
                             "symbol": canonical_sym,
                             "reason": "dynamic_registry_consumed_surface",
+                        }
+                    )
+                    continue
+
+                reachability_unknown = self._reachability_unknown_contract(f_data)
+                if reachability_unknown:
+                    unresolved_reachability.append(
+                        {
+                            "project": project,
+                            "file": rel_path,
+                            "scoped_file": self._scoped_file(project, rel_path),
+                            "symbol": canonical_sym,
+                            **reachability_unknown,
                         }
                     )
                     continue
@@ -1807,6 +2106,7 @@ class DeadCodeDetector:
             "type_only_export_exclusions": type_only_export_skips,
             "intent_allowlist_exclusions": intent_allowlist_skips,
             "advisory_exclusions": advisory_name_collision_skips,
+            "unresolved_reachability": unresolved_reachability,
             "classification_reason_counts": dict(classification_reasons),
         }
 
@@ -1851,6 +2151,21 @@ class DeadCodeDetector:
 
             files = pdata.get("files", {})
             available_files = {to_posix_path(path) for path in files.keys()} if isinstance(files, dict) else set()
+            package_files_by_dir = defaultdict(set)
+            package_symbol_files = defaultdict(set)
+            for candidate_path, candidate_data in files.items():
+                candidate_norm = to_posix_path(candidate_path)
+                package_dir = to_posix_path(str(PurePosixPath(candidate_norm).parent))
+                package_files_by_dir[package_dir].add(candidate_norm)
+                for export_row in candidate_data.get("exports", []) if isinstance(candidate_data, dict) else []:
+                    export_name = (
+                        export_row
+                        if isinstance(export_row, str)
+                        else export_row.get("name")
+                    )
+                    canonical_export = self._canonical_symbol_name(export_name)
+                    if canonical_export:
+                        package_symbol_files[(package_dir, canonical_export)].add(candidate_norm)
             for rel_path, f_data in files.items():
                 reference_completed += 1
                 progress.advance(reference_completed, current_project=pkey)
@@ -1894,33 +2209,38 @@ class DeadCodeDetector:
                     src = imp_info.get("source")
                     name = imp_info.get("name")
                     kind = str(imp_info.get("kind") or "").strip().lower()
+                    if kind == "type":
+                        continue
                     if src:
                         n_src = to_posix_path(src)
-                        imported_files.add((pkey, n_src))
-                        if kind == "namespace":
-                            namespace_imported_files.add((pkey, n_src))
-                        if name:
-                            canonical_name = self._canonical_symbol_name(name)
-                            if kind != "namespace":
-                                consumed_symbols.add((pkey, n_src, canonical_name))
-                            all_imported_names.add(canonical_name)
+                        canonical_name = self._canonical_symbol_name(name)
+                        resolved_sources = self._import_record_target_files(
+                            n_src,
+                            canonical_name,
+                            available_files,
+                            package_files_by_dir,
+                            package_symbol_files,
+                        )
+                        for resolved_source in resolved_sources:
+                            imported_files.add((pkey, resolved_source))
+                            if kind == "namespace":
+                                namespace_imported_files.add((pkey, resolved_source))
                             if canonical_name:
+                                if kind not in {"namespace", "side_effect", "dynamic", "require", "reexport_all"}:
+                                    consumed_symbols.add((pkey, resolved_source, canonical_name))
                                 project_symbol_usage_files[pkey][canonical_name].add(n_curr)
+                        if canonical_name:
+                            all_imported_names.add(canonical_name)
 
-                # 4. Dynamic import destructuring is a real symbol consumption surface.
-                # TypeScript's import graph may only preserve the dynamic target, so
-                # recover named exports consumed by tests and lazy adapters here.
+                # 4. Config-owned runtime module references remain a separate contract.
+                # JS/TS dynamic named imports are syntax-grounded in import_records;
+                # never reconstruct those edges from arbitrary source text here.
                 content = self._read_project_file(pkey, n_curr)
                 if content:
-                    for src, names in self._parse_dynamic_named_imports(content):
-                        n_src = self._resolve_dynamic_import_target(n_curr, src, available_files)
-                        if not n_src:
-                            continue
-                        imported_files.add((pkey, n_src))
-                        for canonical_name in names:
-                            consumed_symbols.add((pkey, n_src, canonical_name))
-                            all_imported_names.add(canonical_name)
-                            project_symbol_usage_files[pkey][canonical_name].add(n_curr)
+                    for source in self._config_runtime_module_references(n_curr, content):
+                        target = self._resolve_dynamic_import_target(n_curr, source, available_files)
+                        if target:
+                            imported_files.add((pkey, target))
 
         # 4. Recursive Proxy Resolution (Ensure files exported via * are marked imported)
         changed = True
@@ -1976,6 +2296,7 @@ class DeadCodeDetector:
         phase_started_at = perf_counter()
 
         doctrine_signature = self._doctrine_signature()
+        language_capability_signature = self._language_capability_signature()
         allowlist_signature = self._allowlist_signature()
         imported_name_signature = self._stable_fingerprint(sorted(all_imported_names))
 
@@ -1994,6 +2315,7 @@ class DeadCodeDetector:
         type_only_export_skips = []
         intent_allowlist_skips = []
         advisory_skips = []
+        unresolved_reachability = []
         classification_reasons = Counter()
 
         cache_hits = 0
@@ -2036,6 +2358,7 @@ class DeadCodeDetector:
                     ),
                     "allowlist_signature": allowlist_signature,
                     "doctrine_signature": doctrine_signature,
+                    "language_capability_signature": language_capability_signature,
                     "engine_signature": DEAD_CODE_ENGINE_SIGNATURE,
                 }
             )
@@ -2078,6 +2401,7 @@ class DeadCodeDetector:
             type_only_export_skips.extend(analysis.get("type_only_export_exclusions", []))
             intent_allowlist_skips.extend(analysis.get("intent_allowlist_exclusions", []))
             advisory_skips.extend(analysis.get("advisory_exclusions", []))
+            unresolved_reachability.extend(analysis.get("unresolved_reachability", []))
             classification_reasons.update(analysis.get("classification_reason_counts", {}))
             project_analysis_seconds[pkey] = round(perf_counter() - project_started_at, 3)
             logger.info(
@@ -2182,9 +2506,16 @@ class DeadCodeDetector:
                 "items": items,
             }
 
+        contract_triage = [
+            dict(item)
+            for item in [*compatibility_skips, *contract_registry_skips]
+            if str(item.get("contract_class") or "").strip()
+        ]
+        contract_triage_counts = Counter(str(item["contract_class"]) for item in contract_triage)
+
         payload = {
             "meta": {
-                "version": "dead_code_v2",
+                "version": "dead_code_v3",
                 "generated_by": "dead_code_detector",
                 "execution_scope": execution_scope,
                 "runtime_seconds": round(perf_counter() - started_at, 3),
@@ -2194,6 +2525,8 @@ class DeadCodeDetector:
                 "classification_reason_counts": dict(classification_reasons),
                 "actionability_policy": "dead_code_actionability_v1",
                 "actionability_counts": dict(actionability_counts),
+                "contract_triage_counts": dict(contract_triage_counts),
+                "unresolved_reachability_count": len(unresolved_reachability),
                 "intent_allowlist_scope": self._allowlist_scope,
                 "intent_allowlist_rules_loaded": len(self._allowlist_rules),
                 "intent_allowlist_exclusions": len(intent_allowlist_skips),
@@ -2221,9 +2554,16 @@ class DeadCodeDetector:
                     "review": actionability_counts.get("review", 0),
                 },
                 "confidence": build_confidence(len(dead), high_count, med_count, low_count),
+                "contract_triage": {
+                    "total": len(contract_triage),
+                    "by_class": dict(contract_triage_counts),
+                },
+                "unresolved_reachability": len(unresolved_reachability),
             },
             "items": dead,
             "by_project": by_project_payload,
+            "contract_triage": contract_triage,
+            "unresolved_reachability": unresolved_reachability,
             "compatibility_exclusions": compatibility_skips,
             "legacy_boundary_exclusions": legacy_contract_skips,
             "contract_surface_exclusions": contract_surface_skips,
@@ -2363,15 +2703,19 @@ class DeadCodeDetector:
         save_text_atomic(REPORTS_DIR / "dead_code_tuning.md", "\n".join(tuning_md_lines))
 
         md_lines = [
-            "# Dead Code Report",
+            "# Unreferenced Symbol & Contract Triage",
             "",
-            f"**{len(dead)}** suspended exports found.",
+            "Graph non-consumption does not authorize deletion. This report separates unresolved symbols from protected runtime, codegen and public API contracts.",
+            "",
+            f"**{len(dead)}** unreferenced export candidates found.",
             f"- **{high_count}** High Confidence (File completely unreferenced)",
             f"- **{med_count}** Medium Confidence (File imported, but symbol not explicitly consumed)",
             f"- **{low_count}** Low Confidence (Symbol used globally, possible synthetic/star export)",
             f"- **Actionable Candidates:** `{actionability_counts.get('actionable', 0)}`",
             f"- **Manual Intent Decisions:** `{actionability_counts.get('manual_intent_decision', 0)}`",
             f"- **Review Candidates:** `{actionability_counts.get('review', 0)}`",
+            f"- **Protected Contract Rows:** `{len(contract_triage)}`",
+            f"- **Reachability UNKNOWN Rows:** `{len(unresolved_reachability)}`",
             f"- **Confidence Score:** `{payload['summary']['confidence']['score']}` (`{payload['summary']['confidence']['tier']}`)",
         ]
 
@@ -2431,6 +2775,10 @@ class DeadCodeDetector:
             md_lines.append(
                 f"- **{len(advisory_skips)}** Advisory-only exports excluded from dead-code output"
             )
+        if unresolved_reachability:
+            md_lines.append(
+                f"- **{len(unresolved_reachability)}** Symbols retained because language/parser reachability proof is unavailable"
+            )
 
         md_lines.extend([
             "",
@@ -2478,6 +2826,47 @@ class DeadCodeDetector:
             if len(p_items) > 100:
                 md_lines.append(f"| ... | *and {len(p_items) - 100} more* | |")
             md_lines.append("")
+
+        if unresolved_reachability:
+            md_lines.extend([
+                "",
+                "## Reachability Unavailable",
+                "",
+                "Structural inventory remains visible, but these rows are UNKNOWN rather than dead-code candidates. Obtain a language-semantic adapter and current parser evidence before making a non-consumption claim.",
+                "",
+                "| Project | File | Symbol | Language | Capability | Parser | Semantic Depth |",
+                "|---|---|---|---|---|---|---|",
+            ])
+            for item in unresolved_reachability[:150]:
+                evidence = item.get("evidence") or {}
+                namespaced_file = f"{item['project']}::{item['file']}"
+                md_lines.append(
+                    f"| {item['project']} | `{namespaced_file}` | `{item['symbol']}` | `{item['language']}` | `{item['capability_mode']}` | `{evidence.get('parser_kind', 'unknown')}` | `{evidence.get('semantic_depth', 'unavailable')}` |"
+                )
+            if len(unresolved_reachability) > 150:
+                md_lines.append(
+                    f"\n*... and {len(unresolved_reachability) - 150} more UNKNOWN reachability rows omitted for brevity.*"
+                )
+
+        if contract_triage:
+            md_lines.extend([
+                "",
+                "## Protected Contract Triage",
+                "",
+                "These rows are not deletion candidates. `runtime_binding_unknown` requires integration/registration review; source-grounded codegen and public API rows should be retained unless their owning contract changes.",
+                "",
+                "| Project | File | Symbol | Contract Class | Status | Recommended Action |",
+                "|---|---|---|---|---|---|",
+            ])
+            for item in contract_triage[:150]:
+                namespaced_file = f"{item['project']}::{item['file']}"
+                md_lines.append(
+                    f"| {item['project']} | `{namespaced_file}` | `{item['symbol']}` | `{item['contract_class']}` | `{item['contract_status']}` | `{item['recommended_action']}` |"
+                )
+            if len(contract_triage) > 150:
+                md_lines.append(
+                    f"\n*... and {len(contract_triage) - 150} more protected contract rows omitted for brevity.*"
+                )
 
         if compatibility_skips:
             md_lines.extend([

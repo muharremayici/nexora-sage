@@ -37,7 +37,6 @@ CSS_CLASS_RE = re.compile(r"className\s*=\s*(?:\"([^\"]+)\"|'([^']+)')")
 RESPONSIVE_PREFIX_RE = re.compile(r"\b(?:sm|md|lg|xl|2xl):")
 CLASS_COMPOSITION_DEFAULTS = ()
 STRING_LITERAL_RE = re.compile(r"['\"]([^'\"]+)['\"]")
-MUTABLE_RENDER_RE = re.compile(r"^\s*(?:(?:props|state)(?:\.[A-Za-z_$][\w$]*)*|[A-Za-z_$][\w$]*(?:Ref)?\.current)\s*(?:\+\+|--|=)", re.MULTILINE)
 MEMO_RE = re.compile(r"\buse(?:Memo|Callback)\s*\(")
 INLINE_FACTORY_RE = re.compile(r"\b(?:const|let)\s+[A-Za-z_$][\w$]*\s*=\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>")
 BROWSER_PERMISSION_API_RE = re.compile(
@@ -361,18 +360,16 @@ def _import_line_for(content: str, imports: list[str]) -> int:
     return _first_line(content, IMPORT_RE)
 
 
-def _render_mutation_lines(content: str) -> list[int]:
-    lines: list[int] = []
-    depth = 0
-    for line_no, line in enumerate(content.splitlines(), start=1):
-        depth_before = depth
-        stripped = line.strip()
-        if MUTABLE_RENDER_RE.match(line) and depth_before <= 1 and not stripped.startswith("//"):
-            lines.append(line_no)
-        depth += line.count("{") - line.count("}")
-        if depth < 0:
-            depth = 0
-    return lines
+def _react_mutation_contexts(atlas_features: set[str]) -> dict[str, list[int]]:
+    contexts = {key: [] for key in ("render", "effect", "event", "module", "unresolved")}
+    for feature in atlas_features:
+        match = re.fullmatch(
+            r"React:MutableAssignment:(render|effect|event|module|unresolved):(\d+)",
+            str(feature),
+        )
+        if match:
+            contexts[match.group(1)].append(int(match.group(2)))
+    return {key: sorted(set(lines)) for key, lines in contexts.items()}
 
 
 def _finding(
@@ -482,13 +479,12 @@ def _smoke_evidence_for(
     matches = smoke_index.get((project, normalized), [])
     if not matches:
         return set(), []
-    executed_pass_statuses = {"passed", "pass", "executed_pass", "runtime_pass"}
-    kinds = {
-        "runtime_smoke"
-        if str(match.get("status") or "").lower() in executed_pass_statuses
-        else "runtime_smoke_ready"
-        for match in matches
-    }
+    # The current UI smoke artifact proves template/readiness availability only.
+    # It does not bind an executed assertion to a specific finding identity, so
+    # even a caller-supplied "passed" status must not confirm every finding in
+    # the same source file. A future execution receipt may promote only the
+    # exact assertion/finding pair it proves.
+    kinds = {"runtime_smoke_ready"}
     spans = [
         {
             "file": match.get("spec_path"),
@@ -508,7 +504,6 @@ def analyze_runtime_intelligence_file(
     rel_path: str,
     content: str,
     atlas_file: dict[str, Any] | None = None,
-    runtime_routes: set[str] | None = None,
     smoke_index: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any] | None:
     if not _is_react_source(rel_path, content):
@@ -579,26 +574,28 @@ def analyze_runtime_intelligence_file(
         compiler_risks.append(f"hooks with dynamic/non-literal dependencies ({', '.join([f.split(':')[-1] for f in dynamic_deps])})")
         compiler_score += 4
 
-    mutation_lines = _render_mutation_lines(content)
+    mutation_contexts = _react_mutation_contexts(atlas_features)
+    mutation_lines = mutation_contexts["render"]
     if mutation_lines:
-        compiler_risks.append("mutable assignment during render")
+        compiler_risks.append("syntax-AST observed mutable assignment in React render context")
         compiler_score += 6
-    if memo_count >= 6:
-        compiler_risks.append(f"{memo_count} memoization hooks")
-        compiler_score += 3
-    if inline_factory_count >= 8 and memo_count == 0:
-        compiler_risks.append(f"{inline_factory_count} render-local function factories without memo/compiler-friendly split")
-        compiler_score += 3
+    if mutation_contexts["unresolved"]:
+        compiler_risks.append("syntax-AST observed mutable assignment with unresolved execution context")
+        compiler_score += 1
     if compiler_risks:
         evidence_lines = (
             mutation_lines
-            or _match_lines(content, MEMO_RE)[:3]
-            or _match_lines(content, INLINE_FACTORY_RE)[:3]
+            or mutation_contexts["unresolved"]
             or _match_lines(content, HOOK_RE)[:3]
             or [1]
         )
+        evidence_source = (
+            "typescript_syntax_ast"
+            if mutation_lines or mutation_contexts["unresolved"]
+            else "static_source_location"
+        )
         evidence_spans = [
-            {"file": normalized, "line": line_no, "source": "react_compiler"}
+            {"file": normalized, "line": line_no, "source": evidence_source}
             for line_no in evidence_lines
         ]
         if mutation_lines:
@@ -606,21 +603,51 @@ def analyze_runtime_intelligence_file(
         elif missing_deps or dynamic_deps:
             compiler_action = "Fix hook dependency contracts and keep memoization boundaries compiler-friendly."
         else:
-            compiler_action = "Review memoization density and simplify callbacks only when it reduces dependency and readability risk."
+            compiler_action = "Resolve the assignment execution context before making a React Compiler readiness claim."
         item = _finding(
             project,
             normalized,
             "react_compiler_readiness",
-            "compiler_or_memoization_contract_risk",
+            "compiler_static_contract_risk",
             "; ".join(compiler_risks),
             min(10, compiler_score),
             compiler_action,
-            {"static", "react_compiler"},
+            {"static", "atlas_feature"},
             line=evidence_lines[0],
             evidence_spans=evidence_spans,
         )
-        item["confidence"] = "confirmed" if atlas_file and (missing_deps or dynamic_deps) else "probable"
+        item["confidence"] = (
+            "confirmed"
+            if atlas_file and (missing_deps or dynamic_deps or mutation_lines)
+            else "probable"
+        )
         findings.append(item)
+
+    density_risks: list[str] = []
+    density_score = 0
+    if memo_count >= 6:
+        density_risks.append(f"{memo_count} memoization hooks")
+        density_score += 3
+    if inline_factory_count >= 8 and memo_count == 0:
+        density_risks.append(f"{inline_factory_count} render-local function factories")
+        density_score += 3
+    if density_risks:
+        density_lines = _match_lines(content, MEMO_RE)[:3] or _match_lines(content, INLINE_FACTORY_RE)[:3] or [1]
+        findings.append(_finding(
+            project,
+            normalized,
+            "memoization_density",
+            "manual_memoization_or_render_factory_density",
+            "; ".join(density_risks),
+            density_score,
+            "Review memoization and render-local factory density as maintainability evidence; it is not independently a React Compiler blocker.",
+            {"static"},
+            line=density_lines[0],
+            evidence_spans=[
+                {"file": normalized, "line": line_no, "source": "static_density"}
+                for line_no in density_lines
+            ],
+        ))
 
     class_count, responsive_count = _class_count(content)
     css_risks: list[str] = []
@@ -728,7 +755,6 @@ def analyze_runtime_intelligence_file(
             )
 
     if route_like and ASYNC_SURFACE_RE.search(content) and not ERROR_BOUNDARY_RE.search(content):
-        runtime_confirmed = bool(runtime_routes and normalized in runtime_routes)
         findings.append(
             _finding(
                 project,
@@ -738,9 +764,8 @@ def analyze_runtime_intelligence_file(
                 "route-level async/data surface lacks visible error boundary, catch path, or reset contract",
                 6,
                 "Pair route with error/loading/retry UX and include it in browser smoke coverage.",
-                {"static", "runtime_trace" if runtime_confirmed else "route_contract"},
+                {"static", "route_contract"},
                 line=_first_line(content, ASYNC_SURFACE_RE),
-                runtime_confirmed=runtime_confirmed,
             )
         )
 
@@ -810,33 +835,12 @@ def analyze_runtime_intelligence_file(
     }
 
 
-def _runtime_route_files() -> set[str]:
-    execution = load_json_file(RAW_DIR / "ui_smoke_execution.json", {})
-    specs = load_json_file(RAW_DIR / "ui_smoke_specs.json", {})
-    files: set[str] = set()
-    if isinstance(specs, dict):
-        for spec in specs.get("specs", []) or []:
-            if not isinstance(spec, dict):
-                continue
-            source_file = spec.get("source_contract_file") or ""
-            if "::" in source_file:
-                files.add(source_file.split("::", 1)[1])
-    if isinstance(execution, dict):
-        for run in execution.get("runs", []) or []:
-            if isinstance(run, dict) and run.get("status") in {"failed", "blocked", "ready"}:
-                route_file = run.get("source_contract_file") or ""
-                if "::" in route_file:
-                    files.add(route_file.split("::", 1)[1])
-    return files
-
-
 def run_react_runtime_intelligence() -> dict[str, Any]:
     logger.info("Analyzing React runtime intelligence and calibration contracts...")
     started = time.perf_counter()
     atlas, _execution_scope = project_runtime_atlas(load_atlas_data())
     atlas_loaded_at = time.perf_counter()
     ecosystem = load_json_file(RAW_DIR / "react_ecosystem_analysis.json", {})
-    runtime_routes = _runtime_route_files()
     smoke_index = _ui_smoke_execution_index()
     rows: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
@@ -861,7 +865,6 @@ def run_react_runtime_intelligence() -> dict[str, Any]:
                     str(rel_path),
                     content,
                     fdata if isinstance(fdata, dict) else {},
-                    runtime_routes,
                     smoke_index,
                 )
                 if not row:

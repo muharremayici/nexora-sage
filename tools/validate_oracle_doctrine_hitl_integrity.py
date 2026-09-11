@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import sys
 from datetime import datetime, timezone
@@ -30,6 +31,30 @@ def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
 
 
+def _pipeline_oracle_io_contract(path: Path) -> dict[str, Any]:
+    """Read the literal registry row without depending on source formatting."""
+
+    try:
+        tree = ast.parse(_read(path), filename=str(path))
+        for node in tree.body:
+            value = None
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                if node.target.id == "ARTIFACT_OWNERSHIP":
+                    value = node.value
+            elif isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == "ARTIFACT_OWNERSHIP"
+                for target in node.targets
+            ):
+                value = node.value
+            if value is not None:
+                ownership = ast.literal_eval(value)
+                row = ownership.get("Architecture Oracle", {})
+                return row if isinstance(row, dict) else {}
+    except (OSError, SyntaxError, ValueError):
+        return {}
+    return {}
+
+
 def run_validation() -> dict[str, Any]:
     oracle_source_path = ROOT / "tools" / "engines" / "architecture_oracle.py"
     orchestrator_path = ROOT / "tools" / "orchestrators" / "orchestrator.py"
@@ -45,6 +70,7 @@ def run_validation() -> dict[str, Any]:
     oracle_source = _read(oracle_source_path)
     orchestrator_source = _read(orchestrator_path)
     registry_source = _read(registry_path)
+    oracle_io_contract = _pipeline_oracle_io_contract(registry_path)
     mcp_source = _read(mcp_path)
     claim_guard_source = _read(claim_guard_path)
     agent_contract_source = _read(agent_contract_path)
@@ -91,10 +117,15 @@ def run_validation() -> dict[str, Any]:
         ),
         _check(
             "pipeline_registry_declares_oracle_io_contract",
-            '"Architecture Oracle"' in registry_source
-            and '"reads": ["atlas"]' in registry_source
-            and '"writes": ["architecture_oracle"]' in registry_source,
-            str(registry_path.relative_to(ROOT)),
+            {"atlas", "analysis_scope_authority"}.issubset(
+                {str(item) for item in oracle_io_contract.get("reads", [])}
+            )
+            and {str(item) for item in oracle_io_contract.get("writes", [])}
+            == {"architecture_oracle", "effective_architecture_policy"},
+            {
+                "path": str(registry_path.relative_to(ROOT)),
+                "contract": oracle_io_contract,
+            },
         ),
         _check(
             "mcp_exposes_oracle_as_proposal_surface",

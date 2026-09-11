@@ -34,6 +34,7 @@ from tools.core.contextos_mcp import (
 )
 from tools.core.python_runtime_env import isolated_python_subprocess_env
 from tools.core.import_classifier import import_specifier_from_audit_detail
+from tools.core.external_target_generation import resolve_external_target_artifact_dir
 
 BASE_DIR = Path(_ROOT)
 TARGET_ROOT = Path(CONFIG_ROOT)
@@ -1263,7 +1264,9 @@ def _raw_dir_for_target(target_root: str = "") -> Path:
     target = _valid_external_target(target_root)
     if target is None:
         raise ValueError(f"Invalid external target root: {target_root}")
-    return BASE_DIR / "output" / "external_targets" / _target_output_slug(str(target)) / ".raw"
+    target_dir = BASE_DIR / "output" / "external_targets" / _target_output_slug(str(target))
+    artifact_dir, _reason = resolve_external_target_artifact_dir(target_dir)
+    return artifact_dir / ".raw"
 
 
 def _reports_dir_for_target(target_root: str = "") -> Path:
@@ -1272,7 +1275,9 @@ def _reports_dir_for_target(target_root: str = "") -> Path:
     target = _valid_external_target(target_root)
     if target is None:
         raise ValueError(f"Invalid external target root: {target_root}")
-    return BASE_DIR / "output" / "external_targets" / _target_output_slug(str(target)) / "reports"
+    target_dir = BASE_DIR / "output" / "external_targets" / _target_output_slug(str(target))
+    artifact_dir, _reason = resolve_external_target_artifact_dir(target_dir)
+    return artifact_dir / "reports"
 
 
 def _active_mcp_actor_profile() -> str:
@@ -5120,6 +5125,28 @@ def _render_supporting_context_brief(title: str, payload: dict[str, Any]) -> str
         "  target_ref_format: \"<project>::<repo_relative_path>; MAIN is the primary analyzed project scope\"",
         "  refs_are_not_paths: true",
     ]
+    if surface == "dead_code":
+        has_candidates = bool(rows)
+        yaml_lines.extend(
+            [
+                "dead_code_triage:",
+                "  actionability: "
+                + json.dumps("candidate_review" if has_candidates else "no_action", ensure_ascii=False),
+                "  file_imported: "
+                + json.dumps("reported_per_candidate" if has_candidates else "not_applicable_without_candidate", ensure_ascii=False),
+                "  symbol_seen_globally: "
+                + json.dumps("reported_per_candidate" if has_candidates else "not_applicable_without_candidate", ensure_ascii=False),
+                "  local_symbol_usage: "
+                + json.dumps("reported_per_candidate" if has_candidates else "not_applicable_without_candidate", ensure_ascii=False),
+                "  absence_claim: "
+                + json.dumps(
+                    "candidate_rows_available_for_review"
+                    if has_candidates
+                    else "no_candidate_in_filtered_sage_artifact_not_repository_clean",
+                    ensure_ascii=False,
+                ),
+            ]
+        )
     if surface == "state_flow":
         state_flow_policy = _state_flow_brief_policy()
         yaml_lines.extend(
@@ -7919,11 +7946,12 @@ def run_external_target_analysis(
 ) -> str:
     """Run Nexora against an external target folder with isolated output.
 
-    The default is full=True so first-use external target analysis produces the
-    isolated Atlas/ContextOS artifacts needed by the surgical brief. Use
-    full=False only as a quick quality-gate refresh for a target that already
-    has generated artifacts. Use refresh=True when stale/drifted evidence must
-    bypass cache reuse without escalating to release-deep claim semantics.
+    The default full=True uses the existing AI Context dependency closure so
+    Quality Gate, ContextOS and live-surface packet inputs are materialized in
+    one isolated generation. Use full=False only as a quick quality-gate
+    refresh when no surgical brief is required. Use refresh=True when
+    stale/drifted evidence must bypass cache reuse without escalating to
+    release-deep claim semantics.
     """
     target = _valid_external_target(target_root)
     if target is None:
@@ -7965,6 +7993,8 @@ def run_external_target_analysis(
     args = ["run", "--target-root", str(target)]
     if full:
         args.append("--full")
+        if include_brief:
+            args.extend(["--step", "AI Context Generator", "--ai-context"])
     else:
         args.extend(["--step", "qualitygates"])
     if skip_preflight:
@@ -7975,21 +8005,40 @@ def run_external_target_analysis(
     analysis_succeeded = _script_succeeded(output)
     context_closure_output = ""
     context_closure_succeeded = True
-    if full and include_brief and analysis_succeeded:
-        closure_args = ["run", "--target-root", str(target), "--step", "qualitygates"]
-        if skip_preflight:
-            closure_args.append("--skip-target-preflight")
-        if refresh:
-            closure_args.append("--refresh")
-        context_closure_output = _run_cli(*closure_args, env_overrides=env_overrides)
-        context_closure_succeeded = _script_succeeded(context_closure_output)
-    index_output = _run_python_script(TOOLS_DIR / "generate_external_target_index.py")
-    index_succeeded = _script_succeeded(index_output)
+    context_closure_mode = "not_requested"
     surgical_packet = None
     surgical_packet_succeeded = not include_brief
     if include_brief:
-        surgical_packet = get_surgical_operation_packet(max_signals=8, format=format, target_root=str(target))
+        surgical_packet = get_surgical_operation_packet(
+            max_signals=8,
+            format=format,
+            target_root=str(target),
+        )
         surgical_packet_succeeded = is_successful_surgical_packet({"body": surgical_packet})
+    if full and include_brief and analysis_succeeded and surgical_packet_succeeded:
+        context_closure_mode = "reused_current_primary_full_run"
+        context_closure_output = (
+            "Primary full run already produced a current surgical packet; "
+            "no additional Quality Gates recovery was executed."
+        )
+    elif full and include_brief and analysis_succeeded:
+        context_closure_mode = "agent_context_recovery"
+        closure_args = list(args)
+        if "--refresh" not in closure_args:
+            closure_args.append("--refresh")
+        context_closure_output = _run_cli(*closure_args, env_overrides=env_overrides)
+        context_closure_succeeded = _script_succeeded(context_closure_output)
+        if context_closure_succeeded:
+            surgical_packet = get_surgical_operation_packet(
+                max_signals=8,
+                format=format,
+                target_root=str(target),
+            )
+            surgical_packet_succeeded = is_successful_surgical_packet(
+                {"body": surgical_packet}
+            )
+    index_output = _run_python_script(TOOLS_DIR / "generate_external_target_index.py")
+    index_succeeded = _script_succeeded(index_output)
     operation_succeeded = (
         analysis_succeeded
         and context_closure_succeeded
@@ -8005,6 +8054,7 @@ def run_external_target_analysis(
             "analysis_succeeded": analysis_succeeded,
             "context_closure_requested": bool(full and include_brief),
             "context_closure_succeeded": context_closure_succeeded,
+            "context_closure_mode": context_closure_mode,
             "external_target_index_succeeded": index_succeeded,
             "surgical_packet_succeeded": surgical_packet_succeeded,
             "command_output": output,

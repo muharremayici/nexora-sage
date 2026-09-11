@@ -9,6 +9,7 @@ from tools.engines.test_impact_matcher import extract_base_name, generate_test_c
 from tools.engines.ui_runtime_contract_analyzer import _smoke_plan, _smoke_route_for_target
 from tools.core.import_classifier import should_enforce_alias_for_local_import
 from tools.core.audit_rules import violates_canonical_alias_boundary
+from tools.core import pipeline_policy
 
 
 def test_ui_smoke_route_requires_explicit_route_evidence() -> None:
@@ -92,6 +93,127 @@ def test_mcp_governance_preserves_safe_sibling_and_barrel_imports():
 
     for result in (sibling, barrel):
         assert "relative_imports_no_alias" not in [item["rule"] for item in result["violations"]]
+
+
+def test_mcp_governance_uses_exact_target_loc_policy(monkeypatch, tmp_path):
+    effective_policy = {
+        "projects": {
+            "MAIN": {
+                "tools": [
+                    {
+                        "id": "biome",
+                        "config_files": [
+                            {
+                                "path": "biome.json",
+                                "sha256": "a" * 64,
+                                "static_projection": {
+                                    "status": "partial_literal_projection",
+                                    "extends_unresolved": False,
+                                    "rules_truncated": False,
+                                    "rules": [
+                                        {
+                                            "id": "complexity/noExcessiveLinesPerFunction",
+                                            "state": "enforced",
+                                            "numeric_options": {"maxLines": 100},
+                                            "scope": {"includes": ["src/**/*.tsx"], "excludes": []},
+                                        }
+                                    ],
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+    monkeypatch.setitem(pipeline_policy.DYNAMIC_CONFIG, "effective_target_policy", effective_policy)
+    monkeypatch.setattr(mcp_governance, "resolve_runtime_projects", lambda _root: {"MAIN": tmp_path})
+    monkeypatch.setattr(
+        mcp_governance,
+        "run_ast_sequencer",
+        lambda *_args, **_kwargs: [
+            {"type": "Component", "name": "Panel", "line": 1, "endLine": 120, "features": []}
+        ],
+    )
+    monkeypatch.setattr(
+        mcp_governance,
+        "load_effective_architecture_policy_context",
+        lambda _raw_dir: ({}, None),
+    )
+
+    result = validate_proposed_patch(
+        "src/Panel.tsx",
+        "export const Panel = () => null;\n",
+        workspace_root=tmp_path,
+    )
+
+    loc_findings = [row for row in result["violations"] if row["rule"] == "loc_limits_component"]
+    assert len(loc_findings) == 1
+    assert loc_findings[0]["limit"] == 100
+    assert (
+        loc_findings[0]["limit_authority"]
+        == "declared_literal_policy_not_native_execution_proof"
+    )
+    assert loc_findings[0]["target_policy_resolution"]["project"] == "MAIN"
+    assert loc_findings[0]["target_policy_resolution"]["file"] == "src/Panel.tsx"
+
+
+def test_mcp_governance_requires_exact_project_policy_for_architecture_rules(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        mcp_governance,
+        "resolve_runtime_projects",
+        lambda root: {"WEB": root},
+    )
+
+    def policy(profile):
+        return {
+            "meta": {"kind": "effective_architecture_policy", "version": "v1"},
+            "invalidation": {"atlas_snapshot_id": "snapshot-a"},
+            "projects": {
+                "WEB": {
+                    "status": "ACTIVE",
+                    "policy_activation_allowed": True,
+                    "recommended_profile": profile,
+                    "feature_flags": {"architecture_sensitive_rules": "enabled"},
+                }
+            },
+        }
+
+    monkeypatch.setattr(
+        mcp_governance,
+        "load_effective_architecture_policy_context",
+        lambda _raw_dir: (policy("NEXTJS_APP_ROUTER"), "snapshot-a"),
+    )
+    next_result = validate_proposed_patch(
+        "src/domain/order.ts",
+        "import { Button } from '@/ui/Button';\nexport const order = Button;\n",
+        workspace_root=tmp_path,
+    )
+
+    monkeypatch.setattr(
+        mcp_governance,
+        "load_effective_architecture_policy_context",
+        lambda _raw_dir: (policy("CLEAN_ARCHITECTURE"), "snapshot-a"),
+    )
+    clean_result = validate_proposed_patch(
+        "src/domain/order.ts",
+        "import { Button } from '@/ui/Button';\nexport const order = Button;\n",
+        workspace_root=tmp_path,
+    )
+
+    self_claimed_next_rules = {row["rule"] for row in next_result["violations"]}
+    clean_rules = {row["rule"] for row in clean_result["violations"]}
+    assert "domain_ui_leaks" not in self_claimed_next_rules
+    assert "domain_ui_leaks" in clean_rules
+    assert next_result["architecture_policy_application"] == {
+        "authority": "effective_architecture_policy_v1",
+        "project": "WEB",
+        "effective_policy_status": "ACTIVE",
+        "recommended_profile": "NEXTJS_APP_ROUTER",
+        "architecture_sensitive_rules_enabled": True,
+        "expected_snapshot_id": "snapshot-a",
+        "observed_snapshot_id": "snapshot-a",
+    }
 
 
 def test_alias_hygiene_does_not_flag_package_subpath_imports():

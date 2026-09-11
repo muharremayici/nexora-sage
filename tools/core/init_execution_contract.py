@@ -45,6 +45,16 @@ def installation_proof_init_mode(level: str) -> str:
     return str(selected)
 
 
+def init_target_state_contract(target_root: str | None = None) -> dict[str, Any]:
+    contract = init_execution_contract()
+    target_modes = contract.get("target_state_modes")
+    key = "explicit_target" if str(target_root or "").strip() else "embedded_default"
+    selected = target_modes.get(key) if isinstance(target_modes, dict) else None
+    if not isinstance(selected, dict):
+        raise ValueError(f"CLI init execution contract has no target state mode '{key}'.")
+    return {"selector": key, **selected}
+
+
 def _local_duration_evidence(mode: dict[str, Any]) -> dict[str, Any]:
     identifier = str(mode.get("telemetry_identifier") or "")
     traces_payload = load_json_file(TELEMETRY_PATH, {})
@@ -74,8 +84,9 @@ def _local_duration_evidence(mode: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_init_preflight(mode: str) -> dict[str, Any]:
+def build_init_preflight(mode: str, *, target_root: str | None = None) -> dict[str, Any]:
     selected = init_mode_contract(mode)
+    target_state = init_target_state_contract(target_root)
     try:
         projects = resolve_runtime_projects(ROOT)
         project_count: int | None = len(projects)
@@ -91,13 +102,14 @@ def build_init_preflight(mode: str) -> dict[str, Any]:
         "project_count": project_count,
         "project_count_basis": project_basis,
         "generated_scope": selected.get("generated_scope"),
+        "target_state": target_state,
         "duration": _local_duration_evidence(selected),
         "operator_guidance": selected.get("operator_guidance"),
     }
 
 
-def render_init_preflight(mode: str) -> list[str]:
-    preflight = build_init_preflight(mode)
+def render_init_preflight(mode: str, *, target_root: str | None = None) -> list[str]:
+    preflight = build_init_preflight(mode, target_root=target_root)
     duration = preflight["duration"]
     project_count = preflight["project_count"]
     project_text = str(project_count) if project_count is not None else "unknown"
@@ -113,6 +125,10 @@ def render_init_preflight(mode: str) -> list[str]:
             f"projects={project_text} project_basis={preflight['project_count_basis']}"
         ),
         f"[INIT PREFLIGHT] expected_duration={duration_text}",
+        (
+            f"[INIT PREFLIGHT] target_state_mode={preflight['target_state']['id']} "
+            f"shared_workspace_truth={str(preflight['target_state']['writes_shared_workspace_truth']).lower()}"
+        ),
         f"[INIT PREFLIGHT] generated_scope={preflight['generated_scope']}",
         f"[INIT PREFLIGHT] guidance={preflight['operator_guidance']}",
     ]

@@ -12,6 +12,7 @@ from tools.core.language_registry import (
     is_config_or_manifest_file,
     language_extensions,
     load_language_registry,
+    manifest_file_marker_map,
     plugins_for_bundler,
     plugins_for_dependencies,
     skip_dirs as registry_skip_dirs,
@@ -23,6 +24,7 @@ from tools.core.installation_identity import (
     runtime_installation_excluded_roots,
 )
 from tools.core.jsonc import loads_jsonc
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 # Directory setup
 # [Architect Protocol] Unified Atomic Paths (Sealed 4.0)
@@ -67,10 +69,11 @@ def normalize_path(path_val) -> str:
 def save_text_atomic(path: Path, content: str, encoding: str = "utf-8"):
     """Write content to a temporary file and atomically rename it to the target path."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    native_parent = native_filesystem_path(path.parent)
+    Path(native_parent).mkdir(parents=True, exist_ok=True)
     
     # Use a custom temp file suffix for visibility
-    temp_fd, temp_name = tempfile.mkstemp(dir=str(path.parent), prefix="cm_tmp_", suffix=".tmp")
+    temp_fd, temp_name = tempfile.mkstemp(dir=native_parent, prefix="cm_tmp_", suffix=".tmp")
     try:
         with os.fdopen(temp_fd, 'w', encoding=encoding) as f:
             f.write(content)
@@ -81,7 +84,10 @@ def save_text_atomic(path: Path, content: str, encoding: str = "utf-8"):
         for attempt in range(6):
             try:
                 # os.replace is atomic on both Unix and Windows.
-                os.replace(temp_name, str(path))
+                os.replace(
+                    native_filesystem_path(temp_name),
+                    native_filesystem_path(path),
+                )
                 last_exc = None
                 break
             except PermissionError as exc:
@@ -92,9 +98,10 @@ def save_text_atomic(path: Path, content: str, encoding: str = "utf-8"):
         if last_exc is not None:
             raise last_exc
     except Exception as write_error:
-        if os.path.exists(temp_name):
+        native_temp = native_filesystem_path(temp_name)
+        if os.path.exists(native_temp):
             try:
-                os.remove(temp_name)
+                os.remove(native_temp)
             except OSError as cleanup_error:
                 write_error.add_note(f"Temporary-file cleanup also failed: {cleanup_error}")
                 raise write_error
@@ -152,8 +159,9 @@ def save_json_atomic(path: Path, data: any, indent: int = 2, bypass_proxy: bool 
                 print("Warning: Failed to record SQLite proxy write fallback telemetry")
             print(f"Warning: SQLite proxy write failed, falling back to JSON: {e}")
             
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_fd, temp_name = tempfile.mkstemp(dir=str(path.parent), prefix="cm_tmp_", suffix=".tmp")
+    native_parent = native_filesystem_path(path.parent)
+    Path(native_parent).mkdir(parents=True, exist_ok=True)
+    temp_fd, temp_name = tempfile.mkstemp(dir=native_parent, prefix="cm_tmp_", suffix=".tmp")
     try:
         with os.fdopen(temp_fd, "w", encoding="utf-8") as stream:
             json.dump(data, stream, indent=indent, ensure_ascii=False)
@@ -161,7 +169,10 @@ def save_json_atomic(path: Path, data: any, indent: int = 2, bypass_proxy: bool 
         last_exc = None
         for attempt in range(6):
             try:
-                os.replace(temp_name, str(path))
+                os.replace(
+                    native_filesystem_path(temp_name),
+                    native_filesystem_path(path),
+                )
                 last_exc = None
                 break
             except PermissionError as exc:
@@ -172,9 +183,10 @@ def save_json_atomic(path: Path, data: any, indent: int = 2, bypass_proxy: bool 
         if last_exc is not None:
             raise last_exc
     except Exception as write_error:
-        if os.path.exists(temp_name):
+        native_temp = native_filesystem_path(temp_name)
+        if os.path.exists(native_temp):
             try:
-                os.remove(temp_name)
+                os.remove(native_temp)
             except OSError as cleanup_error:
                 write_error.add_note(f"Temporary-file cleanup also failed: {cleanup_error}")
                 raise write_error
@@ -365,6 +377,61 @@ def _observe_target_path_aliases(root: Path) -> dict:
     }
 
 
+def _observe_target_path_aliases_from_files(root: Path, relative_files: list[str]) -> dict:
+    """Read alias maps only from config files already found by bounded inventory."""
+    marker_map = config_file_marker_map()
+    patterns = tuple(
+        str(pattern).lower()
+        for pattern in marker_map.get("javascript_typescript", [])
+        if str(pattern).strip()
+    )
+    aliases: set[str] = set()
+    evidence_files: list[str] = []
+    scoped_alias_maps: list[dict] = []
+    resolved_root = root.resolve()
+    for relative_file in sorted(set(str(value).replace("\\", "/") for value in relative_files)):
+        config_path = (resolved_root / relative_file).resolve()
+        try:
+            config_path.relative_to(resolved_root)
+        except ValueError:
+            continue
+        if not config_path.is_file() or not any(
+            fnmatchcase(config_path.name.lower(), pattern) for pattern in patterns
+        ):
+            continue
+        try:
+            data = loads_jsonc(config_path.read_text(encoding="utf-8"))
+            compiler_options = data.get("compilerOptions") or {}
+            paths = compiler_options.get("paths") or {}
+            if not isinstance(paths, dict) or not paths:
+                continue
+            normalized_paths = {
+                str(alias): [str(target) for target in targets]
+                for alias, targets in paths.items()
+                if str(alias).strip() and isinstance(targets, list)
+            }
+            if not normalized_paths:
+                continue
+            aliases.update(normalized_paths)
+            normalized_relative = config_path.relative_to(resolved_root).as_posix()
+            evidence_files.append(normalized_relative)
+            scoped_alias_maps.append(
+                {
+                    "config_file": normalized_relative,
+                    "scope_root": config_path.parent.relative_to(resolved_root).as_posix() or ".",
+                    "base_url": str(compiler_options.get("baseUrl") or "."),
+                    "path_aliases": normalized_paths,
+                }
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            continue
+    return {
+        "aliases": sorted(aliases),
+        "evidence_files": sorted(set(evidence_files)),
+        "scoped_alias_maps": sorted(scoped_alias_maps, key=lambda item: item["config_file"]),
+    }
+
+
 def _infer_target_plugins(root: Path, deps: set[str], bundler: str) -> list[str]:
     plugins: set[str] = set()
     if "typescript" in deps or _target_has_any(root, ("tsconfig.json",)) or _target_has_source_ext(root, (".ts", ".tsx")):
@@ -374,6 +441,37 @@ def _infer_target_plugins(root: Path, deps: set[str], bundler: str) -> list[str]
     plugins.update(plugins_for_bundler(bundler))
     plugins.update(plugins_for_dependencies(deps))
     if _target_has_any(root, ("tailwind.config.js", "tailwind.config.ts", "postcss.config.js", "postcss.config.mjs")):
+        plugins.add("styling")
+    return sorted(plugins)
+
+
+def _infer_target_plugins_from_inventory(
+    deps: set[str],
+    bundler: str,
+    *,
+    language_counts: dict | None = None,
+    config_files: list[str] | None = None,
+) -> list[str]:
+    """Infer plugins from an existing inventory without another source-tree walk."""
+    languages = {
+        str(name).strip().lower()
+        for name, count in (language_counts or {}).items()
+        if int(count or 0) > 0
+    }
+    config_names = {Path(str(path)).name.lower() for path in (config_files or [])}
+    plugins: set[str] = set()
+    if "typescript" in deps or "typescript" in languages or "tsconfig.json" in config_names:
+        plugins.add("typescript")
+    if {"react", "react-dom"} & deps:
+        plugins.update({"react", "ui_react"})
+    plugins.update(plugins_for_bundler(bundler))
+    plugins.update(plugins_for_dependencies(deps))
+    if config_names & {
+        "tailwind.config.js",
+        "tailwind.config.ts",
+        "postcss.config.js",
+        "postcss.config.mjs",
+    }:
         plugins.add("styling")
     return sorted(plugins)
 
@@ -537,6 +635,197 @@ def external_target_repository_topology(
     }
 
 
+def _requested_target_projects_from_environment(
+    source_env: dict[str, str] | None = None,
+) -> list[str]:
+    env = source_env if isinstance(source_env, dict) else os.environ
+    return sorted(
+        {
+            value.strip().upper()
+            for value in str(env.get("CODEMAPS_TARGET_PROJECTS") or "").split(",")
+            if value.strip()
+        }
+    )
+
+
+def load_external_target_preflight_receipt(
+    target_path: Path,
+    *,
+    source_env: dict[str, str] | None = None,
+    require_freshness: bool = False,
+) -> dict | None:
+    """Load only the exact receipt explicitly transported by the launching command."""
+    env = source_env if isinstance(source_env, dict) else os.environ
+    receipt_value = str(env.get("CODEMAPS_TARGET_PREFLIGHT_RECEIPT") or "").strip()
+    if not receipt_value:
+        return None
+    receipt_path = Path(receipt_value).expanduser().resolve()
+    native_receipt_path = Path(native_filesystem_path(receipt_path))
+    expected_hash = str(
+        env.get("CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256") or ""
+    ).strip().lower()
+    if not expected_hash:
+        raise RuntimeError("External target Preflight receipt hash is missing")
+    try:
+        receipt_bytes = native_receipt_path.read_bytes()
+    except OSError as exc:
+        raise RuntimeError(f"External target Preflight receipt is unreadable: {receipt_path}") from exc
+    actual_hash = hashlib.sha256(receipt_bytes).hexdigest()
+    if actual_hash != expected_hash:
+        raise RuntimeError("External target Preflight receipt content identity mismatch")
+    try:
+        receipt = json.loads(receipt_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("External target Preflight receipt is invalid JSON") from exc
+    if not isinstance(receipt, dict) or receipt.get("meta", {}).get("kind") != "external_target_preflight":
+        raise RuntimeError("External target Preflight receipt kind is invalid")
+    run_id = str(receipt.get("meta", {}).get("run_id") or "").strip()
+    if not run_id or receipt_path.name != f"{run_id}.json" or receipt_path.parent.name != "runs":
+        raise RuntimeError("External target Preflight receipt is not an immutable run receipt")
+    receipt_target_value = str(receipt.get("target", {}).get("root") or "").strip()
+    if not receipt_target_value:
+        raise RuntimeError("External target Preflight receipt target identity is missing")
+    receipt_target = Path(receipt_target_value).expanduser().resolve()
+    if receipt_target != target_path.resolve():
+        raise RuntimeError("External target Preflight receipt target identity mismatch")
+    summary = receipt.get("summary") if isinstance(receipt.get("summary"), dict) else {}
+    scope = summary.get("analysis_scope") if isinstance(summary.get("analysis_scope"), dict) else {}
+    receipt_projects = sorted(
+        {
+            str(value).strip().upper()
+            for value in scope.get("requested_project_filter", [])
+            if str(value).strip()
+        }
+    )
+    if receipt_projects != _requested_target_projects_from_environment(env):
+        raise RuntimeError("External target Preflight receipt project-filter identity mismatch")
+    if str(summary.get("status") or "").upper() not in {"PASS", "ATTENTION"}:
+        raise RuntimeError("External target Preflight receipt is not authorized for runtime use")
+    runtime_observation = summary.get("runtime_observation")
+    if not isinstance(runtime_observation, dict):
+        raise RuntimeError("External target Preflight receipt lacks runtime observation")
+    required_scope_fields = {
+        "topology_mode",
+        "discovered_topology",
+        "analysis_projection",
+        "selection_mode",
+        "selected_projects",
+        "selected_project_roles",
+        "project_candidates",
+        "project_candidate_roles",
+        "project_candidate_relationship_roles",
+        "project_candidate_role_authority",
+        "project_candidate_system_kinds",
+        "project_candidate_selection_evidence",
+        "relationship_operation_projects",
+        "coverage_only_projects",
+        "excluded_projects",
+        "excluded_project_reasons",
+        "project_ownership_exclusions",
+        "file_ownership_contract",
+        "relationship_role_contract",
+        "system_kind_contract",
+        "analysis_coverage_contract",
+        "comparative_analysis_enabled",
+        "ontology_contract",
+        "topology_authority_id",
+        "scope_authority",
+    }
+    if not required_scope_fields.issubset(scope):
+        raise RuntimeError("External target Preflight receipt scope projection is incomplete")
+    if not isinstance(summary.get("target_policy"), dict):
+        raise RuntimeError("External target Preflight receipt target policy is missing")
+    required_runtime_fields = {
+        "bundler": str,
+        "plugins": list,
+        "architecture": dict,
+        "path_aliases": dict,
+        "observed_path_aliases": dict,
+    }
+    invalid_runtime_fields = sorted(
+        field
+        for field, expected_type in required_runtime_fields.items()
+        if not isinstance(runtime_observation.get(field), expected_type)
+    )
+    if invalid_runtime_fields:
+        raise RuntimeError(
+            "External target Preflight runtime observation is incomplete: "
+            + ", ".join(invalid_runtime_fields)
+        )
+    observed_aliases = runtime_observation["observed_path_aliases"]
+    if not all(
+        isinstance(observed_aliases.get(field), list)
+        for field in ("aliases", "evidence_files", "scoped_alias_maps")
+    ):
+        raise RuntimeError("External target Preflight alias observation is incomplete")
+    if require_freshness:
+        recorded_identity = summary.get("target_observation_identity")
+        if not isinstance(recorded_identity, dict) or recorded_identity.get("status") != "complete":
+            raise RuntimeError("External target Preflight receipt lacks a complete target observation identity")
+        try:
+            policy = json.loads(
+                (CONFIG_DIR / "external_target_preflight_policy.json").read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError("External target Preflight freshness policy is unavailable") from exc
+        if not isinstance(policy, dict):
+            raise RuntimeError("External target Preflight freshness policy is invalid")
+        from tools.core.target_inventory import target_observation_identity
+
+        config_patterns = sorted(
+            {
+                marker
+                for markers in config_file_marker_map().values()
+                for marker in markers
+            }
+        )
+        current_identity = target_observation_identity(
+            target_path,
+            policy,
+            config_patterns,
+            manifest_file_marker_map(),
+            excluded_roots=runtime_installation_excluded_roots(target_path, CODE_MAPS_DIR),
+        )
+        if current_identity.get("status") != "complete":
+            raise RuntimeError("External target Preflight current target observation is incomplete")
+        if (
+            current_identity.get("algorithm") != recorded_identity.get("algorithm")
+            or current_identity.get("fingerprint") != recorded_identity.get("fingerprint")
+        ):
+            raise RuntimeError("External target Preflight target observation identity is stale")
+    return receipt
+
+
+def _load_external_target_preflight_receipt(target_path: Path) -> dict | None:
+    """Backward-compatible internal entrypoint for ordinary same-process receipt use."""
+
+    return load_external_target_preflight_receipt(target_path)
+
+
+def _fallback_target_policy(target_path: Path, topology: dict) -> dict:
+    """Keep explicit preflight bypass honest without inheriting another target's policy."""
+    from tools.core.target_policy_profile import (
+        aggregate_effective_target_policy,
+        inventory_project_target_policy,
+    )
+
+    project_policies: dict[str, dict] = {}
+    for project, relative_path in sorted(topology["selected_projects"].items()):
+        project_root = target_path if str(relative_path) == "." else target_path / str(relative_path)
+        package_path = project_root / "package.json"
+        project_policies[str(project)] = inventory_project_target_policy(
+            project_root,
+            project=str(project),
+            package_json=_load_package_manifest(project_root),
+            package_path=package_path if package_path.is_file() else None,
+            workspace_root=target_path,
+        )
+    return aggregate_effective_target_policy(
+        project_policies,
+        selected_project_count=len(topology["selected_projects"]),
+    )
+
+
 def _apply_target_root_override(config: dict) -> dict:
     """Apply a per-process external target root without rewriting compiled config."""
     target_root = os.environ.get("CODEMAPS_TARGET_ROOT")
@@ -549,19 +838,64 @@ def _apply_target_root_override(config: dict) -> dict:
     else:
         target_path = target_path.resolve()
 
-    deps = _target_dependency_names(target_path)
-    bundler = _infer_target_bundler(target_path, deps)
-    path_aliases = _infer_target_path_aliases(target_path)
-    observed_path_aliases = _observe_target_path_aliases(target_path)
-    plugins = _infer_target_plugins(target_path, deps, bundler)
-    architecture = _infer_target_architecture(target_path, deps, bundler)
-    scope_projection = external_target_scope_projection(target_path, architecture)
-    if scope_projection.get("status") != "resolved":
-        raise RuntimeError(
-            "External target project scope is invalid: "
-            f"{scope_projection.get('resolution_basis')}"
-        )
-    topology = external_target_repository_topology(target_path, scope_projection)
+    preflight_receipt = _load_external_target_preflight_receipt(target_path)
+    if preflight_receipt is not None:
+        summary = preflight_receipt["summary"]
+        runtime_observation = summary["runtime_observation"]
+        scope_projection = summary["analysis_scope"]
+        topology = {
+            key: scope_projection[key]
+            for key in (
+                "topology_mode",
+                "discovered_topology",
+                "analysis_projection",
+                "selection_mode",
+                "project_candidates",
+                "project_candidate_roles",
+                "project_candidate_relationship_roles",
+                "project_candidate_role_authority",
+                "project_candidate_system_kinds",
+                "project_candidate_selection_evidence",
+                "selected_projects",
+                "selected_project_roles",
+                "relationship_operation_projects",
+                "coverage_only_projects",
+                "excluded_projects",
+                "excluded_project_reasons",
+                "project_ownership_exclusions",
+                "file_ownership_contract",
+                "relationship_role_contract",
+                "system_kind_contract",
+                "analysis_coverage_contract",
+                "comparative_analysis_enabled",
+                "ontology_contract",
+                "topology_authority_id",
+            )
+        }
+        topology["requested_mode"] = topology.pop("topology_mode")
+        bundler = str(runtime_observation.get("bundler") or "unknown")
+        path_aliases = dict(runtime_observation.get("path_aliases") or {})
+        observed_path_aliases = dict(runtime_observation.get("observed_path_aliases") or {})
+        plugins = list(runtime_observation.get("plugins") or [])
+        architecture = dict(runtime_observation.get("architecture") or {})
+        effective_target_policy = summary["target_policy"]
+        observation_source = "external_target_preflight_receipt"
+    else:
+        deps = _target_dependency_names(target_path)
+        bundler = _infer_target_bundler(target_path, deps)
+        path_aliases = _infer_target_path_aliases(target_path)
+        observed_path_aliases = _observe_target_path_aliases(target_path)
+        plugins = _infer_target_plugins(target_path, deps, bundler)
+        architecture = _infer_target_architecture(target_path, deps, bundler)
+        scope_projection = external_target_scope_projection(target_path, architecture)
+        if scope_projection.get("status") != "resolved":
+            raise RuntimeError(
+                "External target project scope is invalid: "
+                f"{scope_projection.get('resolution_basis')}"
+            )
+        topology = external_target_repository_topology(target_path, scope_projection)
+        effective_target_policy = _fallback_target_policy(target_path, topology)
+        observation_source = "runtime_recomputed_fallback"
 
     overridden = dict(config)
     overridden["workspace_root"] = str(target_path)
@@ -577,6 +911,7 @@ def _apply_target_root_override(config: dict) -> dict:
     }
     overridden["plugins"] = plugins
     overridden["architecture"] = architecture
+    overridden["effective_target_policy"] = effective_target_policy
     inherited_audit = config.get("audit", {}) if isinstance(config.get("audit"), dict) else {}
     overridden["audit"] = {
         **inherited_audit,
@@ -594,6 +929,17 @@ def _apply_target_root_override(config: dict) -> dict:
         "target_root": str(target_path),
         "mode": "external_repository",
         "source_mode": "external_target",
+        "observation_source": observation_source,
+        "preflight_run_id": (
+            preflight_receipt.get("meta", {}).get("run_id")
+            if preflight_receipt is not None
+            else None
+        ),
+        "preflight_receipt_sha256": (
+            os.environ.get("CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256")
+            if preflight_receipt is not None
+            else None
+        ),
         "topology_mode": topology["requested_mode"],
         "discovered_topology": topology["discovered_topology"],
         "analysis_projection": topology["analysis_projection"],
@@ -695,9 +1041,26 @@ SRC = _default_source_root()
 DEFAULT_WATCH_PATH = SRC if SRC.exists() else MAIN_PROJECT_ROOT
 
 _TARGET_OUTPUT_ROOT = os.environ.get("CODEMAPS_TARGET_ROOT")
-OUTPUT_DIR = (
+_TARGET_RUN_ID = os.environ.get("CODEMAPS_EXTERNAL_RUN_ID", "").strip()
+_TARGET_BASE_DIR = (
     CODE_MAPS_DIR / "output" / "external_targets" / _target_output_slug(_TARGET_OUTPUT_ROOT)
-    if _TARGET_OUTPUT_ROOT
+    if _TARGET_OUTPUT_ROOT else None
+)
+if _TARGET_BASE_DIR is not None and not _TARGET_RUN_ID and (_TARGET_BASE_DIR / "current.json").is_file():
+    from tools.core.external_target_generation import resolve_current_external_target_generation
+
+    _current_generation, _current_pointer, _current_reason = resolve_current_external_target_generation(
+        _TARGET_BASE_DIR
+    )
+    _TARGET_RUN_ID = (
+        str(_current_pointer.get("run_id") or "")
+        if _current_generation is not None
+        else ".invalid-current"
+    )
+OUTPUT_DIR = (
+    _TARGET_BASE_DIR / "generations" / _TARGET_RUN_ID
+    if _TARGET_BASE_DIR is not None and _TARGET_RUN_ID
+    else _TARGET_BASE_DIR if _TARGET_BASE_DIR is not None
     else CODE_MAPS_DIR / "output"
 )
 RAW_DIR = OUTPUT_DIR / ".raw"

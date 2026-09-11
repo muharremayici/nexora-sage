@@ -11,8 +11,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.capability_registry import capability_ids, load_capability_registry, summarize_capabilities
-from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.config import RAW_DIR, REPORTS_DIR, ROOT as TARGET_ROOT, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
+from tools.core.projects_registry import resolve_runtime_projects
 from tools.engines.capability_activation_planner import build_capability_activation_plan
 
 
@@ -48,6 +49,19 @@ def validate_capability_activation_plan() -> dict[str, Any]:
         if item.get("maturity") == "production_candidate"
         and "language_agnostic" in (item.get("language_scope") or [])
     }
+    architecture_capability = next(
+        (
+            item
+            for item in capability_summary.get("capabilities", [])
+            if isinstance(item, dict) and item.get("id") == "architecture_governance"
+        ),
+        {},
+    )
+    expected_architecture_steps = sorted(
+        str(item)
+        for item in architecture_capability.get("engines", [])
+        if str(item).strip()
+    )
     rows = _activation_rows(payload)
     row_ids = {str(row.get("id")) for row in rows if row.get("id")}
     roadmap_active_claims = [
@@ -68,6 +82,14 @@ def validate_capability_activation_plan() -> dict[str, Any]:
     orchestrator_source = (ROOT / "tools" / "orchestrators" / "orchestrator.py").read_text(encoding="utf-8")
     project_rows = [project for project in payload.get("projects", []) if isinstance(project, dict)]
     project_ids = {str(project.get("project")) for project in project_rows if project.get("project")}
+    expected_project_ids = set(resolve_runtime_projects(TARGET_ROOT))
+    architecture_project_rows = [
+        project.get("architecture_policy")
+        for project in project_rows
+        if isinstance(project.get("architecture_policy"), dict)
+    ]
+    architecture_summary = payload.get("summary", {})
+    architecture_step_policy = architecture_summary.get("architecture_policy_step_policy", {})
 
     checks = [
         _check(
@@ -75,10 +97,14 @@ def validate_capability_activation_plan() -> dict[str, Any]:
             payload.get("meta", {}).get("kind") == "capability_activation_plan"
             and payload.get("summary", {}).get("status") == "PASS"
             and bool(project_rows)
-            and "MAIN" in project_ids
+            and project_ids == expected_project_ids
             and int(payload.get("summary", {}).get("projects") or 0) == len(project_rows)
             and int(payload.get("summary", {}).get("capabilities") or 0) > 0,
-            {"summary": payload.get("summary", {}), "projects": sorted(project_ids)},
+            {
+                "summary": payload.get("summary", {}),
+                "projects": sorted(project_ids),
+                "expected_runtime_projects": sorted(expected_project_ids),
+            },
         ),
         _check(
             "activation_plan_is_scheduler_input",
@@ -100,6 +126,36 @@ def validate_capability_activation_plan() -> dict[str, Any]:
                 "release_bypass": "release-deep",
                 "empty_plan_policy": "preserve_selected_pipeline",
                 "manifest_change_policy": "refresh_before_filter",
+            },
+        ),
+        _check(
+            "activation_plan_binds_exact_snapshot_architecture_policy",
+            len(architecture_project_rows) == len(project_rows)
+            and all(row.get("effective_policy_status") for row in architecture_project_rows)
+            and all("expected_snapshot_id" in row for row in architecture_project_rows)
+            and all("observed_snapshot_id" in row for row in architecture_project_rows)
+            and architecture_summary.get("architecture_policy_contract")
+            == "effective_architecture_policy_project_context_v1"
+            and architecture_summary.get("architecture_policy_context_status")
+            in {"BOUND", "PARTIAL", "UNAVAILABLE"}
+            and "load_effective_architecture_policy_context(RAW_DIR)" in source
+            and "resolve_effective_architecture_project(" in source,
+            {
+                "context_status": architecture_summary.get("architecture_policy_context_status"),
+                "status_counts": architecture_summary.get("architecture_policy_status_counts", {}),
+            },
+        ),
+        _check(
+            "architecture_scheduler_preservation_is_registry_derived",
+            sorted(architecture_step_policy.get("always_preserve_steps", []))
+            == expected_architecture_steps
+            and architecture_step_policy.get("rule_activation_owner")
+            == "exact_project_consumers"
+            and "architecture_policy_step_policy" in orchestrator_source
+            and "architecture_policy_steps" in orchestrator_source,
+            {
+                "expected_steps": expected_architecture_steps,
+                "observed_policy": architecture_step_policy,
             },
         ),
         _check(

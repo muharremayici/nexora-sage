@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from tools.core.analysis_scope_authority import (
     extract_scope_authority,
 )
 from tools.core.analysis_snapshot_lineage import load_atlas_commit, receipt_digest_binding
+from tools.core.logger import logger
 
 
 def _artifact_validation_epoch(raw_dir: Path, name: str) -> float:
@@ -59,7 +61,7 @@ def _sqlite_truth_summary(raw_dir: Path) -> dict[str, Any] | None:
     if not db_path.exists():
         return None
     try:
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             atlas_projects = {
                 str(row["project_key"])
@@ -98,7 +100,11 @@ def _sqlite_truth_summary(raw_dir: Path) -> dict[str, Any] | None:
                     ("audit_report",),
                 ).fetchall()
             }
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "SQLite artifact trust summary unavailable; explicit JSON-shadow checks will apply: %s",
+            type(exc).__name__,
+        )
         return None
     if not atlas_projects or not isinstance(audit_scope, dict):
         return None

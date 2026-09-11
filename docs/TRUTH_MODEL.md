@@ -53,14 +53,10 @@ Examples of structural capabilities currently modeled:
 
 ## 3. Atlas SSOT
 
-In SQLite mode, the operational SSOT is the committed Atlas generation inside
-`output/.raw/codemaps.db`: `state_payloads` carries its identity and either the
-small inline document or a bounded partition manifest, `state_payload_parts`
-carries ordered large-document bytes, and the relational Atlas tables carry the
-same transaction's query projection. `output/.raw/atlas.json` remains the full
-shadow export for human inspection, validator compatibility and disaster
-recovery. `atlas_staging_*` rows are resumable work-in-progress evidence and are
-never current Atlas truth.
+In SQLite mode, the operational SSOT is the `atlas` payload inside
+`output/.raw/codemaps.db` (`state_payloads`). `output/.raw/atlas.json` remains
+the full shadow export for human inspection, validator compatibility and
+disaster recovery.
 
 Atlas is not a third independent truth source. It is the compiled union of:
 
@@ -69,8 +65,7 @@ Atlas is not a third independent truth source. It is the compiled union of:
 
 Atlas is the artifact downstream engines should trust first. Code should reach
 it through `load_json_file(RAW_DIR / "atlas.json", ...)` or `load_atlas_data()`
-so the transparent SQLite proxy can serve and verify the inline or partitioned
-payload from the committed SQLite generation.
+so the transparent SQLite proxy can serve the payload from `state_payloads`.
 If a SQLite row exists, the runtime path must not read the shadow JSON export;
 shadow JSON is reserved for missing-row recovery, SQLite failure recovery,
 debugging and compatibility validation.

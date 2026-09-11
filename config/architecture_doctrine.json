@@ -4,7 +4,7 @@
     "version": "1.1",
     "description": "Compiled Nexora SAGE architecture doctrine from modular doctrine packs",
     "compiled": true,
-    "compiled_at": "2026-08-30T15:11:51+00:00",
+    "compiled_at": "2026-09-10T00:25:24+00:00",
     "compiled_by": "tools/doctrine_compiler.py",
     "compiled_from_manifest": "config/doctrines/manifest.json",
     "compiled_pack_count": 13,
@@ -23,7 +23,7 @@
       "oracle.decision_evidence",
       "reports.master_reports"
     ],
-    "source_fingerprint": "af7346f749dc7e8a7476b2593f3f18438cd42fc213708b1eaffef60b8e667ad1"
+    "source_fingerprint": "cbcc8beac444647ae590d0799d0ba70b2438908972b14d26eed5dd827bf57e6f"
   },
   "low_signal_tokens": [
     "a",
@@ -2228,15 +2228,50 @@
         "label": "Database/framework migration exports discovered by runtime tooling",
         "reason": "contract_registry_migration_surface",
         "path_tokens": [
-          "/migrations/"
+          "/migrations/",
+          "/migration/",
+          "/changelog/"
         ],
         "file_globs": [
           "*.ts",
           "*.tsx",
           "*.js",
-          "*.jsx"
+          "*.jsx",
+          "*.py",
+          "*.java"
         ],
-        "symbol_regex": "^(?:Migration\\d+|Migration[A-Z0-9_].*|.*Migration)$"
+        "symbol_regex": "^(?:Migration\\d+|Migration[A-Z0-9_].*|.*Migration|DatabaseChangelog.*)$",
+        "contract_class": "DB_MIGRATION_SURFACE",
+        "contract_status": "source_grounded_migration_surface",
+        "recommended_action": "retain_migration_history",
+        "mutation_proposed": false
+      },
+      {
+        "id": "worker_entrypoint_contracts",
+        "enabled": true,
+        "label": "Worker entrypoints activated outside the ordinary import graph",
+        "reason": "contract_registry_worker_entrypoint_surface",
+        "path_tokens": [
+          "/workers/",
+          "/worker/"
+        ],
+        "file_globs": [
+          "*.ts",
+          "*.tsx",
+          "*.js",
+          "*.jsx",
+          "*.worker.ts",
+          "*.worker.js"
+        ],
+        "content_markers": [
+          "self.onmessage",
+          "addeventlistener(",
+          "postmessage("
+        ],
+        "contract_class": "WORKER_ENTRYPOINT_CANDIDATE",
+        "contract_status": "runtime_binding_unknown",
+        "recommended_action": "verify_worker_instantiation_or_retain_contract",
+        "mutation_proposed": false
       },
       {
         "id": "workflow_step_contracts",
@@ -2423,14 +2458,52 @@
       "@Module(",
       "@Injectable(",
       "@Controller(",
+      "@Catch(",
       "@Resolver(",
       "@InputType(",
       "@ObjectType(",
       "@ArgsType(",
+      "@ValidatorConstraint(",
+      "@Entity(",
       "@Schema(",
       "@Processor(",
       "@Gateway("
     ],
+    "framework_runtime_contracts": {
+      "python_django": {
+        "languages": [
+          "python"
+        ],
+        "extends_suffixes": [
+          "AppConfig",
+          "Model",
+          "ModelViewSet",
+          "ViewSet",
+          "APIView"
+        ],
+        "content_markers": [
+          "from django.",
+          "import django.",
+          "from rest_framework.",
+          "import rest_framework."
+        ],
+        "contract_status": "runtime_binding_unknown"
+      },
+      "java_spring": {
+        "languages": [
+          "java"
+        ],
+        "annotation_markers": [
+          "@RestController",
+          "@Controller",
+          "@Service",
+          "@Repository",
+          "@Configuration",
+          "@Component"
+        ],
+        "contract_status": "runtime_binding_unknown"
+      }
+    },
     "test_support_heuristics": {
       "path_tokens": [
         "/test/",
@@ -2448,6 +2521,8 @@
         ".spec/"
       ],
       "file_suffixes": [
+        "conftest.py",
+        "_test.go",
         "fixture.ts",
         "fixture.tsx",
         "fixtures.ts",
@@ -2470,6 +2545,16 @@
         ".expected.jsx",
         ".expected.ts",
         ".expected.tsx"
+      ],
+      "file_globs": [
+        "test_*.py",
+        "*_test.py"
+      ],
+      "path_globs": [
+        "bdd/features/environment.py",
+        "features/environment.py",
+        "*/bdd/features/environment.py",
+        "*/features/environment.py"
       ]
     },
     "reference_example_heuristics": {
@@ -2506,7 +2591,23 @@
       "file_suffixes": [
         ".gen.ts",
         ".gen.tsx"
-      ]
+      ],
+      "template_contract": {
+        "file_suffixes": [
+          "-template.ts",
+          "-template.tsx",
+          ".template.ts",
+          ".template.tsx"
+        ],
+        "content_markers": [
+          "__STRIPPED_DURING_INJECTION_",
+          "@generated",
+          "generated code this template",
+          "code generation template",
+          "do not edit manually"
+        ],
+        "evidence_rule": "A template filename alone is insufficient; at least one configured content marker must also be present."
+      }
     },
     "dynamic_registry_heuristics": {
       "markers": [
@@ -2523,6 +2624,18 @@
         "dynamic(",
         "import.meta.glob"
       ]
+    },
+    "runtime_loaded_module_references": {
+      "config_file_globs": [
+        "*.config.js",
+        "*.config.cjs",
+        "*.config.mjs",
+        "*.config.ts"
+      ],
+      "collection_fields": [
+        "plugins"
+      ],
+      "evidence_rule": "Only configured module-loading fields and relative paths that resolve to a physical repository-owned source file seed module reachability. The reference proves module loading, not use of every export."
     }
   },
   "impact_analysis_tuning": {
@@ -3470,6 +3583,120 @@
       "lifecycle-modules"
     ]
   },
+  "discovery_project_system_kind_policy": {
+    "contract": "technical_system_kind_static_inventory_v1",
+    "allowed_kinds": [
+      "application",
+      "library",
+      "service",
+      "tool",
+      "configuration",
+      "documentation",
+      "asset_bundle",
+      "unknown"
+    ],
+    "confidence_precedence": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "kind_precedence": [
+      "documentation",
+      "configuration",
+      "asset_bundle",
+      "tool",
+      "service",
+      "application",
+      "library"
+    ],
+    "same_confidence_conflict_policy": "unknown",
+    "manifest_dependency_sections": [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+      "optionalDependencies"
+    ],
+    "documentation_extensions": [
+      ".md",
+      ".mdx",
+      ".rst",
+      ".adoc"
+    ],
+    "configuration_extensions": [
+      ".json",
+      ".jsonc",
+      ".yaml",
+      ".yml",
+      ".toml",
+      ".ini",
+      ".properties"
+    ],
+    "asset_extensions": [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".svg",
+      ".webp",
+      ".ico",
+      ".woff",
+      ".woff2",
+      ".ttf",
+      ".otf"
+    ],
+    "documentation_dependency_markers": [
+      "@docusaurus/core",
+      "mintlify",
+      "nextra",
+      "vitepress"
+    ],
+    "documentation_script_tokens": [
+      "docusaurus",
+      "mintlify",
+      "nextra",
+      "vitepress"
+    ],
+    "application_dependency_markers": [
+      "next",
+      "react-scripts",
+      "@remix-run/react",
+      "@tanstack/react-start",
+      "expo",
+      "vite"
+    ],
+    "service_dependency_markers": [
+      "@nestjs/core",
+      "express",
+      "fastify",
+      "h3",
+      "hono",
+      "koa"
+    ],
+    "application_dependency_sections": [
+      "dependencies",
+      "devDependencies"
+    ],
+    "service_dependency_sections": [
+      "dependencies",
+      "optionalDependencies"
+    ],
+    "application_script_names": [
+      "dev",
+      "start"
+    ],
+    "tool_manifest_fields": [
+      "bin"
+    ],
+    "library_manifest_fields": [
+      "exports",
+      "main",
+      "module",
+      "types",
+      "typings"
+    ],
+    "dominance_threshold": 0.6,
+    "minimum_dominant_file_count": 1
+  },
   "architecture_oracle_policy": {
     "blueprint_markers": {
       "fsd_ranks": {
@@ -3531,6 +3758,12 @@
         "loading.tsx",
         "error.tsx",
         "template.tsx"
+      ],
+      "next_config_filenames": [
+        "next.config.js",
+        "next.config.mjs",
+        "next.config.cjs",
+        "next.config.ts"
       ]
     },
     "fsd_weights": {
@@ -3605,6 +3838,36 @@
       "non_sealable_profiles": [
         "MODULAR_FLAT"
       ]
+    },
+    "repository_composition": {
+      "contract": "repository_composition_blueprint_v1",
+      "minimum_multi_project_count": 2,
+      "allowed_models": [
+        "homogeneous_workspace",
+        "heterogeneous_workspace",
+        "mixed_evidence_workspace"
+      ],
+      "allowed_relationship_models": [
+        "host_with_related_projects",
+        "multi_root_workspace",
+        "unresolved_relationships"
+      ],
+      "host_role": "host",
+      "related_roles": [
+        "companion",
+        "variant"
+      ],
+      "unresolved_role_values": [
+        "",
+        "unknown",
+        "unresolved"
+      ],
+      "complete_scope_status": "COMPLETE_REPOSITORY",
+      "bounded_scope_status": "BOUNDED_PROJECT_SELECTION",
+      "incomplete_scope_status": "INCOMPLETE_EVIDENCE",
+      "unknown_system_kind": "unknown",
+      "insufficient_project_status": "INSUFFICIENT_SOURCE_EVIDENCE",
+      "seal_proposal_status": "NOT_PROPOSED"
     }
   },
   "decision_evidence_doctrine": {

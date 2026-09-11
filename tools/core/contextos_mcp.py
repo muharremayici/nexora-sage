@@ -868,6 +868,10 @@ def build_surgical_operation_packet(
     execution_modes = execution_contract.get("execution_modes", {}) if isinstance(execution_contract, dict) else {}
     engine_signal_contract = load_json_file(packet_raw_dir / "engine_signal_contract_validation.json", {})
     architecture_oracle = load_json_file(packet_raw_dir / "architecture_oracle.json", {})
+    effective_architecture_policy = load_json_file(
+        packet_raw_dir / "effective_architecture_policy.json",
+        {},
+    )
     approval_ledger = load_json_file(packet_raw_dir / "hitl_approval_ledger.json", {})
     signal_summary = engine_signal_contract.get("summary", {}) if isinstance(engine_signal_contract, dict) else {}
     signal_contracts = [
@@ -895,6 +899,7 @@ def build_surgical_operation_packet(
         "architecture_governance_context": architecture_governance_context(
             architecture_oracle,
             approval_ledger,
+            effective_architecture_policy,
             max_projects=3,
             project_ids=active_projects or None,
         ),

@@ -30,6 +30,17 @@ def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
 
 
+def _proof_surface_keeps_canonical_claim_guard(proof_source: str, proof_contract_source: str) -> dict[str, bool]:
+    """Verify the proof projects the claim through the canonical identity matcher."""
+    proof_surface = proof_source + "\n" + proof_contract_source
+    return {
+        "claim_guard_status_projected": "claim_guard_ready" in proof_surface,
+        "scoped_react_status_projected": "scoped_react_ready" in proof_surface,
+        "canonical_claim_matcher_used": "matches_current_release_claim(allowed_claim)" in proof_source,
+        "observed_claim_projected": '"allowed_release_claim": allowed_claim' in proof_source,
+    }
+
+
 def run_validation() -> dict[str, Any]:
     release_path = ROOT / "tools" / "engines" / "release_readiness_report.py"
     proof_path = ROOT / "tools" / "run_release_proof_bundle.py"
@@ -43,7 +54,6 @@ def run_validation() -> dict[str, Any]:
     release_source = _read(release_path)
     proof_source = _read(proof_path)
     proof_contract_source = _read(proof_contract_path)
-    proof_surface = proof_source + "\n" + proof_contract_source
     proof_command_names = load_release_proof_command_names()
     brief_source = _read(brief_path)
     operator_source = _read(operator_packet_path)
@@ -51,6 +61,10 @@ def run_validation() -> dict[str, Any]:
     release_doc = _read(release_doc_path)
     release_doc_plain = release_doc.replace("`", "")
     skill_source = _read(skill_path)
+    claim_guard_projection = _proof_surface_keeps_canonical_claim_guard(
+        proof_source,
+        proof_contract_source,
+    )
 
     checks = [
         _check(
@@ -82,10 +96,12 @@ def run_validation() -> dict[str, Any]:
         ),
         _check(
             "release_proof_bundle_keeps_claim_guard_in_status",
-            "claim_guard_ready" in proof_surface
-            and "scoped_react_ready" in proof_surface
-            and "matches_current_release_claim(allowed_claim)" in proof_source,
-            str(proof_path.relative_to(ROOT)),
+            all(claim_guard_projection.values()),
+            {
+                "source": str(proof_path.relative_to(ROOT)),
+                "contract": str(proof_contract_path.relative_to(ROOT)),
+                **claim_guard_projection,
+            },
         ),
         _check(
             "brief_projects_release_and_attention_to_agents",

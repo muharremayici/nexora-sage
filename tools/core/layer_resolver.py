@@ -2,6 +2,18 @@ import os
 from pathlib import Path
 from tools.core.config import DOCTRINE
 
+
+def _path_fragment_matches(rel_path: str, fragment: str) -> bool:
+    path_parts = [part for part in str(rel_path or "").replace("\\", "/").lower().split("/") if part]
+    fragment_parts = [part for part in str(fragment or "").replace("\\", "/").lower().split("/") if part]
+    if not fragment_parts or len(fragment_parts) > len(path_parts):
+        return False
+    return any(
+        path_parts[index:index + len(fragment_parts)] == fragment_parts
+        for index in range(len(path_parts) - len(fragment_parts) + 1)
+    )
+
+
 def resolve_layer(rel_path: str) -> str:
     """
     Identifies the hexagonal layer of a file based on its relative path 
@@ -16,13 +28,13 @@ def resolve_layer(rel_path: str) -> str:
         conditions = rule.get("conditions", {})
         path_fragments = conditions.get("path_fragments", [])
         
-        if any(frag.lower() in norm_path for frag in path_fragments):
+        if any(_path_fragment_matches(norm_path, frag) for frag in path_fragments):
             return layer_name
             
     # Priority 2: Doctrine-driven Generic Path Hints
     hints = DOCTRINE.get("architectural_integrity_rules", {}).get("layer_identification_hints", [])
     for hint in hints:
-        if hint.get("fragment", "").lower() in norm_path:
+        if _path_fragment_matches(norm_path, hint.get("fragment", "")):
             return hint.get("layer")
     
     return "unknown"

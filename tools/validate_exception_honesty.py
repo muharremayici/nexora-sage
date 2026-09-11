@@ -248,6 +248,7 @@ def validate_exception_honesty() -> dict:
     scan_roots = [CODE_MAPS_DIR / item for item in _string_set(validation_contract.get("scan_roots"))]
     observable_call_names = _string_set(validation_contract.get("observable_call_names"))
     observable_return_keys = _string_set(validation_contract.get("observable_return_keys"))
+    generic_blocking_scope = str(validation_contract.get("generic_blocking_scope") or "")
     contract_errors = []
     if not scan_roots:
         contract_errors.append("missing_scan_roots")
@@ -255,7 +256,8 @@ def validate_exception_honesty() -> dict:
         contract_errors.append("missing_observable_call_names")
     if not observable_return_keys:
         contract_errors.append("missing_observable_return_keys")
-    critical = {str(item) for item in policy.get("critical_files", []) or []}
+    if generic_blocking_scope != "all_scan_roots":
+        contract_errors.append("generic_blocking_scope_must_cover_all_scan_roots")
     legacy_policy_fields_present = sorted(LEGACY_POLICY_FIELDS & set(policy))
     if legacy_policy_fields_present:
         contract_errors.append("legacy_quiet_handler_policy_fields_present")
@@ -276,7 +278,19 @@ def validate_exception_honesty() -> dict:
                 text = path.read_text(encoding="utf-8", errors="replace")
                 tree = ast.parse(text, filename=rel)
             except SyntaxError as exc:
-                findings.append({"file": rel, "line": exc.lineno or 0, "status": "syntax_error", "critical": rel in critical})
+                line = int(exc.lineno or 0)
+                contract_errors.append(f"syntax_error:{rel}:{line}")
+                findings.append(
+                    {
+                        "file": rel,
+                        "line": line,
+                        "function": "<module>",
+                        "status": "syntax_error",
+                        "generic_exception": False,
+                        "pass_only": False,
+                        "semantic_identity": None,
+                    }
+                )
                 continue
             for handler, function_name, try_context_fingerprint in _iter_exception_handlers(tree):
                 semantic_identity = _semantic_handler_identity(rel, function_name, handler, try_context_fingerprint)
@@ -293,13 +307,16 @@ def validate_exception_honesty() -> dict:
                         "line": int(handler.lineno or 0),
                         "function": function_name,
                         "status": status,
-                        "critical": rel in critical,
                         "generic_exception": _is_generic_exception(handler),
                         "pass_only": _is_pass_only(handler),
                         "semantic_identity": semantic_identity,
                     }
                 )
-    blocking = [item for item in findings if item["critical"] and item["status"] == "unobserved" and item["generic_exception"]]
+    blocking = [
+        item
+        for item in findings
+        if item["status"] == "unobserved" and item["generic_exception"]
+    ]
     blocking_pass_only = [item for item in findings if item["pass_only"] and item["status"] == "unobserved"]
     unmatched_semantic_policy = sorted(
         key for key in semantic_policy_keys if semantic_policy_matches.get(key, 0) != 1
@@ -317,6 +334,7 @@ def validate_exception_honesty() -> dict:
             "status": "PASS" if not blocking and not blocking_pass_only and not contract_errors else "FAIL",
             "contract_errors": contract_errors,
             "scan_roots": len(scan_roots),
+            "generic_blocking_scope": generic_blocking_scope,
             "handlers": len(findings),
             "observed": sum(1 for item in findings if item["status"] == "observed"),
             "allowed_quiet": sum(1 for item in findings if item["status"] == "allowed_quiet"),

@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
 from tools.core.config import RAW_DIR, REPORTS_DIR, ROOT as ANALYZED_REPOSITORY_ROOT, save_json_atomic, save_text_atomic
 from tools.core.contextos_mcp import build_surgical_operation_packet
 from tools.core.json_io import load_json_file
-from tools.core.release_identity import matches_current_release_claim
 from tools.core.audit_rules import build_rule_taxonomy
 from tools.core.agent_surface_seal_contract import (
     load_agent_surface_seal_contract,
@@ -60,6 +59,31 @@ def _expected_representative_family_count() -> int:
         if str(name).strip()
     }
     return len(expected)
+
+
+def _search_scope_project_coverage(
+    default_search_rows: list[Any],
+    all_project_search_rows: list[Any],
+) -> dict[str, Any]:
+    """The all-project view may equal a single-project default, but may not omit it."""
+    default_projects = {
+        str(row.get("project") or "")
+        for row in default_search_rows
+        if isinstance(row, dict) and str(row.get("project") or "").strip()
+    }
+    all_projects = {
+        str(row.get("project") or "")
+        for row in all_project_search_rows
+        if isinstance(row, dict) and str(row.get("project") or "").strip()
+    }
+    missing_default_projects = sorted(default_projects - all_projects)
+    return {
+        "default_projects": sorted(default_projects),
+        "all_projects": sorted(all_projects),
+        "default_scope_observed": bool(default_projects),
+        "all_scope_preserves_default_projects": not missing_default_projects,
+        "missing_default_projects": missing_default_projects,
+    }
 
 
 def _semantic_scenario_registry() -> dict[str, dict[str, str]]:
@@ -722,25 +746,27 @@ def _search_and_inspection_grounding_report() -> dict[str, Any]:
     if not (root / first_file).exists():
         issues.append({"issue": "search_first_result_not_openable", "first_file": first_file})
 
-    default_projects = {
-        str(row.get("project") or "")
-        for row in default_search_rows
-        if isinstance(row, dict)
-    }
+    search_scope_coverage = _search_scope_project_coverage(
+        default_search_rows if isinstance(default_search_rows, list) else [],
+        all_project_search_rows if isinstance(all_project_search_rows, list) else [],
+    )
+    default_projects = set(search_scope_coverage["default_projects"])
     default_non_main = sorted(project for project in default_projects if project and project.upper() != "MAIN")
     if default_non_main:
         issues.append({"issue": "search_symbols_default_leaks_variation_projects", "projects": default_non_main[:10]})
-    all_projects = {
-        str(row.get("project") or "")
-        for row in all_project_search_rows
-        if isinstance(row, dict)
-    }
-    if not default_projects or "" in all_projects or not default_projects.issubset(all_projects):
+    all_projects = set(search_scope_coverage["all_projects"])
+    if not search_scope_coverage["default_scope_observed"]:
         issues.append(
             {
-                "issue": "search_symbols_all_scope_missing_default_or_unscoped_results",
-                "default_projects": sorted(default_projects),
-                "all_projects": sorted(all_projects),
+                "issue": "search_symbols_default_scope_not_observed",
+                **search_scope_coverage,
+            }
+        )
+    elif not search_scope_coverage["all_scope_preserves_default_projects"]:
+        issues.append(
+            {
+                "issue": "search_symbols_all_scope_omits_default_projects",
+                **search_scope_coverage,
             }
         )
 
@@ -1180,11 +1206,32 @@ def _scenario_dead_code_summary(work_queue: dict[str, Any], root: Path, raw_dir:
         "dead_code:path=src:max_items=1:json",
         lambda: mcp_server.get_dead_code(path="src", max_items=1, format="json"),
     )
+    brief = _cached_mcp_text("dead_code:path=src:max_items=1:brief", lambda: mcp_server.get_dead_code(path="src", max_items=1))
+    if dead == []:
+        expectations = {
+            "brief_status": _brief_has_scalar(brief, "status", "no_actionable_items"),
+            "brief_filter": _brief_has_scalar(brief, "filter", "src"),
+            "no_action": _brief_has_scalar(brief, "actionability", "no_action"),
+            "candidate_evidence_fields_non_applicable": all(
+                _brief_has_scalar(brief, field, "not_applicable_without_candidate")
+                for field in ("file_imported", "symbol_seen_globally", "local_symbol_usage")
+            ),
+            "bounded_absence_claim": "no_candidate_in_filtered_sage_artifact_not_repository_clean" in brief,
+            "mutation_not_inferred": "Do not edit from this summary alone." in brief,
+        }
+        return {
+            "ok": all(expectations.values()),
+            "mode": "no_actionable_items",
+            "source_file": "",
+            "target_file": "",
+            "target_ref": "",
+            "target_status": {},
+            "expectations": expectations,
+        }
     item = dead[0] if isinstance(dead, list) and dead else {}
     project = str(item.get("project") or "")
     source_file = str(item.get("file") or item.get("path") or "").replace("\\", "/").strip("/")
     target = mcp_server._target_context_from_project_file(raw_dir, project, source_file)
-    brief = _cached_mcp_text("dead_code:path=src:max_items=1:brief", lambda: mcp_server.get_dead_code(path="src", max_items=1))
     target_file = str(target.get("target_file") or "").replace("\\", "/").strip("/")
     target_status = target.get("target_status") if isinstance(target.get("target_status"), dict) else {}
     ok = bool(target_file and target_status.get("exists") and (root / target_file).exists())
@@ -1597,6 +1644,12 @@ def validate_agent_semantic_contract_smoke() -> dict[str, Any]:
     contextos_contract = config_contracts.get("contextos", {})
     architecture_contract = config_contracts.get("architecture_governance", {})
     release_contract = config_contracts.get("release_proof", {})
+    release_identity = load_json_file(ROOT / "config" / "release_identity.json", {})
+    allowed_release_claim = str(
+        ((release_identity.get("release_claim") or {}).get("allowed") or "")
+        if isinstance(release_identity, dict)
+        else ""
+    )
 
     approval_gates = operator_packet.get("active_human_approval_gates", [])
     architecture_gate = [
@@ -1666,7 +1719,9 @@ def validate_agent_semantic_contract_smoke() -> dict[str, Any]:
             and (claim_guard.get("summary") or {}).get("status") == "PASS"
             and release_contract.get("emits") == "verdict"
             and release_contract.get("quality_gate_effect") == "block"
-            and matches_current_release_claim((claim_guard.get("summary") or {}).get("allowed_claim")),
+            and (claim_guard.get("summary") or {}).get("allowed_claim")
+            == allowed_release_claim
+            and bool(allowed_release_claim),
             {
                 "release_readiness": {
                     "readiness": release_readiness.get("readiness") if isinstance(release_readiness, dict) else None,
@@ -1681,6 +1736,7 @@ def validate_agent_semantic_contract_smoke() -> dict[str, Any]:
                     "summary": release_bundle_summary,
                     "freshness": "historical_not_used_for_current_semantic_verdict",
                 },
+                "release_identity_allowed_claim": allowed_release_claim,
                 "contract": release_contract,
             },
         ),

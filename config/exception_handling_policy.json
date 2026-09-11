@@ -1,11 +1,12 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "principles": {
-    "critical_rule": "critical pipeline layers must not silently suppress generic exceptions without logging or honesty telemetry",
+    "critical_rule": "every generic exception handler in the declared production scan roots must be observable or bound to one exact semantic quiet-fallback identity",
     "optional_rule": "optional dependency and console encoding fallbacks may remain quiet when they do not change analysis claims",
     "claim_rule": "fallbacks that can change analysis completeness must emit honesty telemetry"
   },
   "validation_contract": {
+    "generic_blocking_scope": "all_scan_roots",
     "scan_roots": [
       "tools/engines",
       "tools/orchestrators",
@@ -16,6 +17,8 @@
       "_record_raw_artifact_fallback",
       "_record_store_degradation",
       "_record_store_freshness_event",
+      "_record_snapshot_fallback",
+      "send_response",
       "log",
       "print"
     ],
@@ -27,18 +30,6 @@
       "recommended_action"
     ]
   },
-  "critical_files": [
-    "tools/core/artifact_store.py",
-    "tools/core/json_io.py",
-    "tools/core/config.py",
-    "tools/orchestrators/watchdog.py",
-    "tools/orchestrators/orchestrator.py",
-    "tools/orchestrators/discovery.py",
-    "tools/engines/generate_atlas.py",
-    "tools/engines/nuclear_processor.py",
-    "tools/engines/fractal_mapper.py",
-    "tools/engines/validation_oracle.py"
-  ],
   "allowed_quiet_categories": [
     "optional_console_encoding",
     "optional_import_fallback",
@@ -80,7 +71,7 @@
       "exception_type": "PermissionError",
       "pass_only": false,
       "body_fingerprint": "17d1261c7a0c9edc",
-      "try_context_fingerprint": "bd6afc85f5c3033e",
+      "try_context_fingerprint": "932b643a98a84ba9",
       "purpose": "Atomic write retries a bounded number of lock conflicts before raising the captured error."
     },
     {
@@ -208,15 +199,6 @@
       "body_fingerprint": "ba591152bc191be6",
       "try_context_fingerprint": "b6debbf4b29c5030",
       "purpose": "Best-effort stream flush occurs after subprocess result and timeout evidence have been captured."
-    },
-    {
-      "file": "tools/engines/audit.py",
-      "function": "analyze_project",
-      "exception_type": "(KeyError, TypeError, ValueError)",
-      "pass_only": true,
-      "body_fingerprint": "ba591152bc191be6",
-      "try_context_fingerprint": "86713ddc341d7019",
-      "purpose": "Malformed optional finding metadata skips only that derived audit metric."
     },
     {
       "file": "tools/engines/clone_detector.py",
@@ -370,6 +352,177 @@
       "body_fingerprint": "ba591152bc191be6",
       "try_context_fingerprint": "3387113b3c3a4dfc",
       "purpose": "Display-only path shortening falls back to the normalized original label."
+    },
+    {
+      "file": "tools/core/artifact_trust.py",
+      "function": "_json_extract",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "c7e31fa01f15d7c2",
+      "try_context_fingerprint": "ea024ca76ed17f7f",
+      "purpose": "SQLite JSON scalar decoding preserves the original stored value when it is not valid embedded JSON."
+    },
+    {
+      "file": "tools/core/artifact_trust.py",
+      "function": "_artifact_fact",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "c7e31fa01f15d7c2",
+      "try_context_fingerprint": "ea024ca76ed17f7f",
+      "purpose": "Artifact fact decoding preserves the original stored scalar when it is not valid embedded JSON."
+    },
+    {
+      "file": "tools/core/bootstrap_env.py",
+      "function": "_installation_duration_guidance",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "b26fa8d16bb94149",
+      "try_context_fingerprint": "e500128f834111f5",
+      "purpose": "Advisory installation timing returns an explicit unknown basis and exception type without changing installation execution."
+    },
+    {
+      "file": "tools/core/contextos_mcp.py",
+      "function": "safe_signal_body",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "55ee2940d91fc33b",
+      "try_context_fingerprint": "8417ef5d6f8d6267",
+      "purpose": "ContextOS returns an explicit file-read error body instead of source content or a false successful read."
+    },
+    {
+      "file": "tools/core/external_target_retention.py",
+      "function": "_load_retention_target",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "5760edb1d05d94ae",
+      "try_context_fingerprint": "7b24bbcef46227ef",
+      "purpose": "Unreadable cleanup policy disables generated-fixture deletion by returning no retention target."
+    },
+    {
+      "file": "tools/core/heartbeat_cadence.py",
+      "function": "record_execution_duration",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "eaae074bfdf3e8f5",
+      "try_context_fingerprint": "23d30f2e8182054e",
+      "purpose": "Advisory local timing telemetry cannot fail or change the operation being observed."
+    },
+    {
+      "file": "tools/core/init_execution_contract.py",
+      "function": "build_init_preflight",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "5fd6b422808f58a0",
+      "try_context_fingerprint": "13597c6d165a4e84",
+      "purpose": "Project inventory failure is returned as an explicit unavailable project-count basis."
+    },
+    {
+      "file": "tools/core/installation_preflight.py",
+      "function": "_module_target_available",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "11b6d7b81fcbac53",
+      "try_context_fingerprint": "5f991daf185443ee",
+      "purpose": "Dependency capability probing returns false when importing the requested module target fails."
+    },
+    {
+      "file": "tools/core/pipeline_run_receipts.py",
+      "function": "_process_alive",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "29ba67ed4d919132",
+      "try_context_fingerprint": "8e022892614ea5df",
+      "purpose": "Windows process liveness probing returns explicit unknown when the operating-system query cannot be completed."
+    },
+    {
+      "file": "tools/core/source_snapshot_reader.py",
+      "function": "add",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "6e7786123d0079b1",
+      "try_context_fingerprint": "0ae6b05c32c54702",
+      "purpose": "Candidate path normalization preserves the original candidate when resolution is unavailable."
+    },
+    {
+      "file": "tools/core/subprocess_telemetry.py",
+      "function": "terminate_process_tree",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "cb07ee4fb798e4b6",
+      "try_context_fingerprint": "27c69746451c0370",
+      "purpose": "POSIX process-group cleanup falls back to killing the owned parent process."
+    },
+    {
+      "file": "tools/core/text_normalizer.py",
+      "function": "repair_text",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "ceeb1ad03572550e",
+      "try_context_fingerprint": "e0c309a5662f4e08",
+      "purpose": "Text repair skips only an inapplicable encoding candidate while retaining the original candidate."
+    },
+    {
+      "file": "tools/engines/ast_sequencer_python.py",
+      "function": "_annotation_text",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "b6840403883b084b",
+      "try_context_fingerprint": "7b7fdf4e90fcee41",
+      "purpose": "Python annotation rendering falls back from unparse to the lossless AST dump representation."
+    },
+    {
+      "file": "tools/engines/dashboard.py",
+      "function": "load_json",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "29ba67ed4d919132",
+      "try_context_fingerprint": "c12c5741f7e4c0be",
+      "purpose": "Interactive dashboard treats an unavailable optional panel artifact as absent rather than as successful analysis evidence."
+    },
+    {
+      "file": "tools/engines/keyword_scanner.py",
+      "function": "_state_payload_sha",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "173960b171dae392",
+      "try_context_fingerprint": "14c7f1587e626a31",
+      "purpose": "Unavailable SQLite payload hash forces the scanner to compute the hash from the loaded payload."
+    },
+    {
+      "file": "tools/engines/project_dna_profiler.py",
+      "function": "_rel",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "5370b684d9f4b6be",
+      "try_context_fingerprint": "bfe30a86c602f3e1",
+      "purpose": "Project DNA path labeling falls back from Code Maps relative identity to repository relative identity."
+    },
+    {
+      "file": "tools/engines/project_dna_profiler.py",
+      "function": "_rel",
+      "exception_type": "Exception",
+      "pass_only": false,
+      "body_fingerprint": "a426310b65e5015b",
+      "try_context_fingerprint": "889fbbf45d713d37",
+      "purpose": "Project DNA path labeling preserves the normalized path when neither managed root contains it."
+    },
+    {
+      "file": "tools/core/node_ast_worker.py",
+      "function": "_stop",
+      "exception_type": "(BrokenPipeError, OSError)",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "6da15d6eca9772db",
+      "purpose": "Worker shutdown ignores only an already-closed or broken stdin after process ownership has been detached."
+    },
+    {
+      "file": "tools/core/node_ast_worker.py",
+      "function": "_stop",
+      "exception_type": "subprocess.TimeoutExpired",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "67bcd44ddf2b214f",
+      "purpose": "Bounded worker cleanup returns after a second timeout because the owned process tree has already received forced termination."
     }
   ]
 }

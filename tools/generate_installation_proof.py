@@ -13,7 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.config import (
+    RAW_DIR,
+    REPORTS_DIR,
+    _target_output_slug,
+    save_json_atomic,
+    save_text_atomic,
+)
 from tools.core.init_execution_contract import init_mode_contract, installation_proof_init_mode
 from tools.core.installation_authority import resolve_installation_authority_profile
 from tools.core.operational_limits import install_proof_step_timeout_seconds
@@ -72,11 +78,21 @@ def _safe_env() -> dict[str, str]:
     return python_subprocess_env(env, code_maps_dir=ROOT, vendor_paths=[])
 
 
-def _step(step_id: str, label: str, command: list[str], *, timeout: int) -> dict[str, Any]:
+def _step(
+    step_id: str,
+    label: str,
+    command: list[str],
+    *,
+    timeout: int,
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    runtime_env = _safe_env()
+    if isinstance(env, dict):
+        runtime_env.update(env)
     result, duration = run_observed_subprocess(
         command,
         cwd=ROOT,
-        env=_safe_env(),
+        env=runtime_env,
         label=step_id,
         timeout=timeout,
         log=lambda message: print(f"[install-proof] {message}", flush=True),
@@ -91,6 +107,30 @@ def _step(step_id: str, label: str, command: list[str], *, timeout: int) -> dict
         "duration_seconds": duration,
         "output_excerpt": _bounded_output_excerpt(output),
     }
+
+
+def _installation_preflight_reuse_transport(target_root: str | Path) -> dict[str, str]:
+    from tools.external_target_preflight import preflight_receipt_transport
+
+    target = Path(target_root).expanduser()
+    target = (Path.cwd() / target).resolve() if not target.is_absolute() else target.resolve()
+    latest_path = (
+        ROOT
+        / "output"
+        / "external_targets"
+        / _target_output_slug(str(target))
+        / ".raw"
+        / "external_target_preflight.json"
+    )
+    try:
+        payload = json.loads(latest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"init did not leave a readable external target Preflight projection: {latest_path}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("init external target Preflight projection is not an object")
+    return preflight_receipt_transport(payload)
 
 
 def _installation_proof_authority(
@@ -165,6 +205,8 @@ def _commands_for_level(
             init_command.append("--skip-deps")
         if target_root:
             init_command.extend(["--target-root", str(target_root)])
+        if projects:
+            init_command.extend(["--projects", str(projects)])
         steps.insert(
             0,
             {
@@ -226,6 +268,11 @@ def build_installation_proof(
         public_distribution=public_distribution
     )
     steps = []
+    step_env: dict[str, str] = {}
+    preflight_reuse: dict[str, Any] = {
+        "status": "NOT_APPLICABLE",
+        "basis": "installation_proof_has_no_explicit_target_init",
+    }
     for spec in _commands_for_level(
         level,
         skip_deps=skip_deps,
@@ -235,11 +282,63 @@ def build_installation_proof(
         public_distribution=public_distribution,
     ):
         print(f"[install-proof] START {spec['label']}", flush=True)
-        row = _step(spec["id"], spec["label"], spec["command"], timeout=int(spec["timeout"]))
+        row = _step(
+            spec["id"],
+            spec["label"],
+            spec["command"],
+            timeout=int(spec["timeout"]),
+            env=step_env if spec["id"] == "daily_run" else None,
+        )
         print(f"[install-proof] {'PASS' if row['passed'] else 'FAIL'} {spec['label']} ({row['duration_seconds']}s)", flush=True)
         steps.append(row)
+        if spec["id"] == "daily_run" and preflight_reuse.get("status") == "TRANSPORT_BOUND":
+            preflight_reuse = {
+                **preflight_reuse,
+                "status": "VERIFIED_REUSE" if row["passed"] else "REUSE_NOT_PROVEN",
+                "basis": (
+                    "daily_run_accepted_fresh_receipt_and_completed"
+                    if row["passed"]
+                    else "daily_run_failed_before_receipt_reuse_could_be_proven"
+                ),
+            }
         if not row["passed"]:
             break
+        if spec["id"] == "init" and target_root:
+            try:
+                transport = _installation_preflight_reuse_transport(target_root)
+                step_env.update(
+                    {
+                        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT": transport["path"],
+                        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256": transport["sha256"],
+                        "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE": "installation_proof",
+                    }
+                )
+                if projects:
+                    step_env["CODEMAPS_TARGET_PROJECTS"] = str(projects)
+                preflight_reuse = {
+                    "status": "TRANSPORT_BOUND",
+                    "basis": "init_receipt_transport_with_deferred_target_freshness_check",
+                    "source_run_id": transport["run_id"],
+                    "source_sha256": transport["sha256"],
+                }
+            except Exception as exc:
+                preflight_reuse = {
+                    "status": "FAILED",
+                    "basis": "init_receipt_transport_unavailable",
+                    "error": f"{type(exc).__name__}:{exc}",
+                }
+                steps.append(
+                    {
+                        "id": "preflight_receipt_reuse",
+                        "label": "Bind init Preflight receipt for daily run",
+                        "command": [],
+                        "passed": False,
+                        "returncode": 2,
+                        "duration_seconds": 0.0,
+                        "output_excerpt": preflight_reuse["error"],
+                    }
+                )
+                break
     status = "PASS" if steps and all(row.get("passed") for row in steps) else "FAIL"
     return {
         "meta": {
@@ -272,6 +371,7 @@ def build_installation_proof(
             "does_not_prove": "target_repository_governance_pass_or_public_release_authority",
             "target_governance_is_separate": True,
         },
+        "preflight_reuse": preflight_reuse,
         "steps": steps,
         "interpretation": [
             "This proof validates that the local SAGE installation can render setup, health, MCP, target analysis, and installed-distribution evidence on this machine.",
@@ -300,6 +400,7 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- target_governance: `{summary.get('target_governance')}`",
         f"- authority_profile: `{summary.get('authority_profile')}`",
         f"- omitted_maintainer_steps: `{', '.join(summary.get('omitted_maintainer_steps', [])) or 'none'}`",
+        f"- preflight_reuse: `{payload.get('preflight_reuse', {}).get('status')}`",
         "",
         "## Steps",
         "",

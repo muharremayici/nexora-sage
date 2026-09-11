@@ -1,10 +1,13 @@
 import argparse
+import json
 import subprocess
+from pathlib import Path
 from unittest.mock import Mock
 
 import codemaps
-from tools import generate_installation_proof
-from tools.core import bootstrap_env, init_execution_contract
+from tools import external_target_preflight, generate_installation_proof
+from tools.core import bootstrap_env, config as core_config, init_execution_contract
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 from tools.governance_sync import _workspace_scoped_override_seed
 
 
@@ -13,6 +16,20 @@ def _contract():
         "default_mode": "full",
         "duration_sample_limit": 3,
         "installation_proof_init_modes": {"daily": "setup_only", "release": "setup_only"},
+        "target_state_modes": {
+            "embedded_default": {
+                "id": "configured_default_maintenance",
+                "writes_shared_workspace_truth": True,
+            },
+            "explicit_target": {
+                "id": "configured_default_adoption",
+                "writes_shared_workspace_truth": True,
+            },
+            "isolated_external_analysis": {
+                "id": "isolated_target_acquisition",
+                "writes_shared_workspace_truth": False,
+            },
+        },
         "modes": {
             "full": {
                 "public_flag": "--full",
@@ -103,6 +120,40 @@ def test_init_preflight_uses_only_exact_mode_local_samples(monkeypatch):
     }
 
 
+def test_explicit_init_preflight_names_configured_default_adoption(monkeypatch):
+    monkeypatch.setattr(init_execution_contract, "init_execution_contract", _contract)
+    monkeypatch.setattr(init_execution_contract, "load_json_file", lambda *_args: {"traces": []})
+    monkeypatch.setattr(init_execution_contract, "resolve_runtime_projects", lambda _root: {})
+
+    preflight = init_execution_contract.build_init_preflight(
+        "setup_only",
+        target_root=r"C:\target",
+    )
+
+    assert preflight["target_state"] == {
+        "selector": "explicit_target",
+        "id": "configured_default_adoption",
+        "writes_shared_workspace_truth": True,
+    }
+
+
+def test_central_cli_contract_distinguishes_adoption_from_isolated_acquisition():
+    contract = init_execution_contract.init_execution_contract()
+
+    assert contract["target_state_modes"]["explicit_target"]["id"] == (
+        "configured_default_adoption"
+    )
+    assert contract["target_state_modes"]["explicit_target"][
+        "writes_shared_workspace_truth"
+    ] is True
+    assert contract["target_state_modes"]["isolated_external_analysis"]["id"] == (
+        "isolated_target_acquisition"
+    )
+    assert contract["target_state_modes"]["isolated_external_analysis"][
+        "writes_shared_workspace_truth"
+    ] is False
+
+
 def test_installation_proof_initializes_without_duplicate_heavy_analysis():
     steps = generate_installation_proof._commands_for_level(
         "release",
@@ -184,7 +235,7 @@ def test_installation_proof_forwards_explicit_target_and_project_scope():
 
     init_step = next(row for row in steps if row["id"] == "init")
     daily_step = next(row for row in steps if row["id"] == "daily_run")
-    assert init_step["command"][-2:] == ["--target-root", r"C:\target"]
+    assert init_step["command"][-4:] == ["--target-root", r"C:\target", "--projects", "MAIN"]
     assert daily_step["command"][-4:] == ["--target-root", r"C:\target", "--projects", "MAIN"]
 
 
@@ -218,7 +269,7 @@ def test_installation_proof_separates_installation_from_target_governance(monkey
     monkeypatch.setattr(
         generate_installation_proof,
         "_step",
-        lambda step_id, label, command, timeout: {
+        lambda step_id, label, command, timeout, env: {
             "id": step_id,
             "label": label,
             "command": command,
@@ -244,6 +295,83 @@ def test_installation_proof_separates_installation_from_target_governance(monkey
     }
 
 
+def test_installation_proof_transports_init_preflight_to_daily_run(monkeypatch):
+    observed = []
+    monkeypatch.setattr(
+        generate_installation_proof,
+        "_installation_preflight_reuse_transport",
+        lambda _target: {
+            "path": "C:/receipts/runs/preflight-init.json",
+            "sha256": "a" * 64,
+            "run_id": "preflight-init",
+        },
+    )
+
+    def passing_step(step_id, label, command, timeout, env):
+        observed.append((step_id, dict(env or {})))
+        return {
+            "id": step_id,
+            "label": label,
+            "command": command,
+            "passed": True,
+            "returncode": 0,
+            "duration_seconds": 0.01,
+            "output_excerpt": "",
+        }
+
+    monkeypatch.setattr(generate_installation_proof, "_step", passing_step)
+
+    payload = generate_installation_proof.build_installation_proof(
+        "daily",
+        skip_deps=True,
+        max_doctor_seconds=30,
+        target_root=r"C:\target",
+        projects="MAIN",
+    )
+
+    daily_env = next(env for step_id, env in observed if step_id == "daily_run")
+    assert payload["summary"]["status"] == "PASS"
+    assert payload["preflight_reuse"]["status"] == "VERIFIED_REUSE"
+    assert daily_env["CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE"] == "installation_proof"
+    assert daily_env["CODEMAPS_TARGET_PROJECTS"] == "MAIN"
+    assert daily_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
+
+
+def test_installation_proof_fails_closed_when_init_receipt_cannot_be_bound(monkeypatch):
+    observed = []
+    monkeypatch.setattr(
+        generate_installation_proof,
+        "_installation_preflight_reuse_transport",
+        lambda _target: (_ for _ in ()).throw(RuntimeError("missing receipt")),
+    )
+
+    def passing_step(step_id, label, command, timeout, env):
+        observed.append(step_id)
+        return {
+            "id": step_id,
+            "label": label,
+            "command": command,
+            "passed": True,
+            "returncode": 0,
+            "duration_seconds": 0.01,
+            "output_excerpt": "",
+        }
+
+    monkeypatch.setattr(generate_installation_proof, "_step", passing_step)
+
+    payload = generate_installation_proof.build_installation_proof(
+        "daily",
+        skip_deps=True,
+        max_doctor_seconds=30,
+        target_root=r"C:\target",
+    )
+
+    assert observed == ["init"]
+    assert payload["summary"]["status"] == "FAIL"
+    assert payload["preflight_reuse"]["status"] == "FAILED"
+    assert payload["steps"][-1]["id"] == "preflight_receipt_reuse"
+
+
 def test_public_install_proof_cli_forwards_target_and_project_scope(monkeypatch):
     commands = []
     monkeypatch.setattr(codemaps, "run_command", lambda command, **_kwargs: commands.append(command) or 0)
@@ -265,7 +393,7 @@ def test_public_install_proof_cli_forwards_target_and_project_scope(monkeypatch)
 def test_public_setup_only_init_selects_setup_bootstrap(monkeypatch):
     commands = []
     monkeypatch.setattr(codemaps, "cmd_doctor", lambda _args: 0)
-    monkeypatch.setattr(codemaps, "render_init_preflight", lambda _mode: ["preflight"])
+    monkeypatch.setattr(codemaps, "render_init_preflight", lambda _mode, **_kwargs: ["preflight"])
     monkeypatch.setattr(
         codemaps,
         "init_mode_contract",
@@ -292,7 +420,7 @@ def test_public_setup_only_init_selects_setup_bootstrap(monkeypatch):
 def test_public_init_defaults_to_setup_only(monkeypatch):
     commands = []
     monkeypatch.setattr(codemaps, "cmd_doctor", lambda _args: 0)
-    monkeypatch.setattr(codemaps, "render_init_preflight", lambda _mode: ["preflight"])
+    monkeypatch.setattr(codemaps, "render_init_preflight", lambda _mode, **_kwargs: ["preflight"])
     monkeypatch.setattr(
         codemaps,
         "init_mode_contract",
@@ -318,7 +446,7 @@ def test_public_init_defaults_to_setup_only(monkeypatch):
 def test_public_init_requires_explicit_full_flag_for_release_deep(monkeypatch):
     commands = []
     monkeypatch.setattr(codemaps, "cmd_doctor", lambda _args: 0)
-    monkeypatch.setattr(codemaps, "render_init_preflight", lambda _mode: ["preflight"])
+    monkeypatch.setattr(codemaps, "render_init_preflight", lambda _mode, **_kwargs: ["preflight"])
     monkeypatch.setattr(
         codemaps,
         "init_mode_contract",
@@ -368,6 +496,51 @@ def test_public_watch_launches_module_to_avoid_package_shadowing(monkeypatch):
         "1.5",
         "--once",
     ]]
+
+
+def test_external_watch_transports_one_preflight_receipt_to_watchdog(monkeypatch, tmp_path):
+    target_env = {"CODEMAPS_TARGET_ROOT": str(tmp_path.resolve())}
+    preflight_calls = []
+    command_envs = []
+    monkeypatch.setattr(codemaps, "_target_root_env", lambda _args: target_env)
+    monkeypatch.setattr(
+        codemaps,
+        "_begin_external_target_generation",
+        lambda runtime_env, **_kwargs: runtime_env.update(
+            {"CODEMAPS_EXTERNAL_RUN_ID": "sage-watch-fixture"}
+        ) or (tmp_path / "out", "sage-watch-fixture"),
+    )
+    closed = []
+    monkeypatch.setattr(
+        "tools.core.external_target_generation.close_external_target_generation_without_promotion",
+        lambda *args, **kwargs: closed.append((args, kwargs)) or {},
+    )
+
+    def preflight(_args, runtime_env):
+        preflight_calls.append(runtime_env)
+        runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT"] = "C:/receipt/runs/preflight.json"
+        runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] = "a" * 64
+        return 0
+
+    monkeypatch.setattr(codemaps, "_run_external_target_preflight_if_needed", preflight)
+    monkeypatch.setattr(codemaps, "ensure_runtime_truth", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(codemaps, "import_target_available", lambda *_args: True)
+    monkeypatch.setattr(codemaps, "python_subprocess_env", lambda source, **_kwargs: dict(source))
+    monkeypatch.setattr(
+        codemaps,
+        "run_command",
+        lambda _command, **kwargs: command_envs.append(kwargs["env"]) or 0,
+    )
+
+    result = codemaps.cmd_watch(
+        argparse.Namespace(path="", debounce=None, once=True, target_root=str(tmp_path))
+    )
+
+    assert result == 0
+    assert preflight_calls == [target_env]
+    assert command_envs[0]["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
+    assert command_envs[0]["CODEMAPS_EXTERNAL_RUN_ID"] == "sage-watch-fixture"
+    assert closed[0][1]["reason"] == "external_watch_is_not_atomic_current_eligible"
 
 
 def test_bootstrap_timeout_terminates_owned_process_tree_and_records_receipt(monkeypatch):
@@ -436,3 +609,233 @@ def test_external_target_preflight_receives_runtime_project_filter(monkeypatch, 
         "--projects",
         "MAIN,WEB",
     ]]
+
+
+def test_external_target_preflight_transports_exact_receipt_to_runtime(monkeypatch, tmp_path):
+    sage_root = tmp_path / "sage"
+    target_root = tmp_path / "target"
+    target_root.mkdir()
+    receipt_path = (
+        sage_root
+        / "output"
+        / "external_targets"
+        / "fixture"
+        / ".raw"
+        / "external_target_preflight.json"
+    )
+    payload = {
+        "meta": {"kind": "external_target_preflight", "run_id": "preflight-fixture"},
+        "target": {
+            "root": str(target_root.resolve()),
+            "output_dir": str(receipt_path.parents[1]),
+        },
+    }
+
+    def run_command(_command):
+        receipt_path.parent.mkdir(parents=True)
+        receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+        immutable_path = receipt_path.parent / "runs" / "preflight-fixture.json"
+        immutable_path.parent.mkdir(parents=True)
+        immutable_path.write_text(json.dumps(payload), encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(codemaps, "run_command", run_command)
+    monkeypatch.setattr(codemaps, "CODE_MAPS_DIR", sage_root)
+    monkeypatch.setattr(codemaps, "_target_output_slug", lambda _target: "fixture")
+    args = argparse.Namespace(
+        target_root=str(target_root),
+        skip_target_preflight=False,
+        projects="MAIN",
+    )
+    runtime_env = {
+        "CODEMAPS_TARGET_ROOT": str(target_root.resolve()),
+        "CODEMAPS_TARGET_PROJECTS": "MAIN",
+    }
+
+    result = codemaps._run_external_target_preflight_if_needed(args, runtime_env)
+
+    assert result == 0
+    assert runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT"] == str(
+        (receipt_path.parent / "runs" / "preflight-fixture.json").resolve()
+    )
+    assert len(runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"]) == 64
+
+
+def test_installation_proof_preflight_reuse_rebinds_into_current_generation(
+    monkeypatch,
+    tmp_path,
+):
+    target_root = tmp_path / "target"
+    target_root.mkdir()
+    receipt = {
+        "meta": {
+            "kind": "external_target_preflight",
+            "run_id": "preflight-init",
+            "artifact_semantics": {"immutable_run": "old"},
+        },
+        "target": {"root": str(target_root.resolve()), "output_dir": "C:/old-output"},
+        "summary": {"status": "PASS"},
+    }
+    observed = {}
+
+    def load_receipt(target_path, *, source_env, require_freshness):
+        observed["load"] = (target_path, source_env, require_freshness)
+        return receipt
+
+    def persist(payload):
+        observed["persisted"] = payload
+        payload["meta"]["run_id"] = "preflight-rebound"
+        return payload
+
+    monkeypatch.setattr(core_config, "load_external_target_preflight_receipt", load_receipt)
+    monkeypatch.setattr(external_target_preflight, "persist_preflight", persist)
+    monkeypatch.setattr(
+        external_target_preflight,
+        "preflight_receipt_transport",
+        lambda _payload: {
+            "path": "C:/current/runs/preflight-rebound.json",
+            "sha256": "b" * 64,
+            "run_id": "preflight-rebound",
+        },
+    )
+    monkeypatch.setattr(
+        codemaps,
+        "run_command",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("fresh receipt reuse must not launch a second Preflight")
+        ),
+    )
+    args = argparse.Namespace(
+        target_root=str(target_root),
+        projects="MAIN",
+        skip_target_preflight=False,
+    )
+    runtime_env = {
+        "CODEMAPS_TARGET_ROOT": str(target_root.resolve()),
+        "CODEMAPS_TARGET_PROJECTS": "MAIN",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT": "C:/init/runs/preflight-init.json",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256": "a" * 64,
+        "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE": "installation_proof",
+        "CODEMAPS_EXTERNAL_RUN_ID": "sage-run-current",
+    }
+
+    result = codemaps._run_external_target_preflight_if_needed(args, runtime_env)
+
+    assert result == 0
+    assert observed["load"][2] is True
+    rebound = observed["persisted"]
+    assert rebound["meta"]["receipt_reuse"]["reused_from_run_id"] == "preflight-init"
+    assert "artifact_semantics" not in rebound["meta"]
+    assert rebound["target"]["output_dir"].endswith(
+        "generations\\sage-run-current"
+    )
+    assert runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "b" * 64
+
+
+def test_installation_proof_preflight_reuse_fails_closed_when_target_is_stale(
+    monkeypatch,
+    tmp_path,
+):
+    target_root = tmp_path / "target"
+    target_root.mkdir()
+    monkeypatch.setattr(
+        core_config,
+        "load_external_target_preflight_receipt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("stale target")),
+    )
+    monkeypatch.setattr(
+        codemaps,
+        "run_command",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("stale reuse must not silently launch another Preflight")
+        ),
+    )
+    args = argparse.Namespace(
+        target_root=str(target_root),
+        projects=None,
+        skip_target_preflight=False,
+    )
+    runtime_env = {
+        "CODEMAPS_TARGET_ROOT": str(target_root.resolve()),
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT": "C:/init/runs/preflight-init.json",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256": "a" * 64,
+        "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE": "installation_proof",
+        "CODEMAPS_EXTERNAL_RUN_ID": "sage-run-current",
+    }
+
+    assert codemaps._run_external_target_preflight_if_needed(args, runtime_env) == 2
+
+
+def test_installation_proof_preflight_reuse_persists_real_generation_receipt(
+    monkeypatch,
+    tmp_path,
+):
+    sage_root = tmp_path / f"sage-{'x' * 180}"
+    target_root = tmp_path / "target"
+    target_root.mkdir()
+    (target_root / "package.json").write_text(
+        json.dumps({"devDependencies": {"typescript": "5.7.0"}}),
+        encoding="utf-8",
+    )
+    (target_root / "app.ts").write_text(
+        "export const app = 1;\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(codemaps, "CODE_MAPS_DIR", sage_root)
+    monkeypatch.setattr(
+        external_target_preflight,
+        "EXTERNAL_TARGETS_DIR",
+        sage_root / "output" / "external_targets",
+    )
+    initial = external_target_preflight.build_preflight(
+        target_root,
+        projects="MAIN",
+    )
+    external_target_preflight.persist_preflight(initial)
+    transport = external_target_preflight.preflight_receipt_transport(initial)
+    args = argparse.Namespace(
+        target_root=str(target_root),
+        projects="MAIN",
+        skip_target_preflight=False,
+    )
+    runtime_env = {
+        "CODEMAPS_TARGET_ROOT": str(target_root.resolve()),
+        "CODEMAPS_TARGET_PROJECTS": "MAIN",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT": transport["path"],
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256": transport["sha256"],
+        "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE": "installation_proof",
+        "CODEMAPS_EXTERNAL_RUN_ID": "sage-run-current",
+    }
+
+    result = codemaps._run_external_target_preflight_if_needed(args, runtime_env)
+
+    assert result == 0
+    rebound_path = Path(runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT"])
+    assert len(str(rebound_path)) > 260
+    assert Path(native_filesystem_path(rebound_path)).is_file()
+    assert "sage-run-current" in rebound_path.parts
+    rebound = json.loads(
+        Path(native_filesystem_path(rebound_path)).read_text(encoding="utf-8")
+    )
+    assert rebound["meta"]["receipt_reuse"]["reused_from_run_id"] == transport["run_id"]
+    assert rebound["target"]["root"] == str(target_root.resolve())
+
+
+def test_target_root_env_preserves_only_authorized_installation_proof_transport(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setenv(
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT",
+        "C:/receipts/runs/preflight-init.json",
+    )
+    monkeypatch.setenv("CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256", "a" * 64)
+    monkeypatch.setenv("CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE", "installation_proof")
+    monkeypatch.setenv("CODEMAPS_TARGET_PROJECTS", "MAIN")
+    args = argparse.Namespace(target_root=str(tmp_path), projects="MAIN")
+
+    runtime_env = codemaps._target_root_env(args)
+
+    assert runtime_env["CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE"] == "installation_proof"
+    assert runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
+    assert runtime_env["CODEMAPS_TARGET_PROJECTS"] == "MAIN"

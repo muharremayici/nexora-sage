@@ -176,7 +176,9 @@ def _symbol_consumption_index(atlas: dict[str, Any]) -> set[tuple[str, str, str]
                 source = str(record.get("source") or "").replace("\\", "/")
                 name = str(record.get("name") or "").strip()
                 kind = str(record.get("kind") or "").lower()
-                if source and name and kind != "namespace":
+                if source and name and kind not in {
+                    "namespace", "type", "side_effect", "dynamic", "require", "reexport_all"
+                }:
                     consumed.add((str(project_key), source, name))
     return consumed
 

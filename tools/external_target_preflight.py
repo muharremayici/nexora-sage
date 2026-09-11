@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,14 +16,19 @@ if str(_ROOT) not in sys.path:
 from tools.core.config import (
     CODE_MAPS_DIR,
     CONFIG_DIR,
+    DOCTRINE,
     _infer_target_architecture,
     _infer_target_bundler,
+    _infer_target_path_aliases,
+    _infer_target_plugins_from_inventory,
+    _observe_target_path_aliases_from_files,
     _target_dependency_names,
     external_target_repository_topology,
     external_target_scope_projection,
     save_json_atomic,
     save_text_atomic,
 )
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 from tools.core.json_io import load_json_file, load_json_object_strict
 from tools.core.language_registry import (
     config_file_marker_map,
@@ -32,11 +38,19 @@ from tools.core.language_registry import (
     skip_dirs,
 )
 from tools.core.installation_identity import runtime_installation_excluded_roots
-from tools.core.target_inventory import selected_project_inventory, source_inventory
+from tools.core.target_inventory import (
+    TARGET_OBSERVATION_IDENTITY_ALGORITHM,
+    repository_and_selected_project_inventory,
+)
+from tools.core.repository_topology import classify_project_system_kinds
 from tools.core.analysis_scope_authority import (
     INCOMPLETE_EVIDENCE,
     build_preflight_scope_authority,
     runtime_project_projection,
+)
+from tools.core.target_policy_profile import (
+    aggregate_effective_target_policy,
+    inventory_project_target_policy,
 )
 
 
@@ -550,6 +564,31 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         repository_package_signal_sources,
         policy,
     )
+    target_observation: dict[str, Any] = {}
+    repository_inventory, selected_inventory = repository_and_selected_project_inventory(
+        target,
+        repository_topology,
+        policy,
+        config_patterns,
+        manifest_patterns,
+        package_react_ownership,
+        excluded_roots=embedded_sage_roots,
+        projects=effective_runtime_projects,
+        observation_state=target_observation,
+    ) if target.exists() and target.is_dir() else (
+        (0, False, {}, {}, 0, 0, [], {}),
+        (0, False, {}, {}, 0, 0, [], {}, {}, {}),
+    )
+    if not target_observation:
+        target_observation = {
+            "algorithm": TARGET_OBSERVATION_IDENTITY_ALGORITHM,
+            "status": "incomplete",
+            "fingerprint": None,
+            "entry_count": 0,
+            "decision_file_count": 0,
+            "observation_contract_sha256": None,
+            "error": "invalid_target",
+        }
     (
         file_count,
         truncated,
@@ -559,18 +598,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         repository_react_fixture_source_files,
         present_config_files,
         present_manifests,
-    ) = (
-        source_inventory(
-            target,
-            policy,
-            config_patterns,
-            manifest_patterns,
-            package_react_ownership,
-            excluded_roots=embedded_sage_roots,
-        )
-        if target.exists() and target.is_dir()
-        else (0, False, {}, {}, 0, 0, [], {})
-    )
+    ) = repository_inventory
     (
         analysis_file_count,
         analysis_truncated,
@@ -578,18 +606,28 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         analysis_language_counts,
         react_source_files,
         react_fixture_source_files,
-        _analysis_config_files,
+        analysis_config_files,
         _analysis_manifest_files,
         analysis_project_file_counts,
-    ) = selected_project_inventory(
-        target,
-        repository_topology,
-        policy,
-        config_patterns,
-        manifest_patterns,
-        package_react_ownership,
-        excluded_roots=embedded_sage_roots,
-        projects=effective_runtime_projects,
+        analysis_project_inventory_evidence,
+    ) = selected_inventory
+    project_manifest_payloads: dict[str, dict[str, Any]] = {}
+    for project_key, relative_path in effective_runtime_projects.items():
+        project_root = target if str(relative_path) == "." else target / str(relative_path)
+        payload = package_payload(project_root / "package.json")
+        project_manifest_payloads[str(project_key)] = payload if isinstance(payload, dict) else {}
+    system_kind_policy = (
+        DOCTRINE.get("discovery_project_system_kind_policy", {})
+        if isinstance(DOCTRINE, dict)
+        else {}
+    )
+    repository_topology["project_candidate_system_kinds"] = classify_project_system_kinds(
+        analysis_project_inventory_evidence,
+        project_manifest_payloads,
+        system_kind_policy,
+    )
+    repository_topology["system_kind_contract"] = str(
+        system_kind_policy.get("contract") or "technical_system_kind_unresolved_v1"
     )
     has_react_signal = bool(all_package_names & react_packages) or react_source_files > 0
     scope_authority = build_preflight_scope_authority(
@@ -605,6 +643,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         polyglot_capabilities=polyglot_capabilities,
         repository_analysis_language_counts=repository_analysis_language_counts,
         effective_analysis_language_counts=analysis_language_counts,
+        effective_project_inventory_evidence=analysis_project_inventory_evidence,
     )
     status_policy = policy.get("status_policy", {})
     if policy_issues:
@@ -665,6 +704,41 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             status = str(status_policy["recognized_with_unsupported_families"])
     attention_reasons = list(dict.fromkeys(attention_reasons))
     observation_only_language_map = observation_only_extension_language_map()
+    target_policy_projects: dict[str, dict[str, Any]] = {}
+    for project_key, relative_path in sorted(effective_runtime_projects.items()):
+        project_root = target if str(relative_path) == "." else target / str(relative_path)
+        owning_package_root = next(
+            (
+                package_root
+                for package_root in package_roots
+                if project_root.resolve() == package_root
+                or project_root.resolve().is_relative_to(package_root)
+            ),
+            project_root.resolve(),
+        )
+        package_file = owning_package_root / "package.json"
+        target_policy_projects[str(project_key)] = inventory_project_target_policy(
+            project_root,
+            project=str(project_key),
+            package_json=package_payload(package_file) if package_file.is_file() else {},
+            package_path=package_file if package_file.is_file() else None,
+            workspace_root=target,
+        )
+    target_policy = aggregate_effective_target_policy(
+        target_policy_projects,
+        selected_project_count=len(effective_runtime_projects),
+    )
+    path_aliases = _infer_target_path_aliases(target)
+    observed_path_aliases = _observe_target_path_aliases_from_files(
+        target,
+        present_config_files,
+    )
+    runtime_plugins = _infer_target_plugins_from_inventory(
+        target_dependencies,
+        target_bundler,
+        language_counts=language_counts,
+        config_files=analysis_config_files,
+    )
 
     return {
         "meta": {
@@ -679,7 +753,11 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             "slug": _slug_for_target(target),
             "exists": target.exists(),
             "is_dir": target.is_dir(),
-            "output_dir": str(EXTERNAL_TARGETS_DIR / _slug_for_target(target)),
+            "output_dir": str(
+                EXTERNAL_TARGETS_DIR / _slug_for_target(target) / "generations" / os.environ["CODEMAPS_EXTERNAL_RUN_ID"]
+                if os.environ.get("CODEMAPS_EXTERNAL_RUN_ID")
+                else EXTERNAL_TARGETS_DIR / _slug_for_target(target)
+            ),
         },
         "summary": {
             "status": status,
@@ -691,6 +769,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             "language_counts": language_counts,
             "analysis_language_counts": analysis_language_counts,
             "language_families": sorted(language_counts),
+            "target_observation_identity": target_observation,
             "analysis_scope": {
                 **scope_projection,
                 "source_mode": "external_target",
@@ -699,6 +778,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
                 "discovered_topology": repository_topology["discovered_topology"],
                 "analysis_projection": repository_topology["analysis_projection"],
                 "selection_mode": repository_topology["selection_mode"],
+                "topology_authority_id": repository_topology["topology_authority_id"],
                 "scope_field_semantics": {
                     "selected_projects": "topology_auto_selection_before_runtime_filter",
                     "effective_runtime_projects": "project_set_authorized_for_this_requested_execution",
@@ -717,6 +797,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
                 "project_candidate_selection_evidence": repository_topology["project_candidate_selection_evidence"],
                 "selected_projects": repository_topology["selected_projects"],
                 "auto_selected_projects": repository_topology["selected_projects"],
+                "selected_project_roles": repository_topology["selected_project_roles"],
                 "relationship_operation_projects": repository_topology[
                     "relationship_operation_projects"
                 ],
@@ -763,6 +844,15 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
                 },
             },
             "dependency_evidence_scope": "repository_inventory",
+            "target_policy": target_policy,
+            "runtime_observation": {
+                "bundler": target_bundler,
+                "plugins": runtime_plugins,
+                "architecture": target_architecture,
+                "path_aliases": path_aliases,
+                "observed_path_aliases": observed_path_aliases,
+                "source": "bounded_preflight_inventory_plus_targeted_config_reads",
+            },
             "config_files": present_config_files,
             "manifest_files": present_manifests,
             "inventory_file_count": file_count,
@@ -800,7 +890,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         },
         "notes": [
             "External target mode does not rewrite compiled Nexora SAGE config.",
-            "Outputs are isolated under output/external_targets/<target-slug>.",
+            "Outputs are isolated under output/external_targets/<target-slug>; generation-aware callers add generations/<run-id> and promote current only after validation.",
             "ATTENTION reasons are machine-readable in summary.attention_reasons; the state may indicate missing recognized signals or observed families outside active capability authority.",
             "A missing or invalid central language registry fails preflight closed; embedded fallback may support diagnostics but cannot authorize analysis readiness.",
             "Complete traversal proves all non-skipped files were visited within the bound; config and manifest absence means not observed in the configured marker taxonomy, not universal absence.",
@@ -833,6 +923,9 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- analysis_scope: `{summary.get('analysis_scope')}`",
         f"- repository_language_counts: `{summary.get('repository_language_counts')}`",
         f"- repository_analysis_language_counts: `{summary.get('repository_analysis_language_counts')}`",
+        f"- target_policy_status: `{(summary.get('target_policy') or {}).get('status')}`",
+        f"- declared_policy_tools: `{((summary.get('target_policy') or {}).get('summary') or {}).get('declared_tools', [])}`",
+        f"- target_native_execution: `{((summary.get('target_policy') or {}).get('summary') or {}).get('native_execution')}`",
         f"- analysis_depth: `{summary.get('analysis_depth')}`",
         f"- analysis_authority_status: `{authority.get('status')}`",
         f"- ceiling_claim_level: `{authority.get('ceiling_claim_level')}`",
@@ -858,8 +951,8 @@ def render_report(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_preflight(target_root: str | Path, *, projects: str | None = None) -> dict[str, Any]:
-    payload = build_preflight(target_root, projects=projects)
+def persist_preflight(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist one already-built observation without repeating repository discovery."""
     output_dir = Path(payload["target"]["output_dir"])
     raw_dir = output_dir / ".raw"
     reports_dir = output_dir / "reports"
@@ -876,6 +969,29 @@ def write_preflight(target_root: str | Path, *, projects: str | None = None) -> 
     save_json_atomic(raw_dir / "external_target_preflight.json", payload)
     save_text_atomic(reports_dir / "external_target_preflight.md", render_report(payload))
     return payload
+
+
+def preflight_receipt_transport(payload: dict[str, Any]) -> dict[str, str]:
+    run_id = str(payload.get("meta", {}).get("run_id") or "").strip()
+    if not run_id:
+        raise ValueError("Persisted external target Preflight payload lacks run_id")
+    receipt_path = (
+        Path(payload["target"]["output_dir"])
+        / ".raw"
+        / "runs"
+        / f"{run_id}.json"
+    ).resolve()
+    transport_path = Path(native_filesystem_path(receipt_path))
+    receipt_bytes = transport_path.read_bytes()
+    return {
+        "path": str(receipt_path),
+        "sha256": hashlib.sha256(receipt_bytes).hexdigest(),
+        "run_id": run_id,
+    }
+
+
+def write_preflight(target_root: str | Path, *, projects: str | None = None) -> dict[str, Any]:
+    return persist_preflight(build_preflight(target_root, projects=projects))
 
 
 def main() -> int:

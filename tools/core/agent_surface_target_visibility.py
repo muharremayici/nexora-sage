@@ -147,6 +147,53 @@ def is_evidence_blocked_empty_result(sample: dict[str, Any]) -> bool:
     )
 
 
+def is_review_only_empty_result(sample: dict[str, Any]) -> bool:
+    """Accept a current empty review queue without inventing a file target."""
+    text = sample_text(sample)
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError):
+        payload = None
+    if isinstance(payload, dict):
+        target_proof = payload.get("target_proof")
+        target_proof = target_proof if isinstance(target_proof, dict) else {}
+        cockpit = target_proof.get("cockpit")
+        cockpit = cockpit if isinstance(cockpit, dict) else {}
+        policy_boundary = payload.get("policy_boundary")
+        policy_boundary = policy_boundary if isinstance(policy_boundary, dict) else {}
+        validation = payload.get("validation")
+        validation = validation if isinstance(validation, dict) else {}
+        return (
+            str(payload.get("status") or "") == "ACCEPTED"
+            and payload.get("total_candidates") == 0
+            and payload.get("items") == []
+            and str(target_proof.get("verdict") or "") == "REVIEW_REQUIRED"
+            and str(target_proof.get("root_binding") or "") == "BOUND"
+            and str(cockpit.get("freshness") or "") == "CURRENT"
+            and str(cockpit.get("snapshot_binding") or "") == "BOUND"
+            and target_proof.get("unknowns") == []
+            and target_proof.get("blocking_evidence") == []
+            and policy_boundary.get("human_approval_required") is True
+            and str(policy_boundary.get("safe_default") or "") == "review_only"
+            and policy_boundary.get("mutation_allowed_by_this_packet") is False
+            and str(validation.get("mode") or "") == "review_only_until_human_approval"
+        )
+
+    return (
+        _line_value(text, "status") == "ACCEPTED"
+        and _line_value(text, "total_candidates") == "0"
+        and _has_explicit_empty_list(text, "items")
+        and _line_value(text, "verdict") == "REVIEW_REQUIRED"
+        and _line_value(text, "root_binding") == "BOUND"
+        and _line_value(text, "cockpit_freshness") == "CURRENT"
+        and _line_value(text, "cockpit_snapshot_binding") == "BOUND"
+        and _line_value(text, "human_approval_required").lower() == "true"
+        and _line_value(text, "safe_default") == "review_only"
+        and _line_value(text, "mutation_allowed_by_this_packet").lower() == "false"
+        and _line_value(text, "mode") == "review_only_until_human_approval"
+    )
+
+
 def is_structured_precondition_block(
     sample: dict[str, Any],
     *,
@@ -207,7 +254,7 @@ def is_successful_surgical_packet(sample: dict[str, Any]) -> bool:
 def allows_no_review_target(sample: dict[str, Any], policy: dict[str, Any]) -> bool:
     text = sample_text(sample)
     markers = policy.get("allowed_no_review_target_markers", [])
-    return is_evidence_blocked_empty_result(sample) or any(
+    return is_evidence_blocked_empty_result(sample) or is_review_only_empty_result(sample) or any(
         str(marker).strip() and str(marker) in text for marker in markers
     )
 

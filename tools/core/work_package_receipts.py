@@ -15,7 +15,6 @@ from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, RAW_DIR
 from tools.core.distribution_policy import is_clean_install_root
 from tools.core.governance_trace import UNKNOWN_VALUE, fingerprint, record_trace_event
 from tools.core.json_io import load_json_object_strict
-from tools.core.mcp_call_telemetry import mcp_operational_db_path
 from tools.core.sage_active_work_package import active_work_package
 
 
@@ -154,16 +153,11 @@ def propose_work_package_evidence(*, db_path: Path | None = None) -> dict[str, A
     package_fp = work_package_identity(package)
     source_fp = work_package_source_identity(package)
     limit = max(1, int(receipt_contract.get("proposal_max_receipts") or 500))
-    # CLI validation receipts and MCP bootstrap receipts retain their own ledgers.
-    databases = [db_path] if db_path is not None else [RAW_DIR / "codemaps.db", mcp_operational_db_path()]
+    database = db_path or (RAW_DIR / "codemaps.db")
     rows: list[dict[str, Any]] = []
-    for database in dict.fromkeys(Path(path).resolve() for path in databases):
-        if not database.is_file():
-            continue
-        with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as conn:
+    if database.exists():
+        with closing(sqlite3.connect(database)) as conn:
             conn.row_factory = sqlite3.Row
-            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='governance_trace_events'").fetchone():
-                continue
             selected = conn.execute(
                 """
                 SELECT * FROM governance_trace_events
@@ -176,9 +170,6 @@ def propose_work_package_evidence(*, db_path: Path | None = None) -> dict[str, A
             item = dict(row)
             item["details"] = json.loads(str(item.pop("details_json") or "{}"))
             rows.append(item)
-
-    rows.sort(key=lambda row: (str(row.get("recorded_at") or ""), int(row.get("event_id") or 0)), reverse=True)
-    rows = rows[:limit]
 
     observed_operations: dict[str, dict[str, Any]] = {}
     stale_or_mismatched_receipts = 0

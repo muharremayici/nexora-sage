@@ -39,6 +39,7 @@
           "supported_extensions",
           "evidence",
           "semantic_depth",
+          "dead_code_reachability",
           "not_claimed"
         ],
         "properties": {
@@ -68,6 +69,42 @@
           "semantic_depth": {
             "type": "string",
             "minLength": 10
+          },
+          "dead_code_reachability": {
+            "type": "object",
+            "required": [
+              "mode",
+              "required_parser_statuses",
+              "required_semantic_depths",
+              "dynamic_contract_status"
+            ],
+            "properties": {
+              "mode": {
+                "enum": [
+                  "candidate_analysis",
+                  "inventory_only"
+                ]
+              },
+              "required_parser_statuses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "required_semantic_depths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "dynamic_contract_status": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
           },
           "not_claimed": {
             "type": "array",
@@ -127,6 +164,7 @@
       "type": "object",
       "required": [
         "required_claim_levels",
+        "required_dead_code_reachability_modes",
         "compiler_grade_forbidden_claims",
         "required_not_claimed_by_language",
         "required_roadmap_candidates_by_language",
@@ -142,6 +180,16 @@
               "structural",
               "ast_strong",
               "deep_specialist"
+            ]
+          }
+        },
+        "required_dead_code_reachability_modes": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "enum": [
+              "candidate_analysis",
+              "inventory_only"
             ]
           }
         },

@@ -51,10 +51,10 @@ def _readiness_status(item: dict[str, Any]) -> str:
     proof = str(item.get("runtime_proof_status") or "")
     actionability = str(item.get("actionability") or "")
 
-    if risk in blocking_risks and (tier == "high" or score >= 8 or lane == "act_now"):
-        return "blocked"
     if actionability == "reference_only":
         return "observe"
+    if risk in blocking_risks and (tier == "high" or score >= 8 or lane == "act_now"):
+        return "blocked"
     if risk in blocking_risks or risk in review_risks or tier == "medium" or proof == "needs_runtime_proof":
         return "review"
     return "ready"

@@ -73,6 +73,98 @@ class LocFindingSemanticsTests(unittest.TestCase):
         self.assertEqual(finding["threshold_kind"], "default")
         self.assertEqual(finding["limit"], 400)
 
+    def test_literal_target_policy_changes_audit_limit_without_claiming_native_execution(self):
+        effective_policy = {
+            "projects": {
+                "MAIN": {
+                    "tools": [
+                        {
+                            "id": "biome",
+                            "config_files": [
+                                {
+                                    "path": "biome.json",
+                                    "sha256": "a" * 64,
+                                    "static_projection": {
+                                        "status": "partial_literal_projection",
+                                        "extends_unresolved": False,
+                                        "rules_truncated": False,
+                                        "rules": [
+                                            {
+                                                "id": "complexity/noExcessiveLinesPerFunction",
+                                                "state": "advisory",
+                                                "scope": {"includes": ["src/**/*.tsx"], "excludes": []},
+                                                "numeric_options": {"maxLines": 100},
+                                            }
+                                        ],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        }
+
+        finding = resolve_loc_finding_semantics(
+            "component",
+            120,
+            symbol_name="Calendar",
+            start_line=1,
+            end_line=120,
+            project="MAIN",
+            file_path="src/Calendar.tsx",
+            effective_target_policy=effective_policy,
+        )
+
+        self.assertEqual(finding["limit"], 100)
+        self.assertEqual(
+            finding["limit_authority"],
+            "declared_literal_policy_not_native_execution_proof",
+        )
+        self.assertEqual(finding["target_policy_resolution"]["status"], "resolved_declared_literal_policy")
+        self.assertEqual(finding["target_policy_resolution"]["native_execution"], "not_run")
+
+    def test_unresolved_target_policy_retains_sage_default_with_reason(self):
+        effective_policy = {
+            "projects": {
+                "MAIN": {
+                    "tools": [
+                        {
+                            "id": "eslint",
+                            "config_files": [
+                                {
+                                    "path": "eslint.config.mjs",
+                                    "static_projection": {
+                                        "status": "executable_config_not_statically_resolved",
+                                        "tool_state": "unknown",
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        }
+
+        finding = resolve_loc_finding_semantics(
+            "function",
+            180,
+            project="MAIN",
+            file_path="src/build.ts",
+            effective_target_policy=effective_policy,
+        )
+
+        self.assertEqual(finding["limit"], 150)
+        self.assertEqual(finding["limit_authority"], "sage_default")
+        self.assertEqual(
+            finding["target_policy_resolution"]["status"],
+            "unresolved_fallback_to_sage_default",
+        )
+        self.assertEqual(
+            finding["target_policy_resolution"]["unresolved_reasons"],
+            ["eslint:config_not_literal"],
+        )
+
     def test_agent_directive_carries_structured_loc_semantics(self):
         finding = resolve_loc_finding_semantics(
             "class",

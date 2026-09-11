@@ -157,6 +157,30 @@ def resolve_runtime_projects(root_path: Path) -> Dict[str, Path]:
     return resolve_projects(root_path, config.PROJECT_FILTER)
 
 
+def resolve_project_for_path(
+    root_path: Path,
+    target_path: Path,
+    projects: Dict[str, Path] | None = None,
+) -> str | None:
+    """Return the nearest configured project root that owns a target path."""
+
+    root = Path(root_path).resolve()
+    target = Path(target_path).resolve()
+    resolved = projects if isinstance(projects, dict) else resolve_runtime_projects(root)
+    candidates: list[tuple[int, str]] = []
+    for project, project_root in resolved.items():
+        resolved_project_root = Path(project_root).resolve()
+        try:
+            target.relative_to(resolved_project_root)
+        except ValueError:
+            continue
+        candidates.append((len(resolved_project_root.parts), str(project)))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    return candidates[0][1]
+
+
 def release_scope_project_keys(available_projects: Iterable[str]) -> set[str]:
     """Resolve projects whose findings may govern the current release subject."""
     available = {canonical_project_name(str(project)) for project in available_projects}

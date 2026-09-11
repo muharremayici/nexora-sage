@@ -27,7 +27,9 @@
       "start_line",
       "end_line",
       "observed_loc",
-      "limit"
+      "limit",
+      "limit_authority",
+      "target_policy_resolution"
     ]
   },
   "api_entry_filenames": [

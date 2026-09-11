@@ -319,6 +319,8 @@ def build_validation() -> dict[str, Any]:
                 and analysis.get("analysis_succeeded") is True
                 and analysis.get("context_closure_requested") is True
                 and analysis.get("context_closure_succeeded") is True
+                and analysis.get("context_closure_mode")
+                in {"reused_current_primary_full_run", "agent_context_recovery"}
                 and analysis.get("external_target_index_succeeded") is True
                 and analysis.get("surgical_packet_succeeded") is True
                 and analysis.get("target_root") == analysis_root
@@ -328,6 +330,7 @@ def build_validation() -> dict[str, Any]:
                     "analysis_succeeded": analysis.get("analysis_succeeded"),
                     "context_closure_requested": analysis.get("context_closure_requested"),
                     "context_closure_succeeded": analysis.get("context_closure_succeeded"),
+                    "context_closure_mode": analysis.get("context_closure_mode"),
                     "external_target_index_succeeded": analysis.get("external_target_index_succeeded"),
                     "surgical_packet_succeeded": analysis.get("surgical_packet_succeeded"),
                     "target_root": analysis.get("target_root"),

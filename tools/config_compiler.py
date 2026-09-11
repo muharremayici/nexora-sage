@@ -26,6 +26,7 @@ from tools.core.config import (
 from tools.core.overrides_validator import overrides_match_discovery
 from tools.core.quality_gate_policy import quality_gate_contract_defaults
 from tools.core.runtime_config_identity import runtime_config_content_identity
+from tools.core.target_policy_profile import compile_effective_target_policy
 
 
 def load_json(path: Path):
@@ -328,6 +329,13 @@ def compile_runtime_config():
             if remaining and all(roles.get(k) != "host" for k in remaining):
                 roles[remaining[0]] = "host"
                 compiled["project_roles"] = roles
+
+    # Re-project after collision/overlap shielding so removed projects cannot
+    # retain runtime policy authority.
+    compiled["effective_target_policy"] = compile_effective_target_policy(
+        discovery,
+        compiled.get("variations", {}),
+    )
 
     compiled["_compiled_from"] = {
         "discovery": DISCOVERY_PATH.name if DISCOVERY_PATH.exists() else None,

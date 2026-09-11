@@ -5,6 +5,7 @@ from tools.mcp import server as mcp_server
 from tools.core.contextos_mcp import render_active_signals
 from tools.core.agent_surface_target_visibility import (
     is_evidence_blocked_empty_result,
+    is_review_only_empty_result,
     is_structured_precondition_block,
     is_successful_surgical_packet,
     target_visibility_status,
@@ -193,6 +194,97 @@ def test_silent_or_mutating_empty_result_still_requires_target() -> None:
     assert is_evidence_blocked_empty_result(mutating) is False
 
 
+def test_structured_review_only_empty_result_does_not_require_invented_target() -> None:
+    sample = {
+        "body": json.dumps(
+            {
+                "status": "ACCEPTED",
+                "total_candidates": 0,
+                "items": [],
+                "target_proof": {
+                    "verdict": "REVIEW_REQUIRED",
+                    "root_binding": "BOUND",
+                    "cockpit": {
+                        "freshness": "CURRENT",
+                        "snapshot_binding": "BOUND",
+                    },
+                    "unknowns": [],
+                    "blocking_evidence": [],
+                },
+                "policy_boundary": {
+                    "human_approval_required": True,
+                    "safe_default": "review_only",
+                    "mutation_allowed_by_this_packet": False,
+                },
+                "validation": {"mode": "review_only_until_human_approval"},
+            }
+        )
+    }
+
+    assert is_review_only_empty_result(sample) is True
+    assert (
+        target_visibility_status(sample, "", {"allowed_no_review_target_markers": []})
+        == "fail_closed_or_clean_no_direct_target"
+    )
+
+
+def test_markdown_review_only_empty_result_does_not_require_invented_target() -> None:
+    sample = {
+        "body": """# Merge Review Queue
+```yaml
+status: \"ACCEPTED\"
+total_candidates: 0
+target_proof:
+  verdict: \"REVIEW_REQUIRED\"
+  root_binding: \"BOUND\"
+  cockpit_freshness: \"CURRENT\"
+  cockpit_snapshot_binding: \"BOUND\"
+policy_boundary:
+  human_approval_required: true
+  safe_default: review_only
+  mutation_allowed_by_this_packet: false
+items:
+  []
+validation:
+  mode: \"review_only_until_human_approval\"
+```
+"""
+    }
+
+    assert is_review_only_empty_result(sample) is True
+
+
+def test_nonempty_or_mutating_review_queue_still_requires_target() -> None:
+    base = {
+        "status": "ACCEPTED",
+        "total_candidates": 0,
+        "items": [],
+        "target_proof": {
+            "verdict": "REVIEW_REQUIRED",
+            "root_binding": "BOUND",
+            "cockpit": {"freshness": "CURRENT", "snapshot_binding": "BOUND"},
+            "unknowns": [],
+            "blocking_evidence": [],
+        },
+        "policy_boundary": {
+            "human_approval_required": True,
+            "safe_default": "review_only",
+            "mutation_allowed_by_this_packet": False,
+        },
+        "validation": {"mode": "review_only_until_human_approval"},
+    }
+    nonempty = {**base, "total_candidates": 1, "items": [{"source_file": "variation.ts"}]}
+    mutating = {
+        **base,
+        "policy_boundary": {**base["policy_boundary"], "mutation_allowed_by_this_packet": True},
+    }
+    malformed_count = {**base, "total_candidates": "not-a-count"}
+
+    assert is_review_only_empty_result({"body": json.dumps(nonempty)}) is False
+    assert is_review_only_empty_result({"body": json.dumps(mutating)}) is False
+    assert is_review_only_empty_result({"body": json.dumps(malformed_count)}) is False
+
+
 def test_structured_precondition_block_requires_action_boundary_and_expected_tool() -> None:
     sample = {
         "body": json.dumps(
@@ -278,3 +370,137 @@ claim_boundary: No surgical claim is available.
         blocked,
         expected_tool="get_surgical_operation_packet",
     ) is True
+
+
+def test_external_full_analysis_reuses_current_primary_packet_without_second_run(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    cli_calls = []
+    monkeypatch.setattr(mcp_server, "_valid_external_target", lambda _root: tmp_path)
+    monkeypatch.setattr(
+        mcp_server,
+        "_resolve_mcp_execution_identity",
+        lambda **_kwargs: {"system_scope": "SAGE_ON_REPOSITORY"},
+    )
+    monkeypatch.setattr(
+        mcp_server,
+        "_run_cli",
+        lambda *args, **_kwargs: cli_calls.append(args) or "OK",
+    )
+    monkeypatch.setattr(mcp_server, "_run_python_script", lambda *_args: "OK")
+    monkeypatch.setattr(mcp_server, "get_surgical_operation_packet", lambda **_kwargs: "ready")
+    monkeypatch.setattr(
+        mcp_server,
+        "is_successful_surgical_packet",
+        lambda sample: sample["body"] == "ready",
+    )
+    monkeypatch.setattr(mcp_server, "_read_text_artifact", lambda *_args: "")
+
+    result = json.loads(
+        mcp_server.run_external_target_analysis(
+            str(tmp_path),
+            full=True,
+            include_brief=True,
+        )
+    )
+
+    assert result["status"] == "PASS"
+    assert result["context_closure_requested"] is True
+    assert result["context_closure_succeeded"] is True
+    assert result["context_closure_mode"] == "reused_current_primary_full_run"
+    assert len(cli_calls) == 1
+    assert "--full" in cli_calls[0]
+    assert "AI Context Generator" in cli_calls[0]
+    assert "--ai-context" in cli_calls[0]
+
+
+def test_external_full_analysis_retries_self_contained_context_only_when_packet_is_not_current(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    cli_calls = []
+    packets = iter(["blocked", "ready"])
+    monkeypatch.setattr(mcp_server, "_valid_external_target", lambda _root: tmp_path)
+    monkeypatch.setattr(
+        mcp_server,
+        "_resolve_mcp_execution_identity",
+        lambda **_kwargs: {"system_scope": "SAGE_ON_REPOSITORY"},
+    )
+    monkeypatch.setattr(
+        mcp_server,
+        "_run_cli",
+        lambda *args, **_kwargs: cli_calls.append(args) or "OK",
+    )
+    monkeypatch.setattr(mcp_server, "_run_python_script", lambda *_args: "OK")
+    monkeypatch.setattr(
+        mcp_server,
+        "get_surgical_operation_packet",
+        lambda **_kwargs: next(packets),
+    )
+    monkeypatch.setattr(
+        mcp_server,
+        "is_successful_surgical_packet",
+        lambda sample: sample["body"] == "ready",
+    )
+    monkeypatch.setattr(mcp_server, "_read_text_artifact", lambda *_args: "")
+
+    result = json.loads(
+        mcp_server.run_external_target_analysis(
+            str(tmp_path),
+            full=True,
+            include_brief=True,
+        )
+    )
+
+    assert result["status"] == "PASS"
+    assert result["context_closure_mode"] == "agent_context_recovery"
+    assert len(cli_calls) == 2
+    assert cli_calls[1][:-1] == cli_calls[0]
+    assert cli_calls[1][-1] == "--refresh"
+    assert "AI Context Generator" in cli_calls[1]
+    assert result["surgical_packet"] == "ready"
+
+
+def test_external_full_analysis_fails_closed_when_recovery_packet_remains_not_current(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    cli_calls = []
+    monkeypatch.setattr(mcp_server, "_valid_external_target", lambda _root: tmp_path)
+    monkeypatch.setattr(
+        mcp_server,
+        "_resolve_mcp_execution_identity",
+        lambda **_kwargs: {"system_scope": "SAGE_ON_REPOSITORY"},
+    )
+    monkeypatch.setattr(
+        mcp_server,
+        "_run_cli",
+        lambda *args, **_kwargs: cli_calls.append(args) or "OK",
+    )
+    monkeypatch.setattr(mcp_server, "_run_python_script", lambda *_args: "OK")
+    monkeypatch.setattr(
+        mcp_server,
+        "get_surgical_operation_packet",
+        lambda **_kwargs: "blocked",
+    )
+    monkeypatch.setattr(
+        mcp_server,
+        "is_successful_surgical_packet",
+        lambda sample: sample["body"] == "ready",
+    )
+    monkeypatch.setattr(mcp_server, "_read_text_artifact", lambda *_args: "")
+
+    result = json.loads(
+        mcp_server.run_external_target_analysis(
+            str(tmp_path),
+            full=True,
+            include_brief=True,
+        )
+    )
+
+    assert result["status"] == "FAIL"
+    assert result["context_closure_mode"] == "agent_context_recovery"
+    assert result["context_closure_succeeded"] is True
+    assert result["surgical_packet_succeeded"] is False
+    assert len(cli_calls) == 2
