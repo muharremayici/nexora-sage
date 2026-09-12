@@ -726,9 +726,9 @@ def test_installation_proof_preflight_reuse_rebinds_into_current_generation(
     rebound = observed["persisted"]
     assert rebound["meta"]["receipt_reuse"]["reused_from_run_id"] == "preflight-init"
     assert "artifact_semantics" not in rebound["meta"]
-    assert rebound["target"]["output_dir"].endswith(
-        "generations\\sage-run-current"
-    )
+    rebound_output_dir = Path(rebound["target"]["output_dir"])
+    assert rebound_output_dir.name == "sage-run-current"
+    assert rebound_output_dir.parent.name == "generations"
     assert runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "b" * 64
 
 

@@ -2032,8 +2032,8 @@ def build_parser():
     run_parser.add_argument("--refresh", action="store_true", help="Refresh stale project truth while preserving normal profile, claim, and capability applicability boundaries.")
     run_parser.add_argument(
         "--profile",
-        choices=["daily", "full", "release-deep"],
-        help="Execution profile. Use daily for fast iterative checks, full for default analysis, release-deep for heavyweight proof runs.",
+        choices=["daily", "full", "release-bounded", "release-deep"],
+        help="Execution profile. Use daily for iteration, release-bounded only for canonical bounded release integration, full for default analysis, and release-deep for heavyweight proof runs.",
     )
     run_parser.add_argument("--step", help="Run a specific step with its required upstream dependencies.")
     run_parser.add_argument("--from-step", help="Run from a specific step onward.")

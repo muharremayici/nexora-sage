@@ -14,6 +14,14 @@
       "rationale": "Contributor trust is covered by registry foundation and governance proofs; this validator is operational support evidence."
     },
     {
+      "id": "cli_command_contract",
+      "source": "config/cli_command_contract.json",
+      "source_layer": "configuration_doctrine_policy",
+      "proof_id": "cli_command_contract",
+      "disposition": "supporting_layer_evidence",
+      "rationale": "CLI command validation proves operational routing, execution profiles and command claim boundaries under the configuration layer; it is supporting evidence and does not add a product or architecture claim."
+    },
+    {
       "id": "plugin_trust_policy",
       "source": "config/plugin_trust_policy.json",
       "source_layer": "configuration_doctrine_policy",

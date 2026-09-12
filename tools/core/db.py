@@ -14,6 +14,7 @@ from tools.core.operational_limits import (
     sqlite_schema_initialize_retry_delay_ms,
     sqlite_write_timeout_seconds,
 )
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 tenant_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("tenant_id", default=None)
 _schema_locks: dict[str, threading.RLock] = {}
@@ -49,7 +50,7 @@ class SQLiteManager:
         if db_key in ambient:
             yield ambient[db_key]
             return
-        conn = sqlite3.connect(self.db_path, timeout=float(sqlite_write_timeout_seconds()))
+        conn = sqlite3.connect(native_filesystem_path(self.db_path), timeout=float(sqlite_write_timeout_seconds()))
         conn.row_factory = sqlite3.Row
         conn.execute(f"PRAGMA busy_timeout={int(sqlite_busy_timeout_ms())};")
         conn.execute("PRAGMA foreign_keys=ON;")
@@ -71,7 +72,7 @@ class SQLiteManager:
         if db_key in ambient:
             yield ambient[db_key]
             return
-        conn = sqlite3.connect(self.db_path, timeout=float(sqlite_write_timeout_seconds()))
+        conn = sqlite3.connect(native_filesystem_path(self.db_path), timeout=float(sqlite_write_timeout_seconds()))
         conn.row_factory = sqlite3.Row
         conn.execute(f"PRAGMA busy_timeout={int(sqlite_busy_timeout_ms())};")
         conn.execute("PRAGMA foreign_keys=ON;")
@@ -90,7 +91,7 @@ class SQLiteManager:
     def initialize_schema(self) -> None:
         """Create relational S.A.G.E. tables and indexes if they do not exist."""
         # Ensure raw output directory exists
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        Path(native_filesystem_path(self.db_path.parent)).mkdir(parents=True, exist_ok=True)
         db_key = str(self.db_path.resolve())
         with _schema_locks_guard:
             schema_lock = _schema_locks.setdefault(db_key, threading.RLock())

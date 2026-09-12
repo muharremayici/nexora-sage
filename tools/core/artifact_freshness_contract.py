@@ -8,6 +8,7 @@ from typing import Any
 
 from tools.core.config import CONFIG_DIR, RAW_DIR
 from tools.core.json_io import load_json_object_strict
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 CONTRACT_PATH = CONFIG_DIR / "artifact_freshness_contract.json"
@@ -32,9 +33,10 @@ def load_artifact_freshness_contract() -> dict[str, Any]:
 
 def artifact_state_meta(raw_dir: Path, artifact: str) -> dict[str, Any]:
     db_path = raw_dir / "codemaps.db"
-    if db_path.exists():
+    native_db_path = Path(native_filesystem_path(db_path))
+    if native_db_path.exists():
         try:
-            with closing(sqlite3.connect(db_path)) as conn:
+            with closing(sqlite3.connect(native_db_path)) as conn:
                 conn.row_factory = sqlite3.Row
                 row = conn.execute(
                     "SELECT payload_sha, source_mtime, updated_at, length(payload) AS payload_bytes "
@@ -57,8 +59,10 @@ def artifact_state_meta(raw_dir: Path, artifact: str) -> dict[str, Any]:
         except Exception as exc:
             return {"exists": False, "source": "sqlite_state_payloads", "mtime": 0.0, "error": str(exc)}
     json_path = raw_dir / f"{artifact}.json"
-    if json_path.exists():
-        shadow_mtime = float(json_path.stat().st_mtime)
+    native_json_path = Path(native_filesystem_path(json_path))
+    if native_json_path.exists():
+        shadow_stat = native_json_path.stat()
+        shadow_mtime = float(shadow_stat.st_mtime)
         return {
             "exists": True,
             "source": "json_shadow",
@@ -66,7 +70,7 @@ def artifact_state_meta(raw_dir: Path, artifact: str) -> dict[str, Any]:
             "content_mtime": shadow_mtime,
             "validation_mtime": shadow_mtime,
             "updated_at": "",
-            "payload_bytes": int(json_path.stat().st_size),
+            "payload_bytes": int(shadow_stat.st_size),
         }
     return {"exists": False, "source": "missing", "mtime": 0.0, "updated_at": "", "payload_bytes": 0}
 

@@ -10,11 +10,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from tools.core.unmanaged_atomic_io import save_unmanaged_json_atomic
+from tools.core.unmanaged_atomic_io import native_filesystem_path, save_unmanaged_json_atomic
 
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 INVALID_CURRENT_SENTINEL = ".invalid-current"
 GENERATED_RUN_ID_HEX_CHARS = 16
+
+
+def external_target_output_slug(target_root: str) -> str:
+    """Return the stable, backward-compatible output identity for one target."""
+
+    target_path = Path(target_root)
+    stem = target_path.name or "external_target"
+    safe = "".join(ch.lower() if ch.isalnum() else "_" for ch in stem).strip("_") or "external_target"
+    digest = hashlib.sha256(str(target_path).encode("utf-8")).hexdigest()[:10]
+    return f"{safe}_{digest}"
 
 
 def _utc_now() -> str:
@@ -87,14 +97,14 @@ def resolve_external_target_artifact_dir(target_dir: Path) -> tuple[Path, str]:
     generation, _pointer, reason = resolve_current_external_target_generation(target_dir)
     if generation is not None:
         return generation, reason
-    if (target_dir / "current.json").is_file():
+    if Path(native_filesystem_path(target_dir / "current.json")).is_file():
         return target_dir / "generations" / INVALID_CURRENT_SENTINEL, reason
     return target_dir, "legacy_unversioned"
 
 
 def begin_external_target_generation(target_dir: Path, run_id: str, target_root: Path) -> Path:
     run_dir = _run_dir(target_dir, run_id)
-    if run_dir.exists():
+    if Path(native_filesystem_path(run_dir)).exists():
         raise FileExistsError(f"External target generation already exists: {run_id}")
     _save_json_atomic(run_dir / "generation.json", {
         "meta": {"kind": "external_target_generation", "version": "1.0.0"},
@@ -133,7 +143,7 @@ def close_external_target_generation_without_promotion(
 
 
 def _strict_json(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(Path(native_filesystem_path(path)).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"{path.name} must contain a JSON object")
     return payload
@@ -141,16 +151,17 @@ def _strict_json(path: Path) -> dict[str, Any]:
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
+    with Path(native_filesystem_path(path)).open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
 
 
 def _sqlite_identity(database: Path) -> dict[str, Any]:
-    if not database.is_file():
+    native_database = Path(native_filesystem_path(database))
+    if not native_database.is_file():
         raise ValueError("External target SQLite database is missing")
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(sqlite3.connect(native_database)) as conn:
         quick = conn.execute("PRAGMA quick_check;").fetchone()
         if not quick or str(quick[0]).lower() != "ok":
             raise ValueError("External target SQLite quick_check failed")
@@ -203,7 +214,7 @@ def finalize_external_target_generation(
     shadows: list[dict[str, str]] = []
     try:
         for path in required:
-            if not path.is_file():
+            if not Path(native_filesystem_path(path)).is_file():
                 raise ValueError(f"Required external target artifact is missing: {path.name}")
             payload = _strict_json(path)
             if path.name == "external_target_preflight.json":

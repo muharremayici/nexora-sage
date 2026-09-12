@@ -1,8 +1,8 @@
 {
   "_meta": {
     "kind": "nexora.capability_registry",
-    "version": "1.0.5",
-    "product_release": "1.0.5",
+    "version": "1.0.6",
+    "product_release": "1.0.6",
     "description": "Machine-readable capability/plugin foundation for Nexora SAGE engines, adapters, artifacts and claim boundaries. Product release and capability introduction use SemVer; internal artifact contracts version independently.",
     "validation_contract": {
       "roadmap_decision_matrix": {

@@ -296,13 +296,24 @@ def record_watchdog_session_trace(session: dict[str, Any]) -> dict[str, Any]:
 def record_release_proof_step_trace(step_result: dict[str, Any]) -> dict[str, Any]:
     """Record release-step outcome metadata without retaining commands or output text."""
     step_id = _bounded_text(step_result.get("id"), limit=120)
+    execution_status = _bounded_text(
+        step_result.get("execution_status") or "COMPLETED",
+        limit=80,
+    )
+    dependency_blocked = execution_status == "BLOCKED_BY_FAILED_DEPENDENCY"
+    blocked_dependencies = step_result.get("blocked_by_failed_dependencies")
+    blocked_dependency_count = len(blocked_dependencies) if isinstance(blocked_dependencies, list) else 0
     return record_trace_event(
         event_type="release_proof_step",
         principal="release_proof_runner",
         task_fingerprint=fingerprint({"scope": "release_proof", "step_id": step_id}),
         context_fingerprint=_bounded_text(step_result.get("raw_artifact_sha256"), limit=128),
         policy_version=str(_contract().get("meta", {}).get("version") or UNKNOWN_VALUE),
-        state_change="release_proof_step_completed",
+        state_change=(
+            "release_proof_step_blocked_by_failed_dependency"
+            if dependency_blocked
+            else "release_proof_step_completed"
+        ),
         latency_ms=float(step_result.get("duration_seconds") or 0) * 1000,
         outcome="success" if bool(step_result.get("passed")) else "failure",
         failure_layer="none" if bool(step_result.get("passed")) else "validation",
@@ -312,6 +323,8 @@ def record_release_proof_step_trace(step_result: dict[str, Any]) -> dict[str, An
             "timed_out": bool(step_result.get("timed_out")),
             "timeout_basis": _bounded_text(step_result.get("timeout_basis"), limit=80),
             "raw_artifact_present": bool(step_result.get("raw_artifact")),
+            "execution_status": execution_status,
+            "blocked_dependency_count": blocked_dependency_count,
         },
         trace_id=f"release-proof:{step_id}:{_bounded_text(step_result.get('started_at'), limit=80)}",
     )

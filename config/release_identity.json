@@ -1,15 +1,15 @@
 {
   "_meta": {
     "kind": "nexora_sage_public_release_identity",
-    "version": "1.0.5",
-    "authority": "human_authorized_public_release_identity"
+    "version": "1.0.6",
+    "authority": "local_candidate_not_publication_authority"
   },
   "product": {
     "name": "Nexora SAGE",
     "package_name": "nexora-sage",
-    "public_version": "1.0.5",
-    "release_status": "public_release",
-    "public_release_date": "2026-09-11",
+    "public_version": "1.0.6",
+    "release_status": "local_release_candidate",
+    "public_release_date": null,
     "primary_entrypoint": "python sage.py",
     "internal_compatibility_module": "codemaps.py"
   },
@@ -18,8 +18,7 @@
     "public_notice_identity": "Nexora SAGE Project",
     "private_ownership_evidence": "RETAINED_OUTSIDE_PUBLIC_DISTRIBUTION",
     "qualified_legal_review": "NOT_COMPLETED_AND_NOT_A_V1_PUBLICATION_GATE",
-    "human_publication_authority": "RECORDED_OUTSIDE_PUBLIC_DISTRIBUTION",
-    "publication_authority_receipt_sha256": "e3e6af72248c27b9b59c1de71195649f38d73983faddd14ae8d72028ea1b8aa5"
+    "human_publication_authority": "REQUIRED_BEFORE_PUBLICATION"
   },
   "license": {
     "expression": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
@@ -33,7 +32,7 @@
     "future_transition": "NOT_PART_OF_THIS_RELEASE"
   },
   "distribution": {
-    "mode": "public_git_distribution",
+    "mode": "git_free_local_public_projection",
     "default_repository_mode_supported": true,
     "external_target_mode_supported": true,
     "target_root_flag": "--target-root"

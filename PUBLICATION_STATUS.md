@@ -1,15 +1,12 @@
 # Publication Status
 
-Status: `PUBLIC_RELEASE`
+Status: `LOCAL_CANDIDATE_NOT_PUBLISHED`
 
-Version: `1.0.5`
-Public release date: `2026-09-11`
-Public notice identity: `Nexora SAGE Project`
-License boundary: `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0`
+This directory has no Git metadata or configured remote and must not be
+treated as an authorized public release.
 
-Explicit human publication authority is retained outside this public
-distribution. Its private receipt is bound here by SHA-256:
-`e3e6af72248c27b9b59c1de71195649f38d73983faddd14ae8d72028ea1b8aa5`.
+Publication remains blocked on:
 
-This release offers no commercial license, Small Business grant, CLA or
-external copyrighted-contribution intake, or Countdown/AGPL transition.
+1. an exact public release date,
+2. a final clean-install and public-boundary validation,
+3. explicit human publication authorization.

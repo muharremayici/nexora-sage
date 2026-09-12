@@ -5,6 +5,7 @@ Stores a summary snapshot after each run and diffs against the last one.
 
 import json
 import time
+from pathlib import Path
 
 from tools.core.audit_report import get_total_violations
 from tools.core.config import RAW_DIR, REPORTS_DIR, SNAPSHOTS_DIR, SNAPSHOT_RETENTION
@@ -12,9 +13,10 @@ from tools.core.genome_io import load_genome_data
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.config import save_json_atomic, save_text_atomic
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 def _prune_old_snapshots() -> int:
-    existing = sorted(SNAPSHOTS_DIR.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    existing = sorted(Path(native_filesystem_path(SNAPSHOTS_DIR)).glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
     removed = 0
     for stale_path in existing[SNAPSHOT_RETENTION:]:
         stale_path.unlink(missing_ok=True)
@@ -25,11 +27,11 @@ def _prune_old_snapshots() -> int:
 def save_snapshot_and_diff():
     logger.info("Running temporal diff analysis...")
 
-    SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    Path(native_filesystem_path(SNAPSHOTS_DIR)).mkdir(parents=True, exist_ok=True)
 
     current = _build_summary()
 
-    existing = sorted(SNAPSHOTS_DIR.glob("*.json"), reverse=True)
+    existing = sorted(Path(native_filesystem_path(SNAPSHOTS_DIR)).glob("*.json"), reverse=True)
     previous = None
     previous_error = None
     if existing:

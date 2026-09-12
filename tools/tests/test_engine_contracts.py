@@ -1777,6 +1777,51 @@ class ArtifactStoreSQLiteContractTests(unittest.TestCase):
 
             self.assertTrue(refused.exists())
 
+    @unittest.skipUnless(os.name == "nt", "Windows extended-length path contract")
+    def test_failure_drill_cleanup_supports_extended_length_windows_paths(self):
+        from tools import validate_entrypoints_and_failures as entrypoint_validation
+
+        with tempfile.TemporaryDirectory() as tmp:
+            code_maps = Path(tmp).resolve() / ("nested_" + ("x" * 110))
+            allowed = (
+                code_maps
+                / "output"
+                / "external_targets"
+                / "sage_entrypoint_failure_drill_long_path_123"
+            )
+            extended_allowed = Path(entrypoint_validation.native_filesystem_path(allowed))
+            extended_allowed.mkdir(parents=True)
+            long_leaf = extended_allowed / ("lineage_" + ("x" * 70) + ".json")
+            long_leaf.write_text("{}", encoding="utf-8")
+            self.assertGreater(len(str(long_leaf)), 260)
+
+            with patch.object(entrypoint_validation, "CODE_MAPS_DIR", code_maps):
+                entrypoint_validation._cleanup_isolated_output(allowed)
+
+            self.assertFalse(allowed.exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows extended-length path contract")
+    def test_external_target_retention_prunes_extended_length_fixture_paths(self):
+        from tools.core import external_target_retention
+        from tools.core.unmanaged_atomic_io import native_filesystem_path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp).resolve() / "external_targets"
+            fixture = base_dir / "nexora_external_react_smoke_long_path_123"
+            extended_fixture = Path(native_filesystem_path(fixture))
+            extended_fixture.mkdir(parents=True)
+            long_leaf = extended_fixture / (("x" * 200) + ".json")
+            long_leaf.write_text("{}", encoding="utf-8")
+            self.assertGreater(len(str(long_leaf)), 260)
+
+            result = external_target_retention.prune_generated_external_target_fixtures(
+                base_dir=base_dir,
+                keep_per_prefix=0,
+            )
+
+            self.assertEqual(result["status"], "PASS")
+            self.assertEqual(result["selected_for_removal"], 1)
+            self.assertFalse(fixture.exists())
     def test_failure_drill_startup_cleanup_removes_only_stale_reserved_outputs(self):
         from tools import validate_entrypoints_and_failures as entrypoint_validation
 
@@ -1807,6 +1852,17 @@ class ArtifactStoreSQLiteContractTests(unittest.TestCase):
             self.assertFalse(stale_a.exists())
             self.assertFalse(stale_b.exists())
             self.assertTrue(customer.exists())
+
+    def test_failure_drill_tree_mtime_ignores_disappearing_child(self):
+        from tools import validate_entrypoints_and_failures as entrypoint_validation
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            missing_child = root / "already-removed.json"
+            with patch.object(Path, "rglob", return_value=iter([missing_child])):
+                latest = entrypoint_validation._latest_existing_tree_mtime(root)
+
+            self.assertEqual(latest, root.stat().st_mtime)
 
     def test_failure_drill_startup_cleanup_preserves_recent_concurrent_output(self):
         from tools import validate_entrypoints_and_failures as entrypoint_validation
@@ -2742,6 +2798,15 @@ class TargetRootOverrideContractTests(unittest.TestCase):
         self.assertEqual(slug_a, slug_b)
         self.assertNotEqual(slug_a, slug_c)
         self.assertTrue(slug_a.startswith("react_app_"))
+
+    def test_external_target_agent_surface_rejects_failed_producer_before_consumers(self):
+        from tools.validate_external_target_agent_surface import _require_successful_analysis
+
+        _require_successful_analysis({"status": "PASS"})
+        with self.assertRaisesRegex(RuntimeError, "validated current authority"):
+            _require_successful_analysis(
+                {"status": "FAIL", "command_output": "Command failed (1): producer root cause"}
+            )
 
     def test_external_target_preflight_reports_unknown_repo_without_failure(self):
         with tempfile.TemporaryDirectory() as tmp:

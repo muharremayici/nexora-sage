@@ -135,12 +135,18 @@ def main() -> int:
             except ValueError:
                 print("[distribution-tests] FAIL: target fixture escapes the distribution root", file=sys.stderr)
                 return 2
-            temporary_target = tempfile.TemporaryDirectory(prefix="nexora-sage-test-target-")
+            temporary_target = tempfile.TemporaryDirectory(
+                prefix="nexora-sage-test-target-",
+                ignore_cleanup_errors=True,
+            )
             external_target = Path(temporary_target.name) / "repository"
             shutil.copytree(resolved_fixture, external_target)
             env["CODEMAPS_TARGET_ROOT"] = str(external_target)
 
-        temporary_pytest = tempfile.TemporaryDirectory(prefix="nexora-sage-pytest-")
+        temporary_pytest = tempfile.TemporaryDirectory(
+            prefix="nexora-sage-pytest-",
+            ignore_cleanup_errors=True,
+        )
         command = [sys.executable, "-B", "-m", "pytest", *tests]
         command.extend(
             [

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 EXTERNAL_TARGETS_DIR = CODE_MAPS_DIR / "output" / "external_targets"
@@ -111,7 +112,7 @@ def prune_generated_external_target_fixtures(
         if dry_run:
             continue
         try:
-            shutil.rmtree(path)
+            shutil.rmtree(native_filesystem_path(path))
         except OSError as exc:
             failed.append({"path": str(path), "error": str(exc)})
 

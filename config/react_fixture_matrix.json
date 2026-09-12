@@ -2,10 +2,10 @@
   "min_detected_present_ratio": 1.0,
   "max_partial_capabilities": 0,
   "bounded_fixture": {
-    "claim_boundary": "Producer/output contracts only. Atlas ingestion, source acquisition, scope selection and merge cockpit decisions are fixture inputs, not integration proof. Runtime smoke is not executed.",
+    "claim_boundary": "Producer/output contracts only. Atlas ingestion, source acquisition, scope selection, merge dependency packages and cockpit decisions are fixture inputs, not integration proof. Runtime smoke is not executed.",
     "project": "FIXTURE",
     "file": "src/app/editor/page.tsx",
-    "source": "'use client';\nimport React, { useMemo } from 'react';\nimport fs from 'fs';\nexport function EditorPage(props) {\n  props.count = 1;\n  const value = useMemo(() => props.count, []);\n  return <button>{value}</button>;\n}\n",
+    "source": "'use client';\nimport React, { useMemo } from 'react';\nimport fs from 'fs';\nexport function EditorPage(props) {\n  props.count = 1;\n  const value = useMemo(() => props.count, []);\n  const stamp = Date.now();\n  return <button>{value}-{stamp}</button>;\n}\n",
     "decision": {
       "candidate": "EditorPage",
       "source": "FIXTURE",
@@ -24,8 +24,13 @@
       "react_runtime_intelligence_full.json",
       "react_compiler_readiness.json",
       "react_compiler_readiness_full.json",
+      "react_frontier_intelligence.json",
+      "react_frontier_intelligence_full.json",
+      "react_frontier_evidence_readiness.json",
       "next_boundary_analysis.json",
       "next_boundary_analysis_full.json",
+      "state_data_graph.json",
+      "merge_simulation.json",
       "ai_task_packs.json"
     ]
   },

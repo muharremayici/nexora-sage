@@ -34,7 +34,8 @@ from tools.core.contextos_mcp import (
 )
 from tools.core.python_runtime_env import isolated_python_subprocess_env
 from tools.core.import_classifier import import_specifier_from_audit_detail
-from tools.core.external_target_generation import resolve_external_target_artifact_dir
+from tools.core.external_target_generation import external_target_output_slug, resolve_external_target_artifact_dir
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 BASE_DIR = Path(_ROOT)
 TARGET_ROOT = Path(CONFIG_ROOT)
@@ -1250,12 +1251,7 @@ def _analysis_root_display(target_root: str = "") -> str:
     return str(ANALYZED_REPOSITORY_ROOT)
 
 
-def _target_output_slug(target_root: str) -> str:
-    target_path = Path(target_root)
-    stem = target_path.name or "external_target"
-    safe = "".join(ch.lower() if ch.isalnum() else "_" for ch in stem).strip("_") or "external_target"
-    digest = hashlib.sha256(str(target_path).encode("utf-8")).hexdigest()[:10]
-    return f"{safe}_{digest}"
+_target_output_slug = external_target_output_slug
 
 
 def _raw_dir_for_target(target_root: str = "") -> Path:
@@ -1444,7 +1440,7 @@ def _file_context_from_atlas(project_data: dict, project_key: str, rel_path: str
 
 def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict[str, Any]] | None:
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return None
     target_text = str(target or "").replace("\\", "/").strip().strip("/")
     if target_text.startswith("./"):
@@ -1491,7 +1487,7 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
     candidate_rels = list(dict.fromkeys(candidate_rels))
     placeholders = ",".join("?" for _ in candidate_rels)
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             project_path = ""
             if project_filter:
@@ -1627,12 +1623,12 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
         return rel_path
 
     db_path = (raw_dir or RAW_DIR) / "codemaps.db"
-    if db_path.exists():
+    if Path(native_filesystem_path(db_path)).exists():
         try:
             like = f"%{query_lower}%"
             project_filter = str(project or "").strip()
             project_filter_active = bool(project_filter and project_filter.lower() not in {"*", "all", "any"})
-            with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+            with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
                 conn.row_factory = sqlite3.Row
                 params: list[Any] = [like, like]
                 project_clause = ""
@@ -2307,10 +2303,10 @@ def _source_snapshot_content_for_ref(raw_dir: Path, target_ref: str) -> str:
     if not project_key or not rel_path:
         return ""
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return ""
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             row = conn.execute(
                 """
                 SELECT content
@@ -2620,10 +2616,10 @@ def _dependency_import_evidence(raw_dir: Path, source_ref: str) -> dict[str, str
     if not source_file_id:
         return {}
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return {}
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
@@ -2708,7 +2704,7 @@ def _source_grounding_status(
     rel_path = str((context or {}).get("atlas_relative_path") or "").replace("\\", "/").strip("/")
     repo_rel_path = str((context or {}).get("repo_relative_path") or rel_path).replace("\\", "/").strip("/")
     agent_target_ref = f"{project_key}::{repo_rel_path}" if project_key and repo_rel_path else repo_rel_path
-    if not db_path.exists() or not file_id or not project_key or not rel_path:
+    if not Path(native_filesystem_path(db_path)).exists() or not file_id or not project_key or not rel_path:
         return {
             "source_snapshot_status": "missing",
             "source_snapshot_hash": "",
@@ -2723,7 +2719,7 @@ def _source_grounding_status(
     snapshot_content = ""
     target_spans: list[dict[str, Any]] = []
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             snapshot = conn.execute(
                 """
@@ -2942,7 +2938,7 @@ def _target_path_status(
     *,
     preferred_symbols: set[str] | None = None,
 ) -> dict[str, Any]:
-    db_exists = (raw_dir / "codemaps.db").exists()
+    db_exists = Path(native_filesystem_path(raw_dir / "codemaps.db")).exists()
     resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_file, allow_atlas_fallback=not db_exists)
     project_from_node, rel_from_node = resolved_node.split("::", 1) if "::" in resolved_node else ("", resolved_node)
     target_rel = str(context.get("repo_relative_path") or rel_from_node).replace("\\", "/").strip("/")
@@ -3391,7 +3387,7 @@ def _narrow_source_grounding_to_inspection_target(status: dict[str, Any], payloa
 
 def _sqlite_symbol_inspection_payload(raw_dir: Path, target_symbol: str, target_root: str = "") -> dict[str, Any] | None:
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return None
     scoped_project = ""
     symbol_query = str(target_symbol or "").strip()
@@ -3472,7 +3468,7 @@ def _sqlite_symbol_inspection_payload(raw_dir: Path, target_symbol: str, target_
 
 def _sqlite_file_inspection_payload(raw_dir: Path, file_path: str, target_root: str = "") -> dict[str, Any] | None:
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return None
     sqlite_context = _sqlite_file_context_from_raw(raw_dir, file_path)
     if sqlite_context is None:
@@ -3482,7 +3478,7 @@ def _sqlite_file_inspection_payload(raw_dir: Path, file_path: str, target_root: 
     repo_rel = str(context.get("repo_relative_path") or atlas_rel).replace("\\", "/").strip("/")
     symbol_rows: list[dict[str, Any]] = []
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
@@ -3919,12 +3915,12 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
     if not file_id:
         return None
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return None
     radius_depth = max(0, int(depth or 0))
     sql_depth = 128 if radius_depth == 0 else radius_depth
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             direct_rows = conn.execute(
                 """
@@ -4034,11 +4030,11 @@ def _sqlite_upstream_trace_from_raw(
     if not file_id:
         return None
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return None
 
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             upstream_rows = conn.execute(
                 """
@@ -4159,7 +4155,7 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
     sqlite_payload = _sqlite_impact_radius_from_raw(raw_dir, target_node, target_root=target_root, depth=depth)
     if sqlite_payload is not None:
         return sqlite_payload
-    if not (raw_dir / "atlas.json").exists():
+    if not Path(native_filesystem_path(raw_dir / "atlas.json")).exists():
         return None
     resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_node)
     atlas = _atlas(raw_dir=raw_dir)
@@ -5355,7 +5351,7 @@ def _audit_violation_work_items_from_sqlite(
     file_path: str = "",
 ) -> tuple[list[dict[str, Any]], int, bool]:
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return [], 0, False
     raw_project_filter = str(project or "").strip()
     target_project = "" if raw_project_filter in {"*", "all", "ALL"} else raw_project_filter
@@ -5378,7 +5374,7 @@ def _audit_violation_work_items_from_sqlite(
         params.append(target_file)
     where_clause = " AND ".join(where)
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             table = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'findings';"
@@ -5492,7 +5488,7 @@ def _module_integrity_items_from_sqlite(
     target_root: str = "",
 ) -> tuple[list[dict[str, Any]], int, bool]:
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).exists():
         return [], 0, False
     module_filter = str(module_path or "").replace("\\", "/").strip("/").lower()
     default_main_scope = not target_root and not _is_variation_workspace_text(module_path) and "::" not in str(module_path or "")
@@ -5515,7 +5511,7 @@ def _module_integrity_items_from_sqlite(
         params.extend([like, like, module_filter])
     where_clause = " AND ".join(where)
     try:
-        with closing(sqlite3.connect(db_path, timeout=float(sqlite_read_timeout_seconds()))) as conn:
+        with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             total = int(
                 conn.execute(
@@ -8085,7 +8081,7 @@ def get_surgical_context(symbol: str, project: str = "", target_root: str = "", 
         raw_dir = _raw_dir_for_target(target_root)
     except ValueError as exc:
         return _invalid_external_target_brief("get_surgical_context", target_root)
-    if not (raw_dir / "atlas.json").exists():
+    if not Path(native_filesystem_path(raw_dir / "atlas.json")).exists():
         return _missing_target_artifact_brief("get_surgical_context", symbol, target_root, ["atlas.json"])
     requested_format = str(format or "brief").lower()
     project_filter = project or "MAIN"
@@ -10002,7 +9998,7 @@ def get_active_signals(
     except ValueError as exc:
         return _invalid_external_target_brief("get_active_signals", target_root)
     signals_path = raw_dir / "signals.json"
-    if not signals_path.exists():
+    if not Path(native_filesystem_path(signals_path)).exists():
         if target_root:
             return _missing_target_artifact_brief("get_active_signals", "active_signals", target_root, ["signals.json"])
         from tools.core.contextos_mcp import render_active_signals
@@ -10055,7 +10051,7 @@ def trace_upstream_cause(target_node: str, target_root: str = "", format: str = 
         from tools.core.contextos_mcp import build_upstream_trace
 
         raw_dir = _raw_dir_for_target(target_root)
-        if target_root and not (raw_dir / "codemaps.db").exists() and not load_atlas_data(raw_dir):
+        if target_root and not Path(native_filesystem_path(raw_dir / "codemaps.db")).exists() and not load_atlas_data(raw_dir):
             return _done(_missing_target_artifact_brief("trace_upstream_cause", target_node, target_root, ["codemaps.db", "atlas.json"]), status="fail_closed", fail_closed_reason="missing_target_artifact")
         signals = _load_json(raw_dir / "signals.json") or {}
         result = _sqlite_upstream_trace_from_raw(raw_dir, target_node, target_root=target_root, signals_data=signals)

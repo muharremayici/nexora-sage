@@ -342,6 +342,56 @@ def _release_proof_scope_validation() -> dict[str, Any]:
     if not operating_model_valid:
         violations.append({"reason": "invalid_release_proof_operating_model"})
 
+    evidence_reuse = contract.get("evidence_reuse", {}) if isinstance(contract, dict) else {}
+    checkpoint = evidence_reuse.get("checkpoint", {}) if isinstance(evidence_reuse, dict) else {}
+    required_identity_fields = {
+        "source_dependency_sha256",
+        "validator_sha256",
+        "policy_sha256",
+        "environment_sha256",
+        "input_artifacts_sha256",
+        "scope_sha256",
+        "step_contract_sha256",
+        "output_artifact_sha256",
+    }
+    resume_source = (ROOT / "tools" / "core" / "release_proof_resume.py").read_text(
+        encoding="utf-8",
+        errors="replace",
+    )
+    runner_source = (ROOT / "tools" / "run_release_proof_bundle.py").read_text(
+        encoding="utf-8",
+        errors="replace",
+    )
+    resume_contract_valid = (
+        isinstance(evidence_reuse, dict)
+        and evidence_reuse.get("mode") == "plan_only"
+        and evidence_reuse.get("authority")
+        == "diagnostic_only_no_execution_or_release_authority"
+        and evidence_reuse.get("execution_mode") == "interruption_resume_exact_identity"
+        and evidence_reuse.get("execution_authority")
+        == "skip_completed_non_delivery_steps_from_same_interrupted_scope_only_no_release_authority"
+        and set(evidence_reuse.get("identity_fields", [])) == required_identity_fields
+        and set(evidence_reuse.get("always_fresh_domains", []))
+        == {"distribution_installation", "human_legal_authority", "release_envelope"}
+        and isinstance(checkpoint, dict)
+        and checkpoint.get("path")
+        == "${code_maps}/output/.operational/release_proof/resume_checkpoint.json"
+        and checkpoint.get("lock_path")
+        == "${code_maps}/output/.operational/release_proof/release_proof.lock"
+        and checkpoint.get("automatic") is True
+        and checkpoint.get("fresh_restart_flag") == "--restart"
+        and set(checkpoint.get("resumable_states", []))
+        == {"in_progress", "proof_steps_complete"}
+        and checkpoint.get("terminal_state") == "completed"
+        and checkpoint.get("required_output_artifact") is True
+        and "checkpoint_reuse_eligible" in resume_source
+        and "same_invocation_shared_evidence_required" in resume_source
+        and "proof_resume.record_checkpoint_result" in runner_source
+        and "AdvisoryFileLock(proof_resume.lock_path())" in runner_source
+        and 'elif arg == "--restart"' in runner_source
+    )
+    if not resume_contract_valid:
+        violations.append({"reason": "invalid_release_proof_interruption_resume_contract"})
     live = contract.get("live_repository_execution", {}) if isinstance(contract, dict) else {}
     live_step_id = str(live.get("step_id") or "") if isinstance(live, dict) else ""
     live_step = by_id.get(live_step_id)
@@ -389,6 +439,47 @@ def _release_proof_scope_validation() -> dict[str, Any]:
         for item in profile_contract.get("keep_slugs", [])
         if str(item).strip()
     } if isinstance(profile_contract, dict) and isinstance(profile_contract.get("keep_slugs"), list) else set()
+    shared_producer_artifacts = (
+        live_step.get("shared_producer_artifacts", [])
+        if isinstance(live_step, dict)
+        else []
+    )
+    shared_producer_map = {
+        str(item.get("consumer_step_id") or ""): {
+            "artifact_id": str(item.get("artifact_id") or ""),
+            "raw_artifact": getattr(item.get("raw_artifact"), "name", ""),
+        }
+        for item in shared_producer_artifacts
+        if isinstance(item, dict)
+    }
+    required_shared_producer_map = {
+        "release_clone_context_refresh": {
+            "artifact_id": "clone_detector",
+            "raw_artifact": "clone_detector.json",
+        },
+        "release_quality_gate_refresh": {
+            "artifact_id": "quality_gate",
+            "raw_artifact": "quality_gate.json",
+        },
+    }
+    logical_shared_consumers_valid = all(
+        by_id.get(step_id, {}).get("command") == []
+        and by_id.get(step_id, {}).get("evidence_from_dependency") == {
+            "producer_step_id": live_step_id,
+            "artifact_id": expected["artifact_id"],
+        }
+        and by_id.get(step_id, {}).get("fresh_artifact_required") is True
+        for step_id, expected in required_shared_producer_map.items()
+    )
+    sage_pipeline_run_steps = sorted(
+        step_id
+        for step_id in (
+            live_step_id,
+            "release_clone_context_refresh",
+            "release_quality_gate_refresh",
+        )
+        if "sage.py" in " ".join(str(item) for item in by_id.get(step_id, {}).get("command", []))
+    )
     live_contract_valid = (
         live_step is not None
         and live_step_id == "release_analysis_quality_gate_refresh"
@@ -400,11 +491,16 @@ def _release_proof_scope_validation() -> dict[str, Any]:
         and command_projects == required_projects
         and "--full" in command
         and "--force" in command
-        and required_profile == "daily"
+        and required_profile == "release-bounded"
         and command_profile == required_profile
         and release_deep_run_steps == []
+        and sage_pipeline_run_steps == [live_step_id]
         and profile_contract.get("mode") == "keep_slugs"
+        and profile_contract.get("include_full_only") is True
+        and {"atlas", "semanticclonedetector", "qualitygates"}.issubset(profile_keep_slugs)
         and not (forbidden_live_slugs & profile_keep_slugs)
+        and shared_producer_map == required_shared_producer_map
+        and logical_shared_consumers_valid
         and relationship_steps
         and not sorted(set(relationship_steps) - set(by_id))
         and bool(str(live.get("claim_boundary") or "").strip())
@@ -420,7 +516,10 @@ def _release_proof_scope_validation() -> dict[str, Any]:
                 "required_profile": required_profile,
                 "command_profile": command_profile,
                 "release_deep_run_steps": release_deep_run_steps,
+                "sage_pipeline_run_steps": sage_pipeline_run_steps,
                 "forbidden_live_slugs_enabled_by_profile": sorted(forbidden_live_slugs & profile_keep_slugs),
+                "shared_producer_map": shared_producer_map,
+                "logical_shared_consumers_valid": logical_shared_consumers_valid,
                 "relationship_steps": relationship_steps,
             }
         )
@@ -441,26 +540,27 @@ def _release_proof_scope_validation() -> dict[str, Any]:
         if isinstance(final_step, dict)
         else []
     )
-    final_projects: list[str] = []
-    if "--projects" in final_command:
-        index = final_command.index("--projects") + 1
-        if index < len(final_command):
-            final_projects = [item.strip() for item in final_command[index].split(",") if item.strip()]
-    explicit_step = ""
-    if "--step" in final_command:
-        index = final_command.index("--step") + 1
-        if index < len(final_command):
-            explicit_step = final_command[index]
     required_final_projects = (
         [str(item) for item in final_governance.get("required_project_filter", [])]
         if isinstance(final_governance, dict)
         and isinstance(final_governance.get("required_project_filter"), list)
         else []
     )
-    required_explicit_step = (
-        str(final_governance.get("required_explicit_step") or "")
+    required_final_profile = (
+        str(final_governance.get("required_execution_profile") or "")
         if isinstance(final_governance, dict)
         else ""
+    )
+    required_shared_artifact_id = (
+        str(final_governance.get("required_shared_producer_artifact_id") or "")
+        if isinstance(final_governance, dict)
+        else ""
+    )
+    final_evidence_contract = (
+        final_step.get("evidence_from_dependency", {})
+        if isinstance(final_step, dict)
+        and isinstance(final_step.get("evidence_from_dependency"), dict)
+        else {}
     )
     final_raw_artifact = final_step.get("raw_artifact") if isinstance(final_step, dict) else None
     final_governance_valid = (
@@ -469,13 +569,13 @@ def _release_proof_scope_validation() -> dict[str, Any]:
         and final_governance.get("depends_on_step_id") == live_step_id
         and live_step_id in [str(item) for item in final_step.get("depends_on", [])]
         and required_final_projects == ["MAIN"]
-        and final_projects == required_final_projects
-        and required_explicit_step == "Quality Gates"
-        and explicit_step == required_explicit_step
-        and "--refresh" not in final_command
-        and "--force" not in final_command
-        and "--profile" not in final_command
-        and "--full" not in final_command
+        and required_final_profile == required_profile
+        and required_shared_artifact_id == "quality_gate"
+        and final_command == []
+        and final_evidence_contract == {
+            "producer_step_id": live_step_id,
+            "artifact_id": required_shared_artifact_id,
+        }
         and final_step.get("fresh_artifact_required") is True
         and final_governance.get("fresh_artifact_required") is True
         and getattr(final_raw_artifact, "name", "") == "quality_gate.json"
@@ -490,10 +590,10 @@ def _release_proof_scope_validation() -> dict[str, Any]:
                 "reason": "invalid_or_stale_final_governance_release_execution",
                 "step_id": final_step_id,
                 "depends_on_step_id": final_governance.get("depends_on_step_id"),
-                "command_projects": final_projects,
                 "required_projects": required_final_projects,
-                "explicit_step": explicit_step,
-                "required_explicit_step": required_explicit_step,
+                "required_execution_profile": required_final_profile,
+                "required_shared_producer_artifact_id": required_shared_artifact_id,
+                "evidence_from_dependency": final_evidence_contract,
                 "fresh_artifact_required": final_step.get("fresh_artifact_required"),
                 "raw_artifact": str(final_raw_artifact or ""),
             }

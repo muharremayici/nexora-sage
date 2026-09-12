@@ -9,6 +9,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 from tools.core.json_syntax import DuplicateJSONKeyError, loads_json_strict
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 _STRICT_JSON_CONTENT_CACHE: dict[tuple[str, Callable[[dict[str, Any]], dict[str, Any]] | None], tuple[str, dict[str, Any]]] = {}
@@ -20,7 +21,7 @@ _JSON_CONTENT_CACHE_LOCK = threading.RLock()
 
 
 def _content_snapshot(path: Path) -> tuple[bytes, str]:
-    content = path.read_bytes()
+    content = Path(native_filesystem_path(path)).read_bytes()
     return content, hashlib.sha256(content).hexdigest()
 
 
@@ -60,10 +61,11 @@ def load_json_file(path: str | Path, default: Any = None, bypass_proxy: bool = F
             except Exception:
                 pass
             
-    if not path.exists():
+    native_path = Path(native_filesystem_path(path))
+    if not native_path.exists():
         return default
     try:
-        return loads_json_strict(path.read_text(encoding="utf-8"))
+        return loads_json_strict(native_path.read_text(encoding="utf-8"))
     except Exception:
         return default
 
@@ -74,7 +76,7 @@ def load_json_strict(path: str | Path, bypass_proxy: bool = False) -> Any:
     if not bypass_proxy and _is_managed_raw_artifact(path):
         from tools.core.artifact_store import STORE
         return STORE.load_raw(path.stem)
-    return loads_json_strict(path.read_text(encoding="utf-8"))
+    return loads_json_strict(Path(native_filesystem_path(path)).read_text(encoding="utf-8"))
 
 
 def load_json_object_strict(path: str | Path, *, label: str = "JSON contract", bypass_proxy: bool = False) -> dict[str, Any]:
