@@ -890,7 +890,7 @@
         "init_full",
         "init_setup_only"
       ],
-      "rule": "install-proof records machine-local onboarding evidence; its daily/release plans use setup-only initialization so analysis executes exactly once in the named proof flow."
+      "rule": "install-proof records machine-local onboarding evidence; its daily/release plans use setup-only initialization so analysis executes exactly once in the named proof flow. Smoke validates an already-initialized runtime configuration and, when that prerequisite is absent, must stop before proof-step execution with the canonical target-aware install-proof command."
     }
   ]
 }

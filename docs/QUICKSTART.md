@@ -178,6 +178,11 @@ The installation proof runs a dependency-closed daily repository analysis but
 does not claim a final target governance verdict. Use a complete full or
 explicit Quality Gate run when that separate verdict is required.
 
+The `smoke` level is an internal check for an already initialized SAGE
+workspace. In a fresh public package it exits before running proof steps and
+points to the target-aware `release` command above instead of emitting a chain
+of missing-runtime-configuration failures.
+
 Installation validation is authority-scoped. A public package selects the
 `public_target_repository` profile from `PUBLIC_DISTRIBUTION_MANIFEST.json` and
 validates only shipped installation and target-repository surfaces. Canonical
