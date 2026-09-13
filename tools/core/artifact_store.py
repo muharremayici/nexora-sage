@@ -19,6 +19,7 @@ from tools.core.persistence_limits import load_persistence_limits
 from tools.core.db import SQLiteManager
 from tools.core.path_identity import strip_current_directory_prefix
 from tools.core.stdio import best_effort_print
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 logger = logging.getLogger("SAGE.ArtifactStore")
 
@@ -428,7 +429,7 @@ class ArtifactStore:
         from tools.core.db import get_current_tenant
         tenant_id = get_current_tenant()
         base = self._raw_dir.parent / "tenants" / tenant_id / ".raw" if tenant_id else self._raw_dir
-        base.mkdir(parents=True, exist_ok=True)
+        Path(native_filesystem_path(base)).mkdir(parents=True, exist_ok=True)
         filename = _RAW_ALIASES.get(name, f"{name}.json")
         return _safe_resolve(base, filename)
 
@@ -436,7 +437,7 @@ class ArtifactStore:
         from tools.core.db import get_current_tenant
         tenant_id = get_current_tenant()
         base = CONFIG_DIR.parent / "tenants" / tenant_id / "config" if tenant_id else CONFIG_DIR
-        base.mkdir(parents=True, exist_ok=True)
+        Path(native_filesystem_path(base)).mkdir(parents=True, exist_ok=True)
         filename = _CONFIG_ALIASES.get(name, f"{name}.json")
         return _safe_resolve(base, filename)
 
@@ -444,7 +445,7 @@ class ArtifactStore:
         from tools.core.db import get_current_tenant
         tenant_id = get_current_tenant()
         base = REPORTS_DIR.parent / "tenants" / tenant_id / "reports" if tenant_id else REPORTS_DIR
-        base.mkdir(parents=True, exist_ok=True)
+        Path(native_filesystem_path(base)).mkdir(parents=True, exist_ok=True)
         filename = name if name.endswith(suffix) else f"{name}{suffix}"
         return _safe_resolve(base, filename)
 

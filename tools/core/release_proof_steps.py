@@ -232,6 +232,23 @@ def load_release_proof_steps(path: Path | None = None) -> list[dict[str, Any]]:
         raw_artifact = _resolve_raw_artifact(step.get("raw_artifact"))
         if raw_artifact is not None:
             step["raw_artifact"] = raw_artifact
+        shared_artifacts = step.get("shared_producer_artifacts", [])
+        resolved_shared_artifacts: list[dict[str, Any]] = []
+        for shared in shared_artifacts if isinstance(shared_artifacts, list) else []:
+            if not isinstance(shared, dict):
+                continue
+            resolved = dict(shared)
+            shared_path = _resolve_raw_artifact(resolved.get("raw_artifact"))
+            if shared_path is not None:
+                resolved["raw_artifact"] = shared_path
+            resolved_shared_artifacts.append(resolved)
+        step["shared_producer_artifacts"] = resolved_shared_artifacts
+        evidence_from_dependency = step.get("evidence_from_dependency")
+        step["evidence_from_dependency"] = (
+            dict(evidence_from_dependency)
+            if isinstance(evidence_from_dependency, dict)
+            else None
+        )
         runtime_directories = step.get("runtime_directories", [])
         step["runtime_directories"] = (
             [

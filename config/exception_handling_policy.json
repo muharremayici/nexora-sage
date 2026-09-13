@@ -134,7 +134,7 @@
       "exception_type": "Exception",
       "pass_only": false,
       "body_fingerprint": "d1666864a0d02f75",
-      "try_context_fingerprint": "d7ab7457e3ad7310",
+      "try_context_fingerprint": "6e85029241e9d5b8",
       "purpose": "Non-strict JSON loader returns its explicit default for missing or malformed optional JSON."
     },
     {

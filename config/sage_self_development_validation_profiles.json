@@ -1,0 +1,446 @@
+{
+  "meta": {
+    "kind": "nexora.sage_self_development_validation_profiles",
+    "version": "v1",
+    "authority": "central_self_development_validation_policy",
+    "target_repository_default": false
+  },
+  "validation": {
+    "required_profiles": [
+      "micro",
+      "bounded",
+      "critical",
+      "release"
+    ],
+    "required_universal_invariants": [
+      "scope_control",
+      "authority_boundary",
+      "evidence_honesty",
+      "ssot_ownership",
+      "explicit_unknowns"
+    ],
+    "allowed_condition_operators": [
+      "release_phase_in",
+      "any_signal",
+      "consumer_fan_out_gte",
+      "changed_file_count_gte",
+      "reversibility_in",
+      "unknown_signal_present"
+    ]
+  },
+  "input_contract": {
+    "required_fields": [
+      "changed_files",
+      "signals",
+      "consumer_fan_out",
+      "reversibility",
+      "release_phase",
+      "behavior_change",
+      "scope_kind"
+    ],
+    "allowed_signals": [
+      "agent_surface",
+      "artifact_contract",
+      "atomicity",
+      "authority",
+      "clean_distribution",
+      "concurrency",
+      "configuration",
+      "documentation",
+      "evidence_calibration",
+      "installation",
+      "interruption",
+      "migration",
+      "packaging",
+      "path_contract",
+      "public_claim",
+      "release_proof",
+      "scheduler",
+      "schema",
+      "security",
+      "seal",
+      "sqlite_ssot",
+      "test_only",
+      "validator"
+    ],
+    "allowed_reversibility": [
+      "easy",
+      "moderate",
+      "difficult",
+      "irreversible"
+    ],
+    "allowed_release_phases": [
+      "development",
+      "candidate",
+      "frozen_candidate",
+      "pre_seal",
+      "publication"
+    ],
+    "allowed_scope_kinds": [
+      "documentation_only",
+      "isolated_behavior_preserving",
+      "bounded_behavior_change",
+      "multi_surface_change"
+    ],
+    "unknown_signal_minimum_profile": "critical"
+  },
+  "universal_invariants": [
+    "scope_control",
+    "authority_boundary",
+    "evidence_honesty",
+    "ssot_ownership",
+    "explicit_unknowns"
+  ],
+  "selection": {
+    "profile_order": [
+      "micro",
+      "bounded",
+      "critical",
+      "release"
+    ],
+    "default_profile": "bounded",
+    "micro_eligibility": {
+      "release_phase_in": [
+        "development"
+      ],
+      "scope_kind_in": [
+        "documentation_only",
+        "isolated_behavior_preserving"
+      ],
+      "behavior_change_is": false,
+      "changed_file_count_lte": 1,
+      "consumer_fan_out_lte": 1,
+      "reversibility_in": [
+        "easy"
+      ]
+    },
+    "rules": [
+      {
+        "id": "frozen_or_later_release_phase",
+        "strength": "hard",
+        "minimum_profile": "release",
+        "when": {
+          "release_phase_in": [
+            "frozen_candidate",
+            "pre_seal",
+            "publication"
+          ]
+        }
+      },
+      {
+        "id": "release_boundary_surface",
+        "strength": "hard",
+        "minimum_profile": "release",
+        "when": {
+          "any_signal": [
+            "clean_distribution",
+            "installation",
+            "packaging",
+            "public_claim",
+            "release_proof",
+            "seal"
+          ]
+        }
+      },
+      {
+        "id": "irreversible_change",
+        "strength": "hard",
+        "minimum_profile": "release",
+        "when": {
+          "reversibility_in": [
+            "irreversible"
+          ]
+        }
+      },
+      {
+        "id": "trust_or_state_integrity_surface",
+        "strength": "hard",
+        "minimum_profile": "critical",
+        "when": {
+          "any_signal": [
+            "atomicity",
+            "authority",
+            "concurrency",
+            "interruption",
+            "migration",
+            "security",
+            "sqlite_ssot"
+          ]
+        }
+      },
+      {
+        "id": "difficult_reversal",
+        "strength": "hard",
+        "minimum_profile": "critical",
+        "when": {
+          "reversibility_in": [
+            "difficult"
+          ]
+        }
+      },
+      {
+        "id": "very_high_consumer_fan_out",
+        "strength": "hard",
+        "minimum_profile": "critical",
+        "when": {
+          "consumer_fan_out_gte": 12
+        }
+      },
+      {
+        "id": "unknown_change_signal",
+        "strength": "hard",
+        "minimum_profile": "critical",
+        "when": {
+          "unknown_signal_present": true
+        }
+      },
+      {
+        "id": "large_diff_advisory",
+        "strength": "advisory",
+        "minimum_profile": "critical",
+        "when": {
+          "changed_file_count_gte": 8
+        }
+      },
+      {
+        "id": "broad_consumer_advisory",
+        "strength": "advisory",
+        "minimum_profile": "critical",
+        "when": {
+          "consumer_fan_out_gte": 6
+        }
+      }
+    ]
+  },
+  "profiles": {
+    "micro": {
+      "rank": 0,
+      "purpose": "Tiny documentation or isolated behavior-preserving change.",
+      "minimum_checks": [
+        "syntax_or_schema_validation",
+        "one_focused_proof",
+        "bounded_complete_diff_read"
+      ],
+      "cost_budget": {
+        "target_runtime_seconds": 120,
+        "maximum_sibling_sweeps": 0,
+        "full_release_proof_runs": 0
+      }
+    },
+    "bounded": {
+      "rank": 1,
+      "purpose": "Ordinary localized implementation or policy change.",
+      "minimum_checks": [
+        "root_cause_and_consumer_map",
+        "focused_positive_negative_and_failure_path_when_applicable",
+        "changed_function_and_complete_diff_read",
+        "one_sibling_surface_sweep",
+        "affected_validator_dependency_closure"
+      ],
+      "cost_budget": {
+        "target_runtime_seconds": 600,
+        "maximum_sibling_sweeps": 1,
+        "full_release_proof_runs": 0
+      }
+    },
+    "critical": {
+      "rank": 2,
+      "purpose": "Trust, SSoT, safety, lifecycle or high-fan-out change.",
+      "minimum_checks": [
+        "all_bounded_checks",
+        "source_grounded_manual_review",
+        "interruption_or_failure_controls_when_applicable",
+        "full_affected_dependency_closure",
+        "independent_semantic_diff_lens"
+      ],
+      "cost_budget": {
+        "target_runtime_seconds": 1800,
+        "maximum_sibling_sweeps": 1,
+        "full_release_proof_runs": 0
+      }
+    },
+    "release": {
+      "rank": 3,
+      "purpose": "Frozen candidate, public claim, packaging, installation or final seal.",
+      "minimum_checks": [
+        "all_critical_checks",
+        "full_release_proof_once_per_exact_source_identity",
+        "clean_distribution_sync_and_validation",
+        "projected_public_profile_execution",
+        "human_seal_and_publication_authority_when_required"
+      ],
+      "cost_budget": {
+        "target_runtime_seconds": 7200,
+        "maximum_sibling_sweeps": 1,
+        "full_release_proof_runs": 1
+      }
+    }
+  },
+  "downgrade": {
+    "allowed_only_for_advisory_escalation": true,
+    "minimum_reason_characters": 12,
+    "below_hard_floor": "reject",
+    "missing_reason": "reject",
+    "accepted_reason_is_not_proof": true
+  },
+  "invalidation": {
+    "observed_failure": "reselect_and_escalate_at_least_one_profile",
+    "source_identity_change": "invalidate_prior_validation_evidence",
+    "configuration_identity_change": "invalidate_prior_validation_evidence",
+    "scope_identity_change": "invalidate_prior_validation_evidence",
+    "profile_policy_change": "invalidate_prior_validation_evidence"
+  },
+  "evidence_identity": {
+    "required_fields": [
+      "command",
+      "source_identity",
+      "configuration_identity",
+      "scope_identity",
+      "profile"
+    ],
+    "duplicate_behavior": "reject_as_independent_evidence"
+  },
+  "acceptance_cases": [
+    {
+      "id": "tiny_documentation_change_is_micro",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/documentation/example.md"
+        ],
+        "signals": [
+          "documentation"
+        ],
+        "consumer_fan_out": 0,
+        "reversibility": "easy",
+        "release_phase": "development",
+        "behavior_change": false,
+        "scope_kind": "documentation_only"
+      },
+      "expected_profile": "micro"
+    },
+    {
+      "id": "ordinary_behavior_change_is_bounded",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/tools/example.py"
+        ],
+        "signals": [
+          "configuration"
+        ],
+        "consumer_fan_out": 2,
+        "reversibility": "moderate",
+        "release_phase": "development",
+        "behavior_change": true,
+        "scope_kind": "bounded_behavior_change"
+      },
+      "expected_profile": "bounded"
+    },
+    {
+      "id": "sqlite_change_rejects_micro_downgrade",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/tools/core/artifact_store.py"
+        ],
+        "signals": [
+          "sqlite_ssot"
+        ],
+        "consumer_fan_out": 3,
+        "reversibility": "moderate",
+        "release_phase": "development",
+        "behavior_change": true,
+        "scope_kind": "bounded_behavior_change"
+      },
+      "requested_profile": "micro",
+      "downgrade_reason": "Only a small-looking implementation diff.",
+      "expected_profile": "critical",
+      "expected_downgrade_accepted": false
+    },
+    {
+      "id": "frozen_candidate_requires_release",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/documentation/release.md"
+        ],
+        "signals": [
+          "documentation"
+        ],
+        "consumer_fan_out": 0,
+        "reversibility": "easy",
+        "release_phase": "frozen_candidate",
+        "behavior_change": false,
+        "scope_kind": "documentation_only"
+      },
+      "expected_profile": "release"
+    },
+    {
+      "id": "advisory_large_diff_accepts_reasoned_bounded_downgrade",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/documentation/a.md",
+          "fixtures/self-development-validation/documentation/b.md",
+          "fixtures/self-development-validation/documentation/c.md",
+          "fixtures/self-development-validation/documentation/d.md",
+          "fixtures/self-development-validation/documentation/e.md",
+          "fixtures/self-development-validation/documentation/f.md",
+          "fixtures/self-development-validation/documentation/g.md",
+          "fixtures/self-development-validation/documentation/h.md"
+        ],
+        "signals": [
+          "documentation"
+        ],
+        "consumer_fan_out": 1,
+        "reversibility": "easy",
+        "release_phase": "development",
+        "behavior_change": false,
+        "scope_kind": "multi_surface_change"
+      },
+      "requested_profile": "bounded",
+      "downgrade_reason": "Mechanical documentation-only rename with one owner.",
+      "expected_profile": "bounded",
+      "expected_downgrade_accepted": true
+    },
+    {
+      "id": "advisory_downgrade_without_reason_is_rejected",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/documentation/a.md",
+          "fixtures/self-development-validation/documentation/b.md",
+          "fixtures/self-development-validation/documentation/c.md",
+          "fixtures/self-development-validation/documentation/d.md",
+          "fixtures/self-development-validation/documentation/e.md",
+          "fixtures/self-development-validation/documentation/f.md",
+          "fixtures/self-development-validation/documentation/g.md",
+          "fixtures/self-development-validation/documentation/h.md"
+        ],
+        "signals": [
+          "documentation"
+        ],
+        "consumer_fan_out": 1,
+        "reversibility": "easy",
+        "release_phase": "development",
+        "behavior_change": false,
+        "scope_kind": "multi_surface_change"
+      },
+      "requested_profile": "bounded",
+      "expected_profile": "critical",
+      "expected_downgrade_accepted": false
+    },
+    {
+      "id": "unknown_signal_fails_closed_to_critical",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/tools/new_surface.py"
+        ],
+        "signals": [
+          "not_registered"
+        ],
+        "consumer_fan_out": 1,
+        "reversibility": "easy",
+        "release_phase": "development",
+        "behavior_change": true,
+        "scope_kind": "bounded_behavior_change"
+      },
+      "expected_profile": "critical"
+    }
+  ]
+}

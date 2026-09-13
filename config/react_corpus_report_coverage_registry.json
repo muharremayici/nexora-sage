@@ -501,20 +501,12 @@
     "latest_candidate_records": 166180,
     "latest_candidate_records_adjudicated": 0,
     "release_gate_work_items": [
-      "target_policy_profile_transport_contract",
-      "react_compiler_readiness_disposition_precision_contract",
-      "typescript_react_component_symbol_classification_contract",
-      "external_preflight_single_physical_inventory_contract",
-      "external_target_atomic_validated_generation_integrity_contract",
-      "ui_smoke_readiness_runtime_proof_separation_contract",
-      "node_ast_session_worker_lifecycle_contract",
-      "react_ecosystem_applicability_precision_contract",
-      "generic_exception_claim_impact_classification",
-      "dead_code_runtime_loaded_module_contract",
-      "typescript_import_evidence_must_exclude_generated_source_text"
+      "public_distribution_test_authority_and_cross_platform_execution_contract",
+      "release_feedback_latency_and_install_smoke_composition_contract",
+      "release_preparation_maintenance_claim_continuity_and_controller_traceability_contract"
     ],
     "release_ready": true,
-    "release_readiness_claim": "All bounded v1.0.5 family candidates have explicit outcomes and every other centrally registered v1.0.5 release blocker is ready_for_delivery. This does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize a broad Corpus replay, or prove release shipment.",
-    "next_action": "Mark the coverage/disposition owner technically ready, preserving evidence-quality, roadmap and research boundaries. Release proof remains a later release-candidate action; native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this closure."
+    "release_readiness_claim": "All bounded v1.0.5 family candidates retain explicit outcomes and the centrally registered v1.0.6 release blockers are technically ready_for_delivery. This does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize a broad Corpus replay, satisfy projected-public Linux evidence, or prove release shipment.",
+    "next_action": "Preserve the completed Corpus disposition evidence while the technically ready v1.0.6 work crosses its separately governed clean, public-projection and Linux delivery boundaries. Native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this closure."
   }
 }

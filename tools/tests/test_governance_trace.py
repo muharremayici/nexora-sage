@@ -134,7 +134,39 @@ class GovernanceTraceTests(unittest.TestCase):
                 event = record_release_proof_step_trace(result)
             self.assertEqual(event["details"]["step_id"], "source_contracts")
             self.assertFalse(event["details"]["timed_out"])
+            self.assertEqual(event["details"]["execution_status"], "COMPLETED")
             self.assertNotIn("stdout_tail", event["details"])
+
+    def test_release_proof_trace_preserves_dependency_block_without_command_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from unittest.mock import patch
+
+            result = {
+                "id": "consumer",
+                "started_at": "2026-01-01T00:00:00Z",
+                "duration_seconds": 0,
+                "passed": False,
+                "required": True,
+                "timed_out": False,
+                "timeout_basis": "not_started_dependency_failure",
+                "raw_artifact": None,
+                "raw_artifact_sha256": None,
+                "execution_status": "BLOCKED_BY_FAILED_DEPENDENCY",
+                "blocked_by_failed_dependencies": ["producer"],
+                "command": "must not be retained",
+            }
+            with patch("tools.core.governance_trace.RAW_DIR", Path(temp_dir)):
+                event = record_release_proof_step_trace(result)
+            self.assertEqual(
+                event["state_change"],
+                "release_proof_step_blocked_by_failed_dependency",
+            )
+            self.assertEqual(
+                event["details"]["execution_status"],
+                "BLOCKED_BY_FAILED_DEPENDENCY",
+            )
+            self.assertEqual(event["details"]["blocked_dependency_count"], 1)
+            self.assertNotIn("command", event["details"])
 
     def test_agent_handoff_trace_keeps_packet_metadata_without_source_content(self):
         with tempfile.TemporaryDirectory() as temp_dir:

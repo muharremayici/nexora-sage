@@ -22,6 +22,7 @@ from tools.core.analysis_scope_authority import (
 from tools.engines.quality_gate import _quality_scope_gate
 from tools.engines import audit
 from tools.validate_artifact_trust import _expected_analysis_projects
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 def _topology(*, excluded: bool = False) -> dict:
@@ -364,6 +365,46 @@ def test_runtime_rejects_preflight_from_a_different_topology_identity(
     loader.assert_called_once_with(tmp_path / "external_target_preflight.json", {})
     assert authority["evidence_status"] == INCOMPLETE_EVIDENCE
     assert "preflight_discovery_topology_authority_identity_mismatch" in authority["incomplete_reasons"]
+
+
+def test_runtime_reads_external_preflight_from_long_generation_path(tmp_path) -> None:
+    topology = _topology()
+    preflight_authority = _preflight()
+    preflight_payload = {
+        "summary": {"analysis_scope": {"scope_authority": preflight_authority}},
+    }
+    raw_dir = (
+        tmp_path
+        / ("target_" + ("x" * 100))
+        / "generations"
+        / ("run_" + ("y" * 100))
+        / ".raw"
+    )
+    target_dir = raw_dir.parents[2]
+    try:
+        native_raw_dir = Path(native_filesystem_path(raw_dir))
+        native_raw_dir.mkdir(parents=True)
+        preflight_path = Path(
+            native_filesystem_path(raw_dir / "external_target_preflight.json")
+        )
+        assert len(str(preflight_path)) > 260
+        preflight_path.write_text(json.dumps(preflight_payload), encoding="utf-8")
+
+        authority = runtime_scope_authority(
+            dynamic_config={"_target_root_override": topology},
+            projects=None,
+            atlas=_atlas("MAIN"),
+            raw_dir=raw_dir,
+        )
+    finally:
+        __import__("shutil").rmtree(
+            Path(native_filesystem_path(target_dir)),
+            ignore_errors=False,
+        )
+
+    assert authority["evidence_status"] == COMPLETE_REPOSITORY
+    assert authority["scope_authority_id"] == preflight_authority["scope_authority_id"]
+    assert "external_target_preflight_scope_authority_missing" not in authority["incomplete_reasons"]
 
 
 def test_default_runtime_does_not_inherit_external_preflight(tmp_path) -> None:

@@ -10,6 +10,7 @@ from tools.core.repository_topology import (
     runtime_project_projection,
     scope_authority_id,
 )
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 COMPLETE_REPOSITORY = "COMPLETE_REPOSITORY"
@@ -558,7 +559,9 @@ def runtime_scope_authority(
     authority: dict[str, Any] = {}
     if external and raw_dir is not None:
         preflight_path = Path(raw_dir) / "external_target_preflight.json"
-        if preflight_path.is_file() or (Path(raw_dir) / "codemaps.db").is_file():
+        native_preflight_path = Path(native_filesystem_path(preflight_path))
+        native_db_path = Path(native_filesystem_path(Path(raw_dir) / "codemaps.db"))
+        if native_preflight_path.is_file() or native_db_path.is_file():
             from tools.core.json_io import load_raw_artifact_path
 
             preflight = load_raw_artifact_path(preflight_path, {})

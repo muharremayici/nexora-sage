@@ -237,6 +237,7 @@
       "daily",
       "full",
       "deep",
+      "release-bounded",
       "release-deep",
       "explicit_step"
     ],
@@ -418,6 +419,7 @@
       "first_repo_onboarding",
       "normal_full",
       "daily",
+      "release_bounded",
       "watchdog_save_pulse",
       "release_deep",
       "explicit_step",
@@ -1146,6 +1148,41 @@
         "reactcapabilityprobe",
         "contextosquantengine"
       ]
+    },
+    "release-bounded": {
+      "mode": "keep_slugs",
+      "include_full_only": true,
+      "description": "One bounded release-proof producer. Runs the daily MAIN spine plus safe final-quality inputs, clone context and Quality Gates without comparative merge/UI producers.",
+      "keep_slugs": [
+        "atlas",
+        "projectdnaprofile",
+        "nuclearsequencing",
+        "architectureoracle",
+        "uimapper",
+        "frameworkrouteanalyzer",
+        "deadcodedetector",
+        "circulardependencyfinder",
+        "aststructuraldiff",
+        "blastradiusengine",
+        "audit",
+        "testimpactmatcher",
+        "confidenceengine",
+        "localdevtelemetry",
+        "hexagonalportadapterbinder",
+        "stateflowscanner",
+        "reactsupportmatrix",
+        "moduleriskmatrix",
+        "statedatagraphanalyzer",
+        "reactcapabilityprobe",
+        "contextosquantengine",
+        "fractalmapping",
+        "keywordstats",
+        "keywordscanner",
+        "gemscorer",
+        "healthscore",
+        "semanticclonedetector",
+        "qualitygates"
+      ]
     }
   },
   "smart_trigger_step_sets": {
@@ -1292,6 +1329,33 @@
       ],
       "agent_surface": "Return fresh daily spine status, skipped heavyweight steps, governance=NOT_EVALUATED, and whether full or release-deep proof is still needed.",
       "claim_boundary": "daily_development_signal_without_final_governance"
+    },
+    "release_bounded": {
+      "profile": "release-bounded",
+      "purpose": "Produce one fresh bounded MAIN analysis, clone-context and final Quality Gate evidence set for the canonical release proof without launching comparative merge/UI analysis.",
+      "trigger": "run_release_proof_bundle release_analysis_quality_gate_refresh",
+      "scope": "single_declared_main_project_release_integration",
+      "ssot_expectation": "One pipeline invocation must produce Atlas once, then bind clone_detector and quality_gate to the same current Atlas snapshot through producer-owned lineage receipts.",
+      "heavy_step_policy": "only_explicitly_kept_non_comparative_steps",
+      "required_artifacts": [
+        "atlas",
+        "atlas_commit",
+        "project_dna_profile",
+        "genome",
+        "audit_report",
+        "fractal_map",
+        "health_score",
+        "clone_detector",
+        "quality_gate",
+        "signals"
+      ],
+      "required_validators": [
+        "pipeline_execution_contract",
+        "atlas_genome_audit_integrity",
+        "derived_graph_integrity"
+      ],
+      "agent_surface": "Return bounded MAIN integration and final-governance evidence only. Do not infer multi-project, merge, UI-smoke, external-corpus or public-release authority.",
+      "claim_boundary": "representative_main_release_integration_only"
     },
     "watchdog_save_pulse": {
       "profile": "daily",

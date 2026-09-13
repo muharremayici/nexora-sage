@@ -57,7 +57,10 @@ def bounded_react_fixture():
     from tools.engines import react_ecosystem_analyzer as ecosystem
     from tools.engines import react_runtime_intelligence as runtime
     from tools.engines import react_compiler_readiness as compiler
+    from tools.engines import react_frontier_intelligence as frontier
     from tools.engines import next_boundary_analyzer as boundary
+    from tools.engines import state_data_graph_analyzer as state_data
+    from tools.engines import merge_simulation_engine as merge
     from tools.engines import ai_task_pack_generator as taskpacks
 
     fixture = _bounded_fixture_config()
@@ -65,21 +68,89 @@ def bounded_react_fixture():
     with TemporaryDirectory(prefix="sage-react-proof-") as temporary, ExitStack() as stack:
         root = Path(temporary)
         raw = root / "raw"
-        for module in (ecosystem, runtime, compiler, boundary, taskpacks):
+        reports = root / "reports"
+        project_root = root / "project"
+        fixture_source = project_root / fixture["file"]
+        fixture_source.parent.mkdir(parents=True, exist_ok=True)
+        fixture_source.write_text(fixture["source"], encoding="utf-8")
+
+        modules = (ecosystem, runtime, compiler, frontier, boundary, state_data, merge, taskpacks)
+        for module in modules:
             stack.enter_context(patch.object(module, "RAW_DIR", raw))
-            stack.enter_context(patch.object(module, "REPORTS_DIR", root / "reports"))
+            stack.enter_context(patch.object(module, "REPORTS_DIR", reports))
             if hasattr(module, "_POLICY_CACHE"):
                 stack.enter_context(patch.object(module, "_POLICY_CACHE", None))
-        for module in (ecosystem, runtime, boundary):
+        for module in (ecosystem, runtime, frontier, boundary):
             stack.enter_context(patch.object(module, "load_atlas_data", return_value=atlas))
             stack.enter_context(patch.object(module, "project_runtime_atlas", side_effect=lambda value: (value, {})))
             stack.enter_context(patch.object(module, "_read_project_file", return_value=fixture["source"]))
+        stack.enter_context(patch.object(state_data, "load_atlas_data", return_value=atlas))
+        stack.enter_context(patch.object(state_data, "project_runtime_atlas", side_effect=lambda value: (value, {})))
+        stack.enter_context(patch.object(merge, "load_atlas_data", return_value=atlas))
+
         stack.enter_context(patch.object(ecosystem, "EngineProgress", Mock()))
+        stack.enter_context(patch.object(frontier, "EngineProgress", Mock()))
+        stack.enter_context(patch.object(frontier, "TS_DIAGNOSTICS_PATH", raw / "ts_diagnostics.json"))
+        stack.enter_context(patch.object(frontier, "_bundle_evidence", return_value=([], [])))
+        stack.enter_context(patch.object(frontier, "_profiler_evidence", return_value=([], [])))
+        stack.enter_context(
+            patch.object(
+                frontier,
+                "_collect_ts_diagnostics",
+                return_value={
+                    "status": "FIXTURE_NOT_RUN",
+                    "collector_status": "FIXTURE_NOT_RUN",
+                    "summary": {
+                        "total_diagnostics": 0,
+                        "projects": 0,
+                        "projects_with_errors": 0,
+                    },
+                    "projects": {},
+                },
+            )
+        )
+
+        package = {
+            "candidate": "EditorPage",
+            "source": fixture["project"],
+            "files": [fixture["file"]],
+            "target_path": "",
+            "package_tier": "fixture",
+            "closure_size": 1,
+            "unresolved_internal_deps": [],
+            "external_deps": [],
+            "harness_plan": {},
+            "recommended_gate": "browser_smoke_required",
+        }
+        fixture_store = Mock()
+        fixture_store.load_raw.return_value = {"snapshot_id": "fixture-snapshot"}
+        stack.enter_context(patch.object(merge, "STORE", fixture_store))
+        stack.enter_context(patch.object(merge, "resolve_runtime_projects", return_value={fixture["project"]: project_root}))
+        stack.enter_context(
+            patch.object(
+                merge,
+                "evaluate_snapshot_bound_inputs",
+                return_value=(
+                    {"status": "PASS", "fixture_boundary": True},
+                    {
+                        "merge_dependency_packages": {"packages": [package]},
+                        "ui_smoke_execution": {"runs": []},
+                    },
+                ),
+            )
+        )
+        stack.enter_context(patch.object(merge, "write_current_atlas_lineage", return_value=None))
         stack.enter_context(patch.object(taskpacks, "TASKPACK_DIR", root / "taskpacks"))
+
         ecosystem.run_react_ecosystem_analyzer()
         runtime.run_react_runtime_intelligence()
         compiler.run_react_compiler_readiness()
+        frontier.run_react_frontier_intelligence()
         boundary.run_next_boundary_analyzer()
+        save_json_atomic(raw / "state_flow.json", {})
+        save_json_atomic(raw / "atlas_commit.json", {"snapshot_id": "fixture-snapshot"})
+        state_data.run_state_data_graph_analyzer()
+        merge.run_merge_simulation_engine()
         # This is a declared upstream scenario, not a proven cockpit decision.
         save_json_atomic(raw / "merge_decision_cockpit.json", {"decisions": [fixture["decision"]]})
         taskpacks.run_ai_task_pack_generator()

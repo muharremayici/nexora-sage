@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SAGE self-development validation profiles",
+  "type": "object",
+  "required": [
+    "meta",
+    "validation",
+    "input_contract",
+    "universal_invariants",
+    "selection",
+    "profiles",
+    "downgrade",
+    "invalidation",
+    "evidence_identity",
+    "acceptance_cases"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "authority",
+        "target_repository_default"
+      ],
+      "properties": {
+        "kind": {
+          "const": "nexora.sage_self_development_validation_profiles"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority": {
+          "const": "central_self_development_validation_policy"
+        },
+        "target_repository_default": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "validation": {
+      "type": "object"
+    },
+    "input_contract": {
+      "type": "object",
+      "required": [
+        "required_fields",
+        "allowed_signals",
+        "allowed_reversibility",
+        "allowed_release_phases",
+        "allowed_scope_kinds",
+        "unknown_signal_minimum_profile"
+      ]
+    },
+    "universal_invariants": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": [
+        "profile_order",
+        "default_profile",
+        "micro_eligibility",
+        "rules"
+      ]
+    },
+    "profiles": {
+      "type": "object",
+      "required": [
+        "micro",
+        "bounded",
+        "critical",
+        "release"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "rank",
+          "purpose",
+          "minimum_checks",
+          "cost_budget"
+        ]
+      }
+    },
+    "downgrade": {
+      "type": "object"
+    },
+    "invalidation": {
+      "type": "object"
+    },
+    "evidence_identity": {
+      "type": "object",
+      "required": [
+        "required_fields",
+        "duplicate_behavior"
+      ]
+    },
+    "acceptance_cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "change",
+          "expected_profile"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}

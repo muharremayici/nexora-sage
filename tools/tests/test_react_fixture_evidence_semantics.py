@@ -105,16 +105,19 @@ def test_release_fixture_harness_produces_and_binds_advanced_contracts(monkeypat
     with fixtures.bounded_react_fixture() as raw:
         assert raw != fixtures.RAW_DIR
         checks = fixtures._artifact_contract_checks(selected, raw)
-        assert len(checks) == 3
+        assert len(checks) == 5
         assert all(row["passed"] for row in checks), checks
         artifacts = chain._react_primary_artifacts(chain._load_contract(), raw)
         advanced = {key: paths for key, paths in artifacts.items()
                     if paths["primary"].name in bounded}
-        assert len(advanced) == 3
+        assert len(advanced) == 4
         assert chain._primary_full_contract_check(advanced)["passed"]
         assert chain._evidence_contract_check(advanced)["passed"]
         assert chain._line_grounding_scope_check(advanced)["passed"]
-        assert artifacts["react_frontier_intelligence"]["primary"].parent == fixtures.RAW_DIR
+        assert artifacts["react_frontier_intelligence"]["primary"].parent == raw
+        frontier = load_json_file(raw / "react_frontier_intelligence.json", {})
+        assert frontier["findings"], "Frontier fixture must exercise analysis, not an empty artifact shell"
+        assert not fixtures.RAW_DIR.exists()
         packs = load_json_file(raw / "ai_task_packs.json", {})
         assert packs["summary"]["generated"] == 1
         assert packs["taskpacks"][0]["action"] == "Do Not Import Yet"

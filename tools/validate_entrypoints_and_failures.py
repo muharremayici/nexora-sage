@@ -17,6 +17,7 @@ if str(CODE_MAPS_DIR) not in sys.path:
     sys.path.insert(0, str(CODE_MAPS_DIR))
 
 from tools.core.json_io import load_json_strict, load_text_file
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 from tools.core.config import (
     CONFIG_DIR,
     CONFIG_FILE,
@@ -161,8 +162,23 @@ def _cleanup_isolated_output(path: Path) -> None:
     resolved = path.resolve()
     if resolved.parent != expected_parent or not resolved.name.startswith("sage_entrypoint_failure_drill_"):
         raise ValueError(f"Refusing to clean unexpected failure-drill output path: {resolved}")
-    if resolved.exists():
-        shutil.rmtree(resolved)
+    delete_root = Path(native_filesystem_path(resolved))
+    if delete_root.exists():
+        shutil.rmtree(delete_root)
+
+
+def _latest_existing_tree_mtime(path: Path) -> float | None:
+    scan_root = Path(native_filesystem_path(path))
+    try:
+        latest = scan_root.stat().st_mtime
+    except FileNotFoundError:
+        return None
+    for child in scan_root.rglob("*"):
+        try:
+            latest = max(latest, child.stat().st_mtime)
+        except FileNotFoundError:
+            continue
+    return latest
 
 
 def _cleanup_stale_isolated_outputs() -> list[str]:
@@ -177,9 +193,10 @@ def _cleanup_stale_isolated_outputs() -> list[str]:
     now = time.time()
     cleaned: list[str] = []
     for path in sorted(parent.glob("sage_entrypoint_failure_drill_*")):
-        mtimes = [path.stat().st_mtime]
-        mtimes.extend(child.stat().st_mtime for child in path.rglob("*"))
-        if now - max(mtimes) <= stale_after_seconds:
+        latest_mtime = _latest_existing_tree_mtime(path)
+        if latest_mtime is None:
+            continue
+        if now - latest_mtime <= stale_after_seconds:
             continue
         _cleanup_isolated_output(path)
         cleaned.append(path.name)
@@ -398,6 +415,7 @@ def run_validation() -> dict[str, Any]:
         isolated_env = {
             "CODEMAPS_TARGET_ROOT": str(target_root),
             "CODEMAPS_EXPECTED_FAILURE_DRILL": "1",
+            "SAGE_SYNC_SHADOW_WRITES": "1",
         }
         try:
             _log("START isolated_failure_drill_atlas_seed")

@@ -25,24 +25,32 @@ from tools.core.artifact_validator import validate_against_schema
 
 
 def _release_replay_commands(scope: dict[str, Any]) -> list[list[str]]:
-    """Reuse producer commands; only forced acquisition becomes cached replay."""
+    """Reuse the one bounded producer command; only forced acquisition becomes cached replay."""
     steps = {step["id"]: step for step in load_release_proof_steps()}
     live = scope["live_repository_execution"]
     governance = scope["final_governance_execution"]
     projects = live["required_project_filter"]
     if len(projects) != 1 or projects != governance["required_project_filter"]:
         raise ValueError("Parity requires one shared declared repository scope")
-    commands = []
-    for owner in (live, governance):
-        command = list(steps[owner["step_id"]]["command"])
-        if command.count("--projects") != 1 or command[command.index("--projects") + 1:][:1] != projects:
-            raise ValueError("Parity producer command does not preserve declared project scope")
-        if owner is live:
-            if command.count("--profile") != 1 or command[command.index("--profile") + 1:][:1] != [live["required_execution_profile"]]:
-                raise ValueError("Parity producer command does not preserve declared profile")
-            command = [argument for argument in command if argument != "--force"]
-        commands.append(command)
-    return commands
+
+    producer_step_id = str(live["step_id"])
+    command = list(steps[producer_step_id]["command"])
+    if command.count("--projects") != 1 or command[command.index("--projects") + 1:][:1] != projects:
+        raise ValueError("Parity producer command does not preserve declared project scope")
+    if command.count("--profile") != 1 or command[command.index("--profile") + 1:][:1] != [live["required_execution_profile"]]:
+        raise ValueError("Parity producer command does not preserve declared profile")
+
+    governance_step = steps[str(governance["step_id"])]
+    evidence_contract = governance_step.get("evidence_from_dependency")
+    if (
+        governance_step.get("command") != []
+        or not isinstance(evidence_contract, dict)
+        or evidence_contract.get("producer_step_id") != producer_step_id
+        or evidence_contract.get("artifact_id")
+        != governance.get("required_shared_producer_artifact_id")
+    ):
+        raise ValueError("Parity final governance is not bound to the shared producer")
+    return [[argument for argument in command if argument != "--force"]]
 
 
 def _release_snapshot(scope: dict[str, Any], stage: str) -> tuple[dict[str, Any], dict[str, Any]]:

@@ -33,9 +33,6 @@ def run_clone_detector():
                     lines_count = abs(int(p2) - int(p1)) + 1
                 except (ValueError, IndexError): pass
             
-            # Save it back on the block so metrics work
-            block["_lines_count"] = lines_count
-            
             # Ignore very small blocks to prevent false positives (e.g. 2 line getters)
             from tools.core.doctrine_contract import require_doctrine_path
             min_lines = require_doctrine_path("clone_detection", "min_lines", expected_type=(int, float))
@@ -44,8 +41,10 @@ def run_clone_detector():
                 
             h = block.get("dna")  # AST hash is stored as dna
             if h:
-                block["_symbol_id"] = f"{block.get('project')}::{block.get('file')}::{block.get('name')}"
-                hash_groups[h].append(block)
+                derived_block = dict(block)
+                derived_block["_lines_count"] = lines_count
+                derived_block["_symbol_id"] = f"{block.get('project')}::{block.get('file')}::{block.get('name')}"
+                hash_groups[h].append(derived_block)
 
     # Filter clones
     clones = [group for group in hash_groups.values() if len(group) > 1]

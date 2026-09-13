@@ -432,7 +432,7 @@ def test_complete_input_chain_is_accepted(tmp_path: Path) -> None:
         expected_snapshot_id=commit["snapshot_id"],
         payloads={"signals": signals, "circular_deps": circular, "live_surface_priority_pack": priority},
     )
-    assert evidence["status"] == "PASS"
+    assert evidence["status"] == "PASS", evidence
     assert set(usable) == {"signals", "circular_deps", "live_surface_priority_pack"}
 
 
@@ -453,7 +453,26 @@ def test_input_contract_is_registry_and_lineage_owned() -> None:
 
 
 def test_clone_detector_writes_lineage_for_exact_output_and_genome_dependency() -> None:
-    genome = {"Symbol": []}
+    genome = {
+        "Symbol": [
+            {
+                "project": "FIXTURE",
+                "file": "src/a.ts",
+                "name": "first",
+                "source_lines": "L1-L20",
+                "dna": "shared-dna",
+                "type": "function",
+            },
+            {
+                "project": "FIXTURE",
+                "file": "src/b.ts",
+                "name": "second",
+                "source_lines": "L1-L20",
+                "dna": "shared-dna",
+                "type": "function",
+            },
+        ]
+    }
     atlas = {"MAIN": {"files": {}}}
     with (
         patch.object(clone_detector, "load_genome_data", return_value=genome),
@@ -464,10 +483,11 @@ def test_clone_detector_writes_lineage_for_exact_output_and_genome_dependency() 
     ):
         assert clone_detector.run_clone_detector() is True
 
+    assert all("_lines_count" not in block and "_symbol_id" not in block for block in genome["Symbol"])
     assert lineage.call_args.kwargs["artifact_id"] == "clone_detector"
     assert lineage.call_args.kwargs["atlas"] is atlas
     assert lineage.call_args.kwargs["dependency_payloads"] == {"genome": genome}
-    assert lineage.call_args.kwargs["artifact_payload"]["clusters"] == []
+    assert lineage.call_args.kwargs["artifact_payload"]["clusters"][0]["lines"] == 20
 
 
 def test_live_surface_writes_lineage_for_exact_priority_dependencies() -> None:

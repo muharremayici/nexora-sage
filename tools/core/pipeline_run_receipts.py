@@ -20,6 +20,7 @@ from tools.core.governance_trace import fingerprint, record_trace_event
 from tools.core.heartbeat_cadence import heartbeat_cadence_selection, record_execution_duration
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.json_io import load_json_file, load_json_object_strict
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 POLICY_PATH = CONFIG_DIR / "pipeline_execution_policy.json"
@@ -123,9 +124,9 @@ def _database_path(db_path: Path | None = None) -> Path:
 
 def _query_events(*, run_id: str = "", db_path: Path | None = None) -> list[dict[str, Any]]:
     database = _database_path(db_path)
-    if not database.is_file():
+    if not Path(native_filesystem_path(database)).is_file():
         return []
-    with closing(sqlite3.connect(database, timeout=5)) as conn:
+    with closing(sqlite3.connect(native_filesystem_path(database), timeout=5)) as conn:
         conn.row_factory = sqlite3.Row
         selected_run_id = str(run_id or "").strip()
         if not selected_run_id:

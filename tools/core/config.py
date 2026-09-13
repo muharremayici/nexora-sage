@@ -25,6 +25,7 @@ from tools.core.installation_identity import (
 )
 from tools.core.jsonc import loads_jsonc
 from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.external_target_generation import external_target_output_slug
 
 # Directory setup
 # [Architect Protocol] Unified Atomic Paths (Sealed 4.0)
@@ -989,12 +990,7 @@ def _apply_target_root_override(config: dict) -> dict:
     return overridden
 
 
-def _target_output_slug(target_root: str) -> str:
-    target_path = Path(target_root)
-    stem = target_path.name or "external_target"
-    safe = "".join(ch.lower() if ch.isalnum() else "_" for ch in stem).strip("_") or "external_target"
-    digest = hashlib.sha256(str(target_path).encode("utf-8")).hexdigest()[:10]
-    return f"{safe}_{digest}"
+_target_output_slug = external_target_output_slug
 
 
 def _resolve_source_extensions(dynamic_config: dict) -> set[str]:
@@ -1046,7 +1042,11 @@ _TARGET_BASE_DIR = (
     CODE_MAPS_DIR / "output" / "external_targets" / _target_output_slug(_TARGET_OUTPUT_ROOT)
     if _TARGET_OUTPUT_ROOT else None
 )
-if _TARGET_BASE_DIR is not None and not _TARGET_RUN_ID and (_TARGET_BASE_DIR / "current.json").is_file():
+if (
+    _TARGET_BASE_DIR is not None
+    and not _TARGET_RUN_ID
+    and Path(native_filesystem_path(_TARGET_BASE_DIR / "current.json")).is_file()
+):
     from tools.core.external_target_generation import resolve_current_external_target_generation
 
     _current_generation, _current_pointer, _current_reason = resolve_current_external_target_generation(
@@ -1089,13 +1089,8 @@ if ENVIRONMENT.get("path_aliases"):
 PROJECT_FILTER = None
 
 def ensure_output_dir():
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    SANCTUARY_DIR.mkdir(parents=True, exist_ok=True)
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    for directory in (OUTPUT_DIR, RAW_DIR, SANCTUARY_DIR, REPORTS_DIR, SCRIPTS_DIR, LOGS_DIR, SNAPSHOTS_DIR):
+        Path(native_filesystem_path(directory)).mkdir(parents=True, exist_ok=True)
     _migrate_legacy_output_layout()
 
 

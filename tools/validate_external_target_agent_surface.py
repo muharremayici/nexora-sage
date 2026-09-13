@@ -21,6 +21,7 @@ from tools.core.agent_surface_target_visibility import (
     is_successful_surgical_packet,
 )
 from tools.core.external_target_retention import DEFAULT_KEEP_PER_PREFIX, prune_generated_external_target_fixtures
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 from tools.mcp import server as mcp_server
 
 
@@ -145,6 +146,21 @@ def _brief_call(name: str, producer) -> str:
         return f"[exception:{name}] {exc}"
 
 
+def _require_successful_analysis(payload: dict[str, Any]) -> None:
+    if payload.get("status") == "PASS":
+        return
+    detail = str(
+        payload.get("command_output")
+        or payload.get("__error__")
+        or payload.get("required_action")
+        or "unknown external-target producer failure"
+    )
+    raise RuntimeError(
+        "External target analysis did not produce validated current authority: "
+        + detail[-2000:]
+    )
+
+
 def _target_file_exists(payload: dict[str, Any], root: Path) -> bool:
     target = str(payload.get("target_file") or "").replace("\\", "/").strip("/")
     return bool(target) and (root / target).exists()
@@ -171,14 +187,15 @@ def _preflight_status(payload: dict[str, Any]) -> str:
 def _seed_external_raw_fixture(raw_dir: Path, name: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Seed external-target fixture truth through SQLite with a JSON shadow."""
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    native_db_path = Path(native_filesystem_path(db_path))
+    if not native_db_path.exists():
         raise RuntimeError(f"External target SQLite store is missing: {db_path}")
     serialized = json.dumps(payload, ensure_ascii=False)
     payload_sha = hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     source_mtime = time.time()
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(native_db_path) as conn:
         conn.execute(
             """
             INSERT INTO state_payloads (name, payload, payload_sha, source_mtime, updated_at)
@@ -193,7 +210,7 @@ def _seed_external_raw_fixture(raw_dir: Path, name: str, payload: dict[str, Any]
         )
     shadow_path = raw_dir / f"{name}.json"
     save_text_atomic(shadow_path, json.dumps(payload, indent=2, ensure_ascii=False))
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(native_db_path) as conn:
         row = conn.execute(
             "SELECT payload_sha FROM state_payloads WHERE name = ?",
             (name,),
@@ -219,6 +236,7 @@ def build_validation() -> dict[str, Any]:
             "run_external_target_analysis",
             lambda: mcp_server.run_external_target_analysis(target, full=True, skip_preflight=False, include_brief=True, format="brief"),
         )
+        _require_successful_analysis(analysis)
         surgical_brief = _brief_call("get_surgical_operation_packet", lambda: mcp_server.get_surgical_operation_packet(target_root=target))
         search_brief = _brief_call("search_symbols", lambda: mcp_server.search_symbols("App", target_root=target))
         inspect_payload = _json_call("inspect_file", lambda: mcp_server.inspect_file("src/App.tsx", target_root=target, format="json"))

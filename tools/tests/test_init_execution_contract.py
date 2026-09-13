@@ -265,7 +265,17 @@ def test_installation_proof_excerpt_preserves_failure_head_and_tail(monkeypatch)
     assert generate_installation_proof._bounded_output_excerpt("abcdef", limit=0) == ""
 
 
-def test_installation_proof_separates_installation_from_target_governance(monkeypatch):
+def test_installation_proof_separates_installation_from_target_governance(monkeypatch, tmp_path):
+    runtime_config_dir = tmp_path / "runtime-config"
+    runtime_config_dir.mkdir()
+    for attribute, filename in (
+        ("DISCOVERY_FILE", "codemaps.discovery.json"),
+        ("OVERRIDES_FILE", "codemaps.overrides.json"),
+        ("CONFIG_FILE", "codemaps.config.json"),
+    ):
+        path = runtime_config_dir / filename
+        path.write_text("{}\n", encoding="utf-8")
+        monkeypatch.setattr(generate_installation_proof, attribute, path)
     monkeypatch.setattr(
         generate_installation_proof,
         "_step",
@@ -293,6 +303,55 @@ def test_installation_proof_separates_installation_from_target_governance(monkey
         "does_not_prove": "target_repository_governance_pass_or_public_release_authority",
         "target_governance_is_separate": True,
     }
+
+
+def test_fresh_installation_smoke_fails_before_steps_with_one_actionable_prerequisite(
+    monkeypatch,
+    tmp_path,
+):
+    missing_config_dir = tmp_path / "missing-runtime-config"
+    monkeypatch.setattr(
+        generate_installation_proof,
+        "DISCOVERY_FILE",
+        missing_config_dir / "codemaps.discovery.json",
+    )
+    monkeypatch.setattr(
+        generate_installation_proof,
+        "OVERRIDES_FILE",
+        missing_config_dir / "codemaps.overrides.json",
+    )
+    monkeypatch.setattr(
+        generate_installation_proof,
+        "CONFIG_FILE",
+        missing_config_dir / "codemaps.config.json",
+    )
+    observed = []
+    monkeypatch.setattr(
+        generate_installation_proof,
+        "_step",
+        lambda *args, **kwargs: observed.append((args, kwargs)),
+    )
+
+    payload = generate_installation_proof.build_installation_proof(
+        "smoke",
+        skip_deps=True,
+        max_doctor_seconds=30,
+        public_distribution=True,
+    )
+
+    prerequisite = payload["prerequisite"]
+    assert observed == []
+    assert payload["summary"]["status"] == "FAIL"
+    assert payload["summary"]["steps"] == 0
+    assert payload["summary"]["prerequisite_cause_count"] == 1
+    assert prerequisite["status"] == "PREREQUISITE_REQUIRED"
+    assert len(prerequisite["missing_files"]) == 3
+    assert prerequisite["canonical_command"] == (
+        "python sage.py install-proof --level release --skip-deps "
+        "--target-root <repository> --projects MAIN"
+    )
+    assert prerequisite["canonical_command"] in prerequisite["action_message"]
+    assert "## Prerequisite" in generate_installation_proof.render_report(payload)
 
 
 def test_installation_proof_transports_init_preflight_to_daily_run(monkeypatch):
@@ -726,9 +785,9 @@ def test_installation_proof_preflight_reuse_rebinds_into_current_generation(
     rebound = observed["persisted"]
     assert rebound["meta"]["receipt_reuse"]["reused_from_run_id"] == "preflight-init"
     assert "artifact_semantics" not in rebound["meta"]
-    assert rebound["target"]["output_dir"].endswith(
-        "generations\\sage-run-current"
-    )
+    rebound_output_dir = Path(rebound["target"]["output_dir"])
+    assert rebound_output_dir.name == "sage-run-current"
+    assert rebound_output_dir.parent.name == "generations"
     assert runtime_env["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "b" * 64
 
 

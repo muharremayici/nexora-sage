@@ -61,7 +61,9 @@
         "required",
         "timed_out",
         "timeout_basis",
-        "raw_artifact_present"
+        "raw_artifact_present",
+        "execution_status",
+        "blocked_dependency_count"
       ],
       "agent_handoff": [
         "packet_kind",

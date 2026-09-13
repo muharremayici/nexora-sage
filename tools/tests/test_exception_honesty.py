@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import unittest
 import tempfile
 from pathlib import Path
@@ -22,16 +23,24 @@ from tools.validate_exception_honesty import (
 
 
 class ExceptionHonestyTests(unittest.TestCase):
+    def test_native_filesystem_path_is_absolute_on_current_host(self):
+        native_path = unmanaged_atomic_io.native_filesystem_path("artifact.json")
+        self.assertTrue(os.path.isabs(native_path))
+        if os.name == "nt":
+            self.assertTrue(native_path.startswith("\\\\?\\"))
+        else:
+            self.assertEqual(native_path, os.path.abspath("artifact.json"))
+
+    @unittest.skipUnless(os.name == "nt", "Windows long-path semantics require Windows")
     def test_windows_native_filesystem_path_preserves_local_and_unc_long_paths(self):
-        with patch.object(unmanaged_atomic_io.os, "name", "nt"):
-            self.assertEqual(
-                unmanaged_atomic_io.native_filesystem_path(r"C:\deep\artifact.json"),
-                r"\\?\C:\deep\artifact.json",
-            )
-            self.assertEqual(
-                unmanaged_atomic_io.native_filesystem_path(r"\\server\share\artifact.json"),
-                r"\\?\UNC\server\share\artifact.json",
-            )
+        self.assertEqual(
+            unmanaged_atomic_io.native_filesystem_path(r"C:\deep\artifact.json"),
+            r"\\?\C:\deep\artifact.json",
+        )
+        self.assertEqual(
+            unmanaged_atomic_io.native_filesystem_path(r"\\server\share\artifact.json"),
+            r"\\?\UNC\server\share\artifact.json",
+        )
 
     def test_atomic_writers_preserve_success_and_original_failure(self):
         for writer, payload in (

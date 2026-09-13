@@ -42,6 +42,22 @@ def test_public_profile_contains_no_private_maintainer_test() -> None:
     assert all(classified[path] == "public_target_repository" for path in tests)
 
 
+def test_operational_parity_contract_remains_private_maintainer_only() -> None:
+    tests, _ = distribution_tests.resolve_tests("public_target_repository")
+    assert "tools/tests/test_operational_parity_contract.py" not in tests
+
+    if distribution_tests.PUBLIC_MANIFEST.is_file():
+        return
+
+    classified, _ = distribution_tests._canonical_classification(
+        distribution_tests._load_profile()
+    )
+    assert (
+        classified["tools/tests/test_operational_parity_contract.py"]
+        == "private_maintainer"
+    )
+
+
 def test_unclassified_test_fails_closed() -> None:
     if distribution_tests.PUBLIC_MANIFEST.is_file():
         pytest.skip("Canonical authority classification is not shipped publicly")

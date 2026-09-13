@@ -1,6 +1,6 @@
 # Nexora SAGE
 
-Current version: **1.0.5**.
+Current version: **1.0.6**.
 
 AI made code generation cheap.
 It did not make architecture cheap.
@@ -227,7 +227,7 @@ SAGE is also built by the same principles it gives to AI agents: scoped intent, 
 
 ## License
 
-This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.0.5 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
+This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.0.6 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
 
 `NOTICE.md` states the SAGE-specific release-status, evidence, certification and
 human-review boundaries. In particular, a SAGE `PASS` or release-proof is

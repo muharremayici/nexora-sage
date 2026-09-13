@@ -10,16 +10,18 @@ from tools.core.config import RAW_DIR, REPORTS_DIR, SCRIPTS_DIR, save_json_atomi
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.merge_review_hardening_policy import policy_int, policy_string, policy_string_list, ui_smoke_spec_policy
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 SPEC_DIR = SCRIPTS_DIR / "ui_smoke_specs"
 
 
 def _clear_managed_specs() -> int:
-    if not SPEC_DIR.exists():
+    native_spec_dir = Path(native_filesystem_path(SPEC_DIR))
+    if not native_spec_dir.exists():
         return 0
     removed = 0
-    for stale_path in SPEC_DIR.glob("*.spec.ts"):
+    for stale_path in native_spec_dir.glob("*.spec.ts"):
         stale_path.unlink(missing_ok=True)
         removed += 1
     return removed
@@ -177,7 +179,7 @@ def run_ui_smoke_spec_generator() -> dict:
         if isinstance(item, dict) and item.get("recommended_gate") == "browser_smoke_required"
     ]
 
-    SPEC_DIR.mkdir(parents=True, exist_ok=True)
+    Path(native_filesystem_path(SPEC_DIR)).mkdir(parents=True, exist_ok=True)
     removed_stale_specs = _clear_managed_specs()
     if removed_stale_specs:
         logger.info(f"Removed {removed_stale_specs} stale generated UI smoke specs.")

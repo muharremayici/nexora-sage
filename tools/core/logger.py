@@ -1,7 +1,9 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
+from pathlib import Path
 from tools.core.config import LOGS_DIR
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 try:
     if hasattr(sys.stdout, "reconfigure"):
@@ -25,12 +27,12 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 # Ensure output dir exists before file handler is created
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+Path(native_filesystem_path(LOGS_DIR)).mkdir(parents=True, exist_ok=True)
 
 # Rotating File Handler
 # Max 5 MB per file, keep 5 backups (pipeline.log.1, pipeline.log.2, etc.)
 fh = RotatingFileHandler(
-    LOGS_DIR / "pipeline.log",
+    native_filesystem_path(LOGS_DIR / "pipeline.log"),
     maxBytes=5 * 1024 * 1024, 
     backupCount=5, 
     encoding="utf-8"

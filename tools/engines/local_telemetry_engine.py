@@ -18,6 +18,7 @@ from tools.core.logger import logger
 from tools.core.atlas_io import load_atlas_data
 from tools.core.runtime_project_scope import project_runtime_atlas
 from tools.core.honesty_telemetry import record_honesty_event
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 def _max_trace_events() -> int:
@@ -51,8 +52,8 @@ _server_thread = None
 
 def init_traces_file():
     """Initializes the telemetry traces file if it does not exist."""
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    if not TRACES_FILE.exists():
+    os.makedirs(native_filesystem_path(RAW_DIR), exist_ok=True)
+    if not os.path.exists(native_filesystem_path(TRACES_FILE)):
         save_json_atomic(
             TRACES_FILE,
             {

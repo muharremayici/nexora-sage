@@ -58,7 +58,6 @@
       "tools/tests/test_merge_snapshot_lineage.py",
       "tools/tests/test_nanometric_diff_engine.py",
       "tools/tests/test_node_ast_worker.py",
-      "tools/tests/test_operational_parity_contract.py",
       "tools/tests/test_package_contracts.py",
       "tools/tests/test_patch_aggregate_status_contract.py",
       "tools/tests/test_path_identity.py",

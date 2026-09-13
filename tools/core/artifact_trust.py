@@ -19,6 +19,7 @@ from tools.core.analysis_scope_authority import (
 )
 from tools.core.analysis_snapshot_lineage import load_atlas_commit, receipt_digest_binding
 from tools.core.logger import logger
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 def _artifact_validation_epoch(raw_dir: Path, name: str) -> float:
@@ -58,10 +59,11 @@ def _artifact_fact(conn: sqlite3.Connection, name: str, key: str) -> Any:
 
 def _sqlite_truth_summary(raw_dir: Path) -> dict[str, Any] | None:
     db_path = raw_dir / "codemaps.db"
-    if not db_path.exists():
+    native_db_path = Path(native_filesystem_path(db_path))
+    if not native_db_path.exists():
         return None
     try:
-        with closing(sqlite3.connect(db_path)) as conn:
+        with closing(sqlite3.connect(native_db_path)) as conn:
             conn.row_factory = sqlite3.Row
             atlas_projects = {
                 str(row["project_key"])

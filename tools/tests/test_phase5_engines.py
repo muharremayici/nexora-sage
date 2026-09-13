@@ -9,7 +9,7 @@ from tools.engines.test_impact_matcher import extract_base_name, generate_test_c
 from tools.engines.ui_runtime_contract_analyzer import _smoke_plan, _smoke_route_for_target
 from tools.core.import_classifier import should_enforce_alias_for_local_import
 from tools.core.audit_rules import violates_canonical_alias_boundary
-from tools.core import pipeline_policy
+from tools.core import audit_rules, pipeline_policy
 
 
 def test_ui_smoke_route_requires_explicit_route_evidence() -> None:
@@ -72,13 +72,42 @@ def test_mcp_governance_uses_runtime_module_root_not_legacy_fallback():
     assert '"lifecycle-modules"' not in text
 
 
-def test_mcp_governance_blocks_deep_relative_imports():
-    deep_relative = validate_proposed_patch(
+def test_mcp_governance_alias_rule_requires_exact_target_alias_evidence(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        mcp_governance,
+        "resolve_runtime_projects",
+        lambda root: {"WEB": root},
+    )
+    monkeypatch.setitem(
+        audit_rules.DYNAMIC_CONFIG,
+        "_target_root_override",
+        {"enabled": True, "observed_path_aliases": []},
+    )
+
+    without_alias_evidence = validate_proposed_patch(
         "src/lifecycle-modules/01-ideation/features/demo.tsx",
         "import x from '../../../../platform/core/serviceContainer';\nexport const Demo = () => null;\n",
+        workspace_root=tmp_path,
     )
-    assert deep_relative["status"] == "FAIL"
-    assert "relative_imports_no_alias" in [item["rule"] for item in deep_relative["violations"]]
+    assert without_alias_evidence["status"] == "PASS"
+    assert "relative_imports_no_alias" not in {
+        item["rule"] for item in without_alias_evidence["violations"]
+    }
+
+    monkeypatch.setitem(
+        audit_rules.DYNAMIC_CONFIG,
+        "_target_root_override",
+        {"enabled": True, "observed_path_aliases": ["@/*"]},
+    )
+    with_alias_evidence = validate_proposed_patch(
+        "src/lifecycle-modules/01-ideation/features/demo.tsx",
+        "import x from '../../../../platform/core/serviceContainer';\nexport const Demo = () => null;\n",
+        workspace_root=tmp_path,
+    )
+    assert with_alias_evidence["status"] == "FAIL"
+    assert "relative_imports_no_alias" in {
+        item["rule"] for item in with_alias_evidence["violations"]
+    }
 
 
 def test_mcp_governance_preserves_safe_sibling_and_barrel_imports():

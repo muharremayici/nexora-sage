@@ -1127,6 +1127,8 @@ def execution_mode_for_run(
         return "release_deep"
     if profile == "daily":
         return "daily"
+    if profile == "release-bounded":
+        return "release_bounded"
     if atlas_cached is False:
         return "first_repo_onboarding"
     return "normal_full"
@@ -1217,13 +1219,14 @@ def apply_execution_profile(selected, args):
     if profile in {"release-deep", "deep"} or mode == "all":
         logger.info("[PROFILE] release-deep profile active: heavyweight validation and merge intelligence enabled.")
         return selected
-    if profile == "daily" or mode == "keep_slugs":
+    if mode == "keep_slugs":
         keep_slugs = _profile_keep_slugs(profile)
         filtered = [step for step in selected if normalize_step_slug(step["name"]) in keep_slugs]
         removed = [step["name"] for step in selected if normalize_step_slug(step["name"]) not in keep_slugs]
         if removed:
             logger.info(
-                "[PROFILE] daily profile active: skipped %s deep/release steps: %s",
+                "[PROFILE] %s profile active: skipped %s out-of-profile steps: %s",
+                profile,
                 len(removed),
                 ", ".join(removed[:12]) + ("..." if len(removed) > 12 else ""),
             )
@@ -1664,9 +1667,9 @@ def main(args=None, changed_files_override=None):
         parser.add_argument("--no-smart", action="store_false", dest="smart_trigger", default=True, help="Disable smart engine gating")
         parser.add_argument(
             "--profile",
-            choices=["daily", "full", "release-deep"],
+            choices=["daily", "full", "release-bounded", "release-deep"],
             default=None,
-            help="Execution profile: daily skips deep/release-cost engines, full preserves default pipeline, release-deep runs explicit heavyweight validation.",
+            help="Execution profile: daily is iterative, release-bounded is the one-producer MAIN release integration profile, full preserves default analysis, and release-deep runs heavyweight validation.",
         )
         args = parser.parse_args()
 

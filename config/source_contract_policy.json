@@ -139,6 +139,7 @@
     "tools/run_release_proof_bundle.py": "explicit release proof ledger, command matrix and artifact snapshot assembler",
     "tools/tests/test_agent_artifact_query_contract.py": "cohesive agent artifact-query and MCP public-brief contract regression suite; split only when a semantic owner boundary improves local reasoning",
     "tools/tests/test_engine_contracts.py": "large regression suite by design",
+    "tools/tests/test_init_execution_contract.py": "cohesive init, installation-proof and immutable Preflight receipt lifecycle regression suite; split only when an execution-contract owner boundary can preserve the shared setup and reuse semantics",
     "tools/tests/test_pipeline_registry.py": "central pipeline registry, release DAG, freshness and execution-policy regression suite; split only with preserved cross-contract ownership evidence",
     "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist"
   }

@@ -14,6 +14,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.config import (
+    CONFIG_FILE,
+    DISCOVERY_FILE,
+    OVERRIDES_FILE,
     RAW_DIR,
     REPORTS_DIR,
     _target_output_slug,
@@ -30,6 +33,7 @@ from tools.core.subprocess_telemetry import run_observed_subprocess
 RAW_OUTPUT_PATH = RAW_DIR / "installation_proof.json"
 REPORT_OUTPUT_PATH = REPORTS_DIR / "installation_proof.md"
 INSTALLATION_CONTRACT_PATH = ROOT / "config" / "installation_preflight_contract.json"
+CLI_COMMAND_CONTRACT_PATH = ROOT / "config" / "cli_command_contract.json"
 
 
 def _utc_now() -> str:
@@ -153,6 +157,61 @@ def _installation_proof_authority(
     return authority_profile, omissions
 
 
+def _canonical_install_proof_command() -> str:
+    contract = json.loads(CLI_COMMAND_CONTRACT_PATH.read_text(encoding="utf-8"))
+    commands = contract.get("commands", []) if isinstance(contract, dict) else []
+    matches = [
+        row
+        for row in commands
+        if isinstance(row, dict)
+        and row.get("id") == "install_proof"
+        and row.get("canonical") is True
+        and str(row.get("surface") or "").strip()
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "CLI command contract must declare exactly one canonical install_proof surface."
+        )
+    return str(matches[0]["surface"]).strip()
+
+
+def _runtime_configuration_prerequisite(level: str) -> dict[str, Any]:
+    if level != "smoke":
+        return {
+            "status": "COMPOSED_BY_PLAN",
+            "basis": "daily_and_release_plans_initialize_before_runtime_consumers",
+            "missing_files": [],
+        }
+
+    required_paths = (DISCOVERY_FILE, OVERRIDES_FILE, CONFIG_FILE)
+    missing_paths = [path for path in required_paths if not path.is_file()]
+    if not missing_paths:
+        return {
+            "status": "SATISFIED",
+            "basis": "smoke_runtime_configuration_is_present",
+            "missing_files": [],
+        }
+
+    missing_files = []
+    for path in missing_paths:
+        try:
+            missing_files.append(path.relative_to(ROOT).as_posix())
+        except ValueError:
+            missing_files.append(str(path))
+    canonical_command = _canonical_install_proof_command()
+    return {
+        "status": "PREREQUISITE_REQUIRED",
+        "basis": "smoke_runtime_configuration_is_missing",
+        "missing_files": missing_files,
+        "canonical_command": canonical_command,
+        "action_message": (
+            "Fresh smoke requires generated runtime configuration; no proof steps were "
+            "started. Run the canonical target-aware installation proof command: "
+            f"{canonical_command}"
+        ),
+    }
+
+
 def _commands_for_level(
     level: str,
     *,
@@ -273,14 +332,23 @@ def build_installation_proof(
         "status": "NOT_APPLICABLE",
         "basis": "installation_proof_has_no_explicit_target_init",
     }
-    for spec in _commands_for_level(
-        level,
-        skip_deps=skip_deps,
-        max_doctor_seconds=max_doctor_seconds,
-        target_root=target_root,
-        projects=projects,
-        public_distribution=public_distribution,
-    ):
+    prerequisite = _runtime_configuration_prerequisite(level)
+    if prerequisite.get("status") == "PREREQUISITE_REQUIRED":
+        preflight_reuse = {
+            "status": "NOT_STARTED",
+            "basis": "runtime_configuration_prerequisite_failed_before_step_execution",
+        }
+        step_specs: list[dict[str, Any]] = []
+    else:
+        step_specs = _commands_for_level(
+            level,
+            skip_deps=skip_deps,
+            max_doctor_seconds=max_doctor_seconds,
+            target_root=target_root,
+            projects=projects,
+            public_distribution=public_distribution,
+        )
+    for spec in step_specs:
         print(f"[install-proof] START {spec['label']}", flush=True)
         row = _step(
             spec["id"],
@@ -339,7 +407,13 @@ def build_installation_proof(
                     }
                 )
                 break
-    status = "PASS" if steps and all(row.get("passed") for row in steps) else "FAIL"
+    status = (
+        "PASS"
+        if prerequisite.get("status") != "PREREQUISITE_REQUIRED"
+        and steps
+        and all(row.get("passed") for row in steps)
+        else "FAIL"
+    )
     return {
         "meta": {
             "kind": "installation_proof",
@@ -365,6 +439,9 @@ def build_installation_proof(
             "target_governance": "NOT_EVALUATED",
             "authority_profile": authority_profile,
             "omitted_maintainer_steps": sorted(omitted_step_ids),
+            "prerequisite_cause_count": (
+                1 if prerequisite.get("status") == "PREREQUISITE_REQUIRED" else 0
+            ),
         },
         "claim_boundary": {
             "proves": "machine_local_installation_and_bounded_public_surface_execution",
@@ -372,6 +449,7 @@ def build_installation_proof(
             "target_governance_is_separate": True,
         },
         "preflight_reuse": preflight_reuse,
+        "prerequisite": prerequisite,
         "steps": steps,
         "interpretation": [
             "This proof validates that the local SAGE installation can render setup, health, MCP, target analysis, and installed-distribution evidence on this machine.",
@@ -401,12 +479,31 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- authority_profile: `{summary.get('authority_profile')}`",
         f"- omitted_maintainer_steps: `{', '.join(summary.get('omitted_maintainer_steps', [])) or 'none'}`",
         f"- preflight_reuse: `{payload.get('preflight_reuse', {}).get('status')}`",
+        f"- prerequisite: `{payload.get('prerequisite', {}).get('status')}`",
         "",
-        "## Steps",
-        "",
-        "| Step | Status | Duration | Command |",
-        "|---|---:|---:|---|",
     ]
+    prerequisite = payload.get("prerequisite", {})
+    if prerequisite.get("status") == "PREREQUISITE_REQUIRED":
+        lines.extend(
+            [
+                "## Prerequisite",
+                "",
+                str(prerequisite.get("action_message") or ""),
+                "",
+                "Missing runtime files:",
+                "",
+                *[f"- `{path}`" for path in prerequisite.get("missing_files", [])],
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Steps",
+            "",
+            "| Step | Status | Duration | Command |",
+            "|---|---:|---:|---|",
+        ]
+    )
     for step in payload.get("steps", []):
         command = " ".join(str(part) for part in step.get("command", []))
         command = command.replace("|", "\\|")
@@ -452,6 +549,12 @@ def main() -> int:
     )
     save_json_atomic(RAW_OUTPUT_PATH, payload)
     save_text_atomic(REPORTS_DIR / "installation_proof.md", render_report(payload))
+    prerequisite = payload.get("prerequisite", {})
+    if prerequisite.get("status") == "PREREQUISITE_REQUIRED":
+        print(
+            f"[install-proof] PREREQUISITE_REQUIRED {prerequisite.get('action_message')}",
+            flush=True,
+        )
     print(json.dumps(payload.get("summary", {}), ensure_ascii=False))
     return 0 if payload.get("summary", {}).get("status") == "PASS" else 1
 

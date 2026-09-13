@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from pathlib import Path
 
 from tools.core.config import OUTPUT_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
+from tools.core.unmanaged_atomic_io import native_filesystem_path
 
 
 TASKPACK_DIR = OUTPUT_DIR / "taskpacks"
@@ -191,7 +193,7 @@ def run_ai_task_pack_generator() -> dict:
     cockpit = load_json_file(RAW_DIR / "merge_decision_cockpit.json", {})
     decisions = [item for item in (cockpit.get("decisions", []) if isinstance(cockpit, dict) else []) if isinstance(item, dict)]
     selected = _selected_decisions(decisions)
-    TASKPACK_DIR.mkdir(parents=True, exist_ok=True)
+    Path(native_filesystem_path(TASKPACK_DIR)).mkdir(parents=True, exist_ok=True)
 
     records = []
     for decision in selected:
