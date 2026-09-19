@@ -24,7 +24,10 @@ from tools.core.contextos_mcp import render_active_signals
 from tools.engines import audit as audit_engine
 from tools.engines import quant_engine
 from tools.orchestrators import watchdog
-from tools.orchestrators.watchdog import collect_smoke_file_selection, collect_smoke_files
+from tools.orchestrators.watchdog import (
+    collect_smoke_file_selection,
+    collect_smoke_files,
+)
 from tools.core.config import ROOT
 
 
@@ -78,17 +81,16 @@ class WatchdogRuntimeContractTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertEqual(os.environ.get("SAGE_SYNC_SHADOW_WRITES"), previous)
-        handler.run_analysis.assert_called_once_with(
-            [str(source)],
-            watchdog_profile="smoke",
-            input_origin="smoke_sample",
-            acquisition={
-                "mode": "directory_sample",
-                "selected_files": [str(source)],
-                "candidate_count": 1,
-                "omitted_count": 0,
-            },
-        )
+        handler.run_analysis.assert_called_once()
+        self.assertEqual(handler.run_analysis.call_args.args[0], [str(source)])
+        self.assertEqual(handler.run_analysis.call_args.kwargs["watchdog_profile"], "smoke")
+        self.assertEqual(handler.run_analysis.call_args.kwargs["input_origin"], "smoke_sample")
+        acquisition = handler.run_analysis.call_args.kwargs["acquisition"]
+        self.assertEqual(acquisition["mode"], "directory_sample")
+        self.assertEqual(acquisition["selected_files"], [str(source)])
+        self.assertEqual(acquisition["requested_path_count"], 1)
+        self.assertEqual(acquisition["duplicate_path_count"], 0)
+        self.assertEqual(acquisition["rejected_path_count"], 0)
         flush.assert_called_once_with(timeout=10.0)
 
     def test_smoke_session_separates_samples_from_real_changed_files(self):

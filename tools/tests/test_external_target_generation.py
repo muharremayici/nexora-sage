@@ -11,6 +11,7 @@ from tools import generate_external_target_index
 from tools.core.external_target_generation import (
     begin_external_target_generation,
     close_external_target_generation_without_promotion,
+    external_target_generation_history,
     finalize_external_target_generation,
     new_external_target_run_id,
     resolve_external_target_artifact_dir,
@@ -236,3 +237,99 @@ def test_external_target_index_does_not_read_legacy_shadows_behind_invalid_curre
     assert row["artifact_resolution"] == "current_pointer_kind_invalid"
     assert row["summary"]["preflight"] == {}
     assert payload["summary"]["with_preflight"] == 0
+
+
+def test_generation_history_separates_attempt_completed_validated_and_current_roles(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target"
+    _valid_attempt(target, "sage-run-good")
+    finalize_external_target_generation(target, "sage-run-good", exit_code=0)
+    begin_external_target_generation(target, "sage-run-failed", target / "repo")
+    finalize_external_target_generation(target, "sage-run-failed", exit_code=5)
+    begin_external_target_generation(target, "sage-watch-done", target / "repo")
+    close_external_target_generation_without_promotion(
+        target,
+        "sage-watch-done",
+        exit_code=0,
+        reason="watch_not_current_eligible",
+    )
+    begin_external_target_generation(target, "sage-run-active", target / "repo")
+
+    payload = external_target_generation_history(
+        target,
+        max_manifest_scan=20,
+        max_history_entries=20,
+    )
+
+    assert payload["roles"] == {
+        "latest_attempt": "sage-run-active",
+        "latest_completed": "sage-watch-done",
+        "latest_validated": "sage-run-good",
+        "validated_current": "sage-run-good",
+    }
+    by_id = {row["run_id"]: row for row in payload["history"]}
+    assert by_id["sage-run-active"]["roles"] == ["latest_attempt"]
+    assert "latest_completed" in by_id["sage-watch-done"]["roles"]
+    assert set(by_id["sage-run-good"]["roles"]) == {
+        "latest_validated",
+        "validated_current",
+    }
+    assert payload["role_completeness"] == "COMPLETE"
+
+
+def test_generation_history_bounds_scan_and_exposes_invalid_manifest_evidence(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target"
+    for index in range(7):
+        begin_external_target_generation(
+            target,
+            f"sage-run-{index}",
+            target / "repo",
+        )
+    corrupt = target / "generations" / "sage-run-6" / "generation.json"
+    corrupt.write_text("{", encoding="utf-8")
+
+    payload = external_target_generation_history(
+        target,
+        max_manifest_scan=5,
+        max_history_entries=4,
+    )
+
+    assert payload["total_generation_dirs"] == 7
+    assert payload["scanned_generation_dirs"] == 5
+    assert payload["omitted_from_scan"] == 2
+    assert payload["omitted_from_history"] == 1
+    assert payload["invalid_manifests"] == 1
+    assert payload["role_completeness"] == "BOUNDED_SCAN"
+    assert any(row.get("manifest_error") == "JSONDecodeError" for row in payload["history"])
+
+
+def test_generation_history_keeps_current_inside_manifest_scan_budget(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target"
+    _valid_attempt(target, "sage-run-current")
+    finalize_external_target_generation(target, "sage-run-current", exit_code=0)
+    for index in range(7):
+        begin_external_target_generation(
+            target,
+            f"sage-run-newer-{index}",
+            target / "repo",
+        )
+
+    payload = external_target_generation_history(
+        target,
+        max_manifest_scan=5,
+        max_history_entries=5,
+    )
+
+    assert payload["scanned_generation_dirs"] == 5
+    assert payload["omitted_from_scan"] == 3
+    assert payload["roles"]["validated_current"] == "sage-run-current"
+    assert any(
+        row["run_id"] == "sage-run-current"
+        and "validated_current" in row["roles"]
+        for row in payload["history"]
+    )

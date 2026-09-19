@@ -254,8 +254,11 @@ def is_successful_surgical_packet(sample: dict[str, Any]) -> bool:
 def allows_no_review_target(sample: dict[str, Any], policy: dict[str, Any]) -> bool:
     text = sample_text(sample)
     markers = policy.get("allowed_no_review_target_markers", [])
-    return is_evidence_blocked_empty_result(sample) or is_review_only_empty_result(sample) or any(
-        str(marker).strip() and str(marker) in text for marker in markers
+    return (
+        is_structured_precondition_block(sample)
+        or is_evidence_blocked_empty_result(sample)
+        or is_review_only_empty_result(sample)
+        or any(str(marker).strip() and str(marker) in text for marker in markers)
     )
 
 

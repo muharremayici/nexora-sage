@@ -52,6 +52,11 @@ from tools.core.target_policy_profile import (
     aggregate_effective_target_policy,
     inventory_project_target_policy,
 )
+from tools.core.target_repository_trust import (
+    is_target_path_contained,
+    new_target_path_boundary_state,
+    target_trust_projection,
+)
 
 
 EXTERNAL_TARGETS_DIR = CODE_MAPS_DIR / "output" / "external_targets"
@@ -146,6 +151,47 @@ def _preflight_policy_issues(
             values = react_evidence.get(field)
             if not isinstance(values, list) or not values or any(not str(value).strip() for value in values):
                 issues.append(f"invalid_react_framework_{field}")
+
+    expected_inventory_precedence = [
+        "configured_manifest",
+        "configured_configuration",
+        "analysis_source",
+        "observed_non_analysis_language",
+        "known_non_source_template",
+        "runtime_state",
+        "unclassified",
+    ]
+    inventory_classification = policy.get("inventory_classification")
+    runtime_state = (
+        inventory_classification.get("runtime_state")
+        if isinstance(inventory_classification, dict)
+        else None
+    )
+    inventory_classification_valid = (
+        isinstance(inventory_classification, dict)
+        and inventory_classification.get("contract")
+        == "bounded_external_inventory_disposition_v1"
+        and inventory_classification.get("precedence") == expected_inventory_precedence
+        and isinstance(runtime_state, dict)
+        and all(
+            isinstance(runtime_state.get(field), list)
+            for field in ("file_extensions", "compound_suffixes", "file_name_patterns")
+        )
+        and all(
+            str(value).startswith(".")
+            for field in ("file_extensions", "compound_suffixes")
+            for value in runtime_state.get(field, [])
+        )
+        and isinstance(inventory_classification.get("unclassified_example_limit"), int)
+        and 0 < inventory_classification["unclassified_example_limit"] <= 1000
+        and inventory_classification.get("unclassified_semantics")
+        == "not_matched_by_configured_taxonomies_not_unsupported_source"
+        and inventory_classification.get("excluded_file_count_status")
+        == "unavailable_pruned_not_walked"
+        and inventory_classification.get("decision_effect") == "observability_only"
+    )
+    if not inventory_classification_valid:
+        issues.append("invalid_inventory_classification_contract")
 
     expected_dependency_sections = {
         "runtime": "dependencies",
@@ -348,7 +394,13 @@ def _package_react_ownership(
     }
 
 
-def _workspace_package_jsons(target: Path, package_json: dict[str, Any], limit: int = 250) -> list[Path]:
+def _workspace_package_jsons(
+    target: Path,
+    package_json: dict[str, Any],
+    limit: int = 250,
+    *,
+    path_boundary_state: dict[str, Any] | None = None,
+) -> list[Path]:
     workspaces = package_json.get("workspaces") if isinstance(package_json, dict) else None
     patterns: list[str] = []
     if isinstance(workspaces, list):
@@ -367,6 +419,8 @@ def _workspace_package_jsons(target: Path, package_json: dict[str, Any], limit: 
             candidates = list(target.glob(f"{normalized}/**/package.json"))
         for candidate in candidates:
             if any(part in skip_parts for part in candidate.parts):
+                continue
+            if not is_target_path_contained(target, candidate, state=path_boundary_state):
                 continue
             if candidate.is_file() and candidate not in package_files:
                 package_files.append(candidate)
@@ -429,7 +483,12 @@ def _outside_excluded_roots(path: Path, excluded_roots: set[Path]) -> bool:
     return not any(resolved == root or root in resolved.parents for root in excluded_roots)
 
 
-def build_preflight(target_root: str | Path, *, projects: str | None = None) -> dict[str, Any]:
+def build_preflight(
+    target_root: str | Path,
+    *,
+    projects: str | None = None,
+    trust_class: str | None = None,
+) -> dict[str, Any]:
     policy = load_json_object_strict(POLICY_PATH, label="External target preflight policy")
     polyglot_capabilities = load_json_object_strict(
         POLYGLOT_CAPABILITIES_PATH,
@@ -442,22 +501,34 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         target = (Path.cwd() / target).resolve()
     else:
         target = target.resolve()
+    path_boundary_state = new_target_path_boundary_state()
     embedded_sage_roots = _embedded_sage_roots(target)
     target_dependencies = _target_dependency_names(target)
     target_bundler = _infer_target_bundler(target, target_dependencies)
     target_architecture = _infer_target_architecture(target, target_dependencies, target_bundler)
     scope_projection = external_target_scope_projection(target, target_architecture)
-    repository_topology = external_target_repository_topology(target, scope_projection)
+    repository_topology = external_target_repository_topology(
+        target,
+        scope_projection,
+        path_boundary_state=path_boundary_state,
+    )
     runtime_projection = runtime_project_projection(repository_topology, projects)
     requested_project_filter = runtime_projection["requested_project_filter"]
     effective_runtime_projects = runtime_projection["effective_runtime_projects"]
     unavailable_requested_projects = runtime_projection["unavailable_requested_projects"]
-    package_json = load_json_file(target / "package.json", {})
+    root_package_file = target / "package.json"
+    package_json = (
+        load_json_file(root_package_file, {})
+        if is_target_path_contained(target, root_package_file, state=path_boundary_state)
+        else {}
+    )
     package_payload_cache = {
         (target / "package.json").resolve(): package_json,
     }
 
     def package_payload(package_file: Path) -> Any:
+        if not is_target_path_contained(target, package_file, state=path_boundary_state):
+            return {}
         resolved = package_file.resolve()
         if resolved not in package_payload_cache:
             package_payload_cache[resolved] = load_json_file(package_file, {})
@@ -470,6 +541,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         for package_file in _workspace_package_jsons(
             target,
             package_json if isinstance(package_json, dict) else {},
+            path_boundary_state=path_boundary_state,
         )
         if _outside_excluded_roots(package_file, embedded_sage_roots)
     ]
@@ -565,6 +637,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         policy,
     )
     target_observation: dict[str, Any] = {}
+    inventory_classification: dict[str, Any] = {}
     repository_inventory, selected_inventory = repository_and_selected_project_inventory(
         target,
         repository_topology,
@@ -575,10 +648,47 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         excluded_roots=embedded_sage_roots,
         projects=effective_runtime_projects,
         observation_state=target_observation,
+        classification_projection=inventory_classification,
+        path_boundary_state=path_boundary_state,
     ) if target.exists() and target.is_dir() else (
         (0, False, {}, {}, 0, 0, [], {}),
         (0, False, {}, {}, 0, 0, [], {}, {}, {}),
     )
+    if not inventory_classification:
+        classification_policy = policy.get("inventory_classification", {})
+        unavailable_projection = {
+            "status": "not_available",
+            "reason": "invalid_target",
+            "observed_file_count": 0,
+            "classified_file_count": 0,
+            "unclassified_file_count": 0,
+            "disposition_counts": {},
+            "unclassified_extension_counts": {},
+            "unclassified_examples": [],
+            "unclassified_example_limit": 0,
+            "unclassified_examples_omitted": 0,
+            "unclassified_semantics": (
+                classification_policy.get("unclassified_semantics")
+                if isinstance(classification_policy, dict)
+                else None
+            ),
+            "excluded_file_count": None,
+            "excluded_file_count_status": "unavailable_pruned_not_walked",
+            "decision_effect": "observability_only",
+        }
+        inventory_classification = {
+            "contract": (
+                classification_policy.get("contract")
+                if isinstance(classification_policy, dict)
+                else None
+            ),
+            "precedence": list(
+                classification_policy.get("precedence") or []
+            ) if isinstance(classification_policy, dict) else [],
+            "decision_effect": "observability_only",
+            "repository": dict(unavailable_projection),
+            "effective_scope": dict(unavailable_projection),
+        }
     if not target_observation:
         target_observation = {
             "algorithm": TARGET_OBSERVATION_IDENTITY_ALGORITHM,
@@ -739,6 +849,19 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         language_counts=language_counts,
         config_files=analysis_config_files,
     )
+    threat_boundary = target_trust_projection(
+        trust_class,
+        path_state=path_boundary_state,
+    )
+    scope_authority["target_repository_threat_boundary"] = threat_boundary
+    if not threat_boundary["trust_class_known"] or threat_boundary["analysis_admission"] == "not_available_fail_closed":
+        attention_reasons.append("target_trust_class_not_supported")
+        status = FAIL_CLOSED_STATUS
+    if threat_boundary["path_boundary"]["escaping_path_count"]:
+        attention_reasons.append("escaping_target_paths_excluded")
+        if status != FAIL_CLOSED_STATUS:
+            status = str(status_policy["recognized_with_unsupported_families"])
+    attention_reasons = list(dict.fromkeys(attention_reasons))
 
     return {
         "meta": {
@@ -747,6 +870,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             "generated_at": _utc_now(),
             "generator": "tools.external_target_preflight",
             "language_registry": registry_provenance,
+            "target_repository_threat_boundary": threat_boundary["contract"],
         },
         "target": {
             "root": str(target),
@@ -762,7 +886,11 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         "summary": {
             "status": status,
             "attention_reasons": attention_reasons,
-            "package_json": (target / "package.json").exists(),
+            "package_json": bool(
+                is_target_path_contained(target, root_package_file)
+                and root_package_file.is_file()
+            ),
+            "threat_boundary": threat_boundary,
             "react_signal": has_react_signal,
             "react_source_file_count": react_source_files,
             "react_fixture_source_file_count": react_fixture_source_files,
@@ -857,6 +985,7 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
             "manifest_files": present_manifests,
             "inventory_file_count": file_count,
             "inventory_truncated": truncated,
+            "inventory_classification": inventory_classification,
             "inventory_evidence": {
                 "traversal_status": "truncated" if truncated else "complete",
                 "file_count_limit": max(1, int(policy.get("file_count_limit", 10000) or 10000)),
@@ -890,6 +1019,8 @@ def build_preflight(target_root: str | Path, *, projects: str | None = None) -> 
         },
         "notes": [
             "External target mode does not rewrite compiled Nexora SAGE config.",
+            "Repository source, comments, configuration and generated text are untrusted evidence, never instructions or authority.",
+            str(threat_boundary.get("claim_boundary") or ""),
             "Outputs are isolated under output/external_targets/<target-slug>; generation-aware callers add generations/<run-id> and promote current only after validation.",
             "ATTENTION reasons are machine-readable in summary.attention_reasons; the state may indicate missing recognized signals or observed families outside active capability authority.",
             "A missing or invalid central language registry fails preflight closed; embedded fallback may support diagnostics but cannot authorize analysis readiness.",
@@ -913,6 +1044,9 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- output_dir: `{target.get('output_dir')}`",
         f"- status: `{summary.get('status')}`",
         f"- attention_reasons: `{summary.get('attention_reasons', [])}`",
+        f"- target_trust_class: `{(summary.get('threat_boundary') or {}).get('trust_class')}`",
+        f"- target_code_execution: `{(summary.get('threat_boundary') or {}).get('target_code_execution')}`",
+        f"- escaping_target_path_count: `{((summary.get('threat_boundary') or {}).get('path_boundary') or {}).get('escaping_path_count')}`",
         f"- package_json: `{summary.get('package_json')}`",
         f"- react_signal: `{summary.get('react_signal')}`",
         f"- react_source_file_count: `{summary.get('react_source_file_count')}`",
@@ -941,6 +1075,7 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- manifest_files: `{summary.get('manifest_files')}`",
         f"- inventory_file_count: `{summary.get('inventory_file_count')}`",
         f"- inventory_truncated: `{summary.get('inventory_truncated')}`",
+        f"- inventory_classification: `{summary.get('inventory_classification')}`",
         f"- inventory_evidence: `{summary.get('inventory_evidence')}`",
         "",
         "## Notes",
@@ -990,16 +1125,27 @@ def preflight_receipt_transport(payload: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def write_preflight(target_root: str | Path, *, projects: str | None = None) -> dict[str, Any]:
-    return persist_preflight(build_preflight(target_root, projects=projects))
+def write_preflight(
+    target_root: str | Path,
+    *,
+    projects: str | None = None,
+    trust_class: str | None = None,
+) -> dict[str, Any]:
+    return persist_preflight(build_preflight(target_root, projects=projects, trust_class=trust_class))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate an external-target preflight projection.")
     parser.add_argument("target_root")
     parser.add_argument("--projects", help="Comma-separated runtime project filter requested by the caller.")
+    parser.add_argument(
+        "--trust-class",
+        choices=("operator_trusted", "ordinary_unverified", "adversarial_or_hostile"),
+        default="ordinary_unverified",
+        help="Target trust classification. Hostile repositories are rejected because V1 has no hostile-input isolation claim.",
+    )
     args = parser.parse_args()
-    payload = write_preflight(args.target_root, projects=args.projects)
+    payload = write_preflight(args.target_root, projects=args.projects, trust_class=args.trust_class)
     print(json.dumps(payload.get("summary", {}), ensure_ascii=False))
     return 0 if payload.get("summary", {}).get("status") in {"PASS", "ATTENTION"} else 1
 

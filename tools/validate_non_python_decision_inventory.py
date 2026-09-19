@@ -175,8 +175,10 @@ def _json_findings(policy: dict[str, Any]) -> tuple[list[Finding], list[Finding]
                     continue
                 if _is_historical_release_identity_reference(rel, key_path, policy):
                     continue
-                if rel in reference_json and value in roadmap_releases:
-                    continue
+                if rel in reference_json:
+                    referenced_releases = set(semver_re.findall(value))
+                    if referenced_releases and referenced_releases <= roadmap_releases:
+                        continue
                 reason = "unknown_release_reference" if rel in reference_json else "release_decision_literal"
                 release_literal_violations.append(
                     Finding(rel, finding.line, key_text, value, reason)

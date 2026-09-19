@@ -300,6 +300,7 @@
       "atlas_batch_sequencer_timeout_seconds",
       "atlas_staging_batch_size",
       "atlas_staging_file_payload_limit_bytes",
+      "atlas_staging_file_aggregate_limit_bytes",
       "state_payload_inline_limit_bytes",
       "state_payload_part_size_bytes",
       "bootstrap_command_timeout_seconds",
@@ -323,6 +324,8 @@
       "sqlite_schema_initialize_retry_delay_ms",
       "sqlite_read_timeout_seconds",
       "sqlite_write_timeout_seconds",
+      "sqlite_maintenance_full_vacuum_free_space_percent",
+      "sqlite_maintenance_incremental_page_limit",
       "pipeline_step_heartbeat_seconds",
       "patch_applicability_timeout_seconds",
       "watchdog_git_restore_timeout_seconds"
@@ -420,6 +423,7 @@
       "normal_full",
       "daily",
       "release_bounded",
+      "target_quality_refresh",
       "watchdog_save_pulse",
       "release_deep",
       "explicit_step",
@@ -524,10 +528,28 @@
       }
     }
   },
+  "dependency_acquisition_budgets": {
+    "network_package_acquisition": {
+      "bootstrap_hard_timeout_seconds": 600,
+      "maximum_hard_timeout_seconds": 900,
+      "stall_timeout_seconds": 180,
+      "minimum_success_samples": 3,
+      "sample_limit": 20,
+      "observed_p95_multiplier": 2.0,
+      "progress_sources": [
+        "stdout",
+        "stderr",
+        "declared_sage_runtime_path"
+      ],
+      "adaptation_evidence": "successful_exact_action_telemetry_only",
+      "claim_boundary": "Output and declared SAGE-runtime filesystem movement are observable progress, not proof of installation correctness. Only an action-declared reliable source may authorize STALLED; otherwise silence reaches bounded TIMED_OUT. Successful post-install verification remains authoritative."
+    }
+  },
   "operational_limits": {
     "atlas_batch_sequencer_timeout_seconds": 180,
     "atlas_staging_batch_size": 128,
     "atlas_staging_file_payload_limit_bytes": 33554432,
+    "atlas_staging_file_aggregate_limit_bytes": 268435456,
     "state_payload_inline_limit_bytes": 8388608,
     "state_payload_part_size_bytes": 4194304,
     "bootstrap_command_timeout_seconds": 180,
@@ -569,6 +591,8 @@
     "sqlite_schema_initialize_retry_delay_ms": 100,
     "sqlite_read_timeout_seconds": 5,
     "sqlite_write_timeout_seconds": 30,
+    "sqlite_maintenance_full_vacuum_free_space_percent": 200,
+    "sqlite_maintenance_incremental_page_limit": 4096,
     "pipeline_step_heartbeat_seconds": 15,
     "patch_applicability_timeout_seconds": 30,
     "watchdog_git_restore_timeout_seconds": 30
@@ -1123,6 +1147,132 @@
       "include_full_only": true,
       "description": "Normal full analysis. Honors step-level release_deep_only gates."
     },
+    "target-quality": {
+      "mode": "claim_closure",
+      "execution_mode_id": "target_quality_refresh",
+      "include_full_only": true,
+      "description": "Dependency-complete bounded target static-quality refresh. Derives the exact producer closure from the canonical DAG while keeping merge, UI-runtime, comparative Oracle and broad review/proof families outside this claim.",
+      "target_step_slug": "qualitygates",
+      "required_direct_dependency_slugs": [
+        "atlas",
+        "projectdnaprofile",
+        "nuclearsequencing",
+        "audit",
+        "fractalmapping",
+        "stateflowscanner",
+        "blastradiusengine",
+        "reactsupportmatrix",
+        "deadcodedetector",
+        "healthscore"
+      ],
+      "excluded_evidence_families": [
+        {
+          "id": "ui_runtime_merge_candidates",
+          "producer_step_slug": "uiruntimecontractanalyzer",
+          "artifact_ids": [
+            "ui_runtime_contracts"
+          ],
+          "quality_check_ids": [
+            "max_ui_high_risk_merge_candidates",
+            "max_ui_browser_smoke_required_candidates",
+            "max_main_ui_high_risk_files"
+          ],
+          "quality_signal_ids": [
+            "ui_high_risk_merge_candidates",
+            "ui_browser_smoke_required_candidates",
+            "main_ui_high_risk_files"
+          ],
+          "reason": "UI merge-candidate evidence is opt-in and is not required for baseline target static-quality proof."
+        },
+        {
+          "id": "merge_dependency_packages",
+          "producer_step_slug": "mergedependencypackager",
+          "artifact_ids": [
+            "merge_dependency_packages"
+          ],
+          "quality_check_ids": [
+            "max_manual_merge_dependency_packages",
+            "max_assisted_merge_dependency_packages"
+          ],
+          "quality_signal_ids": [
+            "manual_merge_dependency_packages",
+            "assisted_merge_dependency_packages"
+          ],
+          "reason": "Merge packaging is a comparative mutation-planning family, not baseline target quality."
+        },
+        {
+          "id": "merge_simulation",
+          "producer_step_slug": "mergesimulationengine",
+          "artifact_ids": [
+            "merge_simulation"
+          ],
+          "quality_check_ids": [
+            "max_unsafe_merge_simulations",
+            "max_assisted_merge_simulations"
+          ],
+          "quality_signal_ids": [
+            "unsafe_merge_simulations",
+            "assisted_merge_simulations"
+          ],
+          "reason": "Merge simulation is opt-in comparative evidence and cannot block a baseline target-quality claim."
+        },
+        {
+          "id": "merge_decision_cockpit",
+          "producer_step_slug": "mergedecisioncockpit",
+          "artifact_ids": [
+            "merge_decision_cockpit"
+          ],
+          "quality_check_ids": [
+            "max_cockpit_do_not_import",
+            "max_cockpit_import_with_review"
+          ],
+          "quality_signal_ids": [
+            "cockpit_do_not_import",
+            "cockpit_import_with_review",
+            "effective_cockpit_do_not_import",
+            "effective_cockpit_import_with_review",
+            "suppressed_cockpit_decisions"
+          ],
+          "reason": "Human merge-decision evidence remains a separate opt-in claim family."
+        },
+        {
+          "id": "broad_proof_obligations",
+          "producer_step_slug": "proofobligations",
+          "artifact_ids": [
+            "proof_obligations"
+          ],
+          "quality_check_ids": [
+            "min_proof_obligation_ratio",
+            "max_proof_required_failures"
+          ],
+          "quality_signal_ids": [],
+          "reason": "Broad cross-surface proof synthesis is not required for the bounded baseline quality evidence family."
+        },
+        {
+          "id": "broad_quality_review",
+          "producer_step_slug": "qualityrevieworacle",
+          "artifact_ids": [
+            "quality_review"
+          ],
+          "quality_check_ids": [
+            "min_quality_review_score",
+            "min_quality_proof_ladder_level",
+            "max_quality_blockers"
+          ],
+          "quality_signal_ids": [],
+          "reason": "Broad review aggregation stays opt-in and cannot contaminate the bounded target-quality result."
+        }
+      ],
+      "project_scope": "caller_requested_projects_or_discovered_target_scope",
+      "cache_posture": "refresh runs execute the complete derived producer closure; current target-proof mode may reuse only an already validated current generation",
+      "freshness_claim": "Every retained producer executes in one target refresh and Quality Gates writes snapshot-bound evidence without reading excluded-family artifacts.",
+      "cost_band": {
+        "status": "UNKNOWN",
+        "basis": "No exact target-quality profile duration sample exists until this profile records local receipt telemetry."
+      },
+      "claim_boundary": "bounded_target_static_quality_without_merge_ui_comparative_or_broad_review_proof",
+      "release_authority": false
+    },
     "daily": {
       "mode": "keep_slugs",
       "description": "Fast dependency-closed development profile. Refreshes core repository truth, bounded quality signals and ContextOS evidence without claiming a final governance verdict.",
@@ -1153,6 +1303,7 @@
       "mode": "keep_slugs",
       "include_full_only": true,
       "description": "One bounded release-proof producer. Runs the daily MAIN spine plus safe final-quality inputs, clone context and Quality Gates without comparative merge/UI producers.",
+      "quality_gate_claim_profile": "target-quality",
       "keep_slugs": [
         "atlas",
         "projectdnaprofile",
@@ -1357,6 +1508,32 @@
       "agent_surface": "Return bounded MAIN integration and final-governance evidence only. Do not infer multi-project, merge, UI-smoke, external-corpus or public-release authority.",
       "claim_boundary": "representative_main_release_integration_only"
     },
+    "target_quality_refresh": {
+      "profile": "target-quality",
+      "purpose": "Refresh exactly the dependency-complete producer closure required by bounded target static-quality evidence before target-proof construction.",
+      "trigger": "target-proof refresh-policy if-missing or always, or an explicit run --profile target-quality",
+      "scope": "caller_selected_target_projects",
+      "ssot_expectation": "The canonical DAG and target-quality claim partition derive one plan; excluded-family artifacts are not read and retained producers write current snapshot-bound evidence.",
+      "heavy_step_policy": "only_claim_required_producers",
+      "required_artifacts": [
+        "atlas",
+        "atlas_commit",
+        "project_dna_profile",
+        "genome",
+        "audit_report",
+        "dead_code",
+        "circular_deps",
+        "blast_radius",
+        "health_score",
+        "quality_gate"
+      ],
+      "required_validators": [
+        "pipeline_execution_contract",
+        "target_repository_proof_contract"
+      ],
+      "agent_surface": "Return the exact selected producer closure, requested project scope, excluded evidence families, cache posture, measured duration guidance when available, and the bounded claim result. Do not imply merge, UI-runtime, broad review/proof or SAGE release authority.",
+      "claim_boundary": "bounded_target_static_quality_without_merge_ui_comparative_or_broad_review_proof"
+    },
     "watchdog_save_pulse": {
       "profile": "daily",
       "purpose": "Narrow save-event pulse. Normalize changed files, refresh only affected truth surfaces, then distill ContextOS signals for the agent.",
@@ -1395,6 +1572,36 @@
           "selection_priority": "indexed_tombstones_before_existing_smoke_candidates",
           "omitted_tombstone_integrity": "UNKNOWN",
           "rename_projection": "linked_delete_plus_create",
+          "explicit_change_set_acquisition": {
+            "transport": "repeated_path_arguments",
+            "max_paths": 64,
+            "bound_basis": "windows_command_line_and_human_review_bound; reject_not_truncate",
+            "path_authority": "canonical_resolved_repository_path",
+            "deduplication": "canonical_path_identity_with_duplicate_receipt",
+            "accepted_entry_kinds": [
+              "existing_supported_source",
+              "current_atlas_tombstone"
+            ],
+            "directory_behavior": "single_path_smoke_only",
+            "invalid_entry_behavior": "reject_entire_change_set_without_partial_analysis",
+            "git_change_inference": "forbidden",
+            "silent_scope_truncation": "forbidden"
+          },
+          "filesystem_event_acquisition": {
+            "baseline_authority": "exact_committed_canonical_atlas_file_hash",
+            "content_hash_algorithm": "atlas_md5_utf8_ignore",
+            "unchanged_event_disposition": "omit_with_evidence",
+            "unknown_event_disposition": "retain_or_require_operator_confirmation",
+            "provenance_ring_max_events": 200,
+            "cold_start_window_seconds": 5.0,
+            "amplification_guard": {
+              "candidate_path_threshold": 50,
+              "threshold_basis": "observed_680_path_amplification; decision_boundary_not_scope_cap",
+              "ambiguous_large_scope_behavior": "require_operator_confirmation_without_partial_analysis",
+              "verified_bulk_behavior": "process_all",
+              "silent_scope_truncation": "forbidden"
+            }
+          },
           "atomicity": "atlas_payload_relational_rows_and_source_snapshots_share_one_scoped_generation_or_fail_closed"
         },
         "integrity_states": {
@@ -1668,6 +1875,10 @@
       },
       "nexoraoperatorpacket": {
         "recommended_alternative": "Use MCP agent packet tools for narrow target-repo work; reserve operator packet refresh for current operator summary."
+      },
+      "qualitygates": {
+        "recommended_alternative": "Use `python sage.py run --profile target-quality --projects <scope>` or the target-proof refresh flow for bounded target static-quality evidence; reserve explicit Quality Gates for its broad aggregate dependency closure.",
+        "operator_warning": "Explicit Quality Gates is a broad aggregate closure. The target-quality claim profile is the dependency-complete bounded alternative when merge, UI-runtime, comparative Oracle and broad review/proof evidence are outside the requested claim."
       }
     }
   },
@@ -1692,13 +1903,17 @@
   },
   "static_runtime_boundary_contract": {
     "required_steps": [
+      "oraclevalidationgate",
+      "reactfrontierintelligence",
       "reactruntimeintelligence"
     ],
+    "target_repository_threat_boundary": "config/target_repository_threat_boundary_contract.json",
+    "subprocess_authority": "sage_owned_executables_only",
     "evidence_mode": "static_repository_analysis",
     "executes_target_runtime": false,
     "ingests_target_runtime_stderr": false,
     "runtime_question_authority": "target_native_execution_required",
-    "claim_boundary": "A runtime-oriented step covered by this contract analyzes repository evidence only. It does not claim target execution or runtime stderr authority."
+    "claim_boundary": "A covered step statically parses repository evidence or runs a SAGE-owned compiler over a bounded projection only. It never resolves target-owned binaries, imports target modules, or claims target execution/runtime stderr authority."
   },
   "step_profile_guidance": {
     "keywordstats": {
@@ -1771,7 +1986,11 @@
         "deep"
       ],
       "optimization_candidate": true,
-      "rationale": "Validation Oracle materializes compiler sandboxes and must run only during release-deep/deep proof or explicit operator requests."
+      "evidence_mode": "static_repository_analysis",
+      "executes_target_runtime": false,
+      "ingests_target_runtime_stderr": false,
+      "runtime_question_authority": "target_native_execution_required",
+      "rationale": "Validation Oracle materializes a bounded Sanctuary projection and invokes only the SAGE-owned TypeScript compiler; it must run only during release-deep/deep proof or explicit operator requests."
     },
     "mergedependencypackager": {
       "cost_tier": "medium_high",
@@ -1992,7 +2211,11 @@
         "release-deep"
       ],
       "optimization_candidate": true,
-      "rationale": "Frontier intelligence tracks broad React edge-case posture and should remain outside live save pulses; refresh explicitly during full/release claim validation."
+      "evidence_mode": "static_repository_analysis",
+      "executes_target_runtime": false,
+      "ingests_target_runtime_stderr": false,
+      "runtime_question_authority": "target_native_execution_required",
+      "rationale": "Frontier intelligence tracks broad React edge-case posture through bounded static evidence and a SAGE-owned TypeScript parser; refresh explicitly during full/release claim validation."
     },
     "healthscore": {
       "cost_tier": "medium",

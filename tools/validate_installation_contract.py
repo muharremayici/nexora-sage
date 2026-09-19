@@ -223,6 +223,24 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
     )
     installation_python_features = installation_preflight_contract.get("python_features", {})
     installation_node_contract = installation_preflight_contract.get("node", {})
+    embedded_host_footprint = installation_preflight_contract.get("embedded_host_footprint", {})
+    dependency_acquisition = installation_preflight_contract.get(
+        "dependency_acquisition", {}
+    )
+    pipeline_execution_policy = json.loads(
+        (CODE_MAPS_DIR / "config" / "pipeline_execution_policy.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    dependency_budgets = pipeline_execution_policy.get(
+        "dependency_acquisition_budgets", {}
+    )
+    mcp_runtime_compatibility = (
+        installation_python_features.get("mcp-runtime", {}).get(
+            "runtime_compatibility",
+            {},
+        )
+    )
     runtime_source_files = distribution_python_files(CODE_MAPS_DIR)
     runtime_syntax_failures = compile_python_sources(runtime_source_files)
     quality_gate_workflow = CODE_MAPS_DIR / ".github" / "workflows" / "quality-gate.yml"
@@ -258,6 +276,9 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
     sage = CODE_MAPS_DIR / "sage.py"
     codemaps = CODE_MAPS_DIR / "codemaps.py"
     bootstrap = CODE_MAPS_DIR / "tools" / "core" / "bootstrap_env.py"
+    dependency_runner = (
+        CODE_MAPS_DIR / "tools" / "core" / "dependency_acquisition.py"
+    )
     installation_proof = CODE_MAPS_DIR / "tools" / "generate_installation_proof.py"
     release_proof_bundle = CODE_MAPS_DIR / "tools" / "run_release_proof_bundle.py"
     release_proof_contract = CODE_MAPS_DIR / "config" / "release_proof_steps_contract.json"
@@ -331,6 +352,38 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
                 "requirements_spec": requirements_specs.get("mcp"),
                 "required_boundary": "<2",
             },
+        ),
+        _check(
+            "mcp_fastmcp_settings_lifespan_compatibility_is_explicit",
+            mcp_runtime_compatibility.get("contract")
+            == "mcp_v1_fastmcp_settings_lifespan_v1"
+            and mcp_runtime_compatibility.get("dependency_specifier_source")
+            == "pyproject.toml#project.dependencies:mcp"
+            and mcp_runtime_compatibility.get("settings_model")
+            == "mcp.server.fastmcp.server.Settings"
+            and mcp_runtime_compatibility.get("preconstruction_public_hook")
+            == "model_rebuild"
+            and mcp_runtime_compatibility.get("warning_suppression_allowed") is False
+            and mcp_runtime_compatibility.get("required_order")
+            == [
+                "fastmcp_module_imported",
+                "settings_model_rebuilt",
+                "profiled_server_constructed",
+                "transport_started",
+            ]
+            and _file_contains(
+                CODE_MAPS_DIR / "tools" / "core" / "mcp_v1_compat.py",
+                "ensure_fastmcp_v1_settings_complete",
+                "model_rebuild",
+                "warning_suppression",
+            )
+            and _file_contains(
+                CODE_MAPS_DIR / "tools" / "mcp" / "server.py",
+                "FastMCPSettings",
+                "ensure_fastmcp_v1_settings_complete",
+                "_MCP_V1_SETTINGS_COMPATIBILITY",
+            ),
+            mcp_runtime_compatibility,
         ),
         _check(
             "distribution_mode_is_explicit_and_documented",
@@ -436,6 +489,112 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
             and set(installation_node_contract.get("required_for_languages", [])) >= {"javascript", "typescript"}
             and installation_node_contract.get("required_when_react_signal") is True,
             installation_preflight_contract,
+        ),
+        _check(
+            "dependency_acquisition_is_capability_scoped_and_evidence_bounded",
+            dependency_acquisition.get("contract")
+            == "capability_scoped_sage_runtime_acquisition_v1"
+            and dependency_acquisition.get("authorities", {}).get(
+                "sage_runtime", {}
+            ).get("automatic_on_init")
+            is True
+            and dependency_acquisition.get("authorities", {}).get(
+                "target_native_validation", {}
+            ).get("automatic_on_init")
+            is False
+            and set(dependency_acquisition.get("action_profiles", {}))
+            == {
+                "install_sage_python_dependencies",
+                "install_sage_node_ast_dependencies",
+            }
+            and dependency_acquisition.get("action_profiles", {}).get(
+                "install_sage_python_dependencies", {}
+            ).get("stall_authority_sources")
+            == []
+            and dependency_acquisition.get("action_profiles", {}).get(
+                "install_sage_node_ast_dependencies", {}
+            ).get("stall_authority_sources")
+            == ["filesystem"]
+            and set(dependency_acquisition.get("outcome_classes", []))
+            == {
+                "SUCCESS",
+                "OFFLINE",
+                "MISSING_MANAGER",
+                "STALLED",
+                "TIMED_OUT",
+                "INSTALL_FAILED",
+            }
+            and dependency_budgets.get(
+                "network_package_acquisition", {}
+            ).get("bootstrap_hard_timeout_seconds")
+            == 600
+            and dependency_budgets.get(
+                "network_package_acquisition", {}
+            ).get("maximum_hard_timeout_seconds")
+            == 900
+            and _file_contains(
+                dependency_runner,
+                "successful_local_p95_clamped",
+                "Only sage_runtime dependency actions may execute automatically",
+                'forced_status = "STALLED"',
+                'forced_status = "TIMED_OUT"',
+                'return "OFFLINE"',
+            )
+            and _file_contains(
+                bootstrap,
+                "select_dependency_budget(action)",
+                "execute_dependency_action(",
+                "dependency_acquisition.json",
+            ),
+            {
+                "dependency_acquisition": dependency_acquisition,
+                "dependency_acquisition_budgets": dependency_budgets,
+            },
+        ),
+        _check(
+            "embedded_host_footprint_is_mode_aware_and_non_mutating",
+            embedded_host_footprint.get("contract") == "embedded_sage_host_footprint_v1"
+            and embedded_host_footprint.get("single_root_exclusion") is True
+            and embedded_host_footprint.get("target_configuration_mutation_allowed") is False
+            and embedded_host_footprint.get("applicability_by_installation_mode")
+            == {
+                "self_target": "not_applicable_sage_self_analysis",
+                "embedded": "operator_review_required",
+                "central_external": "not_applicable_installation_outside_target",
+            }
+            and {
+                "source",
+                "cache",
+                "database",
+                "log",
+                "output",
+            }.issubset({
+                str(row.get("kind"))
+                for row in embedded_host_footprint.get("runtime_surfaces", [])
+                if isinstance(row, dict)
+            })
+            and {
+                "eslint",
+                "biome",
+                "stylelint",
+                "prettier",
+                "typescript",
+                "vitest",
+                "jest",
+            }.issubset(set(embedded_host_footprint.get("host_tools", {})))
+            and set(embedded_host_footprint.get("baseline_surfaces", {}))
+            == {"search", "packaging"}
+            and embedded_host_footprint.get("traversal_probe", {}).get(
+                "permission_mutation_allowed"
+            )
+            is False
+            and _file_contains(
+                CODE_MAPS_DIR / "tools" / "core" / "installation_preflight.py",
+                "build_embedded_host_footprint",
+                "target_configuration_mutation",
+                "permission_mutation",
+            ),
+            embedded_host_footprint,
         ),
         _check(
             "default_profile_keeps_mcp_and_watchdog_first_class",

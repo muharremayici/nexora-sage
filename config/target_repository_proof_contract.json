@@ -16,9 +16,27 @@
       "release_readiness",
       "system_health_check"
     ],
-    "claim_boundary": "The bundle reports bounded static evidence for one target repository snapshot. It does not certify SAGE product readiness, runtime production behavior, legal compliance or autonomous mutation safety.",
+    "target_repository_threat_boundary": "config/target_repository_threat_boundary_contract.json",
+    "claim_boundary": "The bundle reports bounded static evidence for one target repository snapshot. It does not certify SAGE product readiness, runtime production behavior, legal compliance, autonomous mutation safety, secret confidentiality, denial-of-service resistance or hostile-repository safety.",
     "human_decision_rule": "A human decision may accept bounded risk but cannot convert missing, stale or target-unbound evidence into PASS.",
-    "subject_identity_rule": "The analyzed subject identity must come from a validated Atlas commit and Atlas project roots. A caller-provided repository reference is descriptive only and cannot bind evidence or authorize PASS."
+    "subject_identity_rule": "The analyzed subject identity must come from a validated Atlas commit and Atlas project roots. A caller-provided repository reference is descriptive only and cannot bind evidence or authorize PASS.",
+    "requested_project_scope_rule": "When a caller requests projects, the canonical analysis_scope_authority must contain the same normalized request and effective project set. Missing, incomplete or mismatched scope authority blocks the proof."
+  },
+  "public_cli": {
+    "command": "python sage.py target-proof",
+    "refresh_policies": [
+      "current",
+      "if-missing",
+      "always"
+    ],
+    "default_refresh_policy": "current",
+    "refresh_execution_profile": "target-quality",
+    "default_mode": "baseline",
+    "successful_verdicts": [
+      "PASS",
+      "REVIEW_REQUIRED"
+    ],
+    "rule": "current never starts analysis; if-missing starts one claim-owned target-quality refresh only when no validated current generation exists; always starts one target-quality refresh. The profile derives its dependency-complete closure from the canonical pipeline DAG and every path delegates proof construction to tools.generate_target_repository_proof_bundle."
   },
   "snapshot_binding": {
     "allowed_modes": [

@@ -310,6 +310,11 @@ class PerformanceLedgerFailureTests(unittest.TestCase):
                             "performance_evidence_status": "stale_after_non_release_activity",
                             "physical_atlas_phase_timings": {"validate": 3.687, "commit": 3.425},
                             "physical_atlas_state_payload_profile": {"state_payload_bytes": 44729565},
+                            "physical_atlas_materialization_profile": {
+                                "state_payload_generation_id": "payload-profile",
+                                "atlas_relational_mode": "scoped",
+                                "atlas_scoped_files": 2,
+                            },
                             "physical_atlas_ast_lifecycle_profile": {
                                 "process_starts": 1670,
                                 "fallback_process_starts": 3,
@@ -332,6 +337,11 @@ class PerformanceLedgerFailureTests(unittest.TestCase):
             row = json.loads(ledger_path.read_text(encoding="utf-8"))["runs"][0]
             self.assertEqual(row["physical_atlas_phase_timings"]["validate"], 3.687)
             self.assertEqual(row["physical_atlas_state_payload_profile"]["state_payload_bytes"], 44729565)
+            self.assertEqual(
+                row["physical_atlas_materialization_profile"]["state_payload_generation_id"],
+                "payload-profile",
+            )
+            self.assertEqual(row["physical_atlas_materialization_profile"]["atlas_relational_mode"], "scoped")
             self.assertEqual(row["physical_atlas_ast_lifecycle_profile"]["process_starts"], 1670)
             self.assertEqual(row["budget_authority_session_mode"], "normal_full")
             self.assertEqual(row["physical_latest_session_mode"], "watchdog_save_pulse")

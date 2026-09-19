@@ -17,6 +17,36 @@
     "output",
     "venv"
   ],
+  "inventory_classification": {
+    "contract": "bounded_external_inventory_disposition_v1",
+    "precedence": [
+      "configured_manifest",
+      "configured_configuration",
+      "analysis_source",
+      "observed_non_analysis_language",
+      "known_non_source_template",
+      "runtime_state",
+      "unclassified"
+    ],
+    "runtime_state": {
+      "file_extensions": [
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        ".log",
+        ".pid"
+      ],
+      "compound_suffixes": [
+        ".sqlite-shm",
+        ".sqlite-wal"
+      ],
+      "file_name_patterns": []
+    },
+    "unclassified_example_limit": 20,
+    "unclassified_semantics": "not_matched_by_configured_taxonomies_not_unsupported_source",
+    "excluded_file_count_status": "unavailable_pruned_not_walked",
+    "decision_effect": "observability_only"
+  },
   "framework_source_evidence": {
     "react": {
       "package_names": [

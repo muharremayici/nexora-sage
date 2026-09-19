@@ -6,11 +6,15 @@ import pytest
 import codemaps
 from tools.core import bootstrap_env
 from tools.core import config as core_config
+from tools.core import installation_preflight
 from tools import external_target_preflight
 
 from tools.core.installation_preflight import (
+    build_embedded_host_footprint,
     build_installation_plan,
     installation_feature_dependencies,
+    load_installation_preflight_contract,
+    node_ast_cache_state,
 )
 
 
@@ -116,7 +120,67 @@ def test_typescript_target_plans_only_sage_local_npm_install_when_runtime_is_abs
 
     assert plan["summary"]["status"] == "READY_WITH_INSTALL_ACTIONS"
     assert [row["id"] for row in plan["actions"]] == ["install_sage_node_ast_dependencies"]
-    assert plan["actions"][0]["target_repository_mutation"] is False
+    action = plan["actions"][0]
+    assert action["target_repository_mutation"] is False
+    assert action["dependency_authority"] == "sage_runtime"
+    assert action["operation_class"] == "network_package_acquisition"
+    assert plan["summary"]["target_native_install_action_count"] == 0
+    assert plan["mutation_boundary"]["target_native_dependency_auto_install_allowed"] is False
+
+
+def test_node_ast_cache_binds_manifest_lock_and_installed_version(tmp_path):
+    engines = tmp_path / "tools" / "engines"
+    marker = engines / "node_modules" / "typescript" / "package.json"
+    marker.parent.mkdir(parents=True)
+    (engines / "package.json").write_text(
+        '{"dependencies":{"typescript":"5.9.3"}}',
+        encoding="utf-8",
+    )
+    (engines / "package-lock.json").write_text(
+        '{"packages":{"node_modules/typescript":{"version":"5.9.3"}}}',
+        encoding="utf-8",
+    )
+    marker.write_text('{"version":"5.9.3"}', encoding="utf-8")
+    state = node_ast_cache_state(
+        {
+            "package_manifest": "tools/engines/package.json",
+            "bundled_typescript_marker": (
+                "tools/engines/node_modules/typescript/package.json"
+            ),
+        },
+        root=tmp_path,
+    )
+
+    assert state["status"] == "VERIFIED"
+    assert state["content_identity"].startswith("sha256:")
+    assert state["errors"] == []
+
+
+def test_node_ast_cache_rejects_installed_version_mismatch(tmp_path):
+    engines = tmp_path / "tools" / "engines"
+    marker = engines / "node_modules" / "typescript" / "package.json"
+    marker.parent.mkdir(parents=True)
+    (engines / "package.json").write_text(
+        '{"dependencies":{"typescript":"5.9.3"}}',
+        encoding="utf-8",
+    )
+    (engines / "package-lock.json").write_text(
+        '{"packages":{"node_modules/typescript":{"version":"5.9.3"}}}',
+        encoding="utf-8",
+    )
+    marker.write_text('{"version":"5.8.0"}', encoding="utf-8")
+    state = node_ast_cache_state(
+        {
+            "package_manifest": "tools/engines/package.json",
+            "bundled_typescript_marker": (
+                "tools/engines/node_modules/typescript/package.json"
+            ),
+        },
+        root=tmp_path,
+    )
+
+    assert state["status"] == "REINSTALL_REQUIRED"
+    assert "installed_version_mismatch" in state["errors"]
 
 
 def test_missing_default_human_and_ai_features_produce_one_python_install_action():
@@ -164,6 +228,7 @@ def test_missing_pip_blocks_when_default_profile_dependencies_are_missing():
     assert {row["id"] for row in plan["blockers"]} == {
         "pip_required_for_sage_dependencies"
     }
+    assert plan["blockers"][0]["outcome_class"] == "MISSING_MANAGER"
     assert plan["actions"] == []
 
 
@@ -210,6 +275,170 @@ def test_default_profile_includes_watchdog_and_mcp():
     assert "mcp-runtime" in dependencies
 
 
+def test_embedded_installation_emits_one_non_mutating_root_exclusion(tmp_path):
+    target = tmp_path / "host"
+    installation = target / "Renamed SAGE Runtime"
+    (installation / ".pytest_cache").mkdir(parents=True)
+    footprint = build_embedded_host_footprint(
+        target,
+        installation,
+        contract=load_installation_preflight_contract(),
+        target_profile={
+            "target_policy": {
+                "summary": {
+                    "declared_tools": ["typescript", "eslint", "jest", "unknown-tool"]
+                }
+            }
+        },
+    )
+
+    assert footprint["installation_mode"] == "embedded"
+    assert footprint["applicability"] == "operator_review_required"
+    assert footprint["embedded_root"] == "Renamed SAGE Runtime"
+    assert footprint["root_exclusion"] == {
+        "directory": "Renamed SAGE Runtime/",
+        "recursive_glob": "Renamed SAGE Runtime/**",
+    }
+    assert footprint["detected_host_tools"] == ["eslint", "jest", "typescript"]
+    assert {row["id"] for row in footprint["host_tool_guidance"]} == {
+        "eslint",
+        "jest",
+        "typescript",
+        "search",
+        "packaging",
+    }
+    assert all(
+        row["recommended_exclusion"] == footprint["root_exclusion"]
+        and row["target_mutation_performed"] is False
+        for row in footprint["host_tool_guidance"]
+    )
+    assert footprint["target_configuration_mutation"] == {
+        "allowed": False,
+        "performed": False,
+    }
+    cache = next(
+        row for row in footprint["observed_surfaces"] if row["path"] == ".pytest_cache"
+    )
+    assert cache["host_access"]["status"] == "traversable"
+
+
+@pytest.mark.parametrize(
+    ("target_name", "installation_name", "expected_mode", "expected_applicability"),
+    [
+        ("target", "target", "self_target", "not_applicable_sage_self_analysis"),
+        (
+            "target",
+            "central-runtime",
+            "central_external",
+            "not_applicable_installation_outside_target",
+        ),
+    ],
+)
+def test_non_embedded_installations_do_not_emit_host_ignore_guidance(
+    tmp_path,
+    target_name,
+    installation_name,
+    expected_mode,
+    expected_applicability,
+):
+    target = tmp_path / target_name
+    installation = target if installation_name == target_name else tmp_path / installation_name
+    target.mkdir()
+    if installation != target:
+        installation.mkdir()
+    footprint = build_embedded_host_footprint(
+        target,
+        installation,
+        contract=load_installation_preflight_contract(),
+        target_profile={"target_policy": {"summary": {"declared_tools": ["eslint"]}}},
+    )
+
+    assert footprint["installation_mode"] == expected_mode
+    assert footprint["applicability"] == expected_applicability
+    assert footprint["embedded_root"] is None
+    assert footprint["host_tool_guidance"] == []
+    assert footprint["traversal"]["status"] == "not_applicable"
+
+
+def test_embedded_installation_plan_surfaces_guidance_without_executable_action(tmp_path):
+    target = tmp_path / "host"
+    installation = target / "sage-runtime"
+    installation.mkdir(parents=True)
+    target_profile = {
+        "root": str(target),
+        "exists": True,
+        "is_dir": True,
+        "preflight_status": "PASS",
+        "attention_reasons": [],
+        "language_counts": {"python": 1},
+        "language_families": ["python"],
+        "react_signal": False,
+        "node_manifest_status": "not_observed",
+        "analysis_authority": {},
+        "target_policy": {"summary": {"declared_tools": ["eslint"]}},
+    }
+    plan = build_installation_plan(
+        target,
+        target_profile=target_profile,
+        machine=_machine(),
+        installation_root=installation,
+    )
+
+    assert plan["summary"]["status"] == "ATTENTION"
+    assert plan["summary"]["installation_mode"] == "embedded"
+    assert plan["actions"] == []
+    assert {row["id"] for row in plan["attention"]} == {
+        "embedded_sage_host_tool_isolation_guidance"
+    }
+    assert plan["mutation_boundary"]["target_host_tool_configuration_mutation_allowed"] is False
+    assert plan["installation_footprint"]["root_exclusion"]["recursive_glob"] == "sage-runtime/**"
+    rendered = installation_preflight.render_installation_plan(plan)
+    console = installation_preflight.render_console_lines(plan)
+    assert "## Embedded Host-Tool Footprint" in rendered
+    assert "review exclusion `sage-runtime/**`" in rendered
+    assert any("installation_mode=embedded" in line for line in console)
+
+
+def test_embedded_footprint_reports_blocked_declared_path_without_changing_permissions(
+    monkeypatch,
+    tmp_path,
+):
+    target = tmp_path / "host"
+    installation = target / "sage-runtime"
+    installation.mkdir(parents=True)
+    original_probe = installation_preflight._host_access_observation
+
+    def blocked_cache(path):
+        if path.name == ".pytest_cache":
+            return {
+                "status": "blocked",
+                "error_type": "PermissionError",
+                "message": "fixture denied",
+            }
+        return original_probe(path)
+
+    monkeypatch.setattr(
+        installation_preflight,
+        "_host_access_observation",
+        blocked_cache,
+    )
+    footprint = build_embedded_host_footprint(
+        target,
+        installation,
+        contract=load_installation_preflight_contract(),
+        target_profile={"target_policy": {"summary": {"declared_tools": []}}},
+    )
+
+    assert footprint["traversal"] == {
+        "status": "blocked",
+        "blocked_paths": [".pytest_cache"],
+    }
+    assert footprint["permission_mutation"] == {
+        "allowed": False,
+        "performed": False,
+    }
+
+
 def test_embedded_sage_root_is_excluded_from_target_language_inventory(monkeypatch, tmp_path):
     target = tmp_path / "target"
     sage_root = target / "Kurulum-Özel-7f3"
@@ -231,8 +460,8 @@ def test_embedded_sage_root_is_excluded_from_target_language_inventory(monkeypat
     )
     topology_builder = external_target_preflight.external_target_repository_topology
 
-    def topology_with_selected_sage(root, scope_projection):
-        topology = topology_builder(root, scope_projection)
+    def topology_with_selected_sage(root, scope_projection, **kwargs):
+        topology = topology_builder(root, scope_projection, **kwargs)
         topology["selected_projects"]["SAGE_COMPANION"] = "Kurulum-Özel-7f3"
         return topology
 
@@ -438,21 +667,36 @@ def test_explicit_init_reuses_one_preflight_for_plan_and_discovery_transport(mon
 
     monkeypatch.setattr(bootstrap_env, "build_installation_plan", build_plan)
     monkeypatch.setattr(bootstrap_env, "record_execution_duration", lambda *_args: None)
-    monkeypatch.delenv("CODEMAPS_TARGET_PROJECTS", raising=False)
-
-    result = bootstrap_env._build_installation_plan_with_progress(
-        target_root,
-        dependency_install_enabled=True,
-        persist_target_preflight=True,
-        projects="MAIN",
+    transport_environment_keys = (
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT",
+        "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256",
+        "CODEMAPS_TARGET_PROJECTS",
     )
+    original_transport_environment = {
+        key: bootstrap_env.os.environ.get(key) for key in transport_environment_keys
+    }
+
+    with monkeypatch.context() as transport_environment:
+        for key in transport_environment_keys:
+            transport_environment.setenv(key, f"preexisting-{key.lower()}")
+        result = bootstrap_env._build_installation_plan_with_progress(
+            target_root,
+            dependency_install_enabled=True,
+            persist_target_preflight=True,
+            projects="MAIN",
+        )
+
+        assert bootstrap_env.os.environ["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
+        assert bootstrap_env.os.environ["CODEMAPS_TARGET_PROJECTS"] == "MAIN"
+
+    assert {
+        key: bootstrap_env.os.environ.get(key) for key in transport_environment_keys
+    } == original_transport_environment
 
     assert result is expected_plan
     assert [call[0] for call in calls] == ["build", "persist", "plan"]
     assert calls[0][2] == "MAIN"
     assert calls[-1][2]["target_preflight"] is preflight
-    assert bootstrap_env.os.environ["CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256"] == "a" * 64
-    assert bootstrap_env.os.environ["CODEMAPS_TARGET_PROJECTS"] == "MAIN"
 
 
 def test_failed_progress_sample_uses_non_authoritative_duration_identifier(monkeypatch):

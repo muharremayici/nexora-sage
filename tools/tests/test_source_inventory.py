@@ -30,11 +30,21 @@ class SourceInventoryTests(unittest.TestCase):
                 core_file = inventory.ROOT / "tools" / "core" / "new_helper.py"
                 unknown_file = inventory.ROOT / "custom_runtime.py"
                 generated_file = inventory.ROOT / "output" / "scripts" / "generated.ps1"
+                transient_file = inventory.ROOT / ".tmp" / "pytest-session" / "fixture.py"
+                real_untracked_source = inventory.ROOT / "new_product_module.py"
                 self.assertEqual(inventory.classify_source_role(core_file, contract)[0], "core_service")
                 self.assertEqual(inventory.classify_source_role(unknown_file, contract)[0], "undeclared_executable")
                 self.assertEqual(
                     inventory.classify_source_role(generated_file, contract, "generated_runtime_artifact")[0],
                     "generated_runtime",
+                )
+                self.assertEqual(
+                    inventory.classify_source_role(transient_file, contract, "generated_runtime_artifact")[0],
+                    "generated_runtime",
+                )
+                self.assertEqual(
+                    inventory.classify_source_role(real_untracked_source, contract)[0],
+                    "undeclared_executable",
                 )
         finally:
             inventory.ROOT = original_root

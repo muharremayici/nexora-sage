@@ -20,7 +20,11 @@ from tools.core.config import (
 )
 from tools.external_target_preflight import build_preflight
 from tools.core.agent_surface_target_visibility import is_structured_precondition_block
-from tools.core.external_target_retention import DEFAULT_KEEP_PER_PREFIX, prune_generated_external_target_fixtures
+from tools.core.external_target_retention import (
+    DEFAULT_KEEP_PER_PREFIX,
+    generated_fixture_lease,
+    prune_generated_external_target_fixtures,
+)
 from tools.core.operational_limits import external_react_smoke_timeout_seconds
 from tools.core.subprocess_telemetry import run_observed_subprocess
 from tools.mcp import server as mcp_server
@@ -127,7 +131,9 @@ def _write_fixture(root: Path) -> None:
 def run_validation() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
-    with tempfile.TemporaryDirectory(prefix="nexora_external_react_smoke_") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="nexora_external_react_smoke_"
+    ) as tmp, generated_fixture_lease(Path(tmp)):
         target_root = Path(tmp)
         _write_fixture(target_root)
         env = dict(os.environ)

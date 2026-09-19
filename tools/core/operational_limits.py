@@ -50,6 +50,8 @@ DEFAULT_OPERATIONAL_LIMITS: dict[str, Any] = {
     "sqlite_schema_initialize_retry_delay_ms": 100,
     "sqlite_read_timeout_seconds": 5,
     "sqlite_write_timeout_seconds": 30,
+    "sqlite_maintenance_full_vacuum_free_space_percent": 200,
+    "sqlite_maintenance_incremental_page_limit": 4096,
     "pipeline_step_heartbeat_seconds": 15,
     "patch_applicability_timeout_seconds": 30,
     "watchdog_git_restore_timeout_seconds": 30,
@@ -88,6 +90,10 @@ def atlas_staging_batch_size() -> int:
 
 def atlas_staging_file_payload_limit_bytes() -> int:
     return operational_limit_seconds("atlas_staging_file_payload_limit_bytes")
+
+
+def atlas_staging_file_aggregate_limit_bytes() -> int:
+    return operational_limit_seconds("atlas_staging_file_aggregate_limit_bytes")
 
 
 def state_payload_inline_limit_bytes() -> int:
@@ -247,6 +253,14 @@ def sqlite_read_timeout_seconds() -> int:
 
 def sqlite_write_timeout_seconds() -> int:
     return operational_limit_seconds("sqlite_write_timeout_seconds")
+
+
+def sqlite_maintenance_full_vacuum_free_space_percent() -> int:
+    return operational_limit_seconds("sqlite_maintenance_full_vacuum_free_space_percent")
+
+
+def sqlite_maintenance_incremental_page_limit() -> int:
+    return operational_limit_seconds("sqlite_maintenance_incremental_page_limit")
 
 
 def sqlite_busy_timeout_ms() -> int:

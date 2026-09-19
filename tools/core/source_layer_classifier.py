@@ -17,6 +17,7 @@ IGNORED_PARTS = {
 
 GENERATED_OR_RUNTIME_ROOTS = {
     ".gemini",
+    ".tmp",
     "output",
     "scratch",
 }

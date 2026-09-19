@@ -15,11 +15,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.mcp_tool_profiles import available_mcp_tool_profiles, project_mcp_tool_names
 from tools.core.work_package_receipts import record_work_package_operation_safely
 from tools.generate_actor_interaction_contract_doc import CONTRACT_PATH, DOC_PATH, render
 
 
 ENGINE_CONTRACT_PATH = ROOT / "config" / "engine_signal_contracts.json"
+AGENT_SURFACE_CONTRACT_PATH = ROOT / "config" / "agent_surface_contract.json"
 MCP_TOOL_ROLES_PATH = ROOT / "config" / "mcp_tool_roles.json"
 SCHEMA_PATH = ROOT / "config" / "schemas" / "actor_interaction_contract.schema.json"
 RAW_PATH = RAW_DIR / "actor_interaction_contract_validation.json"
@@ -189,7 +191,34 @@ def validate_contract(contract: dict[str, Any], engine_contract: dict[str, Any])
     missing_conformance_paths: list[str] = []
     available_without_proof: list[str] = []
     invalid_available_surfaces: list[str] = []
+    unreachable_available_surface_tools: list[str] = []
     mcp_tool_rows = (_load(MCP_TOOL_ROLES_PATH).get("tools") or {}) if MCP_TOOL_ROLES_PATH.exists() else {}
+    agent_surface = _load(AGENT_SURFACE_CONTRACT_PATH) if AGENT_SURFACE_CONTRACT_PATH.exists() else {}
+    readiness = agent_surface.get("ai_agent_readiness") if isinstance(agent_surface.get("ai_agent_readiness"), dict) else {}
+    declared_profile_rows = readiness.get("tool_context_profiles") if isinstance(readiness.get("tool_context_profiles"), dict) else {}
+    available_profile_names = set(available_mcp_tool_profiles(ROOT))
+    target_profile_names = {
+        str(profile_name)
+        for profile_name, profile_row in declared_profile_rows.items()
+        if isinstance(profile_row, dict)
+        and profile_row.get("system_scope") == "SAGE_ON_REPOSITORY"
+    }
+    target_profile_tools: dict[str, set[str]] = {}
+    target_profile_errors: list[str] = []
+    for profile_name in sorted(target_profile_names):
+        if profile_name not in available_profile_names:
+            target_profile_errors.append(f"{profile_name}:profile_not_available")
+            continue
+        try:
+            projection = project_mcp_tool_names(ROOT, profile_name)
+        except (TypeError, ValueError) as exc:
+            target_profile_errors.append(f"{profile_name}:{exc}")
+            continue
+        target_profile_tools[profile_name] = {
+            str(tool_name)
+            for tool_name in projection.get("visible_tools", [])
+            if str(tool_name)
+        }
     for name, row in adapter_conformance.items():
         if not isinstance(row, dict):
             invalid_dimension_statuses.append(str(name))
@@ -231,6 +260,13 @@ def validate_contract(contract: dict[str, Any], engine_contract: dict[str, Any])
                 if not eligible_tools:
                     invalid_available_surfaces.append(f"{name}:{surface_name}:eligible_tools")
                 for tool_name in eligible_tools:
+                    if not any(
+                        {str(surface_name), tool_name}.issubset(visible_tools)
+                        for visible_tools in target_profile_tools.values()
+                    ):
+                        unreachable_available_surface_tools.append(
+                            f"{name}:{surface_name}:{tool_name}"
+                        )
                     tool_row = mcp_tool_rows.get(tool_name) if isinstance(mcp_tool_rows, dict) else None
                     actor_contract = tool_row.get("actor_contract") if isinstance(tool_row, dict) else None
                     declared_operations = {
@@ -316,6 +352,17 @@ def validate_contract(contract: dict[str, Any], engine_contract: dict[str, Any])
         "available_scoped_surface_requires_registry_bound_proof",
         not invalid_available_surfaces,
         {"surfaces": sorted(set(invalid_available_surfaces))},
+    )
+    check(
+        "available_mcp_surface_tools_are_profile_coreachable",
+        bool(target_profile_tools)
+        and not target_profile_errors
+        and not unreachable_available_surface_tools,
+        {
+            "target_profiles": sorted(target_profile_tools),
+            "projection_errors": sorted(target_profile_errors),
+            "unreachable": sorted(set(unreachable_available_surface_tools)),
+        },
     )
     trace_sources = trace.get("sources") if isinstance(trace.get("sources"), dict) else {}
     check(

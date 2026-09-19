@@ -284,7 +284,7 @@
           "format": "json"
         },
         "result_status_map": {
-          "clean": "ACCEPTED",
+          "clean_within_sage_audit": "ACCEPTED",
           "debt_present": "ACCEPTED",
           "INVALID_CONTEXT": "INVALID_CONTEXT"
         },

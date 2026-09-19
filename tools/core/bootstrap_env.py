@@ -34,6 +34,11 @@ from tools.core.installation_preflight import (
     render_console_lines,
     write_installation_plan,
 )
+from tools.core.dependency_acquisition import (
+    DependencyAcquisitionError,
+    execute_dependency_action,
+    select_dependency_budget,
+)
 from tools.core.subprocess_telemetry import process_group_popen_kwargs, terminate_process_tree
 
 VENDOR_PATHS = inject_vendor_paths(CODE_MAPS_DIR)
@@ -325,16 +330,76 @@ def install_deps(installation_plan):
     actions = installation_plan.get("actions", [])
     if not actions:
         log("No SAGE-local dependency installation is required.", "[OK]")
-        return
+        return True
+
+    from tools.core.config import RAW_DIR, save_json_atomic
+
+    safe_env = isolated_python_subprocess_env(
+        os.environ,
+        code_maps_dir=CODE_MAPS_DIR,
+        vendor_paths=VENDOR_PATHS,
+    )
+    outcomes = []
+
+    def persist_outcomes():
+        save_json_atomic(
+            RAW_DIR / "dependency_acquisition.json",
+            {
+                "meta": {
+                    "kind": "dependency_acquisition",
+                    "version": "v1",
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                },
+                "status": (
+                    "PASS"
+                    if outcomes and all(row.get("status") == "SUCCESS" for row in outcomes)
+                    else "FAIL"
+                ),
+                "outcomes": outcomes,
+                "claim_boundary": (
+                    "These receipts describe SAGE-owned runtime acquisition only. "
+                    "They do not authorize target-native installs or prove target analysis."
+                ),
+            },
+        )
 
     for action in actions:
         command = action.get("command", [])
         if not command:
             continue
         action_id = action.get("id", "unknown")
-        cwd = action.get("cwd")
-        log(f"Executing planned dependency action: {action_id}")
-        run_command(command, cwd=Path(cwd) if cwd else None)
+        budget = select_dependency_budget(action)
+        log(
+            f"Executing planned dependency action: {action_id} "
+            f"authority={action.get('dependency_authority')} "
+            f"budget={budget.get('hard_timeout_seconds')}s "
+            f"basis={budget.get('basis')}"
+        )
+        try:
+            result = execute_dependency_action(
+                action,
+                env=safe_env,
+                budget=budget,
+                log=lambda message: log(message, "[DEPENDENCY]"),
+            )
+        except DependencyAcquisitionError as exc:
+            outcomes.append(exc.result)
+            persist_outcomes()
+            log(
+                f"Dependency action {action_id} failed: "
+                f"status={exc.result.get('status')} "
+                f"duration={exc.result.get('duration_seconds')}s.",
+                "[FAIL]",
+            )
+            return False
+        outcomes.append(result)
+        persist_outcomes()
+        log(
+            f"Dependency action {action_id} completed in "
+            f"{result.get('duration_seconds')}s.",
+            "[OK]",
+        )
+    return True
 
 
 def run_init():
@@ -400,7 +465,8 @@ def generate_mcp_snippet():
 
 
 def _install_and_verify(installation_plan, target_root):
-    install_deps(installation_plan)
+    if install_deps(installation_plan) is False:
+        return False
     verified_plan = build_installation_plan(
         target_root,
         target_profile=installation_plan.get("target"),

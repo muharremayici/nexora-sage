@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from tools.core.analysis_snapshot_lineage import write_lineage_receipt
 from tools.core.atlas_integrity import build_atlas_commit
+from tools.core.audit_finding_generation import finding_scope_sha256
 from tools.core.contextos_mcp import build_surgical_operation_packet, render_surgical_operation_brief
 from tools.core.contextos_signal_limits import contextos_signal_limit
 from tools.core.surgical_packet_inputs import evaluate_surgical_packet_inputs
@@ -69,6 +70,116 @@ def test_hot_file_packet_is_orientation_only_without_actionable_violation(tmp_pa
     assert "does not propose or authorize a mutation" in brief
     assert "Make the smallest safe change" not in brief
     assert "approval_is_not_mutation_authority: true" in brief
+
+
+def test_scoped_audit_directive_names_watchdog_source_artifact(tmp_path: Path) -> None:
+    packet = build_surgical_operation_packet(
+        {"active_signals": []},
+        audit_report={
+            "violations": [
+                {
+                    "project": "MAIN",
+                    "file": "src/domain.ts",
+                    "rule": "bounded_rule",
+                    "detail": "current scoped evidence",
+                }
+            ]
+        },
+        audit_source_artifact="output/.raw/watchdog_audit_report.json",
+        raw_dir=tmp_path,
+    )
+
+    assert packet["agent_action_directives"][0]["source_artifacts"] == [
+        "output/.raw/watchdog_audit_report.json",
+        "config/architecture_doctrine.json",
+    ]
+
+
+def test_public_surgical_packet_prefers_current_scoped_watchdog_audit(tmp_path: Path) -> None:
+    raw_dir = tmp_path.resolve()
+    signals = {"active_signals": []}
+    evidence = {
+        "status": "PASS",
+        "blocked_inputs": [],
+        "omitted_inputs": [],
+        "inputs": [],
+    }
+    changed_files = ["MAIN::src/domain.ts"]
+    atlas_commit = {
+        "snapshot_id": "snapshot-18",
+        "state": "complete",
+        "generation_mode": "surgical",
+        "generation_transition": {
+            "kind": "scoped_delta",
+            "parent_snapshot_id": "snapshot-17",
+            "changed_files": changed_files,
+            "changed_files_sha256": finding_scope_sha256(changed_files),
+            "deleted_files": [],
+            "deleted_files_sha256": finding_scope_sha256([]),
+        },
+    }
+    watchdog_audit = {
+        "meta": {"kind": "watchdog_audit_report"},
+        "artifact_identity": {
+            "status": "BOUND",
+            "atlas_snapshot_id": "snapshot-18",
+            "artifact_root": str(raw_dir),
+        },
+        "audit_scope": {
+            "scope_kind": "scoped_change",
+            "full_repository_claim": False,
+            "scope_status": "complete",
+            "requested_files": changed_files,
+            "audited_files": changed_files,
+            "unresolved_requested_files": [],
+        },
+        "violations": [{"project": "MAIN", "file": "src/domain.ts", "rule": "bounded_rule"}],
+    }
+    trust = {
+        "status": "FAIL",
+        "checks": [
+            {"name": "artifact_present:atlas", "passed": True, "severity": "error"},
+            {"name": "sqlite_primary:atlas", "passed": True, "severity": "warning"},
+            {"name": "artifact_present:audit_report", "passed": True, "severity": "error"},
+            {"name": "lineage:audit_report_bound_to_current_snapshot", "passed": False, "severity": "error"},
+            {"name": "artifact_present:quality_gate", "passed": True, "severity": "error"},
+            {"name": "lineage:quality_gate_bound_to_current_snapshot", "passed": False, "severity": "error"},
+        ],
+    }
+    loaded_names: list[str] = []
+
+    def load_payload(path: Path) -> dict:
+        name = Path(path).name
+        loaded_names.append(name)
+        if name == "atlas_commit.json":
+            return atlas_commit
+        if name == "watchdog_audit_report.json":
+            return watchdog_audit
+        return {}
+
+    packet = {"summary": {}, "agent_action_directives": []}
+    with (
+        patch.object(server, "_raw_dir_for_target", return_value=raw_dir),
+        patch.object(server, "_ensure_agent_artifact_chain_current", return_value=trust),
+        patch.object(server, "_load_json", side_effect=load_payload),
+        patch(
+            "tools.core.surgical_packet_inputs.evaluate_surgical_packet_inputs",
+            return_value=(evidence, {"signals": signals}),
+        ),
+        patch("tools.core.contextos_mcp.build_surgical_operation_packet", return_value=packet) as builder,
+        patch.object(server, "_enrich_surgical_packet_with_sqlite_impact", side_effect=lambda _raw, result, **_kwargs: result),
+        patch.object(server, "_record_mcp_call_result", side_effect=lambda _name, _started, result, **_kwargs: result),
+    ):
+        payload = json.loads(server.get_surgical_operation_packet(format="json"))
+
+    assert payload["status"] == "INCOMPLETE_EVIDENCE"
+    assert payload["input_evidence"]["context_inputs"]["audit"]["status"] == "PASS"
+    assert payload["input_evidence"]["context_inputs"]["quality_gate"]["status"] == "OMITTED"
+    assert "audit_report.json" not in loaded_names
+    assert "quality_gate.json" not in loaded_names
+    assert builder.call_args.kwargs["audit_report"] == watchdog_audit
+    assert builder.call_args.kwargs["quality_gate"] == {}
+    assert builder.call_args.kwargs["audit_source_artifact"] == "output/.raw/watchdog_audit_report.json"
 
 
 def test_surgical_packet_bounds_graph_samples_without_losing_totals(tmp_path: Path) -> None:
@@ -208,7 +319,17 @@ def test_public_surgical_packet_uses_same_sqlite_dependency_projection_as_impact
     }
     with (
         patch.object(server, "_raw_dir_for_target", return_value=server.RAW_DIR),
-        patch.object(server, "_ensure_agent_artifact_chain_current", return_value={"status": "PASS"}),
+        patch.object(
+            server,
+            "_ensure_agent_artifact_chain_current",
+            return_value={
+                "status": "PASS",
+                "checks": [
+                    {"name": "artifact_present:atlas", "passed": True, "severity": "error"},
+                    {"name": "sqlite_primary:atlas", "passed": True, "severity": "warning"},
+                ],
+            },
+        ),
         patch("tools.core.surgical_packet_inputs.evaluate_surgical_packet_inputs", return_value=(evidence, {"signals": signals})),
         patch("tools.core.contextos_mcp.build_surgical_operation_packet", return_value=packet),
         patch.object(server, "_sqlite_impact_radius_from_raw", return_value=impact) as impact_query,

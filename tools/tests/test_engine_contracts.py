@@ -36,6 +36,7 @@ from tools.core.target_inventory import repository_and_selected_project_inventor
 from tools.core import config as core_config
 from tools.core import artifact_store
 from tools.core.artifact_store import ArtifactPrimaryWriteError, ArtifactStore, _artifact_profile_log
+from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.db import SQLiteManager
 from tools.external_target_preflight import (
     _preflight_policy_issues,
@@ -71,7 +72,11 @@ from tools.core.suppression import find_suppression, stable_decision_key
 from tools.utils.system_purge import _is_nonblocking_test_tmp_residue, _rmtree_force
 from tools.engines.live_surface_analyzer import HIGH_CONFIDENCE_ORACLE_CLASSES
 from tools.engines.nuclear_processor import NanometricKernel, NanometricParser
-from tools.engines.quality_gate import _optional_lte_check
+from tools.engines.quality_gate import (
+    _apply_quality_execution_claim,
+    _load_claim_scoped_quality_input,
+    _optional_lte_check,
+)
 from tools.engines.self_healing_generator import CodeHealer
 from tools.engines.self_healing_generator import _auto_heal_generation_decision
 from tools.engines.self_healing_generator import _auto_heal_script_policy
@@ -170,6 +175,7 @@ from tools.engines.validation_oracle import ValidationOracle
 from tools.core.package_contracts import build_package_public_contracts
 from tools.validate_performance_budget import (
     _latest_atlas_ast_lifecycle_profile,
+    _latest_atlas_materialization_profile,
     _latest_atlas_persistence_profile,
     _latest_atlas_phase_profile,
     _latest_completed_forced_session,
@@ -1121,6 +1127,36 @@ class ConfidenceEngineInputHonestyTests(unittest.TestCase):
             any("not inferred from raw text" in reason for reason in result["metrics"]["risk_mitigation_reasons"])
         )
 
+    @patch(
+        "tools.engines.confidence_engine._dependency_graph_evidence",
+        return_value=({}, {"status": "PASS", "source": "sqlite", "shape_status": "valid"}),
+    )
+    @patch(
+        "tools.engines.confidence_engine.load_atlas_data",
+        return_value={
+            "MAIN": {
+                "files": {
+                    "platform/ai/ai/schemas.ts": {
+                        "workspace_rel": "src/platform/ai/ai/schemas.ts",
+                        "import_records": [],
+                    }
+                }
+            }
+        },
+    )
+    @patch(
+        "tools.engines.confidence_engine.load_source_text",
+        return_value="export const schema = {};\n",
+    )
+    def test_canonical_atlas_node_uses_syntax_grounded_import_evidence(
+        self, _source, _atlas, _evidence
+    ):
+        result = evaluate_file_confidence("MAIN::platform/ai/ai/schemas.ts")
+
+        reasons = result["metrics"]["risk_mitigation_reasons"]
+        self.assertFalse(any("unindexed source" in reason for reason in reasons))
+        self.assertEqual(result["confidence_matrix"]["architecture_drift_certainty"], 0.1)
+
     def test_confidence_brief_routes_unknown_evidence_to_refresh(self):
         brief = _render_confidence_brief(
             {
@@ -1822,6 +1858,81 @@ class ArtifactStoreSQLiteContractTests(unittest.TestCase):
             self.assertEqual(result["status"], "PASS")
             self.assertEqual(result["selected_for_removal"], 1)
             self.assertFalse(fixture.exists())
+
+    def test_external_target_retention_preserves_active_fixture_lease(self):
+        from tools.core import external_target_retention
+        from tools.core.external_target_generation import external_target_output_slug
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp).resolve() / "external_targets"
+            target_root = Path(tmp).resolve() / "nexora_external_target_smoke_active"
+            active_name = external_target_output_slug(str(target_root.resolve()))
+            active_fixture = base_dir / active_name
+            inactive_fixture = base_dir / "nexora_external_target_smoke_inactive_123"
+            active_fixture.mkdir(parents=True)
+            inactive_fixture.mkdir(parents=True)
+            lease = external_target_retention.acquire_generated_fixture_lease(
+                target_root,
+                base_dir=base_dir,
+            )
+            try:
+                first = external_target_retention.prune_generated_external_target_fixtures(
+                    base_dir=base_dir,
+                    keep_per_prefix=0,
+                )
+                self.assertEqual(first["status"], "PASS")
+                self.assertEqual(first["retention_candidates"], 2)
+                self.assertEqual(first["selected_for_removal"], 1)
+                self.assertEqual(first["protected_by_active_lease"], [str(active_fixture)])
+                self.assertTrue(active_fixture.exists())
+                self.assertFalse(inactive_fixture.exists())
+            finally:
+                lease.release()
+
+            second = external_target_retention.prune_generated_external_target_fixtures(
+                base_dir=base_dir,
+                keep_per_prefix=0,
+            )
+            self.assertEqual(second["protected_by_active_lease"], [])
+            self.assertFalse(active_fixture.exists())
+
+    def test_external_target_retention_rejects_ungoverned_fixture_lease(self):
+        from tools.core import external_target_retention
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp).resolve() / "external_targets"
+            target_root = Path(tmp).resolve() / "user_repository"
+            with self.assertRaisesRegex(ValueError, "governed fixture prefix"):
+                external_target_retention.acquire_generated_fixture_lease(
+                    target_root,
+                    base_dir=base_dir,
+                )
+
+    def test_external_target_retention_context_releases_lease_after_failure(self):
+        from tools.core import external_target_retention
+        from tools.core.external_target_generation import external_target_output_slug
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp).resolve() / "external_targets"
+            target_root = Path(tmp).resolve() / "nexora_external_target_smoke_failure"
+            fixture_name = external_target_output_slug(str(target_root.resolve()))
+            fixture = base_dir / fixture_name
+            fixture.mkdir(parents=True)
+
+            with self.assertRaisesRegex(RuntimeError, "fixture failure"):
+                with external_target_retention.generated_fixture_lease(
+                    target_root,
+                    base_dir=base_dir,
+                ):
+                    raise RuntimeError("fixture failure")
+
+            result = external_target_retention.prune_generated_external_target_fixtures(
+                base_dir=base_dir,
+                keep_per_prefix=0,
+            )
+            self.assertEqual(result["protected_by_active_lease"], [])
+            self.assertFalse(fixture.exists())
+
     def test_failure_drill_startup_cleanup_removes_only_stale_reserved_outputs(self):
         from tools import validate_entrypoints_and_failures as entrypoint_validation
 
@@ -2177,9 +2288,20 @@ class ArtifactStoreSQLiteContractTests(unittest.TestCase):
                 }
             }
             store._save_atlas_to_sqlite(atlas)
+            atlas_commit = build_atlas_commit(atlas)
+            store._save_payload_to_state_table("atlas_commit", atlas_commit)
             store._save_payload_to_state_table(
                 "audit_report",
                 {
+                    "artifact_identity": {
+                        "status": "BOUND",
+                        "atlas_snapshot_id": atlas_commit["snapshot_id"],
+                    },
+                    "audit_scope": {
+                        "scope_kind": "full_repository",
+                        "full_repository_claim": True,
+                        "audited_projects": ["MAIN"],
+                    },
                     "violations": [
                         {
                             "project": "MAIN",
@@ -2845,6 +2967,94 @@ class TargetRootOverrideContractTests(unittest.TestCase):
             3,
         )
 
+    def test_external_target_preflight_classifies_every_observed_file_additively(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "src"
+            source.mkdir()
+            (source / "app.ts").write_text("export const app = 1;\n", encoding="utf-8")
+            (root / "globals.d.ts").write_text("declare const version: string\n", encoding="utf-8")
+            (root / "package.json").write_text("{}", encoding="utf-8")
+            (root / "vite.config.ts").write_text("export default {}\n", encoding="utf-8")
+            (root / "README.md").write_text("# Sample\n", encoding="utf-8")
+            (root / "cache.sqlite").write_bytes(b"SQLite format 3")
+            (root / "workflow.yml").write_text("name: sample\n", encoding="utf-8")
+            (root / "asset.svg").write_text("<svg/>\n", encoding="utf-8")
+
+            payload = build_preflight(root)
+
+        summary = payload["summary"]
+        repository = summary["inventory_classification"]["repository"]
+        self.assertEqual(
+            repository["disposition_counts"],
+            {
+                "analysis_source": 1,
+                "configured_configuration": 1,
+                "configured_manifest": 1,
+                "known_non_source_template": 1,
+                "observed_non_analysis_language": 1,
+                "runtime_state": 1,
+                "unclassified": 2,
+            },
+        )
+        self.assertEqual(repository["observed_file_count"], summary["inventory_file_count"])
+        self.assertEqual(
+            sum(repository["disposition_counts"].values()),
+            summary["inventory_file_count"],
+        )
+        self.assertEqual(
+            repository["unclassified_extension_counts"],
+            {".svg": 1, ".yml": 1},
+        )
+        self.assertEqual(repository["unclassified_examples"], ["asset.svg", "workflow.yml"])
+        self.assertEqual(repository["excluded_file_count_status"], "unavailable_pruned_not_walked")
+        self.assertEqual(repository["decision_effect"], "observability_only")
+        self.assertNotIn("unclassified", summary["attention_reasons"])
+        self.assertIn("inventory_classification:", render_report(payload))
+
+    def test_external_target_preflight_bounds_unclassified_examples_when_inventory_is_truncated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("a.unknown", "b.unknown", "c.unknown"):
+                (root / name).write_text("unknown\n", encoding="utf-8")
+            policy = json.loads(
+                (CODE_MAPS_DIR / "config" / "external_target_preflight_policy.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            policy["file_count_limit"] = 2
+            policy["inventory_classification"] = dict(policy["inventory_classification"])
+            policy["inventory_classification"]["unclassified_example_limit"] = 1
+            classification = {}
+            repository, selected = repository_and_selected_project_inventory(
+                root,
+                {
+                    "selected_projects": {"MAIN": "."},
+                    "project_ownership_exclusions": {"MAIN": []},
+                },
+                policy,
+                [],
+                {},
+                {},
+                classification_projection=classification,
+            )
+
+        repository_projection = classification["repository"]
+        effective_projection = classification["effective_scope"]
+        self.assertEqual(repository[0], 2)
+        self.assertTrue(repository[1])
+        self.assertEqual(repository_projection["status"], "partial")
+        self.assertEqual(repository_projection["observed_file_count"], 2)
+        self.assertEqual(repository_projection["disposition_counts"]["unclassified"], 2)
+        self.assertEqual(len(repository_projection["unclassified_examples"]), 1)
+        self.assertEqual(repository_projection["unclassified_examples_omitted"], 1)
+        self.assertEqual(repository_projection["excluded_file_count_status"], "unavailable_pruned_not_walked")
+        self.assertEqual(effective_projection["observed_file_count"], selected[0])
+        self.assertEqual(
+            sum(effective_projection["disposition_counts"].values()),
+            selected[0],
+        )
+
     def test_external_target_preflight_identity_changes_when_target_paths_change(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -2999,6 +3209,21 @@ class TargetRootOverrideContractTests(unittest.TestCase):
             },
         )
         self.assertNotIn("additional_skip_dirs", policy)
+
+        invalid_classification_policy = dict(policy)
+        invalid_classification_policy.pop("inventory_classification")
+        self.assertIn(
+            "invalid_inventory_classification_contract",
+            _preflight_policy_issues(invalid_classification_policy, capabilities),
+        )
+
+        invalid_precedence = dict(policy)
+        invalid_precedence["inventory_classification"] = dict(policy["inventory_classification"])
+        invalid_precedence["inventory_classification"]["precedence"] = ["unclassified"]
+        self.assertIn(
+            "invalid_inventory_classification_contract",
+            _preflight_policy_issues(invalid_precedence, capabilities),
+        )
 
         invalid_policy = dict(policy)
         invalid_policy.pop("node_dependency_sections")
@@ -3652,6 +3877,82 @@ class QualityGateContractTests(unittest.TestCase):
         self.assertEqual(check["expected"], 20)
         self.assertTrue(check["passed"])
         self.assertEqual(check["details"], ["policy_auto_default"])
+
+    def test_bounded_claim_cannot_read_or_report_excluded_producer_failure(self):
+        claim = {
+            "mode": "claim_closure",
+            "profile": "target-quality",
+            "claim_boundary": "bounded_target_static_quality",
+            "release_authority": False,
+            "excluded_artifact_ids": ["ui_runtime_contracts"],
+            "excluded_quality_check_ids": ["max_ui_high_risk_merge_candidates"],
+            "excluded_quality_signal_ids": ["ui_high_risk_merge_candidates"],
+        }
+        with patch("tools.engines.quality_gate.load_raw_artifact_path", side_effect=AssertionError("must not read")):
+            self.assertEqual(
+                _load_claim_scoped_quality_input(
+                    "ui_runtime_contracts",
+                    Path("stale-ui-runtime.json"),
+                    claim,
+                ),
+                {},
+            )
+        checks, signals = _apply_quality_execution_claim(
+            [
+                {
+                    "name": "max_ui_high_risk_merge_candidates",
+                    "actual": 999,
+                    "expected": 0,
+                    "operator": "<=",
+                    "passed": False,
+                },
+                {
+                    "name": "min_health_score",
+                    "actual": 50,
+                    "expected": 60,
+                    "operator": ">=",
+                    "passed": False,
+                },
+            ],
+            {"ui_high_risk_merge_candidates": 999, "total_audit_violations": 2},
+            claim,
+        )
+
+        excluded = next(row for row in checks if row["name"] == "max_ui_high_risk_merge_candidates")
+        retained = next(row for row in checks if row["name"] == "min_health_score")
+        self.assertTrue(excluded["passed"])
+        self.assertFalse(excluded["enforced"])
+        self.assertEqual(excluded["operator"], "not_in_claim")
+        self.assertFalse(retained["passed"])
+        self.assertNotIn("ui_high_risk_merge_candidates", signals)
+        self.assertEqual(signals["total_audit_violations"], 2)
+
+    def test_included_claim_artifact_uses_sqlite_first_raw_loader(self):
+        expected = {"summary": {"status": "PASS"}}
+        artifact_path = Path("output/.raw/ui_runtime_contracts.json")
+        with patch("tools.engines.quality_gate.load_raw_artifact_path", return_value=expected) as loader:
+            payload = _load_claim_scoped_quality_input(
+                "ui_runtime_contracts",
+                artifact_path,
+                None,
+            )
+
+        self.assertEqual(payload, expected)
+        loader.assert_called_once_with(artifact_path, {})
+
+    def test_bounded_claim_fails_closed_when_declared_check_is_not_emitted(self):
+        claim = {
+            "mode": "claim_closure",
+            "profile": "target-quality",
+            "claim_boundary": "bounded_target_static_quality",
+            "release_authority": False,
+            "excluded_artifact_ids": ["quality_review"],
+            "excluded_quality_check_ids": ["missing_check"],
+            "excluded_quality_signal_ids": [],
+        }
+
+        with self.assertRaisesRegex(ValueError, "execution claim drift"):
+            _apply_quality_execution_claim([], {}, claim)
 
 
 class SelfHealingContractTests(unittest.TestCase):
@@ -4460,9 +4761,18 @@ class PerformanceBudgetContractTests(unittest.TestCase):
                     r"workload=([0-9.]+)s ram_cache=([0-9.]+)s"
                 ),
                 "atlas_persistence_pattern": (
-                    r"Atlas persistence \| mode=([^ ]+) parts=(\d+) chars=(\d+) bytes=(\d+) serialize=([0-9.]+)s "
+                    r"Atlas persistence \| mode=([^ ]+) parts=(\d+) chars=(\d+) bytes=(\d+)"
+                    r"(?: stream_chunks=(\d+))? serialize=([0-9.]+)s "
                     r"encode=([0-9.]+)s hash=([0-9.]+)s sqlite=([0-9.]+)s "
                     r"relational=([0-9.]+)s total=([0-9.]+)s"
+                ),
+                "atlas_materialization_pattern": (
+                    r"Atlas materialization \| generation=([^ ]+) canonical_projects=(\d+) canonical_files=(\d+) "
+                    r"relational_mode=([^ ]+) relational_projects=(\d+) relational_files=(\d+) "
+                    r"scoped_projects=(\d+) scoped_files=(\d+) unselected_projects=(\d+) "
+                    r"dependency_sources=(\d+) baseline_status=([^ ]+) baseline_reason=([^ ]+) "
+                    r"state_reuse=([^ ]+) reused_bytes=(\d+) state_write=([0-9.]+)s "
+                    r"relational=([0-9.]+)s transaction=([0-9.]+)s commit=([0-9.]+)s"
                 ),
                 "atlas_ast_lifecycle_pattern": (
                     r"Atlas Node AST lifecycle \| process_starts=(\d+) batch_starts=(\d+) "
@@ -4477,8 +4787,15 @@ class PerformanceBudgetContractTests(unittest.TestCase):
         text = (
             "[PROFILE] Atlas phases | pre_build=1.095s build=1.513s bridge=0.046s "
             "validate=3.687s persist=1.689s commit=3.425s workload=0.107s ram_cache=0.000s\n"
-            "[PROFILE] Atlas persistence | mode=partitioned parts=8 chars=44715717 bytes=44729565 serialize=0.985s "
-            "encode=0.063s hash=0.128s sqlite=0.270s relational=0.213s total=1.689s\n"
+            "[PROFILE] Atlas persistence | mode=partitioned parts=8 chars=44715717 bytes=44729565 "
+            "stream_chunks=43 serialize=0.985s encode=0.063s hash=0.128s sqlite=0.270s "
+            "relational=0.213s total=1.689s\n"
+            "[PROFILE] Atlas materialization | generation=payload-abc canonical_projects=73 canonical_files=41123 "
+            "relational_mode=scoped relational_projects=73 relational_files=41123 scoped_projects=1 scoped_files=2 "
+            "unselected_projects=72 dependency_sources=2 baseline_status=PASS "
+            "baseline_reason=relational_baseline_matches_canonical_payload state_reuse=not_requested "
+            "reused_bytes=0 state_write=3.509s relational=0.421s "
+            "transaction=4.102s commit=0.172s\n"
             "[PROFILE] Atlas Node AST lifecycle | process_starts=1670 batch_starts=1667 fallback_starts=3 "
             "batch_failures=1 fallback_chunks=1 identity_failures=0 worker_restarts=1 request_replays=1 "
             "files_requested=40000 "
@@ -4488,6 +4805,7 @@ class PerformanceBudgetContractTests(unittest.TestCase):
 
         phases = _latest_atlas_phase_profile(text, config)
         payload_profile = _latest_atlas_persistence_profile(text, config)
+        materialization = _latest_atlas_materialization_profile(text, config)
         ast_lifecycle = _latest_atlas_ast_lifecycle_profile(text, config)
 
         self.assertEqual(phases["validate"], 3.687)
@@ -4496,10 +4814,52 @@ class PerformanceBudgetContractTests(unittest.TestCase):
         self.assertEqual(payload_profile["state_payload_sqlite_seconds"], 0.27)
         self.assertEqual(payload_profile["state_payload_storage_mode"], "partitioned")
         self.assertEqual(payload_profile["state_payload_part_count"], 8)
+        self.assertEqual(payload_profile["state_payload_stream_chunks"], 43)
+        legacy_payload_profile = _latest_atlas_persistence_profile(
+            "[PROFILE] Atlas persistence | mode=partitioned parts=8 chars=44715717 bytes=44729565 "
+            "serialize=0.985s encode=0.063s hash=0.128s sqlite=0.270s relational=0.213s total=1.689s",
+            config,
+        )
+        self.assertEqual(legacy_payload_profile["state_payload_bytes"], 44729565)
+        self.assertNotIn("state_payload_stream_chunks", legacy_payload_profile)
+        self.assertEqual(materialization["state_payload_generation_id"], "payload-abc")
+        self.assertEqual(materialization["atlas_canonical_project_count"], 73)
+        self.assertEqual(materialization["atlas_canonical_file_count"], 41123)
+        self.assertEqual(materialization["atlas_relational_mode"], "scoped")
+        self.assertEqual(materialization["atlas_scoped_projects"], 1)
+        self.assertEqual(materialization["atlas_unselected_canonical_projects"], 72)
+        self.assertEqual(materialization["atlas_scoped_baseline_status"], "PASS")
+        self.assertEqual(materialization["state_payload_reuse_status"], "not_requested")
+        self.assertEqual(materialization["state_payload_reused_bytes"], 0)
+        self.assertEqual(materialization["atlas_relational_index_seconds"], 0.421)
+        self.assertEqual(materialization["atlas_primary_transaction_seconds"], 4.102)
         self.assertEqual(ast_lifecycle["process_starts"], 1670)
         self.assertEqual(ast_lifecycle["fallback_process_starts"], 3)
         self.assertEqual(ast_lifecycle["files_requested"], 40000)
         self.assertEqual(ast_lifecycle["node_reported_rss_max_bytes"], 188743680)
+
+    def test_atlas_materialization_profile_rejects_missing_or_partial_evidence(self):
+        self.assertEqual(
+            _latest_atlas_materialization_profile(
+                "[PROFILE] Atlas materialization | generation=payload-incomplete canonical_projects=1",
+                {
+                    "log_parsing": {
+                        "atlas_materialization_pattern": (
+                            r"Atlas materialization \| generation=([^ ]+) canonical_projects=(\d+)"
+                        )
+                    }
+                },
+            ),
+            {},
+        )
+        self.assertEqual(
+            _latest_atlas_materialization_profile(
+                "[PROFILE] Atlas materialization | generation=payload-incomplete",
+                {"log_parsing": {}},
+            ),
+            {},
+        )
+
 
     def test_force_and_normal_pipeline_samples_are_not_mixed(self):
         log = """
@@ -6615,6 +6975,8 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
 
             detector = DeadCodeDetector()
             detector.projects = {"MAIN": root}
+            for rel_path, content in sources.items():
+                detector._file_content_cache[("MAIN", rel_path)] = content
             project_data = {
                 "files": {
                     "src/ssrf-validator.ts": {"exports": [{"name": "SafeUrlValidator", "type": "Class"}]},
@@ -6747,6 +7109,12 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
 
             detector = DeadCodeDetector()
             detector.projects = {"MAIN": root}
+            detector._file_content_cache[("MAIN", "src/generate/client-template.ts")] = (
+                positive.read_text(encoding="utf-8")
+            )
+            detector._file_content_cache[("MAIN", "src/ui/card-template.ts")] = (
+                negative.read_text(encoding="utf-8")
+            )
             analysis = detector._analyze_project_exports(
                 project="MAIN",
                 project_data={
@@ -6860,6 +7228,15 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
             )
             detector = DeadCodeDetector()
             detector.projects = {"MAIN": root}
+            detector._file_content_cache[("MAIN", "backend/apps.py")] = python_source.read_text(
+                encoding="utf-8"
+            )
+            detector._file_content_cache[("MAIN", "server/Service.java")] = java_source.read_text(
+                encoding="utf-8"
+            )
+            detector._file_content_cache[("MAIN", "server/Plain.java")] = plain_source.read_text(
+                encoding="utf-8"
+            )
 
             django = detector._framework_runtime_contract(
                 "MAIN",
@@ -6920,6 +7297,9 @@ class DeadCodeDynamicImportTests(unittest.TestCase):
 
             detector = DeadCodeDetector()
             detector.projects = {"MAIN": root}
+
+            detector._file_content_cache[("MAIN", "code/frameworks/nextjs/src/globals.d.ts")] = declaration.read_text(encoding="utf-8")
+            detector._file_content_cache[("MAIN", "packages/mui-material/src/themeCssVarsAugmentation/index.ts")] = augmentation.read_text(encoding="utf-8")
 
             declaration_match = detector._match_contract_registry(
                 "MAIN",

@@ -92,6 +92,23 @@ class CentralContractCacheFreshnessTests(unittest.TestCase):
                 self._write(registry_path, {"adapters": [{"id": "python"}]})
                 self.assertEqual(adapter_registry.load_adapter_registry()["adapters"], [{"id": "python"}])
 
+    def test_target_repository_trust_refreshes_without_import_cycle(self) -> None:
+        from tools.core import target_repository_trust
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            contract_path = Path(temp_dir) / "target_repository_threat_boundary_contract.json"
+            self._write(contract_path, {"revision": 1})
+            with patch.object(target_repository_trust, "CONTRACT_PATH", contract_path):
+                self.assertEqual(
+                    target_repository_trust.load_target_repository_threat_boundary_contract()["revision"],
+                    1,
+                )
+                self._write(contract_path, {"revision": 2})
+                self.assertEqual(
+                    target_repository_trust.load_target_repository_threat_boundary_contract()["revision"],
+                    2,
+                )
+
     def test_blueprint_decision_symbol_policy_and_test_profiles_refresh_in_process(self) -> None:
         from tools.core import architecture_blueprints, decision_ownership, language_agnostic_symbols, pipeline_policy, test_impact_profiles
 

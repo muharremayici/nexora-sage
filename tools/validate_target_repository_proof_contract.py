@@ -163,19 +163,20 @@ def _fixture_results() -> dict[str, object]:
         commit = build_atlas_commit(atlas, generated_at=basis.isoformat())
         _write_fixture(raw_dir, "atlas", atlas)
         _write_fixture(raw_dir, "atlas_commit", commit)
-        scope_authority = build_preflight_scope_authority(
-            topology={
-                "ontology_contract": "canonical_repository_topology_v1",
-                "selection_mode": "evidence_backed_auto",
-                "project_candidates": {"MAIN": str(target_root)},
-                "project_candidate_relationship_roles": {"MAIN": "host"},
-                "project_candidate_role_authority": {
-                    "MAIN": {"relationship_role": "host", "relationship_resolved": True}
-                },
-                "selected_projects": {"MAIN": str(target_root)},
-                "excluded_projects": {},
-                "excluded_project_reasons": {},
+        topology = {
+            "ontology_contract": "canonical_repository_topology_v1",
+            "selection_mode": "evidence_backed_auto",
+            "project_candidates": {"MAIN": str(target_root)},
+            "project_candidate_relationship_roles": {"MAIN": "host"},
+            "project_candidate_role_authority": {
+                "MAIN": {"relationship_role": "host", "relationship_resolved": True}
             },
+            "selected_projects": {"MAIN": str(target_root)},
+            "excluded_projects": {},
+            "excluded_project_reasons": {},
+        }
+        scope_authority = build_preflight_scope_authority(
+            topology=topology,
             projects=None,
             repository_file_count=0,
             repository_inventory_truncated=False,
@@ -242,6 +243,67 @@ def _fixture_results() -> dict[str, object]:
             evidence_not_before=basis.isoformat(),
         )
         schema_errors = validate_payload("target_repository_proof_bundle", clean)
+
+        bounded_scope = build_preflight_scope_authority(
+            topology=topology,
+            projects=["MAIN"],
+            repository_file_count=0,
+            repository_inventory_truncated=False,
+            repository_language_counts={},
+            effective_file_count=0,
+            effective_inventory_truncated=False,
+            effective_language_counts={},
+            effective_project_file_counts={"MAIN": 0},
+            polyglot_capabilities={"languages": {}},
+            effective_project_inventory_evidence={"MAIN": {}},
+        )
+        scope_artifact = {
+            **scope_artifact,
+            "scope_authority": bind_atlas_materialization(bounded_scope, atlas),
+        }
+        _write_fixture(raw_dir, "analysis_scope_authority", scope_artifact)
+        write_lineage_receipt(
+            artifact_id="analysis_scope_authority",
+            producer="tools.orchestrators.orchestrator",
+            artifact_payload=scope_artifact,
+            atlas=atlas,
+            atlas_commit=commit,
+            raw_dir=raw_dir,
+        )
+        write_lineage_receipt(
+            artifact_id="audit_report",
+            producer="tools.engines.audit",
+            artifact_payload=audit,
+            atlas=atlas,
+            atlas_commit=commit,
+            dependency_payloads={"analysis_scope_authority": scope_artifact},
+            raw_dir=raw_dir,
+        )
+        write_lineage_receipt(
+            artifact_id="quality_gate",
+            producer="tools.engines.quality_gate",
+            artifact_payload=quality,
+            atlas=atlas,
+            atlas_commit=commit,
+            dependency_payloads={
+                "analysis_scope_authority": scope_artifact,
+                "genome": genome,
+                "audit_report": audit,
+            },
+            raw_dir=raw_dir,
+        )
+        bounded_scope_match = build_target_repository_proof(
+            target_root=target_root,
+            raw_dir=raw_dir,
+            mode="baseline",
+            projects="MAIN",
+        )
+        bounded_scope_mismatch = build_target_repository_proof(
+            target_root=target_root,
+            raw_dir=raw_dir,
+            mode="baseline",
+            projects="OTHER",
+        )
 
         _fixture_path(raw_dir, "quality_gate").unlink()
         missing = build_target_repository_proof(
@@ -334,6 +396,9 @@ def _fixture_results() -> dict[str, object]:
             "wrong_root_verdict": wrong_root["summary"]["verdict"],
             "unbound_verdict": unbound["summary"]["verdict"],
             "tampered_verdict": tampered["summary"]["verdict"],
+            "bounded_scope_match": bounded_scope_match["summary"]["verdict"],
+            "bounded_scope_binding": bounded_scope_match["subject"]["project_scope_binding"],
+            "bounded_scope_mismatch": bounded_scope_mismatch["summary"]["verdict"],
             "schema_errors": schema_errors,
         }
 
@@ -428,6 +493,16 @@ def build_validation() -> dict[str, object]:
             "caller_reference_is_explicitly_nonauthoritative",
             "caller-provided repository reference is descriptive only" in str(authority.get("subject_identity_rule") or ""),
             authority.get("subject_identity_rule"),
+        ),
+        _check(
+            "requested_project_scope_is_authority_bound",
+            "analysis_scope_authority" in str(
+                authority.get("requested_project_scope_rule") or ""
+            )
+            and fixture["bounded_scope_match"] == "PASS"
+            and fixture["bounded_scope_binding"] == "BOUND"
+            and fixture["bounded_scope_mismatch"] == "BLOCKED",
+            fixture,
         ),
         _check("sage_release_authority_is_excluded", {"release_proof_bundle", "release_readiness", "system_health_check"} <= forbidden and not (all_mode_ids & forbidden), sorted(forbidden)),
         _check("bundle_has_dedicated_schema", "target_repository_proof_bundle" in ARTIFACT_SCHEMAS and ARTIFACT_SCHEMAS["target_repository_proof_bundle"].name == "target_repository_proof_bundle.schema.json", str(ARTIFACT_SCHEMAS.get("target_repository_proof_bundle", ""))),

@@ -116,12 +116,29 @@ def source_fingerprint(atlas: dict[str, Any]) -> str:
     return payload_sha256(inventory)
 
 
+def _normalized_changed_file_refs(values: list[str] | None) -> list[str]:
+    normalized: set[str] = set()
+    for value in values or []:
+        text = str(value or "").replace("\\", "/").strip()
+        if "::" not in text:
+            continue
+        project, rel_path = text.split("::", 1)
+        project = project.strip()
+        rel_path = rel_path.strip("/")
+        if project and rel_path:
+            normalized.add(f"{project}::{rel_path}")
+    return sorted(normalized)
+
+
 def build_atlas_commit(
     atlas: dict[str, Any],
     *,
     generation_mode: str = "full",
     generated_at: str | None = None,
     atlas_sha256: str | None = None,
+    parent_snapshot_id: str | None = None,
+    changed_files: list[str] | None = None,
+    deleted_files: list[str] | None = None,
 ) -> dict[str, Any]:
     candidate_hash = str(atlas_sha256 or "").lower()
     atlas_hash = (
@@ -138,7 +155,7 @@ def build_atlas_commit(
     projects = sorted(
         key for key, value in atlas.items() if key != "symbols" and isinstance(value, dict)
     )
-    return {
+    commit = {
         "meta": {
             "kind": ATLAS_COMMIT_KIND,
             "version": ATLAS_COMMIT_VERSION,
@@ -155,6 +172,21 @@ def build_atlas_commit(
         "projects": projects,
         "counts": atlas_counts(atlas),
     }
+    normalized_changed_files = _normalized_changed_file_refs(changed_files)
+    normalized_deleted_files = _normalized_changed_file_refs(deleted_files)
+    if not set(normalized_deleted_files).issubset(normalized_changed_files):
+        raise ValueError("Deleted Atlas refs must be a subset of changed refs.")
+    parent = str(parent_snapshot_id or "").strip()
+    if str(generation_mode or "") == "surgical" and parent and normalized_changed_files:
+        commit["generation_transition"] = {
+            "kind": "scoped_delta",
+            "parent_snapshot_id": parent,
+            "changed_files": normalized_changed_files,
+            "changed_files_sha256": payload_sha256(normalized_changed_files),
+            "deleted_files": normalized_deleted_files,
+            "deleted_files_sha256": payload_sha256(normalized_deleted_files),
+        }
+    return commit
 
 
 def validate_atlas_commit(atlas: dict[str, Any], commit: dict[str, Any]) -> list[dict[str, Any]]:
@@ -173,6 +205,39 @@ def validate_atlas_commit(atlas: dict[str, Any], commit: dict[str, Any]) -> list
         }
 
     meta = commit.get("meta", {}) if isinstance(commit.get("meta"), dict) else {}
+    transition = commit.get("generation_transition")
+    transition_checks: list[dict[str, Any]] = []
+    if isinstance(transition, dict):
+        changed_files = _normalized_changed_file_refs(transition.get("changed_files"))
+        deleted_files = _normalized_changed_file_refs(transition.get("deleted_files"))
+        deleted_fields_present = (
+            "deleted_files" in transition or "deleted_files_sha256" in transition
+        )
+        deleted_fields_valid = (
+            not deleted_fields_present
+            or (
+                transition.get("deleted_files", []) == deleted_files
+                and transition.get("deleted_files_sha256") == payload_sha256(deleted_files)
+            )
+        )
+        transition_valid = (
+            commit.get("generation_mode") == "surgical"
+            and transition.get("kind") == "scoped_delta"
+            and bool(str(transition.get("parent_snapshot_id") or "").strip())
+            and bool(changed_files)
+            and transition.get("changed_files") == changed_files
+            and transition.get("changed_files_sha256") == payload_sha256(changed_files)
+            and set(deleted_files).issubset(changed_files)
+            and deleted_fields_valid
+        )
+        transition_checks.append(
+            check(
+                "atlas_generation_transition",
+                transition_valid,
+                "valid_scoped_delta",
+                transition,
+            )
+        )
     return [
         check("atlas_commit_kind", meta.get("kind") == ATLAS_COMMIT_KIND, ATLAS_COMMIT_KIND, meta.get("kind")),
         check("atlas_commit_version", meta.get("version") == ATLAS_COMMIT_VERSION, ATLAS_COMMIT_VERSION, meta.get("version")),
@@ -194,4 +259,5 @@ def validate_atlas_commit(atlas: dict[str, Any], commit: dict[str, Any]) -> list
         check("atlas_project_set", commit.get("projects") == expected["projects"], expected["projects"], commit.get("projects")),
         check("atlas_counts", commit.get("counts") == expected["counts"], expected["counts"], commit.get("counts")),
         check("atlas_snapshot_id", commit.get("snapshot_id") == expected["snapshot_id"], expected["snapshot_id"], commit.get("snapshot_id")),
+        *transition_checks,
     ]

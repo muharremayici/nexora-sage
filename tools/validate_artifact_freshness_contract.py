@@ -46,6 +46,71 @@ def build_validation() -> dict[str, Any]:
         )
     )
     checks.append(_check("contract_has_unique_chain_ids", len(chain_ids) == len(set(chain_ids)) and bool(chain_ids), chain_ids))
+    generation = contract.get("generation_composition")
+    generation = generation if isinstance(generation, dict) else {}
+    sqlite_fact = generation.get("sqlite_fact")
+    sqlite_fact = sqlite_fact if isinstance(sqlite_fact, dict) else {}
+    transition = generation.get("transition_contract")
+    transition = transition if isinstance(transition, dict) else {}
+    profiles = generation.get("consumer_profiles")
+    profiles = profiles if isinstance(profiles, dict) else {}
+    audit_queue_profile = profiles.get("audit_queue")
+    audit_queue_profile = audit_queue_profile if isinstance(audit_queue_profile, dict) else {}
+    surgical_profile = profiles.get("surgical_packet")
+    surgical_profile = surgical_profile if isinstance(surgical_profile, dict) else {}
+    checks.extend(
+        [
+            _check(
+                "generation_composition:identity_declared",
+                generation.get("kind") == "nexora.audit_findings_generation"
+                and generation.get("version") == "v1",
+                {"kind": generation.get("kind"), "version": generation.get("version")},
+            ),
+            _check(
+                "generation_composition:sqlite_fact_declared",
+                sqlite_fact == {
+                    "artifact_name": "audit_findings_generation",
+                    "fact_key": "manifest",
+                },
+                sqlite_fact,
+            ),
+            _check(
+                "generation_composition:transition_identity_complete",
+                transition.get("kind") == "scoped_delta"
+                and {
+                    "parent_snapshot_id",
+                    "changed_files",
+                    "changed_files_sha256",
+                }.issubset(set(transition.get("required_identity_fields") or []))
+                and {
+                    "deleted_files",
+                    "deleted_files_sha256",
+                }.issubset(set(transition.get("optional_tombstone_fields") or [])),
+                transition,
+            ),
+            _check(
+                "generation_composition:audit_queue_profile_complete",
+                bool(audit_queue_profile.get("canonical_required_trust_checks"))
+                and bool(audit_queue_profile.get("composed_required_trust_checks"))
+                and set(audit_queue_profile.get("required_generation_checks") or [])
+                == {"snapshot_match", "coverage_match"}
+                and {
+                    "get_violation_work_queue",
+                    "check_module_integrity",
+                }.issubset(set(audit_queue_profile.get("surfaces") or [])),
+                audit_queue_profile,
+            ),
+            _check(
+                "generation_composition:surgical_packet_profile_complete",
+                bool(surgical_profile.get("base_required_trust_checks"))
+                and bool(surgical_profile.get("canonical_audit_required_trust_checks"))
+                and bool(surgical_profile.get("canonical_quality_required_trust_checks"))
+                and "get_surgical_operation_packet"
+                in set(surgical_profile.get("surfaces") or []),
+                surgical_profile,
+            ),
+        ]
+    )
     for chain in chains:
         chain_id = str(chain.get("id") or "")
         ordered_artifacts = chain.get("ordered_artifacts") if isinstance(chain.get("ordered_artifacts"), list) else []

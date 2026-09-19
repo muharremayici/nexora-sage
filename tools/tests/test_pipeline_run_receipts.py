@@ -60,6 +60,38 @@ def test_active_receipt_blocks_duplicate_retry_and_survives_lost_console() -> No
         assert payload["duration_guidance"]["basis"] == "insufficient_exact_profile_samples"
 
 
+def test_receipt_projects_exact_claim_owned_execution_plan() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        recorder = _start(temp_dir, run_id="sage-run-target-quality")
+        assert recorder is not None
+        recorder.progress(
+            "execution_planned",
+            active_steps=["Atlas", "Quality Gates"],
+            execution_claim_profile="target-quality",
+            execution_claim_target_step="Quality Gates",
+            execution_claim_step_count=19,
+            execution_claim_boundary="bounded_target_static_quality",
+            execution_claim_release_authority=False,
+            execution_claim_projects=["MAIN"],
+            execution_claim_excluded_steps=["uiruntimecontractanalyzer"],
+            execution_claim_cost_status="UNKNOWN",
+            execution_claim_cost_basis="insufficient_exact_profile_samples",
+        )
+
+        payload = pipeline_run_status(
+            "sage-run-target-quality",
+            db_path=Path(temp_dir) / "codemaps.db",
+        )
+
+        assert payload["execution_claim_plan"]["profile"] == "target-quality"
+        assert payload["execution_claim_plan"]["step_count"] == 19
+        assert payload["execution_claim_plan"]["claim_boundary"] == "bounded_target_static_quality"
+        assert payload["execution_claim_plan"]["project_scope"]["requested_projects"] == ["MAIN"]
+        assert payload["execution_claim_plan"]["excluded_direct_dependency_slugs"] == [
+            "uiruntimecontractanalyzer"
+        ]
+
+
 def test_terminal_pass_is_execution_only_not_engineering_proof() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         recorder = _start(temp_dir, run_id="sage-run-pass")

@@ -60,14 +60,25 @@ def run_validation() -> dict[str, Any]:
     md_file = src_dir / "note.md"
     move_src = src_dir / "moved_from.ts"
     move_dst = src_dir / "moved_to.tsx"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    for source_path in (f1, f2, f3, f4, move_src, move_dst):
+        source_path.write_text("export const watchdogStress = true;\n", encoding="utf-8")
 
     handler = CodeMapsHandler(debounce_seconds=0.12, display_root=base_root)
     runs: list[dict[str, Any]] = []
 
-    def fake_run_analysis(self: CodeMapsHandler, files: list[str], watchdog_profile: str = "live"):
+    def fake_run_analysis(
+        self: CodeMapsHandler,
+        files: list[str],
+        watchdog_profile: str = "live",
+        input_origin: str = "explicit_scope",
+        acquisition: dict | None = None,
+    ):
         runs.append(
             {
                 "profile": watchdog_profile,
+                "input_origin": input_origin,
+                "scope_decision": dict((acquisition or {}).get("scope_decision") or {}),
                 "files": _normalize_batch(files),
                 "started_at": time.time(),
             }

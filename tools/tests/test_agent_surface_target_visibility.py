@@ -51,6 +51,26 @@ def test_read_only_watchdog_session_is_visible_in_target_followup_and_operator_p
         assert "get_watchdog_session" in profiles["sage_operator_debug"]["include_tools"]
 
 
+def test_actor_gateway_is_coreachable_with_every_declared_eligible_tool() -> None:
+    actor_contract = json.loads((ROOT / "config" / "actor_interaction_contract.json").read_text(encoding="utf-8"))
+    surface = actor_contract["adapter_contract"]["conformance_evidence"]["adapters"]["mcp"]["available_surfaces"]["dispatch_actor_request"]
+    projections = {
+        profile: set(mcp_server.project_mcp_tool_names(ROOT, profile)["visible_tools"])
+        for profile in ("target_repository_default", "target_repository_followup")
+    }
+
+    unreachable = [
+        tool_name
+        for tool_name in surface["eligible_tools"]
+        if not any(
+            {"dispatch_actor_request", tool_name}.issubset(visible_tools)
+            for visible_tools in projections.values()
+        )
+    ]
+
+    assert unreachable == []
+
+
 def test_external_target_default_scope_remains_main_first() -> None:
     assert mcp_server._default_agent_scope_allows(
         {"project": "MAIN", "file": "src/StructureTab.tsx"},
@@ -323,6 +343,30 @@ def test_arbitrary_or_incomplete_error_is_not_a_precondition_block() -> None:
 
     assert is_structured_precondition_block(arbitrary_error) is False
     assert is_structured_precondition_block(missing_boundary) is False
+
+
+def test_complete_precondition_block_needs_no_invented_review_target() -> None:
+    complete = {
+        "body": """# Invalid Repository Context
+status: INVALID_CONTEXT
+blocking: true
+tool: get_violation_work_queue
+artifact_trust: FAIL
+required_action: Refresh target analysis.
+claim_boundary: No queue item is served from stale evidence.
+"""
+    }
+    incomplete = {
+        "body": """# Invalid Repository Context
+status: INVALID_CONTEXT
+blocking: true
+tool: get_violation_work_queue
+required_action: Refresh target analysis.
+"""
+    }
+
+    assert target_visibility_status(complete, "", {}) == "fail_closed_or_clean_no_direct_target"
+    assert target_visibility_status(incomplete, "", {}) == "missing_review_target"
 
 
 def test_structured_precondition_markdown_preserves_fail_closed_semantics() -> None:

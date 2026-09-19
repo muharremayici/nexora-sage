@@ -296,6 +296,39 @@
   },
   "critical_field_lineage": [
     {
+      "id": "sqlite_audit_finding_generation_manifest",
+      "producer_markers": [
+        {
+          "file": "tools/core/artifact_store.py",
+          "contains": "_write_audit_findings_manifest"
+        },
+        {
+          "file": "tools/core/audit_finding_generation.py",
+          "contains": "build_scoped_finding_manifest"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "_audit_findings_generation_projection"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "generation_consumer_profile"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "sqlite_findings:generation_bound_to_current_snapshot"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "sqlite_findings:generation_payload_available"
+        }
+      ]
+    },
+    {
       "id": "sqlite_source_snapshot_content",
       "producer_markers": [
         {
@@ -886,6 +919,43 @@
         {
           "file": "tools/tests/test_engine_contracts.py",
           "contains": "test_capability_activation_preserves_architecture_policy_producer_and_consumers"
+        }
+      ]
+    },
+    {
+      "id": "target_repository_threat_boundary_preflight_to_runtime_proof_and_agent_context",
+      "producer_markers": [
+        {
+          "file": "tools/external_target_preflight.py",
+          "contains": "scope_authority[\"target_repository_threat_boundary\"] = threat_boundary"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/target_repository_proof.py",
+          "contains": "scope_authority.get(\"target_repository_threat_boundary\")"
+        },
+        {
+          "file": "tools/core/contextos_mcp.py",
+          "contains": "repository_content_trust"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "repository_content_directive"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "config/target_repository_threat_boundary_contract.json",
+          "contains": "ordinary_unverified"
+        },
+        {
+          "file": "tools/validate_target_repository_threat_boundary.py",
+          "contains": "oracle_uses_sage_owned_compiler_only"
+        },
+        {
+          "file": "tools/tests/test_target_repository_threat_boundary.py",
+          "contains": "test_preflight_marks_escaping_symlink_attention_and_hostile_class_fails"
         }
       ]
     }

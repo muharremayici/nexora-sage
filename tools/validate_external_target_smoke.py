@@ -13,7 +13,11 @@ if str(CODE_MAPS_DIR) not in sys.path:
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.artifact_validator import validate_payload
-from tools.core.external_target_retention import DEFAULT_KEEP_PER_PREFIX, prune_generated_external_target_fixtures
+from tools.core.external_target_retention import (
+    DEFAULT_KEEP_PER_PREFIX,
+    generated_fixture_lease,
+    prune_generated_external_target_fixtures,
+)
 from tools.core.operational_limits import external_target_smoke_timeout_seconds
 from tools.core.subprocess_telemetry import run_observed_subprocess
 from tools.mcp import server as mcp_server
@@ -27,7 +31,9 @@ def run_validation() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     before_default_atlas_mtime = (RAW_DIR / "atlas.json").stat().st_mtime if (RAW_DIR / "atlas.json").exists() else None
 
-    with tempfile.TemporaryDirectory(prefix="nexora_external_target_smoke_") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="nexora_external_target_smoke_"
+    ) as tmp, generated_fixture_lease(Path(tmp)):
         target_root = Path(tmp)
         (target_root / "pkg").mkdir()
         (target_root / "pkg" / "service.py").write_text("def run():\n    return 1\n", encoding="utf-8")
@@ -85,11 +91,12 @@ def run_validation() -> dict[str, Any]:
         surgical_brief = mcp_server.get_surgical_operation_packet(max_signals=3, target_root=str(target_root))
         checks.append(
             {
-                "name": "external_target_mcp_surgical_packet_reads_isolated_output",
-                "passed": surgical_brief.startswith("# Repository Surgical Brief")
-                and "Invalid external target root" not in surgical_brief
-                and "output/.raw" not in surgical_brief
-                and "SOVEREIGN_ELITE" not in surgical_brief,
+                "name": "external_target_mcp_surgical_packet_fails_closed_without_required_inputs",
+                "passed": surgical_brief.startswith("# Invalid Repository Context")
+                and "status: INVALID_CONTEXT" in surgical_brief
+                and "tool: get_surgical_operation_packet" in surgical_brief
+                and "blocking: true" in surgical_brief
+                and target_root.name in surgical_brief,
                 "details": {"brief_chars": len(surgical_brief), "artifact_root": str(atlas_path.parent) if atlas_path else None},
             }
         )
@@ -199,9 +206,9 @@ def run_validation() -> dict[str, Any]:
         upstream = mcp_server.trace_upstream_cause("MAIN::app.py", target_root=str(target_root))
         checks.append(
             {
-                "name": "external_target_mcp_upstream_trace_uses_isolated_atlas_fallback",
+                "name": "external_target_mcp_upstream_trace_uses_isolated_sqlite_graph",
                 "passed": upstream.startswith("# Upstream Cause Brief")
-                and "dependency_graph_source: \"atlas_imports_fallback\"" in upstream
+                and "dependency_graph_source: \"sqlite_dependencies\"" in upstream
                 and "analysis_root:" in upstream
                 and target_root.name in upstream
                 and "SAGE source workspace" not in upstream,
@@ -231,22 +238,25 @@ def run_validation() -> dict[str, Any]:
         module_integrity = mcp_server.check_module_integrity("app.py", target_root=str(target_root))
         checks.append(
             {
-                "name": "external_target_mcp_module_integrity_uses_isolated_target_scope",
-                "passed": module_integrity.startswith("# Module Integrity Brief")
-                and "analysis_root:" in module_integrity
+                "name": "external_target_mcp_module_integrity_fails_closed_without_audit_authority",
+                "passed": module_integrity.startswith("# Invalid Repository Context")
+                and "status: INVALID_CONTEXT" in module_integrity
+                and "tool: check_module_integrity" in module_integrity
+                and "blocking: true" in module_integrity
                 and target_root.name in module_integrity
-                and "SAGE source workspace" not in module_integrity
-                and "output/.raw" not in module_integrity,
+                and "SAGE source workspace" not in module_integrity,
                 "details": {"response": module_integrity[:500]},
             }
         )
         work_queue_missing = mcp_server.get_violation_work_queue(target_root=str(target_root))
         checks.append(
             {
-                "name": "external_target_mcp_violation_work_queue_fails_closed_without_artifact",
-                "passed": work_queue_missing.startswith("# Technical Debt Work Queue")
-                and "refresh_sage_evidence_before_editing" in work_queue_missing
-                and "items:\n  []" in work_queue_missing
+                "name": "external_target_mcp_violation_work_queue_fails_closed_without_audit_authority",
+                "passed": work_queue_missing.startswith("# Invalid Repository Context")
+                and "status: INVALID_CONTEXT" in work_queue_missing
+                and "tool: get_violation_work_queue" in work_queue_missing
+                and "blocking: true" in work_queue_missing
+                and target_root.name in work_queue_missing
                 and "SAGE source workspace" not in work_queue_missing,
                 "details": {"response": work_queue_missing[:500]},
             }
@@ -275,13 +285,11 @@ def run_validation() -> dict[str, Any]:
         checks.append(
             {
                 "name": "external_target_mcp_violation_work_queue_fails_closed_on_incomplete_trust_chain",
-                "passed": work_queue.startswith("# Technical Debt Work Queue")
-                and "returned_work_items: 0" in work_queue
-                and "refresh_sage_evidence_before_editing" in work_queue
-                and "Do not edit from this queue until SAGE evidence is refreshed." in work_queue
-                and "items:\n  []" in work_queue
-                and "human_approval_required: true" not in work_queue
-                and "target_ref: \"MAIN::app.py\"" not in work_queue
+                "passed": work_queue.startswith("# Invalid Repository Context")
+                and "status: INVALID_CONTEXT" in work_queue
+                and "tool: get_violation_work_queue" in work_queue
+                and "blocking: true" in work_queue
+                and target_root.name in work_queue
                 and "SOVEREIGN_ELITE" not in work_queue,
                 "details": {"response": work_queue[:900]},
             }
@@ -293,12 +301,13 @@ def run_validation() -> dict[str, Any]:
             work_queue_payload = {}
         checks.append(
             {
-                "name": "external_target_mcp_violation_work_queue_supports_json_pagination",
-                "passed": work_queue_payload.get("analysis_root") == str(target_root)
-                and work_queue_payload.get("page") == 2
-                and work_queue_payload.get("page_size") == 1
-                and isinstance(work_queue_payload.get("items", []), list)
-                and (work_queue_payload.get("artifact_trust") or {}).get("status") == "FAIL",
+                "name": "external_target_mcp_violation_work_queue_json_fails_closed_without_authority",
+                "passed": work_queue_payload.get("status") == "INVALID_CONTEXT"
+                and work_queue_payload.get("blocking") is True
+                and work_queue_payload.get("tool") == "get_violation_work_queue"
+                and (work_queue_payload.get("artifact_trust") or {}).get("status") == "FAIL"
+                and target_root.name in str(work_queue_payload.get("refresh_command") or "")
+                and "items" not in work_queue_payload,
                 "details": {"payload": work_queue_payload},
             }
         )
@@ -410,6 +419,7 @@ def run_validation() -> dict[str, Any]:
             "details": {
                 "keep_per_prefix": retention_result.get("keep_per_prefix"),
                 "selected_for_removal": retention_result.get("selected_for_removal"),
+                "protected_by_active_lease": retention_result.get("protected_by_active_lease", []),
                 "failed": retention_result.get("failed", []),
             },
         }

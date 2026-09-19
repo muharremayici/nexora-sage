@@ -112,6 +112,7 @@
         "tools.validate_pipeline_execution_contract"
       ],
       "allowed_modules": [
+        "tools.mcp.capability_tools",
         "tools.engines.ast_sequencer_cs",
         "tools.engines.ast_sequencer_go",
         "tools.engines.ast_sequencer_java",

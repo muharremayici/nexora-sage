@@ -20,7 +20,11 @@ from tools.core.agent_surface_target_visibility import (
     is_structured_precondition_block,
     is_successful_surgical_packet,
 )
-from tools.core.external_target_retention import DEFAULT_KEEP_PER_PREFIX, prune_generated_external_target_fixtures
+from tools.core.external_target_retention import (
+    DEFAULT_KEEP_PER_PREFIX,
+    generated_fixture_lease,
+    prune_generated_external_target_fixtures,
+)
 from tools.core.unmanaged_atomic_io import native_filesystem_path
 from tools.mcp import server as mcp_server
 
@@ -225,7 +229,9 @@ def _seed_external_raw_fixture(raw_dir: Path, name: str, payload: dict[str, Any]
 
 def build_validation() -> dict[str, Any]:
     _log("START fixture")
-    with tempfile.TemporaryDirectory(prefix="sage_external_agent_surface_") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="sage_external_agent_surface_"
+    ) as tmp, generated_fixture_lease(Path(tmp)):
         target_root = Path(tmp).resolve()
         _write_target(target_root)
         _log("PASS fixture")

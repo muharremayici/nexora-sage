@@ -9,7 +9,7 @@
     "installation_root_vs_target_root": "The SAGE source checkout is the product installation root, not implicit authority to analyze its parent directory. Public product projections require an explicit --target-root; internal legacy layouts may retain parent-root discovery only when no public distribution manifest is present.",
     "run_vs_proof": "run commands produce or refresh analysis artifacts; release/proof commands validate and seal evidence.",
     "run_scope_semantics": "run --scope is a directory-only report filter for Scoped Host Analyzer. It does not bound Atlas generation, source snapshots, AST parsing or the rest of the pipeline.",
-    "watch_path_semantics": "watch --once --path accepts one exact supported analysis source file, or an exact missing path only when the previous canonical Atlas proves that it is a deletion tombstone. A directory is a deterministic smoke sample whose acquisition compares previous indexed membership with the current filesystem, prioritizes tombstones, and discloses selected and omitted existing-file and tombstone counts. Omitted tombstones force UNKNOWN.",
+    "watch_path_semantics": "watch --once --path accepts one exact supported analysis source file, or an exact missing path only when the previous canonical Atlas proves that it is a deletion tombstone. Repeat --path to declare one bounded atomic multi-file change set; canonical duplicates are receipted and deduplicated, while any directory, unsupported entry, root escape, unproved tombstone or bound overflow rejects the whole set without partial analysis or truncation. A single directory remains a deterministic smoke sample whose acquisition compares previous indexed membership with the current filesystem, prioritizes tombstones, and discloses selected and omitted existing-file and tombstone counts. Omitted tombstones force UNKNOWN. SAGE never infers this explicit set from Git state.",
     "force_vs_release_deep": "force implies release-deep profile plus cache bypass/rebuild intent; release-deep alone is a heavyweight profile, not necessarily a forced rebuild.",
     "release_check_vs_bundle": "release-check refreshes and validates the release gate envelope; run_release_proof_bundle assembles the complete proof bundle over validators and key artifacts."
   },
@@ -86,6 +86,7 @@
       "release_check_all",
       "release_proof_bundle",
       "install_proof",
+      "target_repository_proof",
       "ci_release_check"
     ],
     "allowed_pipeline_step_template_command_ids": [
@@ -122,14 +123,16 @@
           "truth-sync",
           "ci-check",
           "setup",
-          "mapping"
+          "mapping",
+          "target-proof"
         ],
         "required_phrases": [
           "python sage.py doctor",
           "python sage.py run --profile daily",
           "python sage.py run --full",
           "python sage.py release-check",
-          "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN"
+          "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN",
+          "python sage.py target-proof --target-root <repository> --projects MAIN --mode baseline --refresh-policy current"
         ],
         "forbidden_phrases": [
           "`python sage.py purge --mode deep`"
@@ -146,8 +149,10 @@
           "show-config",
           "purge",
           "external-targets",
+          "target-proof",
           "backup",
-          "restore"
+          "restore",
+          "storage-maintenance"
         ],
         "forbidden_commands": [
           "release-check",
@@ -169,7 +174,8 @@
           "python sage.py init --target-root <repository>",
           "python sage.py run --target-root <repository> --profile daily",
           "python sage.py mcp --print-config",
-          "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN"
+          "python sage.py install-proof --level release --skip-deps --target-root <repository> --projects MAIN",
+          "python sage.py target-proof --target-root <repository> --projects MAIN --mode baseline --refresh-policy current"
         ],
         "forbidden_phrases": [
           "python sage.py release-check",
@@ -191,7 +197,8 @@
             "doctor",
             "mcp",
             "purge",
-            "external-targets"
+            "external-targets",
+            "target-proof"
           ]
         },
         "public_local_state_administration": {
@@ -199,7 +206,8 @@
           "commands": [
             "show-config",
             "backup",
-            "restore"
+            "restore",
+            "storage-maintenance"
           ]
         },
         "private_unbound_or_legacy_product_surface": {
@@ -823,6 +831,20 @@
       ]
     },
     {
+      "id": "target_repository_proof",
+      "surface": "python sage.py target-proof --target-root <repository> --projects MAIN --mode baseline --refresh-policy current",
+      "canonical": true,
+      "intent": "bounded_target_repository_proof",
+      "execution_mode": "operator_command",
+      "canonical_use": "Reuse or explicitly refresh one validated external-target generation and delegate bounded proof construction to the canonical target repository proof builder.",
+      "not_for": [
+        "SAGE product release proof",
+        "human seal",
+        "target mutation permission",
+        "implicit analysis retry"
+      ]
+    },
+    {
       "id": "ci_release_check",
       "surface": "python sage.py ci-check",
       "canonical": true,
@@ -891,6 +913,14 @@
         "init_setup_only"
       ],
       "rule": "install-proof records machine-local onboarding evidence; its daily/release plans use setup-only initialization so analysis executes exactly once in the named proof flow. Smoke validates an already-initialized runtime configuration and, when that prerequisite is absent, must stop before proof-step execution with the canonical target-aware install-proof command."
+    },
+    {
+      "id": "target_proof_is_not_product_release_proof",
+      "commands": [
+        "target_repository_proof",
+        "release_proof_bundle"
+      ],
+      "rule": "target-proof evaluates bounded evidence for one analyzed repository generation; it neither validates nor seals the SAGE product release."
     }
   ]
 }

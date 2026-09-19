@@ -11,12 +11,19 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from tools.core.config import CONFIG_DIR, DYNAMIC_CONFIG, RAW_DIR, REPORTS_DIR, ROOT, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file, load_text_file
 from tools.core.persistence_limits import load_persistence_limits
 from tools.core.db import SQLiteManager
+from tools.core.audit_finding_generation import (
+    AUDIT_FINDINGS_FACT_ARTIFACT,
+    AUDIT_FINDINGS_FACT_KEY,
+    build_canonical_finding_manifest,
+    build_scoped_finding_manifest,
+    normalize_finding_scope_refs,
+)
 from tools.core.path_identity import strip_current_directory_prefix
 from tools.core.stdio import best_effort_print
 from tools.core.unmanaged_atomic_io import native_filesystem_path
@@ -101,6 +108,24 @@ def _payload_digest(payload: Any) -> str:
     return _payload_sha(serialized)
 
 
+def _atlas_payload_counts(payload: dict[str, Any]) -> tuple[int, int, int]:
+    """Return canonical project, file and dependency-source counts."""
+    project_count = 0
+    file_count = 0
+    dependency_source_count = 0
+    for project_key, project_data in payload.items():
+        if project_key == "symbols" or not isinstance(project_data, dict):
+            continue
+        project_count += 1
+        files = project_data.get("files")
+        dependencies = project_data.get("dependencies")
+        if isinstance(files, dict):
+            file_count += sum(1 for metadata in files.values() if isinstance(metadata, dict))
+        if isinstance(dependencies, dict):
+            dependency_source_count += len(dependencies)
+    return project_count, file_count, dependency_source_count
+
+
 def _source_snapshot_projection_scope() -> dict[str, set[str]] | None:
     """Return the current surgical source snapshot scope, if one is active."""
     raw_scope = DYNAMIC_CONFIG.get("_source_snapshot_projection_scope")
@@ -125,6 +150,30 @@ def _source_snapshot_log(message: str) -> None:
 
 def _compact_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _iter_bounded_canonical_json_chunks(value: Any, max_chars: int) -> Iterator[str]:
+    """Yield exact canonical JSON in bounded text chunks."""
+    chunk_limit = int(max_chars)
+    if chunk_limit < 1:
+        raise ValueError("Canonical JSON chunk size must be positive.")
+    encoder = json.JSONEncoder(ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    buffered_pieces: list[str] = []
+    buffered_chars = 0
+    for text_piece in encoder.iterencode(value):
+        offset = 0
+        while offset < len(text_piece):
+            available = chunk_limit - buffered_chars
+            end = min(len(text_piece), offset + available)
+            buffered_pieces.append(text_piece[offset:end])
+            buffered_chars += end - offset
+            offset = end
+            if buffered_chars == chunk_limit:
+                yield "".join(buffered_pieces)
+                buffered_pieces = []
+                buffered_chars = 0
+    if buffered_pieces:
+        yield "".join(buffered_pieces)
 
 
 def _candidate_violation_paths(violation: dict[str, Any], project_path: str = "") -> list[str]:
@@ -407,6 +456,7 @@ class ArtifactStore:
         self.state_payload_part_size_bytes = limits["state_payload_part_size_bytes"]
         self.atlas_staging_batch_size = limits["atlas_staging_batch_size"]
         self.atlas_staging_file_payload_limit_bytes = limits["atlas_staging_file_payload_limit_bytes"]
+        self.atlas_staging_file_aggregate_limit_bytes = limits["atlas_staging_file_aggregate_limit_bytes"]
 
     def initialize_schema(self) -> None:
         """Initialize SQLite database schema if enabled."""
@@ -608,9 +658,9 @@ class ArtifactStore:
             "updated_at": "",
         }
 
-    def save_raw(self, name: str, payload: Any, indent: int = 2) -> dict[str, float | bool | str | int]:
+    def save_raw(self, name: str, payload: Any, indent: int = 2) -> dict[str, Any]:
         profile_start = time.perf_counter()
-        profile_timings: dict[str, float | bool | str] = {
+        profile_timings: dict[str, Any] = {
             "artifact": str(name),
             "sqlite_enabled": bool(self.use_sqlite),
         }
@@ -627,11 +677,52 @@ class ArtifactStore:
                 self._ensure_schema()
                 state_start = time.perf_counter()
                 if name == "atlas" and isinstance(payload, dict):
+                    transaction_start = time.perf_counter()
+                    transaction_finalize_start = transaction_start
                     with self.db_manager.transaction():
-                        state_profile = self._save_payload_to_state_table(name, payload)
+                        state_write_start = time.perf_counter()
+                        reuse_hint = DYNAMIC_CONFIG.get("_atlas_state_payload_reuse")
+                        state_profile, reuse_rejected_reason = self._reuse_existing_state_payload_profile(
+                            name,
+                            reuse_hint,
+                        )
+                        if state_profile is None:
+                            state_profile = self._save_payload_to_state_table(name, payload)
+                            state_profile["state_payload_reuse_status"] = (
+                                "not_requested"
+                                if reuse_rejected_reason == "not_requested"
+                                else "rejected"
+                            )
+                            state_profile["state_payload_reused_bytes"] = 0
+                            state_profile["state_payload_reuse_rejected_reason"] = reuse_rejected_reason
+                        state_write_seconds = time.perf_counter() - state_write_start
+                        relational_start = time.perf_counter()
                         projection_profile = self._save_atlas_to_sqlite(payload)
-                    if isinstance(projection_profile, dict):
-                        profile_timings.update(projection_profile)
+                        relational_seconds = time.perf_counter() - relational_start
+                        transaction_finalize_start = time.perf_counter()
+                    transaction_end = time.perf_counter()
+                    profile_timings.update(projection_profile)
+                    profile_timings["atlas_state_payload_write_seconds"] = round(state_write_seconds, 3)
+                    profile_timings["atlas_relational_index_seconds"] = round(relational_seconds, 3)
+                    profile_timings["atlas_primary_transaction_seconds"] = round(
+                        transaction_end - transaction_start,
+                        3,
+                    )
+                    profile_timings["atlas_transaction_commit_seconds"] = round(
+                        transaction_end - transaction_finalize_start,
+                        3,
+                    )
+                    generation_identity = str(state_profile.get("state_payload_generation_id") or "")
+                    profile_timings["atlas_materialization_generation_id"] = generation_identity
+                    for diagnostic_key in (
+                        "atlas_scoped_baseline_diagnostic",
+                        "atlas_scoped_fallback_diagnostic",
+                    ):
+                        diagnostic = profile_timings.get(diagnostic_key)
+                        if isinstance(diagnostic, dict):
+                            bound_diagnostic = dict(diagnostic)
+                            bound_diagnostic["state_payload_generation_id"] = generation_identity
+                            profile_timings[diagnostic_key] = bound_diagnostic
                 else:
                     state_profile = self._save_payload_to_state_table(name, payload)
                 profile_timings["schema_seconds"] = round(state_start - schema_start, 3)
@@ -659,6 +750,25 @@ class ArtifactStore:
             except Exception as e:
                 logger.error(f"[SQLITE] Failed to populate audit findings table: {e}", exc_info=True)
 
+        if self.use_sqlite and name == "watchdog_audit_report" and isinstance(payload, dict):
+            try:
+                audit_index_start = time.perf_counter()
+                composition = self._compose_scoped_audit_findings_to_sqlite(payload)
+                profile_timings["audit_findings_generation"] = composition
+                profile_timings["audit_relational_index_seconds"] = round(
+                    time.perf_counter() - audit_index_start,
+                    3,
+                )
+            except Exception as exc:
+                profile_timings["audit_findings_generation"] = {
+                    "status": "BLOCKED",
+                    "reason": str(exc),
+                }
+                logger.warning(
+                    "[SQLITE] Scoped Audit finding composition was refused: %s",
+                    exc,
+                )
+
         if self.use_sqlite and name == "quality_gate" and isinstance(payload, dict):
             try:
                 quality_index_start = time.perf_counter()
@@ -666,6 +776,27 @@ class ArtifactStore:
                 profile_timings["quality_facts_index_seconds"] = round(time.perf_counter() - quality_index_start, 3)
             except Exception as e:
                 logger.error(f"[SQLITE] Failed to populate quality gate artifact facts: {e}", exc_info=True)
+
+        if (
+            self.use_sqlite
+            and name == "atlas"
+            and profile_timings.get("state_payload_reuse_status") == "reused_exact_identity"
+        ):
+            shadow_path = self.raw_path(name)
+            source_mtime = float(profile_timings.get("state_payload_source_mtime") or 0.0)
+            shadow_is_current = bool(
+                source_mtime > 0.0
+                and shadow_path.exists()
+                and float(shadow_path.stat().st_mtime) >= source_mtime
+            )
+            if shadow_is_current:
+                profile_timings["shadow_thread_started"] = False
+                profile_timings["shadow_write_mode"] = "reused_current_shadow"
+                profile_timings["shadow_reuse_basis"] = "shadow_mtime_not_older_than_canonical_generation"
+                total_seconds = round(time.perf_counter() - profile_start, 3)
+                profile_timings["total_save_raw_seconds"] = total_seconds
+                _artifact_profile_log(profile_timings)
+                return profile_timings
 
         # JSON can be deferred only after SQLite has committed the primary payload.
         # JSON-only mode writes synchronously because the file is the authoritative store.
@@ -734,6 +865,67 @@ class ArtifactStore:
             _artifact_profile_log(profile_timings)
         return profile_timings
 
+    def _reuse_existing_state_payload_profile(
+        self,
+        name: str,
+        reuse_hint: Any,
+    ) -> tuple[dict[str, Any] | None, str]:
+        """Reuse a proven byte-identical canonical state generation."""
+        if not isinstance(reuse_hint, dict):
+            return None, "not_requested"
+        if str(reuse_hint.get("equality_contract") or "") != "exact_previous_atlas_object_equality_v1":
+            return None, "equality_contract_mismatch"
+        expected_sha = str(reuse_hint.get("expected_payload_sha") or "")
+        if not expected_sha:
+            return None, "expected_payload_sha_missing"
+        with self.db_manager.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT payload, payload_sha, payload_bytes, storage_mode, generation_id, part_count, source_mtime
+                FROM state_payloads WHERE name = ?;
+                """,
+                (name,),
+            ).fetchone()
+        if row is None:
+            return None, "state_payload_missing"
+        actual_sha = str(row["payload_sha"] or "")
+        if actual_sha != expected_sha:
+            return None, "payload_sha_mismatch"
+        storage_mode = str(row["storage_mode"] or "inline_json")
+        if storage_mode not in {"inline_json", "partitioned_json_v1"}:
+            return None, "unsupported_storage_mode"
+        payload_bytes = int(row["payload_bytes"] or 0)
+        if payload_bytes < 1:
+            return None, "payload_bytes_missing"
+        generation_id = str(row["generation_id"] or "")
+        if storage_mode == "partitioned_json_v1" and not generation_id:
+            return None, "partitioned_generation_id_missing"
+        return {
+            "state_payload_chars": len(str(row["payload"])) if storage_mode == "inline_json" else 0,
+            "state_payload_chars_status": (
+                "observed_inline" if storage_mode == "inline_json" else "not_recomputed_for_reuse"
+            ),
+            "state_payload_bytes": payload_bytes,
+            "state_payload_serialize_seconds": 0.0,
+            "state_payload_encode_seconds": 0.0,
+            "state_payload_hash_seconds": 0.0,
+            "state_payload_sqlite_seconds": 0.0,
+            "state_payload_sha256": actual_sha,
+            "state_payload_generation_id": generation_id or f"inline-sha256-{actual_sha}",
+            "state_payload_storage_mode": storage_mode,
+            "state_payload_part_count": int(row["part_count"] or 0),
+            "state_payload_part_size_bytes": (
+                max(1, int(self.state_payload_part_size_bytes))
+                if int(row["part_count"] or 0)
+                else 0
+            ),
+            "state_payload_stream_chunks": 0,
+            "state_payload_reuse_status": "reused_exact_identity",
+            "state_payload_reused_bytes": payload_bytes,
+            "state_payload_reuse_rejected_reason": "none",
+            "state_payload_source_mtime": float(row["source_mtime"] or 0.0),
+        }, "none"
+
     def _save_payload_to_state_table(
         self,
         name: str,
@@ -741,7 +933,6 @@ class ArtifactStore:
         source_mtime: float | None = None,
     ) -> dict[str, float | int | str]:
         serialize_start = time.perf_counter()
-        encoder = json.JSONEncoder(ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         inline_limit = max(1, int(self.state_payload_inline_limit_bytes))
         part_size = max(1, int(self.state_payload_part_size_bytes))
         text_slice_size = max(1, part_size // 4)
@@ -749,16 +940,17 @@ class ArtifactStore:
         payload_digest = hashlib.sha256()
         serialized_chars = 0
         serialized_bytes_count = 0
+        serialized_chunk_count = 0
         encode_seconds = 0.0
-        for text_piece in encoder.iterencode(payload):
+        for text_piece in _iter_bounded_canonical_json_chunks(payload, text_slice_size):
             serialized_chars += len(text_piece)
-            for offset in range(0, len(text_piece), text_slice_size):
-                encode_start = time.perf_counter()
-                encoded_piece = text_piece[offset:offset + text_slice_size].encode("utf-8", errors="replace")
-                encode_seconds += time.perf_counter() - encode_start
-                spool.write(encoded_piece)
-                payload_digest.update(encoded_piece)
-                serialized_bytes_count += len(encoded_piece)
+            encode_start = time.perf_counter()
+            encoded_piece = text_piece.encode("utf-8", errors="replace")
+            encode_seconds += time.perf_counter() - encode_start
+            spool.write(encoded_piece)
+            payload_digest.update(encoded_piece)
+            serialized_bytes_count += len(encoded_piece)
+            serialized_chunk_count += 1
         serialize_seconds = max(0.0, time.perf_counter() - serialize_start - encode_seconds)
         source_mtime = float(source_mtime if source_mtime is not None else time.time())
         hash_start = time.perf_counter()
@@ -857,9 +1049,11 @@ class ArtifactStore:
             "state_payload_hash_seconds": round(hash_seconds, 3),
             "state_payload_sqlite_seconds": round(sqlite_seconds, 3),
             "state_payload_sha256": payload_sha,
+            "state_payload_generation_id": generation_id or f"inline-sha256-{payload_sha}",
             "state_payload_storage_mode": storage_mode,
             "state_payload_part_count": part_count,
             "state_payload_part_size_bytes": part_size if part_count else 0,
+            "state_payload_stream_chunks": serialized_chunk_count,
         }
 
     def begin_atlas_staging_run(self, producer_contract: str) -> str:
@@ -907,37 +1101,125 @@ class ArtifactStore:
         if not self.use_sqlite:
             return {}
         self._ensure_schema()
+        normalized_contract = str(producer_contract)
+        normalized_kind = str(stage_kind)
         staged: dict[tuple[str, str], dict[str, Any]] = {}
+        aggregate_limit = max(1, int(self.atlas_staging_file_aggregate_limit_bytes))
+        part_size_limit = max(1, int(self.state_payload_part_size_bytes))
+        spool_limit = max(1, int(self.atlas_staging_file_payload_limit_bytes))
         with self.db_manager.get_connection() as conn:
             rows = conn.execute(
                 """
-                SELECT project_key, rel_path, payload, payload_sha
+                SELECT project_key, rel_path, run_id, payload, payload_sha, payload_bytes,
+                       storage_mode, generation_id, part_count
                 FROM atlas_staging_files
                 WHERE producer_contract = ? AND stage_kind = ?
                 ORDER BY project_key, rel_path;
                 """,
-                (str(producer_contract), str(stage_kind)),
-            ).fetchall()
-        for row in rows:
-            serialized = str(row["payload"])
-            if _payload_sha(serialized) != str(row["payload_sha"] or ""):
-                logger.warning(
-                    "[ATLAS_STAGING] Ignoring corrupt provisional file %s::%s.",
-                    row["project_key"],
-                    row["rel_path"],
-                )
-                continue
-            try:
-                payload = json.loads(serialized)
-            except json.JSONDecodeError:
-                logger.warning(
-                    "[ATLAS_STAGING] Ignoring invalid provisional JSON %s::%s.",
-                    row["project_key"],
-                    row["rel_path"],
-                )
-                continue
-            if isinstance(payload, dict):
-                staged[(str(row["project_key"]), str(row["rel_path"]))] = payload
+                (normalized_contract, normalized_kind),
+            )
+            for row in rows:
+                project_key = str(row["project_key"])
+                rel_path = str(row["rel_path"])
+                storage_mode = str(row["storage_mode"] or "inline_json")
+                serialized_bytes: bytes | None = None
+                corruption_reason = ""
+                if storage_mode == "inline_json":
+                    serialized = str(row["payload"])
+                    serialized_bytes = serialized.encode("utf-8", errors="replace")
+                    declared_bytes = int(row["payload_bytes"] or len(serialized_bytes))
+                    if len(serialized_bytes) != declared_bytes:
+                        corruption_reason = "inline_payload_length_mismatch"
+                    elif _payload_sha(serialized_bytes) != str(row["payload_sha"] or ""):
+                        corruption_reason = "inline_payload_checksum_mismatch"
+                elif storage_mode == "partitioned_json_v1":
+                    generation_id = str(row["generation_id"] or "")
+                    declared_count = int(row["part_count"] or 0)
+                    declared_bytes = int(row["payload_bytes"] or 0)
+                    if (
+                        not generation_id
+                        or declared_count <= 0
+                        or declared_bytes <= 0
+                        or declared_bytes > aggregate_limit
+                    ):
+                        corruption_reason = "partition_manifest_mismatch"
+                    else:
+                        digest = hashlib.sha256()
+                        actual_bytes = 0
+                        actual_parts = 0
+                        spool = tempfile.SpooledTemporaryFile(max_size=spool_limit, mode="w+b")
+                        try:
+                            part_rows = conn.execute(
+                                """
+                                SELECT part_index, payload, payload_bytes, payload_sha
+                                FROM atlas_staging_file_parts
+                                WHERE project_key = ? AND rel_path = ? AND stage_kind = ?
+                                  AND generation_id = ? AND run_id = ?
+                                  AND producer_contract = ?
+                                ORDER BY part_index;
+                                """,
+                                (
+                                    project_key,
+                                    rel_path,
+                                    normalized_kind,
+                                    generation_id,
+                                    str(row["run_id"]),
+                                    normalized_contract,
+                                ),
+                            )
+                            for part in part_rows:
+                                part_index = int(part["part_index"])
+                                part_bytes = bytes(part["payload"])
+                                if (
+                                    part_index != actual_parts
+                                    or actual_parts >= declared_count
+                                    or not part_bytes
+                                    or len(part_bytes) > part_size_limit
+                                    or len(part_bytes) != int(part["payload_bytes"] or 0)
+                                    or _payload_sha(part_bytes) != str(part["payload_sha"] or "")
+                                ):
+                                    corruption_reason = "partition_part_integrity_mismatch"
+                                    break
+                                actual_parts += 1
+                                actual_bytes += len(part_bytes)
+                                if actual_bytes > aggregate_limit:
+                                    corruption_reason = "partition_aggregate_limit_exceeded"
+                                    break
+                                digest.update(part_bytes)
+                                spool.write(part_bytes)
+                            if not corruption_reason and (
+                                actual_parts != declared_count
+                                or actual_bytes != declared_bytes
+                                or digest.hexdigest() != str(row["payload_sha"] or "")
+                            ):
+                                corruption_reason = "partition_document_integrity_mismatch"
+                            if not corruption_reason:
+                                spool.seek(0)
+                                serialized_bytes = spool.read()
+                        finally:
+                            spool.close()
+                else:
+                    corruption_reason = "unknown_storage_mode"
+
+                if corruption_reason or serialized_bytes is None:
+                    logger.warning(
+                        "[ATLAS_STAGING] Ignoring corrupt provisional file %s::%s (%s).",
+                        project_key,
+                        rel_path,
+                        corruption_reason or "missing_payload",
+                    )
+                    continue
+                try:
+                    payload = json.loads(serialized_bytes.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    logger.warning(
+                        "[ATLAS_STAGING] Ignoring invalid provisional JSON %s::%s.",
+                        project_key,
+                        rel_path,
+                    )
+                    continue
+                if isinstance(payload, dict):
+                    staged[(project_key, rel_path)] = payload
         return staged
 
     def save_atlas_staging_batch(
@@ -949,70 +1231,210 @@ class ArtifactStore:
         *,
         stage_kind: str = "atlas_file",
     ) -> dict[str, int]:
-        """Checkpoint completed Atlas files in a bounded SQLite transaction."""
+        """Checkpoint completed Atlas files; oversized files are atomic bounded parts."""
         if not self.use_sqlite or not run_id or not entries:
-            return {"persisted": 0, "skipped_oversize": 0}
+            return {"persisted": 0, "partitioned": 0, "skipped_oversize": 0}
         self._ensure_schema()
-        max_payload_bytes = max(1, int(self.atlas_staging_file_payload_limit_bytes))
+        inline_limit = max(1, int(self.atlas_staging_file_payload_limit_bytes))
+        aggregate_limit = max(inline_limit, int(self.atlas_staging_file_aggregate_limit_bytes))
+        part_size = max(1, int(self.state_payload_part_size_bytes))
         max_batch_size = max(1, int(self.atlas_staging_batch_size))
         if len(entries) > max_batch_size:
             raise ValueError(
                 f"Atlas staging batch exceeds configured bound: {len(entries)} > {max_batch_size}"
             )
-        rows = []
-        skipped_oversize = 0
-        for rel_path, payload in entries:
-            serialized = _compact_json(payload)
-            payload_bytes = len(serialized.encode("utf-8", errors="replace"))
-            if payload_bytes > max_payload_bytes:
-                skipped_oversize += 1
-                continue
-            rows.append(
-                (
-                    str(project_key),
-                    str(rel_path),
-                    str(stage_kind),
-                    str(run_id),
-                    str(producer_contract),
-                    serialized,
-                    _payload_sha(serialized),
-                    float(payload.get("mtime") or 0.0),
-                    int(payload.get("size") or 0),
-                )
-            )
 
+        normalized_project = str(project_key)
+        normalized_kind = str(stage_kind)
+        normalized_run = str(run_id)
+        normalized_contract = str(producer_contract)
+        inline_rows: list[tuple[Any, ...]] = []
+        partitioned_count = 0
+        skipped_oversize = 0
         with _locks_mutex:
             staging_lock = _write_locks.setdefault("atlas_staging", threading.Lock())
-        with staging_lock, self.db_manager.transaction() as conn:
-            if rows:
-                conn.executemany(
+
+        for rel_path, payload in entries:
+            serialized = _compact_json(payload)
+            serialized_bytes = serialized.encode("utf-8", errors="replace")
+            payload_bytes = len(serialized_bytes)
+            normalized_path = str(rel_path)
+            source_mtime = float(payload.get("mtime") or 0.0)
+            source_size = int(payload.get("size") or 0)
+            if payload_bytes <= inline_limit:
+                inline_rows.append(
+                    (
+                        normalized_project,
+                        normalized_path,
+                        normalized_kind,
+                        normalized_run,
+                        normalized_contract,
+                        serialized,
+                        _payload_sha(serialized_bytes),
+                        payload_bytes,
+                        "inline_json",
+                        None,
+                        0,
+                        source_mtime,
+                        source_size,
+                    )
+                )
+                continue
+            if payload_bytes > aggregate_limit:
+                skipped_oversize += 1
+                continue
+
+            generation_id = uuid.uuid4().hex
+            payload_sha = _payload_sha(serialized_bytes)
+            part_count = (payload_bytes + part_size - 1) // part_size
+            marker = _compact_json(
+                {
+                    "__sage_partitioned_staging__": {
+                        "format": "partitioned_json_v1",
+                        "generation_id": generation_id,
+                        "part_count": part_count,
+                        "payload_bytes": payload_bytes,
+                        "payload_sha256": payload_sha,
+                    }
+                }
+            )
+            with staging_lock, self.db_manager.transaction() as conn:
+                conn.execute(
                     """
                     INSERT INTO atlas_staging_files (
-                        project_key, rel_path, stage_kind, run_id, producer_contract, payload,
-                        payload_sha, source_mtime, size_bytes, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                        project_key, rel_path, stage_kind, run_id, producer_contract,
+                        payload, payload_sha, payload_bytes, storage_mode, generation_id,
+                        part_count, source_mtime, size_bytes, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'partitioned_json_v1', ?, ?, ?, ?,
+                              strftime('%Y-%m-%d %H:%M:%f', 'now'))
                     ON CONFLICT(project_key, rel_path, stage_kind) DO UPDATE SET
                         run_id = excluded.run_id,
                         producer_contract = excluded.producer_contract,
                         payload = excluded.payload,
                         payload_sha = excluded.payload_sha,
+                        payload_bytes = excluded.payload_bytes,
+                        storage_mode = excluded.storage_mode,
+                        generation_id = excluded.generation_id,
+                        part_count = excluded.part_count,
                         source_mtime = excluded.source_mtime,
                         size_bytes = excluded.size_bytes,
                         updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now');
                     """,
-                    rows,
+                    (
+                        normalized_project,
+                        normalized_path,
+                        normalized_kind,
+                        normalized_run,
+                        normalized_contract,
+                        marker,
+                        payload_sha,
+                        payload_bytes,
+                        generation_id,
+                        part_count,
+                        source_mtime,
+                        source_size,
+                    ),
                 )
-            conn.execute(
-                """
-                UPDATE atlas_staging_runs
-                SET processed_files = processed_files + ?,
-                    skipped_oversize_files = skipped_oversize_files + ?,
-                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE run_id = ?;
-                """,
-                (len(rows), skipped_oversize, str(run_id)),
-            )
-        return {"persisted": len(rows), "skipped_oversize": skipped_oversize}
+                for part_index in range(part_count):
+                    offset = part_index * part_size
+                    part_bytes = serialized_bytes[offset:offset + part_size]
+                    conn.execute(
+                        """
+                        INSERT INTO atlas_staging_file_parts (
+                            project_key, rel_path, stage_kind, generation_id, part_index,
+                            run_id, producer_contract, payload, payload_bytes, payload_sha
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (
+                            normalized_project,
+                            normalized_path,
+                            normalized_kind,
+                            generation_id,
+                            part_index,
+                            normalized_run,
+                            normalized_contract,
+                            part_bytes,
+                            len(part_bytes),
+                            _payload_sha(part_bytes),
+                        ),
+                    )
+                conn.execute(
+                    """
+                    DELETE FROM atlas_staging_file_parts
+                    WHERE project_key = ? AND rel_path = ? AND stage_kind = ?
+                      AND generation_id <> ?;
+                    """,
+                    (normalized_project, normalized_path, normalized_kind, generation_id),
+                )
+                conn.execute(
+                    """
+                    UPDATE atlas_staging_runs
+                    SET processed_files = processed_files + 1,
+                        updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                    WHERE run_id = ?;
+                    """,
+                    (normalized_run,),
+                )
+            partitioned_count += 1
+
+        if inline_rows:
+            with staging_lock, self.db_manager.transaction() as conn:
+                conn.executemany(
+                    """
+                    INSERT INTO atlas_staging_files (
+                        project_key, rel_path, stage_kind, run_id, producer_contract,
+                        payload, payload_sha, payload_bytes, storage_mode, generation_id,
+                        part_count, source_mtime, size_bytes, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                              strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                    ON CONFLICT(project_key, rel_path, stage_kind) DO UPDATE SET
+                        run_id = excluded.run_id,
+                        producer_contract = excluded.producer_contract,
+                        payload = excluded.payload,
+                        payload_sha = excluded.payload_sha,
+                        payload_bytes = excluded.payload_bytes,
+                        storage_mode = excluded.storage_mode,
+                        generation_id = excluded.generation_id,
+                        part_count = excluded.part_count,
+                        source_mtime = excluded.source_mtime,
+                        size_bytes = excluded.size_bytes,
+                        updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now');
+                    """,
+                    inline_rows,
+                )
+                conn.executemany(
+                    """
+                    DELETE FROM atlas_staging_file_parts
+                    WHERE project_key = ? AND rel_path = ? AND stage_kind = ?;
+                    """,
+                    [(row[0], row[1], row[2]) for row in inline_rows],
+                )
+                conn.execute(
+                    """
+                    UPDATE atlas_staging_runs
+                    SET processed_files = processed_files + ?,
+                        updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                    WHERE run_id = ?;
+                    """,
+                    (len(inline_rows), normalized_run),
+                )
+
+        if skipped_oversize:
+            with staging_lock, self.db_manager.transaction() as conn:
+                conn.execute(
+                    """
+                    UPDATE atlas_staging_runs
+                    SET skipped_oversize_files = skipped_oversize_files + ?,
+                        updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                    WHERE run_id = ?;
+                    """,
+                    (skipped_oversize, normalized_run),
+                )
+        return {
+            "persisted": len(inline_rows) + partitioned_count,
+            "partitioned": partitioned_count,
+            "skipped_oversize": skipped_oversize,
+        }
 
     def record_atlas_staging_reuse(self, run_id: str, reused_files: int) -> None:
         if not self.use_sqlite or not run_id or reused_files <= 0:
@@ -1045,6 +1467,10 @@ class ArtifactStore:
                 (normalized_status, str(error_type or "none"), str(run_id)),
             )
             if normalized_status == "COMPLETED":
+                conn.execute(
+                    "DELETE FROM atlas_staging_file_parts WHERE producer_contract = ?;",
+                    (str(producer_contract),),
+                )
                 conn.execute(
                     "DELETE FROM atlas_staging_files WHERE producer_contract = ?;",
                     (str(producer_contract),),
@@ -1388,11 +1814,20 @@ class ArtifactStore:
             sum(len(paths) for paths in snapshot_scope.values()),
             len(dependency_sources),
         )
+        canonical_projects, canonical_files, _ = _atlas_payload_counts(payload)
         return {
             "atlas_relational_mode": "scoped",
+            "atlas_canonical_project_count": canonical_projects,
+            "atlas_canonical_file_count": canonical_files,
+            "atlas_relational_project_count": len(expected_projects),
+            "atlas_relational_file_count": len(file_id_map),
             "atlas_scoped_projects": len(snapshot_scope),
             "atlas_scoped_files": sum(len(paths) for paths in snapshot_scope.values()),
+            "atlas_unselected_canonical_projects": max(0, canonical_projects - len(snapshot_scope)),
             "atlas_dependency_sources_updated": len(dependency_sources),
+            "atlas_scoped_baseline_status": str(baseline_diagnostic.get("status") or "UNKNOWN"),
+            "atlas_scoped_baseline_reason": str(baseline_diagnostic.get("reason") or "not_available"),
+            "atlas_scoped_baseline_diagnostic": dict(baseline_diagnostic),
         }
 
     def _restore_audit_findings_after_scoped_rebuild(self) -> bool:
@@ -1402,7 +1837,14 @@ class ArtifactStore:
                 "[SQLITE] Scoped Atlas full fallback could not restore canonical Audit findings; audit_report is unavailable."
             )
             return False
-        self._save_audit_findings_to_sqlite(audit_payload)
+        try:
+            self._save_audit_findings_to_sqlite(audit_payload)
+        except ValueError as exc:
+            logger.warning(
+                "[SQLITE] Scoped Atlas fallback kept Audit findings unavailable: %s",
+                exc,
+            )
+            return False
         logger.warning(
             "[SQLITE] Scoped Atlas full fallback restored canonical Audit findings; freshness remains governed by the artifact chain."
         )
@@ -1458,6 +1900,7 @@ class ArtifactStore:
         project_path_hints = DYNAMIC_CONFIG.get("variations") or DYNAMIC_CONFIG.get("project_path_hints") or {}
         if not isinstance(project_path_hints, dict):
             project_path_hints = {}
+        canonical_projects, canonical_files, canonical_dependency_sources = _atlas_payload_counts(payload)
         snapshot_scope = _source_snapshot_projection_scope()
         if snapshot_scope:
             scoped_profile = self._save_scoped_atlas_to_sqlite(payload, snapshot_scope, project_path_hints)
@@ -1470,22 +1913,47 @@ class ArtifactStore:
                 preserved_findings=preserved_findings,
             )
             restored = self._restore_audit_findings_after_scoped_rebuild()
-            return {
-                "atlas_relational_mode": "full_fallback",
-                "atlas_scoped_fallback_diagnostic": getattr(
+            diagnostic = dict(
+                getattr(
                     self,
                     "_last_scoped_atlas_baseline_diagnostic",
                     {
                         "status": "UNKNOWN",
                         "reason": "scoped_projection_returned_no_profile",
                     },
-                ),
+                )
+            )
+            return {
+                "atlas_relational_mode": "full_fallback",
+                "atlas_canonical_project_count": canonical_projects,
+                "atlas_canonical_file_count": canonical_files,
+                "atlas_relational_project_count": canonical_projects,
+                "atlas_relational_file_count": canonical_files,
+                "atlas_scoped_projects": len(snapshot_scope),
+                "atlas_scoped_files": sum(len(paths) for paths in snapshot_scope.values()),
+                "atlas_unselected_canonical_projects": max(0, canonical_projects - len(snapshot_scope)),
+                "atlas_dependency_sources_updated": canonical_dependency_sources,
+                "atlas_scoped_baseline_status": str(diagnostic.get("status") or "UNKNOWN"),
+                "atlas_scoped_baseline_reason": str(diagnostic.get("reason") or "not_available"),
+                "atlas_scoped_fallback_diagnostic": diagnostic,
                 "atlas_scoped_fallback_findings_preserved": restored_findings,
                 "atlas_scoped_fallback_findings_skipped": skipped_findings,
                 "atlas_scoped_fallback_audit_findings_restored": restored,
             }
         self._save_full_atlas_to_sqlite(payload, project_path_hints)
-        return {"atlas_relational_mode": "full"}
+        return {
+            "atlas_relational_mode": "full",
+            "atlas_canonical_project_count": canonical_projects,
+            "atlas_canonical_file_count": canonical_files,
+            "atlas_relational_project_count": canonical_projects,
+            "atlas_relational_file_count": canonical_files,
+            "atlas_scoped_projects": 0,
+            "atlas_scoped_files": 0,
+            "atlas_unselected_canonical_projects": 0,
+            "atlas_dependency_sources_updated": canonical_dependency_sources,
+            "atlas_scoped_baseline_status": "NOT_APPLICABLE",
+            "atlas_scoped_baseline_reason": "full_projection_requested",
+        }
 
     def _save_full_atlas_to_sqlite(
         self,
@@ -1778,53 +2246,198 @@ class ArtifactStore:
             f"PASS projection snapshots={total_snapshots} preserved_unscoped={preserved_unscoped} statuses={status_counts}"
         )
 
+    def _audit_findings_manifest(self, conn) -> dict[str, Any]:
+        row = conn.execute(
+            """
+            SELECT fact_value
+            FROM artifact_facts
+            WHERE artifact_name = ? AND fact_key = ?;
+            """,
+            (AUDIT_FINDINGS_FACT_ARTIFACT, AUDIT_FINDINGS_FACT_KEY),
+        ).fetchone()
+        if row is None:
+            return {}
+        try:
+            payload = json.loads(str(row["fact_value"] or "{}"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _write_audit_findings_manifest(self, conn, manifest: dict[str, Any]) -> None:
+        conn.execute(
+            """
+            INSERT INTO artifact_facts (artifact_name, fact_key, fact_value, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(artifact_name, fact_key) DO UPDATE SET
+                fact_value = excluded.fact_value,
+                updated_at = CURRENT_TIMESTAMP;
+            """,
+            (
+                AUDIT_FINDINGS_FACT_ARTIFACT,
+                AUDIT_FINDINGS_FACT_KEY,
+                _compact_json(manifest),
+            ),
+        )
+
+    def _current_atlas_commit_in_transaction(self, conn) -> dict[str, Any]:
+        row = conn.execute(
+            "SELECT * FROM state_payloads WHERE name = ?;",
+            ("atlas_commit",),
+        ).fetchone()
+        if row is None:
+            return {}
+        payload = self._load_state_payload_row(conn, row)
+        return payload if isinstance(payload, dict) else {}
+
+    def _audit_finding_rows(
+        self,
+        conn,
+        payload: dict[str, Any],
+        *,
+        allowed_refs: set[str] | None = None,
+    ) -> tuple[list[tuple[str, int, str, str, str]], int]:
+        violations = payload.get("violations") if isinstance(payload.get("violations"), list) else []
+        project_paths = {
+            str(row["project_key"]): str(row["path"] or "")
+            for row in conn.execute("SELECT project_key, path FROM projects;").fetchall()
+        }
+        file_id_map = {
+            f"{row['project_key']}::{row['rel_path']}": int(row["file_id"])
+            for row in conn.execute("SELECT file_id, project_key, rel_path FROM files;").fetchall()
+        }
+        rows: list[tuple[str, int, str, str, str]] = []
+        skipped = 0
+        for violation in violations:
+            if not isinstance(violation, dict):
+                continue
+            project_key = str(
+                violation.get("project_key") or violation.get("project") or ""
+            ).strip()
+            raw_file = str(violation.get("file") or violation.get("path") or "").strip()
+            if "::" in raw_file and not project_key:
+                project_key, raw_file = raw_file.split("::", 1)
+            if not project_key:
+                skipped += 1
+                continue
+            file_id = None
+            resolved_ref = ""
+            for candidate in _candidate_violation_paths(
+                violation,
+                project_paths.get(project_key, ""),
+            ):
+                candidate_ref = f"{project_key}::{candidate}"
+                file_id = file_id_map.get(candidate_ref)
+                if file_id:
+                    resolved_ref = candidate_ref
+                    break
+            if not file_id:
+                skipped += 1
+                continue
+            if allowed_refs is not None and resolved_ref not in allowed_refs:
+                raise ValueError(
+                    f"Scoped Audit emitted an out-of-scope finding: {resolved_ref}"
+                )
+            severity = str(
+                violation.get("mode")
+                or violation.get("severity")
+                or violation.get("level")
+                or "unknown"
+            )
+            code = str(violation.get("rule") or "architecture_violation")
+            message = json.dumps(
+                violation,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            rows.append(("audit_report", file_id, severity, code, message))
+        return rows, skipped
+
     def _save_audit_findings_to_sqlite(self, payload: dict[str, Any]) -> None:
         """Project audit violations into the relational findings table for SQLite-first queues."""
-        violations = payload.get("violations") if isinstance(payload.get("violations"), list) else []
-        with self.db_manager.get_connection() as conn:
-            conn.execute("DELETE FROM findings WHERE engine_name = ?;", ("audit_report",))
-            project_paths = {
-                str(row["project_key"]): str(row["path"] or "")
-                for row in conn.execute("SELECT project_key, path FROM projects;").fetchall()
-            }
-            file_id_map = {
-                f"{row['project_key']}::{row['rel_path']}": int(row["file_id"])
-                for row in conn.execute("SELECT file_id, project_key, rel_path FROM files;").fetchall()
-            }
-            inserted = 0
-            skipped = 0
-            for violation in violations:
-                if not isinstance(violation, dict):
-                    continue
-                project_key = str(violation.get("project_key") or violation.get("project") or "").strip()
-                raw_file = str(violation.get("file") or violation.get("path") or "").strip()
-                if "::" in raw_file and not project_key:
-                    project_key, raw_file = raw_file.split("::", 1)
-                if not project_key:
-                    skipped += 1
-                    continue
-                file_id = None
-                for candidate in _candidate_violation_paths(violation, project_paths.get(project_key, "")):
-                    file_id = file_id_map.get(f"{project_key}::{candidate}")
-                    if file_id:
-                        break
-                if not file_id:
-                    skipped += 1
-                    continue
-                severity = str(violation.get("mode") or violation.get("severity") or violation.get("level") or "unknown")
-                code = str(violation.get("rule") or "architecture_violation")
-                message = json.dumps(violation, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-                conn.execute(
-                    """
-                    INSERT INTO findings (engine_name, file_id, severity, code, message)
-                    VALUES (?, ?, ?, ?, ?);
-                    """,
-                    ("audit_report", file_id, severity, code, message),
+        manifest = build_canonical_finding_manifest(payload)
+        with self.db_manager.transaction() as conn:
+            current_commit = self._current_atlas_commit_in_transaction(conn)
+            if str(current_commit.get("snapshot_id") or "") != manifest["snapshot_id"]:
+                raise ValueError(
+                    "Canonical Audit findings do not match the committed Atlas snapshot."
                 )
-                inserted += 1
+            rows, skipped = self._audit_finding_rows(conn, payload)
             if skipped:
-                logger.info("[SQLITE] Audit findings projection skipped %s unmapped rows.", skipped)
-            logger.info("[SQLITE] Audit findings projection inserted %s rows.", inserted)
+                raise ValueError(
+                    f"Canonical Audit finding projection has {skipped} unmapped row(s)."
+                )
+            conn.execute("DELETE FROM findings WHERE engine_name = ?;", ("audit_report",))
+            conn.executemany(
+                """
+                INSERT INTO findings (engine_name, file_id, severity, code, message)
+                VALUES (?, ?, ?, ?, ?);
+                """,
+                rows,
+            )
+            self._write_audit_findings_manifest(conn, manifest)
+            logger.info("[SQLITE] Audit findings projection inserted %s rows.", len(rows))
+
+    def _compose_scoped_audit_findings_to_sqlite(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Replace exact changed-file findings while preserving the proven baseline."""
+        with self.db_manager.transaction() as conn:
+            previous = self._audit_findings_manifest(conn)
+            current_commit = self._current_atlas_commit_in_transaction(conn)
+            manifest = build_scoped_finding_manifest(previous, current_commit, payload)
+            changed_refs = set(normalize_finding_scope_refs(manifest["last_changed_files"]))
+            deleted_refs = set(normalize_finding_scope_refs(manifest["last_deleted_files"]))
+            file_ids = {
+                f"{row['project_key']}::{row['rel_path']}": int(row["file_id"])
+                for row in conn.execute(
+                    "SELECT file_id, project_key, rel_path FROM files;"
+                ).fetchall()
+            }
+            missing_refs = sorted(changed_refs - deleted_refs - set(file_ids))
+            if missing_refs:
+                raise ValueError(
+                    f"Scoped Audit finding targets are absent from current Atlas rows: {missing_refs}"
+                )
+            rows, skipped = self._audit_finding_rows(
+                conn,
+                payload,
+                allowed_refs=changed_refs,
+            )
+            if skipped:
+                raise ValueError(
+                    f"Scoped Audit finding composition has {skipped} unmapped row(s)."
+                )
+            conn.executemany(
+                "DELETE FROM findings WHERE engine_name = ? AND file_id = ?;",
+                [
+                    ("audit_report", file_ids[ref])
+                    for ref in sorted(changed_refs)
+                    if ref in file_ids
+                ],
+            )
+            conn.executemany(
+                """
+                INSERT INTO findings (engine_name, file_id, severity, code, message)
+                VALUES (?, ?, ?, ?, ?);
+                """,
+                rows,
+            )
+            self._write_audit_findings_manifest(conn, manifest)
+        logger.info(
+            "[SQLITE] Scoped Audit findings composed files=%s inserted=%s snapshot=%s.",
+            len(changed_refs),
+            len(rows),
+            manifest["snapshot_id"],
+        )
+        return {
+            "status": "COMPOSED",
+            "snapshot_id": manifest["snapshot_id"],
+            "files_replaced": len(changed_refs),
+            "findings_inserted": len(rows),
+            "composition_depth": manifest["composition_depth"],
+        }
 
     def backup(self, dest_zip_path: Path | None = None) -> Path:
         """Dump SQLite state payloads to a zip of standard raw JSON files."""

@@ -119,13 +119,22 @@ def _mentions_artifact(text: str, artifact_name: str) -> bool:
     return re.search(pattern, text) is not None
 
 
-def _external_raw_consumer_findings(path: Path, text: str) -> list[dict[str, Any]]:
+def _external_raw_consumer_findings(
+    path: Path,
+    text: str,
+    *,
+    tree: ast.AST | None = None,
+    syntax_error: SyntaxError | None = None,
+) -> list[dict[str, Any]]:
     """Reject shadow-only reads of registry-resolved external raw artifacts."""
     rel = _rel(path)
-    try:
-        tree = ast.parse(text, filename=rel)
-    except SyntaxError:
+    if syntax_error is not None:
         return []
+    if tree is None:
+        try:
+            tree = ast.parse(text, filename=rel)
+        except SyntaxError:
+            return []
     findings: list[dict[str, Any]] = []
     functions = (node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)))
     for function in functions:
@@ -156,7 +165,13 @@ def _external_raw_consumer_findings(path: Path, text: str) -> list[dict[str, Any
     return findings
 
 
-def _scan_file(path: Path, text: str | None = None) -> dict[str, dict[str, list[dict[str, Any]]]]:
+def _scan_file(
+    path: Path,
+    text: str | None = None,
+    *,
+    tree: ast.AST | None = None,
+    syntax_error: SyntaxError | None = None,
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
     if text is None:
         text = path.read_text(encoding="utf-8", errors="replace")
     rel = _rel(path)
@@ -173,12 +188,17 @@ def _scan_file(path: Path, text: str | None = None) -> dict[str, dict[str, list[
             if _mentions_artifact(line, artifact_name):
                 results[artifact_name]["references"].append({"file": rel, "line": line_no, "text": stripped[:180]})
 
-    try:
-        tree = ast.parse(text, filename=rel)
-    except SyntaxError as exc:
+    if syntax_error is not None:
         for artifact_name in present_artifacts:
-            results[artifact_name]["bad_direct_reads"].append({"file": rel, "line": exc.lineno or 0, "kind": "syntax_error"})
+            results[artifact_name]["bad_direct_reads"].append({"file": rel, "line": syntax_error.lineno or 0, "kind": "syntax_error"})
         return results
+    if tree is None:
+        try:
+            tree = ast.parse(text, filename=rel)
+        except SyntaxError as exc:
+            for artifact_name in present_artifacts:
+                results[artifact_name]["bad_direct_reads"].append({"file": rel, "line": exc.lineno or 0, "kind": "syntax_error"})
+            return results
 
     artifact_vars_by_name = {
         artifact_name: _artifact_path_variables(tree, artifact_name)
@@ -197,9 +217,11 @@ def _scan_file(path: Path, text: str | None = None) -> dict[str, dict[str, list[
             if (
                 call in {
                     "load_json_file",
+                    "load_raw_artifact_path",
                     "load_json_strict",
                     "_load_json",
                     "_load",
+                    "_load_claim_scoped_quality_input",
                     "_read_json_artifact",
                     "_artifact_or_missing",
                     "_failed_checks",
@@ -232,8 +254,26 @@ def validate() -> dict[str, Any]:
         if index == 1 or index % 100 == 0 or index == len(files):
             _log(f"SCAN files={index}/{len(files)}")
         file_text = file_path.read_text(encoding="utf-8", errors="replace")
-        external_raw_shadow_reads.extend(_external_raw_consumer_findings(file_path, file_text))
-        scanned_by_artifact = _scan_file(file_path, file_text)
+        try:
+            file_tree = ast.parse(file_text, filename=_rel(file_path))
+            syntax_error = None
+        except SyntaxError as exc:
+            file_tree = None
+            syntax_error = exc
+        external_raw_shadow_reads.extend(
+            _external_raw_consumer_findings(
+                file_path,
+                file_text,
+                tree=file_tree,
+                syntax_error=syntax_error,
+            )
+        )
+        scanned_by_artifact = _scan_file(
+            file_path,
+            file_text,
+            tree=file_tree,
+            syntax_error=syntax_error,
+        )
         for artifact_name, scanned in scanned_by_artifact.items():
             artifact_scan[artifact_name]["references"].extend(scanned["references"])
             artifact_scan[artifact_name]["proxy_loads"].extend(scanned["proxy_loads"])

@@ -9,6 +9,7 @@ from tools.core.json_syntax import loads_json_strict
 DEFAULT_PERSISTENCE_LIMITS: dict[str, int] = {
     "atlas_staging_batch_size": 128,
     "atlas_staging_file_payload_limit_bytes": 33554432,
+    "atlas_staging_file_aggregate_limit_bytes": 268435456,
     "state_payload_inline_limit_bytes": 8388608,
     "state_payload_part_size_bytes": 4194304,
 }

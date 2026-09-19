@@ -43,6 +43,7 @@ from tools.core.atlas_io import load_atlas_data
 from tools.core.json_io import load_json_file
 from tools.core.pipeline_registry import (
     catalog_args_from_execution_policy,
+    claim_owned_execution_plan,
     explicit_step_freshness_reuse_plan,
     filter_catalog_for_system_scope,
     load_pipeline_execution_policy,
@@ -801,9 +802,9 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
         from tools.engines.self_healing_generator import run_self_healing_generator
         run_self_healing_generator()
 
-    def run_quality_gates_impl():
+    def run_quality_gates_impl(execution_claim=None):
         from tools.engines.quality_gate import run_quality_gates
-        run_quality_gates()
+        run_quality_gates(execution_claim=execution_claim)
 
     def run_live_surface_impl():
         from tools.engines.live_surface_analyzer import run_live_surface_analyzer
@@ -1010,7 +1011,7 @@ def build_step_catalog(args, stale_projects=None, changed_files=None, atlas=None
         {"name": "React Capability Probe", "func": run_react_capability_probe_impl, "kwargs": {}, "heavy": False, "category": "derived", "depends_on": []},
         {"name": "Proof Obligations", "func": run_proof_obligations_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": ["Atlas", "Project DNA Profile", "Nuclear Sequencing", "Health Score", "React Support Matrix", "State Flow Scanner", "Dead Code Detector", "Circular Dependency Finder", "Audit", "Oracle Validation Gate"]},
         {"name": "Quality Review Oracle", "func": run_quality_review_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": ["Atlas", "Nuclear Sequencing", "Proof Obligations", "Health Score", "React Support Matrix", "State Flow Scanner", "Dead Code Detector", "Circular Dependency Finder", "Oracle Validation Gate"]},
-        {"name": "Quality Gates", "func": run_quality_gates_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": ["Atlas", "Project DNA Profile", "Nuclear Sequencing", "Audit", "Fractal Mapping", "State Flow Scanner", "Blast Radius Engine", "React Support Matrix", "Dead Code Detector", "Health Score", "UI Runtime Contract Analyzer", "Merge Dependency Packager", "Merge Simulation Engine", "Merge Decision Cockpit", "Proof Obligations", "Quality Review Oracle"]},
+        {"name": "Quality Gates", "func": run_quality_gates_impl, "kwargs": {}, "heavy": False, "category": "core", "accepts_execution_claim": True, "depends_on": ["Atlas", "Project DNA Profile", "Nuclear Sequencing", "Audit", "Fractal Mapping", "State Flow Scanner", "Blast Radius Engine", "React Support Matrix", "Dead Code Detector", "Health Score", "UI Runtime Contract Analyzer", "Merge Dependency Packager", "Merge Simulation Engine", "Merge Decision Cockpit", "Proof Obligations", "Quality Review Oracle"]},
         {"name": "Live Surface Analyzer", "func": run_live_surface_impl, "kwargs": {}, "heavy": False, "full_only": True, "category": "derived", "depends_on": ["Semantic Clone Detector", "Dead Code Detector", "Oracle Validation Gate"]},
         {"name": "Release Readiness", "func": run_release_readiness_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": ["Quality Gates", "Adapter Registry", "Distribution Hardening", "Entrypoint Failure Drills", "Merge Intelligence Regression", "Merge Decision Cockpit", "AI Task Pack Generator"]},
         {"name": "Artifact Contract Validation", "func": run_artifact_contract_validator_impl, "kwargs": {}, "heavy": False, "category": "core", "depends_on": ["Fractal Mapping", "Quality Gates", "Health Score", "Release Readiness", "Master Report Generation", "Nexora Operator Packet"]},
@@ -1123,6 +1124,9 @@ def execution_mode_for_run(
     if changed_files_override is not None:
         return "watchdog_save_pulse"
     profile = execution_profile(args)
+    declared_mode = str(_profile_policy(profile).get("execution_mode_id") or "").strip()
+    if declared_mode:
+        return declared_mode
     if profile in {"release-deep", "deep"}:
         return "release_deep"
     if profile == "daily":
@@ -1230,6 +1234,28 @@ def apply_execution_profile(selected, args):
                 len(removed),
                 ", ".join(removed[:12]) + ("..." if len(removed) > 12 else ""),
             )
+        claim_profile = str(profile_config.get("quality_gate_claim_profile") or "").strip()
+        if claim_profile:
+            claim_plan = claim_owned_execution_plan(
+                selected,
+                claim_profile,
+                projects=[item.strip() for item in str(getattr(args, "projects", "") or "").split(",") if item.strip()],
+            )
+            target = next(step for step in filtered if step["name"] == claim_plan["target_step"])
+            target["kwargs"] = {**dict(target.get("kwargs") or {}), "execution_claim": claim_plan}
+            args._execution_claim_plan = claim_plan
+        return filtered
+    if mode == "claim_closure":
+        claim_plan = claim_owned_execution_plan(
+            selected,
+            profile,
+            projects=[item.strip() for item in str(getattr(args, "projects", "") or "").split(",") if item.strip()],
+        )
+        selected_names = set(claim_plan["selected_steps"])
+        filtered = [step for step in selected if step["name"] in selected_names]
+        target = next(step for step in filtered if step["name"] == claim_plan["target_step"])
+        target["kwargs"] = {**dict(target.get("kwargs") or {}), "execution_claim": claim_plan}
+        args._execution_claim_plan = claim_plan
         return filtered
     return selected
 
@@ -1241,6 +1267,7 @@ def apply_capability_activation(selected, catalog, args, changed_files=None):
         or getattr(args, "from_step", None)
         or getattr(args, "force", False)
         or execution_profile(args) in {"release-deep", "deep"}
+        or _profile_policy(execution_profile(args)).get("mode") == "claim_closure"
     ):
         return selected
     try:
@@ -1422,6 +1449,9 @@ def select_steps_smart(
     selected = [step for step in catalog if should_include_step(step, args)]
     selected = apply_execution_profile(selected, args)
     selected = apply_capability_activation(selected, catalog, args, changed_files=changed_files)
+
+    if getattr(args, "_execution_claim_plan", None):
+        return selected
 
     if getattr(args, "from_step", None):
         match = find_step_matches(selected, args.from_step)
@@ -1667,9 +1697,9 @@ def main(args=None, changed_files_override=None):
         parser.add_argument("--no-smart", action="store_false", dest="smart_trigger", default=True, help="Disable smart engine gating")
         parser.add_argument(
             "--profile",
-            choices=["daily", "full", "release-bounded", "release-deep"],
+            choices=sorted(load_pipeline_execution_policy().get("execution_profiles", {})),
             default=None,
-            help="Execution profile: daily is iterative, release-bounded is the one-producer MAIN release integration profile, full preserves default analysis, and release-deep runs heavyweight validation.",
+            help="Execution profile: daily is iterative, target-quality derives a bounded target proof closure, release-bounded is the one-producer MAIN release integration profile, full preserves default analysis, and release-deep runs heavyweight validation.",
         )
         args = parser.parse_args()
 
@@ -1927,9 +1957,30 @@ def main(args=None, changed_files_override=None):
             )
     execution_contracts = _step_execution_contracts(steps)
     all_step_names = [s["name"] for s in steps]
+    execution_claim_plan = getattr(args, "_execution_claim_plan", None)
+    if isinstance(execution_claim_plan, dict):
+        logger.info(
+            "[PROOF_PLAN] profile=%s target=%s steps=%s projects=%s cost=%s claim=%s excluded=%s",
+            execution_claim_plan.get("profile"),
+            execution_claim_plan.get("target_step"),
+            execution_claim_plan.get("step_count"),
+            ",".join(execution_claim_plan.get("project_scope", {}).get("requested_projects", [])) or "discovered_target_scope",
+            execution_claim_plan.get("cost_band", {}).get("status"),
+            execution_claim_plan.get("claim_boundary"),
+            ",".join(execution_claim_plan.get("excluded_direct_dependency_slugs", [])),
+        )
     _pipeline_receipt_progress(
         "execution_planned",
         active_steps=all_step_names[:50],
+        execution_claim_profile=(execution_claim_plan or {}).get("profile"),
+        execution_claim_target_step=(execution_claim_plan or {}).get("target_step"),
+        execution_claim_step_count=(execution_claim_plan or {}).get("step_count"),
+        execution_claim_boundary=(execution_claim_plan or {}).get("claim_boundary"),
+        execution_claim_release_authority=(execution_claim_plan or {}).get("release_authority"),
+        execution_claim_projects=(execution_claim_plan or {}).get("project_scope", {}).get("requested_projects", []),
+        execution_claim_excluded_steps=(execution_claim_plan or {}).get("excluded_direct_dependency_slugs", []),
+        execution_claim_cost_status=(execution_claim_plan or {}).get("cost_band", {}).get("status"),
+        execution_claim_cost_basis=(execution_claim_plan or {}).get("cost_band", {}).get("basis"),
     )
     successful_steps = set()
     if any(s["name"] == "Atlas" for s in steps):

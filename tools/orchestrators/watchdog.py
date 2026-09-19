@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import subprocess
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import contextmanager
@@ -124,11 +125,14 @@ from tools.core.decision_ownership import find_owned_decision_copies
 from tools.core.path_identity import strip_current_directory_prefix
 from tools.core.source_files import is_analysis_source_file
 from tools.core.watchdog_runtime_contract import (
+    explicit_change_set_policy,
+    filesystem_event_acquisition_policy,
     load_watchdog_runtime_contract,
     validate_watchdog_audit_scope,
     watchdog_artifact_path,
     watchdog_integrity_state,
 )
+from tools.core.watchdog_event_acquisition import classify_filesystem_event_batch
 
 WATCH_EXTENSIONS = watch_extensions()
 IGNORED_PATH_FRAGMENTS = {"output", ".raw", "__pycache__"}
@@ -510,14 +514,45 @@ def _update_watchdog_pulse_ledger(
     }
 
 
+def _watchdog_pulse_ledger_snapshot(raw_dir: Path, debt_policy: dict) -> dict:
+    """Read the current ledger without advancing or resolving it for a non-analysis event batch."""
+    policy = _watchdog_pulse_ledger_policy(debt_policy)
+    if not policy["enabled"]:
+        return {"status": "disabled", "unresolved_unread_count": 0, "artifact": policy["artifact"]}
+    ledger = _load_watchdog_pulse_ledger(raw_dir / policy["artifact"])
+    summary = ledger.get("summary") if isinstance(ledger.get("summary"), dict) else {}
+    latest = ledger.get("latest_pulse") if isinstance(ledger.get("latest_pulse"), dict) else {}
+    entries = [row for row in ledger.get("entries", []) if isinstance(row, dict)]
+    return {
+        "status": str(summary.get("status") or ("HAS_UNRESOLVED" if entries else "CLEAR")),
+        "artifact": policy["artifact"],
+        "pulse_id": str(latest.get("pulse_id") or ""),
+        "entries": len(entries),
+        "unresolved_unread_count": int(summary.get("unresolved_unread_count") or 0),
+        "current_violation_count": int(summary.get("current_violation_count") or 0),
+        "current_violation_hashes": list(latest.get("current_violation_hashes") or []),
+        "proof_debt_state": ledger.get("proof_debt_state") if isinstance(ledger.get("proof_debt_state"), dict) else {},
+        "agent_rule": policy["agent_rule"],
+    }
+
+
 class CodeMapsHandler(FileSystemEventHandler):
     def __init__(self, debounce_seconds=1.5, display_root: Path | None = None, mode: str = "ADVISE"):
         self.debounce_seconds = debounce_seconds
         self.display_root = display_root
         self.mode = mode.upper()
+        self.event_acquisition_policy = filesystem_event_acquisition_policy()
+        self.observer_started_at = datetime.now(timezone.utc).isoformat()
+        self.observer_started_monotonic = time.monotonic()
+        self.observer_session_id = hashlib.sha256(
+            f"{os.getpid()}:{time.time_ns()}:{id(self)}".encode("utf-8")
+        ).hexdigest()[:16]
+        self.pulse_sequence = 0
         self.timer = None
         self.changed_files = set()
         self.change_events = {}
+        self.raw_event_count = 0
+        self.raw_event_ring = []
         self.lock = threading.Lock()
         self.is_running = False
         self.pending_followup = False
@@ -537,13 +572,33 @@ class CodeMapsHandler(FileSystemEventHandler):
         if not raw_path:
             return
         filepath = Path(raw_path)
-        if filepath.suffix not in WATCH_EXTENSIONS:
+        if filepath.suffix.lower() not in WATCH_EXTENSIONS:
             return
-        if any(fragment in str(filepath) for fragment in IGNORED_PATH_FRAGMENTS):
+        resolved_filepath = filepath.resolve()
+        try:
+            filter_root = (self.display_root or ROOT).resolve()
+            relative_parts = {part.lower() for part in resolved_filepath.relative_to(filter_root).parts}
+        except ValueError:
+            relative_parts = {part.lower() for part in resolved_filepath.parts}
+        if relative_parts.intersection(IGNORED_PATH_FRAGMENTS):
             return
 
         with self.lock:
             path_text = str(filepath)
+            observed_at = datetime.now(timezone.utc).isoformat()
+            self.raw_event_count += 1
+            self.raw_event_ring.append(
+                {
+                    "sequence": self.raw_event_count,
+                    "event_kind": str(event_kind),
+                    "path": path_text,
+                    "related_path": str(related_path or ""),
+                    "observed_at": observed_at,
+                }
+            )
+            ring_limit = max(1, int(self.event_acquisition_policy["provenance_ring_max_events"]))
+            if len(self.raw_event_ring) > ring_limit:
+                self.raw_event_ring = self.raw_event_ring[-ring_limit:]
             self.changed_files.add(path_text)
             previous = self.change_events.get(path_text, {})
             effective_kind = (
@@ -555,6 +610,9 @@ class CodeMapsHandler(FileSystemEventHandler):
                 "path": path_text,
                 "event_kind": effective_kind,
                 "related_path": str(related_path or previous.get("related_path") or ""),
+                "raw_event_count": int(previous.get("raw_event_count") or 0) + 1,
+                "first_observed_at": str(previous.get("first_observed_at") or observed_at),
+                "last_observed_at": observed_at,
             }
             if self.is_running:
                 self.pending_followup = True
@@ -599,33 +657,75 @@ class CodeMapsHandler(FileSystemEventHandler):
             self.changed_files.clear()
             for file_path in files_to_process:
                 self.change_events.pop(file_path, None)
+            raw_event_count = self.raw_event_count
+            raw_event_ring = list(self.raw_event_ring)
+            self.raw_event_count = 0
+            self.raw_event_ring.clear()
             self.is_running = True
             self.pending_followup = False
+            self.pulse_sequence += 1
 
-        self.run_analysis(
-            files_to_process,
-            watchdog_profile="live",
-            input_origin="filesystem_event",
-            acquisition={
-                "mode": "filesystem_events",
-                "change_events": events_to_process,
-                "selected_existing_files": [
-                    row["path"] for row in events_to_process if row.get("event_kind") not in {"delete", "rename_from"}
-                ],
-                "selected_tombstones": [
-                    row["path"] for row in events_to_process if row.get("event_kind") in {"delete", "rename_from"}
-                ],
-                "omitted_existing_count": 0,
-                "omitted_tombstone_count": 0,
-                "tombstone_coverage_complete": True,
-            },
+        try:
+            seconds_since_start = max(0.0, time.monotonic() - self.observer_started_monotonic)
+            indexed_paths, baseline = _canonical_indexed_watch_baseline(files_to_process)
+            acquisition = classify_filesystem_event_batch(
+                events_to_process,
+                indexed_paths=indexed_paths,
+                baseline=baseline,
+                policy=self.event_acquisition_policy,
+                provenance={
+                    "observer_session_id": self.observer_session_id,
+                    "observer_started_at": self.observer_started_at,
+                    "pulse_sequence": self.pulse_sequence,
+                    "seconds_since_observer_start": seconds_since_start,
+                    "cold_start": seconds_since_start
+                    <= float(self.event_acquisition_policy["cold_start_window_seconds"]),
+                    "raw_event_count": raw_event_count,
+                    "event_ring": raw_event_ring,
+                },
+            )
+            files_to_process = list(acquisition.get("selected_files") or [])
+            decision = acquisition.get("scope_decision") if isinstance(acquisition.get("scope_decision"), dict) else {}
+            if decision.get("status") in {"no_content_change", "operator_confirmation_required"}:
+                self._record_acquisition_only_session(acquisition)
+            else:
+                self.run_analysis(
+                    files_to_process,
+                    watchdog_profile="live",
+                    input_origin="filesystem_event",
+                    acquisition=acquisition,
+                )
+        finally:
+            with self.lock:
+                self.is_running = False
+                if self.changed_files:
+                    self.pending_followup = False
+                    self._schedule_trigger_locked()
+
+    def _record_acquisition_only_session(self, acquisition: dict):
+        decision = acquisition.get("scope_decision") if isinstance(acquisition.get("scope_decision"), dict) else {}
+        status = str(decision.get("status") or "operator_confirmation_required")
+        message = (
+            "No source content changed; metadata-only filesystem notifications were recorded without analysis."
+            if status == "no_content_change"
+            else "Ambiguous broad filesystem scope was held intact for operator confirmation; no partial analysis ran."
         )
-
-        with self.lock:
-            self.is_running = False
-            if self.changed_files:
-                self.pending_followup = False
-                self._schedule_trigger_locked()
+        console.print(f"[bold yellow][WATCHDOG][/bold yellow] {message}")
+        return self.write_session_report(
+            [],
+            0.0,
+            [],
+            {
+                "status": "not_run",
+                "scope_match": False,
+                "scope_status": "empty",
+                "reason": str(decision.get("reason") or status),
+            },
+            load_watchdog_runtime_contract()["integrity_states"]["unknown"],
+            input_origin="filesystem_event",
+            acquisition=acquisition,
+            analysis_status=status,
+        )
 
     def run_analysis(
         self,
@@ -1090,6 +1190,7 @@ class CodeMapsHandler(FileSystemEventHandler):
         integrity_state: str | None = None,
         input_origin: str = "explicit_scope",
         acquisition: dict | None = None,
+        analysis_status: str = "completed",
     ):
         from tools.core.config import RAW_DIR, REPORTS_DIR, ROOT, save_json_atomic, save_text_atomic
 
@@ -1099,6 +1200,12 @@ class CodeMapsHandler(FileSystemEventHandler):
         integrity_state = integrity_state or watchdog_integrity_state(violations, scope_validation)
         shortened_files = [self._session_repo_relative_path(file_label) for file_label in files]
         acquisition = acquisition if isinstance(acquisition, dict) else {}
+        scope_decision = acquisition.get("scope_decision") if isinstance(acquisition.get("scope_decision"), dict) else {}
+        event_provenance = (
+            acquisition.get("filesystem_event_provenance")
+            if isinstance(acquisition.get("filesystem_event_provenance"), dict)
+            else {}
+        )
         change_events = []
         for row in acquisition.get("change_events") or []:
             if not isinstance(row, dict):
@@ -1107,11 +1214,36 @@ class CodeMapsHandler(FileSystemEventHandler):
                 {
                     "path": self._session_repo_relative_path(row.get("path") or ""),
                     "event_kind": str(row.get("event_kind") or "unknown"),
+                    "observed_event_kind": str(row.get("observed_event_kind") or row.get("event_kind") or "unknown"),
                     "related_path": (
                         self._session_repo_relative_path(row.get("related_path"))
                         if row.get("related_path")
                         else ""
                     ),
+                    "previously_indexed": bool(row.get("previously_indexed")),
+                    "target_ref": str(row.get("target_ref") or ""),
+                    "content_identity_status": str(row.get("content_identity_status") or "not_evaluated"),
+                    "disposition": str(row.get("disposition") or "not_evaluated"),
+                    "raw_event_count": int(row.get("raw_event_count") or 1),
+                    "first_observed_at": str(row.get("first_observed_at") or ""),
+                    "last_observed_at": str(row.get("last_observed_at") or ""),
+                }
+            )
+        event_ring = []
+        for row in event_provenance.get("event_ring") or []:
+            if not isinstance(row, dict):
+                continue
+            event_ring.append(
+                {
+                    "sequence": int(row.get("sequence") or 0),
+                    "event_kind": str(row.get("event_kind") or "unknown"),
+                    "path": self._session_repo_relative_path(row.get("path") or ""),
+                    "related_path": (
+                        self._session_repo_relative_path(row.get("related_path"))
+                        if row.get("related_path")
+                        else ""
+                    ),
+                    "observed_at": str(row.get("observed_at") or ""),
                 }
             )
         from tools.core.watchdog_target_context import current_watchdog_target_descriptor
@@ -1129,12 +1261,16 @@ class CodeMapsHandler(FileSystemEventHandler):
             if input_origin == "smoke_sample"
             else shortened_files
         )
-        pulse_ledger = _update_watchdog_pulse_ledger(
-            RAW_DIR,
-            actual_changed_files,
-            violations[:25],
-            debt_policy,
-            target_descriptor,
+        pulse_ledger = (
+            _update_watchdog_pulse_ledger(
+                RAW_DIR,
+                actual_changed_files,
+                violations[:25],
+                debt_policy,
+                target_descriptor,
+            )
+            if analysis_status == "completed"
+            else _watchdog_pulse_ledger_snapshot(RAW_DIR, debt_policy)
         )
         debt_state = pulse_ledger.get("proof_debt_state") if isinstance(pulse_ledger.get("proof_debt_state"), dict) else {}
         debt_thresholds = debt_state.get("thresholds") if isinstance(debt_state.get("thresholds"), dict) else {}
@@ -1160,6 +1296,8 @@ class CodeMapsHandler(FileSystemEventHandler):
             "kind": (
                 "synthetic_smoke_validation"
                 if input_origin == "smoke_sample"
+                else "explicit_change_set_invocation"
+                if input_origin == "explicit_change_set"
                 else "live_filesystem_observer"
                 if input_origin == "filesystem_event"
                 else "explicit_scope_invocation"
@@ -1176,6 +1314,7 @@ class CodeMapsHandler(FileSystemEventHandler):
             },
             "summary": {
                 "input_origin": input_origin,
+                "analysis_status": analysis_status,
                 "input_files": len(files),
                 "changed_files": len(actual_changed_files),
                 "sample_files": len(shortened_files) if input_origin == "smoke_sample" else 0,
@@ -1183,6 +1322,14 @@ class CodeMapsHandler(FileSystemEventHandler):
                 "selected_tombstones": len(acquisition.get("selected_tombstones") or []),
                 "omitted_existing_files": int(acquisition.get("omitted_existing_count") or 0),
                 "omitted_tombstones": int(acquisition.get("omitted_tombstone_count") or 0),
+                "raw_event_count": int(event_provenance.get("raw_event_count") or 0),
+                "deduplicated_path_count": int(event_provenance.get("deduplicated_path_count") or 0),
+                "metadata_only_count": int(scope_decision.get("unchanged_path_count") or 0),
+                "unknown_path_count": int(scope_decision.get("unknown_path_count") or 0),
+                "scope_decision_status": str(scope_decision.get("status") or "not_evaluated"),
+                "requested_path_count": int(acquisition.get("requested_path_count") or len(files)),
+                "duplicate_path_count": int(acquisition.get("duplicate_path_count") or 0),
+                "rejected_path_count": int(acquisition.get("rejected_path_count") or 0),
                 "elapsed_seconds": round(float(elapsed), 3),
                 "integrity": integrity_state,
                 "violation_count": len(violations),
@@ -1224,6 +1371,28 @@ class CodeMapsHandler(FileSystemEventHandler):
                 "omitted_existing_count": int(acquisition.get("omitted_existing_count") or 0),
                 "omitted_tombstone_count": int(acquisition.get("omitted_tombstone_count") or 0),
                 "tombstone_coverage_complete": bool(acquisition.get("tombstone_coverage_complete", True)),
+                "omitted_unchanged_count": int(acquisition.get("omitted_unchanged_count") or 0),
+                "omitted_transient_count": int(acquisition.get("omitted_transient_count") or 0),
+                "held_file_count": len(acquisition.get("held_files") or []),
+                "requested_path_count": int(acquisition.get("requested_path_count") or len(files)),
+                "duplicate_path_count": int(acquisition.get("duplicate_path_count") or 0),
+                "duplicate_entries": [
+                    {
+                        "path": str(row.get("path") or ""),
+                        "canonical_path": self._session_repo_relative_path(row.get("canonical_path") or ""),
+                        "reason": str(row.get("reason") or "duplicate_canonical_path"),
+                    }
+                    for row in acquisition.get("duplicate_entries") or []
+                    if isinstance(row, dict)
+                ],
+                "rejected_path_count": int(acquisition.get("rejected_path_count") or 0),
+                "scope_decision": dict(scope_decision),
+                "filesystem_event_provenance": {
+                    key: value
+                    for key, value in event_provenance.items()
+                    if key != "event_ring"
+                }
+                | {"event_ring": event_ring},
             },
             "violations": violations[:25],
         }
@@ -1298,6 +1467,7 @@ class CodeMapsHandler(FileSystemEventHandler):
             "",
             f"- generated_at: `{meta.get('generated_at')}`",
             f"- input_origin: `{summary.get('input_origin')}`",
+            f"- analysis_status: `{summary.get('analysis_status')}`",
             f"- input_files: `{summary.get('input_files')}`",
             f"- changed_files: `{summary.get('changed_files')}`",
             f"- elapsed_seconds: `{summary.get('elapsed_seconds')}`",
@@ -1308,6 +1478,14 @@ class CodeMapsHandler(FileSystemEventHandler):
             f"- evidence_scope: `{summary.get('evidence_scope')}`",
             f"- claim_boundary: `{summary.get('claim_boundary')}`",
             f"- not_release_proof: `{summary.get('not_release_proof')}`",
+            f"- raw_event_count: `{summary.get('raw_event_count')}`",
+            f"- deduplicated_path_count: `{summary.get('deduplicated_path_count')}`",
+            f"- metadata_only_count: `{summary.get('metadata_only_count')}`",
+            f"- unknown_path_count: `{summary.get('unknown_path_count')}`",
+            f"- scope_decision_status: `{summary.get('scope_decision_status')}`",
+            f"- requested_path_count: `{summary.get('requested_path_count')}`",
+            f"- duplicate_path_count: `{summary.get('duplicate_path_count')}`",
+            f"- rejected_path_count: `{summary.get('rejected_path_count')}`",
             f"- scoped_audit_status: `{(session.get('scoped_audit_validation') or {}).get('status')}`",
             f"- scoped_audit_scope_status: `{(session.get('scoped_audit_validation') or {}).get('scope_status')}`",
             f"- scoped_audit_request_match: `{(session.get('scoped_audit_validation') or {}).get('request_match')}`",
@@ -1457,11 +1635,11 @@ class CodeMapsHandler(FileSystemEventHandler):
         return strip_current_directory_prefix(normalized)
 
 
-def _canonical_indexed_watch_paths() -> dict[Path, dict]:
+def _canonical_indexed_watch_paths(atlas: dict | None = None) -> dict[Path, dict]:
     """Project current Atlas membership into filesystem identities for event acquisition."""
     from tools.core.projects_registry import resolve_runtime_projects
 
-    atlas = orchestrator.load_atlas_data()
+    atlas = atlas if isinstance(atlas, dict) else orchestrator.load_atlas_data()
     projects = resolve_runtime_projects(ROOT)
     indexed: dict[Path, dict] = {}
     for project_key, project_data in (atlas.items() if isinstance(atlas, dict) else []):
@@ -1469,7 +1647,7 @@ def _canonical_indexed_watch_paths() -> dict[Path, dict]:
         files = project_data.get("files") if isinstance(project_data, dict) else None
         if project_root is None or not isinstance(files, dict):
             continue
-        for rel_path in files:
+        for rel_path, file_meta in files.items():
             try:
                 absolute = (Path(project_root) / str(rel_path)).resolve()
                 absolute.relative_to(ROOT.resolve())
@@ -1479,8 +1657,99 @@ def _canonical_indexed_watch_paths() -> dict[Path, dict]:
                 "project": str(project_key),
                 "rel_path": str(rel_path).replace("\\", "/"),
                 "target_ref": f"{project_key}::{str(rel_path).replace(chr(92), '/')}",
+                "hash": str(file_meta.get("hash") or "") if isinstance(file_meta, dict) else "",
+                "mtime": file_meta.get("mtime") if isinstance(file_meta, dict) else None,
+                "size": file_meta.get("size") if isinstance(file_meta, dict) else None,
             }
     return indexed
+
+
+def _canonical_indexed_watch_baseline(candidate_paths: list[str] | None = None) -> tuple[dict[Path, dict], dict]:
+    """Return indexed paths plus an explicit trust verdict for content-identity filtering."""
+    from tools.core.analysis_snapshot_lineage import load_atlas_commit
+    from tools.core.atlas_integrity import validate_atlas_commit
+    from tools.core.config import RAW_DIR
+    from tools.core.json_io import raw_artifact_content_fingerprint
+    from tools.core.projects_registry import resolve_project_for_path, resolve_runtime_projects
+
+    commit = load_atlas_commit(RAW_DIR)
+    payload_identity = raw_artifact_content_fingerprint(RAW_DIR / "atlas.json")
+    expected_identity = f"sqlite:{str(commit.get('atlas_sha256') or '')}"
+    commit_meta = commit.get("meta") if isinstance(commit.get("meta"), dict) else {}
+    sqlite_current = (
+        isinstance(commit, dict)
+        and commit.get("state") == "complete"
+        and commit_meta.get("kind") == "nexora.atlas_commit"
+        and bool(str(commit.get("snapshot_id") or ""))
+        and payload_identity == expected_identity
+    )
+    if sqlite_current and candidate_paths:
+        import sqlite3
+
+        indexed: dict[Path, dict] = {}
+        projects = resolve_runtime_projects(ROOT)
+        db_path = RAW_DIR / "codemaps.db"
+        uri = f"{db_path.resolve().as_uri()}?mode=ro"
+        try:
+            with closing(sqlite3.connect(uri, uri=True)) as conn:
+                conn.row_factory = sqlite3.Row
+                commit_counts = commit.get("counts") if isinstance(commit.get("counts"), dict) else {}
+                expected_file_count_raw = commit_counts.get("files")
+                if not isinstance(expected_file_count_raw, int) or isinstance(expected_file_count_raw, bool):
+                    raise ValueError("Atlas commit is missing an integer files count")
+                expected_file_count = expected_file_count_raw
+                actual_file_count = int(conn.execute("SELECT COUNT(*) FROM files;").fetchone()[0])
+                if actual_file_count != expected_file_count:
+                    raise ValueError(
+                        f"SQLite files index count does not match Atlas commit: {actual_file_count} != {expected_file_count}"
+                    )
+                for raw_path in candidate_paths:
+                    resolved = Path(str(raw_path)).resolve()
+                    project_key = resolve_project_for_path(ROOT, resolved, projects)
+                    project_root = projects.get(str(project_key)) if project_key else None
+                    if project_root is None:
+                        continue
+                    rel_path = resolved.relative_to(Path(project_root).resolve()).as_posix()
+                    row = conn.execute(
+                        "SELECT project_key, rel_path, hash, size_bytes FROM files WHERE project_key = ? AND rel_path = ?;",
+                        (str(project_key), rel_path),
+                    ).fetchone()
+                    if row is None:
+                        continue
+                    indexed[resolved] = {
+                        "project": str(row["project_key"]),
+                        "rel_path": str(row["rel_path"]),
+                        "target_ref": f"{row['project_key']}::{row['rel_path']}",
+                        "hash": str(row["hash"] or ""),
+                        "size": int(row["size_bytes"] or 0),
+                    }
+            return indexed, {
+                "status": "current",
+                "authority": "exact_committed_canonical_atlas_file_hash",
+                "truth_source": "sqlite_state_payload_identity_plus_files_index",
+                "snapshot_id": str(commit.get("snapshot_id") or ""),
+                "reason": "atlas_commit_matches_sqlite_payload",
+                "failed_checks": [],
+            }
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            logger.warning("[WATCHDOG] SQLite event baseline unavailable; using validated Atlas fallback: %s", exc)
+
+    atlas = orchestrator.load_atlas_data()
+    checks = (
+        validate_atlas_commit(atlas, commit)
+        if isinstance(atlas, dict) and atlas and isinstance(commit, dict) and commit
+        else []
+    )
+    failures = [str(row.get("name") or "unknown") for row in checks if not row.get("passed")]
+    current = bool(checks) and not failures
+    return _canonical_indexed_watch_paths(atlas), {
+        "status": "current" if current else "unavailable",
+        "authority": "exact_committed_canonical_atlas_file_hash",
+        "snapshot_id": str(commit.get("snapshot_id") or "") if current else "",
+        "truth_source": "validated_atlas_payload_fallback" if current else "unavailable",
+        "reason": "atlas_commit_valid" if current else ("atlas_commit_invalid" if failures else "atlas_commit_missing"),
+        "failed_checks": failures[:20],
+    }
 
 
 def _watch_change_event(path: Path, indexed_paths: dict[Path, dict]) -> dict:
@@ -1608,25 +1877,219 @@ def resolve_watch_input_path(path_to_watch) -> Path:
     return next((candidate for candidate in allowed if candidate.exists()), allowed[0])
 
 
+def _watch_path_values(path_to_watch) -> list[str]:
+    if isinstance(path_to_watch, (str, Path)):
+        values = [path_to_watch]
+    elif isinstance(path_to_watch, (list, tuple)):
+        values = list(path_to_watch)
+    else:
+        values = []
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def collect_watch_input_selection(path_to_watch) -> dict:
+    """Resolve one smoke path or one atomic, explicit multi-file change set."""
+    policy = explicit_change_set_policy()
+    requested = _watch_path_values(path_to_watch)
+    max_paths = int(policy["max_paths"])
+    if not requested:
+        return {
+            "status": "rejected",
+            "mode": "explicit_change_set_rejected",
+            "reason": "missing_watch_path",
+            "requested_path_count": 0,
+            "selected_files": [],
+            "rejected_entries": [{"path": "", "reason": "missing_watch_path"}],
+            "duplicate_entries": [],
+        }
+    if len(requested) > max_paths:
+        return {
+            "status": "rejected",
+            "mode": "explicit_change_set_rejected",
+            "reason": "max_explicit_paths_exceeded",
+            "requested_path_count": len(requested),
+            "max_paths": max_paths,
+            "selected_files": [],
+            "rejected_entries": [
+                {
+                    "path": "<explicit-change-set>",
+                    "reason": "max_explicit_paths_exceeded",
+                    "requested_path_count": len(requested),
+                    "max_paths": max_paths,
+                }
+            ],
+            "duplicate_entries": [],
+        }
+
+    resolved_entries = []
+    rejected_entries = []
+    duplicate_entries = []
+    seen: dict[str, str] = {}
+    for raw_path in requested:
+        try:
+            resolved = resolve_watch_input_path(raw_path)
+        except ValueError as exc:
+            rejected_entries.append(
+                {"path": raw_path, "canonical_path": "", "reason": "repository_root_escape", "detail": str(exc)}
+            )
+            continue
+        canonical_path = str(resolved)
+        identity = os.path.normcase(canonical_path)
+        if identity in seen:
+            duplicate_entries.append(
+                {
+                    "path": raw_path,
+                    "canonical_path": canonical_path,
+                    "reason": "duplicate_canonical_path",
+                    "first_path": seen[identity],
+                }
+            )
+            continue
+        seen[identity] = raw_path
+        resolved_entries.append({"path": raw_path, "resolved": resolved})
+
+    multi_path_request = len(requested) > 1
+    if not multi_path_request and not rejected_entries and len(resolved_entries) == 1:
+        resolved = resolved_entries[0]["resolved"]
+        selection = collect_smoke_file_selection(resolved)
+        selection.update(
+            {
+                "status": "accepted",
+                "requested_path_count": 1,
+                "resolved_paths": [str(resolved)],
+                "duplicate_path_count": 0,
+                "duplicate_entries": [],
+                "rejected_path_count": 0,
+                "rejected_entries": [],
+                "max_paths": max_paths,
+            }
+        )
+        return selection
+
+    candidate_paths = [str(row["resolved"]) for row in resolved_entries]
+    if candidate_paths:
+        indexed_paths, baseline = _canonical_indexed_watch_baseline(candidate_paths)
+    else:
+        indexed_paths, baseline = {}, {
+            "status": "not_evaluated",
+            "reason": "no_repository_bounded_candidate_paths",
+        }
+    accepted_entries = []
+    for row in resolved_entries:
+        raw_path = row["path"]
+        resolved = row["resolved"]
+        canonical_path = str(resolved)
+        indexed = indexed_paths.get(resolved.resolve())
+        if resolved.is_dir():
+            rejected_entries.append(
+                {
+                    "path": raw_path,
+                    "canonical_path": canonical_path,
+                    "reason": "directory_not_allowed_in_explicit_change_set",
+                }
+            )
+        elif resolved.is_file():
+            if resolved.suffix.lower() not in WATCH_EXTENSIONS or not is_analysis_source_file(canonical_path):
+                rejected_entries.append(
+                    {"path": raw_path, "canonical_path": canonical_path, "reason": "unsupported_analysis_source"}
+                )
+            else:
+                accepted_entries.append(
+                    {"path": raw_path, "canonical_path": canonical_path, "entry_kind": "existing_supported_source"}
+                )
+        elif indexed is not None and baseline.get("status") == "current":
+            accepted_entries.append(
+                {"path": raw_path, "canonical_path": canonical_path, "entry_kind": "current_atlas_tombstone"}
+            )
+        elif indexed is not None:
+            rejected_entries.append(
+                {
+                    "path": raw_path,
+                    "canonical_path": canonical_path,
+                    "reason": "canonical_atlas_baseline_unavailable_for_tombstone",
+                }
+            )
+        else:
+            rejected_entries.append(
+                {"path": raw_path, "canonical_path": canonical_path, "reason": "missing_path_not_in_canonical_atlas"}
+            )
+
+    rejected = bool(rejected_entries)
+    selected_files = [] if rejected else [row["canonical_path"] for row in accepted_entries]
+    change_events = [] if rejected else [
+        _watch_change_event(Path(path), indexed_paths)
+        for path in selected_files
+    ]
+    selected_tombstones = [
+        row["canonical_path"] for row in accepted_entries if row["entry_kind"] == "current_atlas_tombstone"
+    ] if not rejected else []
+    selected_existing = [
+        row["canonical_path"] for row in accepted_entries if row["entry_kind"] == "existing_supported_source"
+    ] if not rejected else []
+    return {
+        "status": "rejected" if rejected else "accepted",
+        "mode": "explicit_change_set_rejected" if rejected else "explicit_change_set",
+        "reason": "invalid_explicit_change_set" if rejected else "all_explicit_paths_accepted",
+        "requested_path_count": len(requested),
+        "resolved_paths": candidate_paths,
+        "candidate_count": len(accepted_entries) + len(rejected_entries),
+        "candidate_files": [row["canonical_path"] for row in accepted_entries],
+        "selected_files": selected_files,
+        "selected_existing_files": selected_existing,
+        "selected_tombstones": selected_tombstones,
+        "change_events": change_events,
+        "duplicate_path_count": len(duplicate_entries),
+        "duplicate_entries": duplicate_entries,
+        "rejected_path_count": len(rejected_entries),
+        "rejected_entries": rejected_entries,
+        "omitted_count": 0,
+        "omitted_existing_count": 0,
+        "omitted_tombstone_count": 0,
+        "tombstone_coverage_complete": True,
+        "max_paths": max_paths,
+        "baseline": baseline,
+        "silent_scope_truncation": False,
+    }
+
+
 def run_watchdog_once(path_to_watch, debounce, mode="ADVISE"):
     os.environ["SAGE_SYNC_SHADOW_WRITES"] = "1"
-    try:
-        watch_path = resolve_watch_input_path(path_to_watch)
-    except ValueError as exc:
-        console.print(f"[bold red]Error:[/bold red] {exc}")
+    selection = collect_watch_input_selection(path_to_watch)
+    if selection.get("status") == "rejected":
+        details = "\n".join(
+            f"- [{row.get('reason', 'invalid_path')}] {row.get('path', '')}"
+            for row in selection.get("rejected_entries") or []
+            if isinstance(row, dict)
+        )
+        console.print(
+            "[bold red]Error:[/bold red] Explicit Watchdog change set was rejected without partial analysis."
+            + (f"\n{details}" if details else "")
+        )
         return 1
-    selection = collect_smoke_file_selection(watch_path)
     files = selection["selected_files"]
     if not files:
-        location = "at" if watch_path.is_file() else "under or previously indexed at"
+        resolved_paths = selection.get("resolved_paths") or _watch_path_values(path_to_watch)
         console.print(
-            f"[bold yellow]Warning:[/bold yellow] No supported analysis source file found {location} {watch_path}."
+            "[bold yellow]Warning:[/bold yellow] No supported analysis source file found at or under "
+            + ", ".join(map(str, resolved_paths))
+            + "."
         )
         return 1
 
     selection_mode = str(selection["mode"])
-    input_origin = "explicit_scope" if selection_mode in {"exact_file", "exact_tombstone"} else "smoke_sample"
-    display_root = watch_path.parent if selection_mode in {"exact_file", "exact_tombstone"} else watch_path
+    input_origin = (
+        "explicit_change_set"
+        if selection_mode == "explicit_change_set"
+        else "explicit_scope"
+        if selection_mode in {"exact_file", "exact_tombstone"}
+        else "smoke_sample"
+    )
+    if selection_mode in {"exact_file", "exact_tombstone"}:
+        display_root = Path(files[0]).parent
+    elif selection_mode == "explicit_change_set":
+        display_root = ROOT
+    else:
+        display_root = Path((selection.get("resolved_paths") or [ROOT])[0])
     handler = CodeMapsHandler(debounce_seconds=debounce, display_root=display_root, mode=mode)
     event_by_path = {
         str(row.get("path")): str(row.get("event_kind") or "unknown")
@@ -1637,11 +2100,23 @@ def run_watchdog_once(path_to_watch, debounce, mode="ADVISE"):
         f"- [{event_by_path.get(str(Path(file_path).resolve()), 'unknown')}] {file_path}"
         for file_path in files
     )
+    scope_label = (
+        f"{selection.get('requested_path_count', len(files))} explicit paths"
+        if selection_mode == "explicit_change_set"
+        else str((selection.get("resolved_paths") or [files[0]])[0])
+    )
+    heading = (
+        "Nexora SAGE Watchdog Change Set"
+        if selection_mode == "explicit_change_set"
+        else "Nexora SAGE Watchdog Smoke"
+    )
     console.print(
         Panel(
-            "[bold cyan]Nexora SAGE Watchdog Smoke[/bold cyan]\n\n"
-            f"Path: [yellow]{watch_path}[/yellow]\n"
+            f"[bold cyan]{heading}[/bold cyan]\n\n"
+            f"Path scope: [yellow]{scope_label}[/yellow]\n"
             f"Selection mode: [bold white]{selection_mode}[/bold white]\n"
+            f"Requested paths: [bold white]{selection.get('requested_path_count', 1)}[/bold white]\n"
+            f"Duplicate paths: [bold white]{selection.get('duplicate_path_count', 0)}[/bold white]\n"
             f"Selected files: [bold white]{len(files)}[/bold white]\n"
             f"Candidate files: [bold white]{selection['candidate_count']}[/bold white]\n"
             f"Omitted files: [bold white]{selection['omitted_count']}[/bold white]\n"
@@ -1651,7 +2126,7 @@ def run_watchdog_once(path_to_watch, debounce, mode="ADVISE"):
             f"Governance Mode: [bold {'green' if mode == 'ENFORCE' else 'yellow' if mode == 'ADVISE' else 'blue'}]{mode}[/]\n"
             "Mode: [bold cyan]single incremental pulse[/bold cyan]",
             title="Nexora SAGE",
-            subtitle="Watchdog smoke validation",
+            subtitle="Watchdog bounded validation",
             box=box.DOUBLE,
         )
     )
@@ -1734,12 +2209,16 @@ if __name__ == "__main__":
     default_mode = config_data.get("governance", {}).get("mode", "ADVISE")
 
     parser = argparse.ArgumentParser(description="Run the Nexora SAGE incremental watchdog service.")
-    parser.add_argument("--path", default=str(DEFAULT_WATCH_PATH), help="Directory to watch")
+    parser.add_argument("--path", action="append", help="Exact source path; repeat with --once for one bounded change set, or pass one directory for smoke/live watch")
     parser.add_argument("--debounce", type=float, default=1.5, help="Seconds to wait after edits settle")
     parser.add_argument("--once", action="store_true", help="Run a single smoke incremental pulse instead of starting the long-lived observer")
     parser.add_argument("--mode", choices=["OBSERVE", "ADVISE", "ENFORCE"], default=default_mode, help=f"Governance mode (default from config: {default_mode})")
     args = parser.parse_args()
 
+    path_values = args.path or [str(DEFAULT_WATCH_PATH)]
     if args.once:
-        raise SystemExit(run_watchdog_once(args.path, args.debounce, mode=args.mode))
-    raise SystemExit(start_watchdog(args.path, args.debounce, mode=args.mode))
+        raise SystemExit(run_watchdog_once(path_values, args.debounce, mode=args.mode))
+    if len(path_values) != 1:
+        console.print("[bold red]Error:[/bold red] Live watchdog accepts one directory; repeated --path is only valid with --once.")
+        raise SystemExit(1)
+    raise SystemExit(start_watchdog(path_values[0], args.debounce, mode=args.mode))

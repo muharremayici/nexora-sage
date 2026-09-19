@@ -64,6 +64,51 @@ def test_absent_policy_signal_is_unknown_not_disabled(tmp_path: Path) -> None:
     assert profile["absence_semantics"] == "not_observed_does_not_prove_absence_or_disable_a_rule"
 
 
+def test_formatter_and_test_runner_configs_join_existing_policy_inventory(tmp_path: Path) -> None:
+    package = {
+        "scripts": {
+            "format": "prettier --check .",
+            "test": "vitest run",
+            "test:unit": "jest",
+        },
+        "devDependencies": {
+            "prettier": "3.6.0",
+            "vitest": "3.2.0",
+            "jest": "30.0.0",
+        },
+    }
+    package_path = tmp_path / "package.json"
+    _write_json(package_path, package)
+    _write_json(tmp_path / ".prettierrc.json", {"semi": False})
+    (tmp_path / "vitest.config.ts").write_text(
+        "throw new Error('target config must never execute');\n",
+        encoding="utf-8",
+    )
+    _write_json(tmp_path / "jest.config.json", {"testEnvironment": "node"})
+
+    profile = inventory_project_target_policy(
+        tmp_path,
+        project="MAIN",
+        package_json=package,
+        package_path=package_path,
+        workspace_root=tmp_path,
+    )
+
+    assert profile["declared_tools"] == ["jest", "prettier", "vitest"]
+    assert all(row["native_execution"] == "not_run" for row in profile["tools"])
+    assert all(row["policy_adapter"] == "inventory_only" for row in profile["tools"])
+    prettier = next(row for row in profile["tools"] if row["id"] == "prettier")
+    assert prettier["config_files"][0]["static_projection"] == {
+        "status": "inventory_only_config_identity",
+        "tool_state": "unknown",
+    }
+    vitest = next(row for row in profile["tools"] if row["id"] == "vitest")
+    assert vitest["config_files"][0]["static_projection"] == {
+        "status": "executable_config_not_statically_resolved",
+        "tool_state": "unknown",
+    }
+
+
 def test_biome_literal_policy_projects_tool_and_scoped_rule_states(tmp_path: Path) -> None:
     biome = {
         "linter": {

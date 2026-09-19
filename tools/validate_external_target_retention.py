@@ -15,9 +15,13 @@ from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_
 from tools.core.external_target_retention import (
     DEFAULT_KEEP_PER_PREFIX,
     EXTERNAL_TARGETS_DIR,
+    GENERATION_INDEX_RETENTION_TARGET_ID,
     GENERATED_FIXTURE_PREFIXES,
+    FIXTURE_LEASE_DIR_NAME,
+    RETENTION_POLICY_PATH,
     RETENTION_TARGET_ID,
     external_target_retention_inventory,
+    generation_history_limits,
     prune_generated_external_target_fixtures,
 )
 
@@ -36,6 +40,25 @@ def _check(name: str, passed: bool, details: Any = None) -> dict[str, Any]:
 
 def validate_external_target_retention() -> dict[str, Any]:
     inventory = external_target_retention_inventory()
+    policy = json.loads(RETENTION_POLICY_PATH.read_text(encoding="utf-8"))
+    retention_policy = next(
+        (
+            row
+            for row in policy.get("retention_targets", [])
+            if isinstance(row, dict) and row.get("id") == RETENTION_TARGET_ID
+        ),
+        {},
+    )
+    generation_policy = next(
+        (
+            row
+            for row in policy.get("retention_targets", [])
+            if isinstance(row, dict)
+            and row.get("id") == GENERATION_INDEX_RETENTION_TARGET_ID
+        ),
+        {},
+    )
+    max_manifest_scan, max_history_entries = generation_history_limits()
     dry_run = prune_generated_external_target_fixtures(keep_per_prefix=DEFAULT_KEEP_PER_PREFIX, dry_run=True)
     probe_name = "_sage_user_scoped_retention_probe"
     probe_dir = EXTERNAL_TARGETS_DIR / probe_name
@@ -87,6 +110,33 @@ def validate_external_target_retention() -> dict[str, Any]:
                 "probe_cleanup_ok": probe_cleanup_ok,
                 "prune_selected_for_removal": prune_probe.get("selected_for_removal"),
                 "prune_failed": prune_probe.get("failed", []),
+            },
+        ),
+        _check(
+            "active_generated_fixtures_are_lease_protected",
+            retention_policy.get("active_lease_protocol") == "os_advisory_file_lock_v1"
+            and retention_policy.get("active_lease_endpoint")
+            == "output/external_targets/.generated_fixture_leases/<target-output-slug>.lock"
+            and FIXTURE_LEASE_DIR_NAME == ".generated_fixture_leases",
+            {
+                "lease_directory": FIXTURE_LEASE_DIR_NAME,
+                "protocol": retention_policy.get("active_lease_protocol"),
+                "endpoint": retention_policy.get("active_lease_endpoint"),
+            },
+        ),
+        _check(
+            "generation_history_index_is_bounded_without_user_deletion",
+            max_manifest_scan >= max_history_entries >= 4
+            and generation_policy.get("user_scoped_generations_pruned") is False
+            and generation_policy.get("kind")
+            == "bounded_history_projection_without_deletion",
+            {
+                "retention_target_id": GENERATION_INDEX_RETENTION_TARGET_ID,
+                "max_manifest_scan_per_target": max_manifest_scan,
+                "max_history_entries_per_target": max_history_entries,
+                "user_scoped_generations_pruned": generation_policy.get(
+                    "user_scoped_generations_pruned"
+                ),
             },
         ),
     ]

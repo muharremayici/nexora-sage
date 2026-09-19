@@ -1,5 +1,6 @@
 import argparse
 import copy
+import hashlib
 import importlib
 import importlib.util
 import json
@@ -21,6 +22,9 @@ from tools.core.stdio import configure_utf8_stdio
 CODE_MAPS_DIR = Path(__file__).resolve().parent
 PUBLIC_DISTRIBUTION_MANIFEST = CODE_MAPS_DIR / "PUBLIC_DISTRIBUTION_MANIFEST.json"
 CLI_COMMAND_CONTRACT = CODE_MAPS_DIR / "config" / "cli_command_contract.json"
+TARGET_REPOSITORY_PROOF_CONTRACT = (
+    CODE_MAPS_DIR / "config" / "target_repository_proof_contract.json"
+)
 VENDOR_PATHS = inject_vendor_paths(CODE_MAPS_DIR)
 
 
@@ -61,6 +65,64 @@ def visible_top_level_cli_commands(*, public_distribution: bool) -> set[str]:
     if duplicates:
         raise RuntimeError(f"CLI commands belong to multiple visibility classes: {duplicates}")
     return visible
+
+
+def target_repository_proof_cli_contract() -> dict[str, object]:
+    """Load target-proof parser and execution policy from its canonical contract."""
+    payload = json.loads(
+        TARGET_REPOSITORY_PROOF_CONTRACT.read_text(encoding="utf-8")
+    )
+    public_cli = payload.get("public_cli") if isinstance(payload, dict) else None
+    modes = payload.get("modes") if isinstance(payload, dict) else None
+    authority = payload.get("authority") if isinstance(payload, dict) else None
+    policies = public_cli.get("refresh_policies") if isinstance(public_cli, dict) else None
+    default_policy = (
+        public_cli.get("default_refresh_policy")
+        if isinstance(public_cli, dict)
+        else None
+    )
+    refresh_profile = (
+        public_cli.get("refresh_execution_profile")
+        if isinstance(public_cli, dict)
+        else None
+    )
+    default_mode = public_cli.get("default_mode") if isinstance(public_cli, dict) else None
+    allowed_verdicts = (
+        authority.get("allowed_verdicts") if isinstance(authority, dict) else None
+    )
+    successful_verdicts = (
+        public_cli.get("successful_verdicts")
+        if isinstance(public_cli, dict)
+        else None
+    )
+    if (
+        not isinstance(policies, list)
+        or not policies
+        or not all(isinstance(item, str) and item for item in policies)
+        or not isinstance(default_policy, str)
+        or default_policy not in policies
+        or not isinstance(refresh_profile, str)
+        or not refresh_profile
+        or not isinstance(modes, dict)
+        or not modes
+        or not isinstance(default_mode, str)
+        or default_mode not in modes
+        or not isinstance(allowed_verdicts, list)
+        or not allowed_verdicts
+        or not isinstance(successful_verdicts, list)
+        or not successful_verdicts
+        or not set(successful_verdicts).issubset(set(allowed_verdicts))
+    ):
+        raise RuntimeError("Target repository proof CLI contract is invalid")
+    return {
+        "refresh_policies": tuple(policies),
+        "default_refresh_policy": default_policy,
+        "refresh_execution_profile": refresh_profile,
+        "modes": tuple(modes),
+        "default_mode": default_mode,
+        "allowed_verdicts": tuple(str(item) for item in allowed_verdicts),
+        "successful_verdicts": tuple(str(item) for item in successful_verdicts),
+    }
 
 
 def _apply_top_level_cli_visibility(subparsers, *, public_distribution: bool) -> None:
@@ -121,6 +183,10 @@ from tools.core.operational_limits import (
     install_proof_timeout_seconds,
     setup_interactive_timeout_seconds,
     setup_wizard_step_timeout_seconds,
+    sqlite_maintenance_full_vacuum_free_space_percent,
+    sqlite_maintenance_incremental_page_limit,
+    sqlite_write_timeout_seconds,
+    pipeline_step_heartbeat_seconds,
 )
 from tools.core.init_execution_contract import init_mode_contract, render_init_preflight
 
@@ -173,6 +239,9 @@ CI_RELEASE_CHECK = CODE_MAPS_DIR / "tools" / "ci_release_check.py"
 SAGE_SELF_AUDIT_RUNNER = CODE_MAPS_DIR / "tools" / "run_sage_self_audit.py"
 EXTERNAL_TARGET_PREFLIGHT = CODE_MAPS_DIR / "tools" / "external_target_preflight.py"
 EXTERNAL_TARGET_INDEX = CODE_MAPS_DIR / "tools" / "generate_external_target_index.py"
+TARGET_REPOSITORY_PROOF_GENERATOR = (
+    CODE_MAPS_DIR / "tools" / "generate_target_repository_proof_bundle.py"
+)
 INSPECT_TARGET = CODE_MAPS_DIR / "tools" / "inspect_target.py"
 NEXORA_BRIEF_GENERATOR = CODE_MAPS_DIR / "tools" / "generate_nexora_brief.py"
 NEXORA_AGENT_CONTRACT_GENERATOR = CODE_MAPS_DIR / "tools" / "generate_nexora_agent_contract.py"
@@ -859,6 +928,17 @@ def cmd_run_status(args):
 
 
 def cmd_watch(args):
+    raw_paths = getattr(args, "path", None)
+    path_values = (
+        [str(value) for value in raw_paths if str(value).strip()]
+        if isinstance(raw_paths, (list, tuple))
+        else [str(raw_paths)]
+        if raw_paths
+        else []
+    )
+    if not getattr(args, "once", False) and len(path_values) > 1:
+        print("[WATCH] Live watchdog accepts one directory; repeated --path is only valid with --once.")
+        return 2
     target_env = _target_root_env(args)
     if target_env is False:
         return 2
@@ -903,8 +983,8 @@ def cmd_watch(args):
     )
 
     cmd = ["python", "-m", "tools.orchestrators.watchdog"]
-    if args.path:
-        cmd.extend(["--path", args.path])
+    for path_value in path_values:
+        cmd.extend(["--path", path_value])
     if args.debounce is not None:
         cmd.extend(["--debounce", str(args.debounce)])
     if args.once:
@@ -913,8 +993,8 @@ def cmd_watch(args):
     public_command = ["python", "sage.py", "watch"]
     if args.target_root:
         public_command.extend(["--target-root", str(args.target_root)])
-    if args.path:
-        public_command.extend(["--path", str(args.path)])
+    for path_value in path_values:
+        public_command.extend(["--path", path_value])
     if args.debounce is not None:
         public_command.extend(["--debounce", str(args.debounce)])
     if args.once:
@@ -1321,6 +1401,173 @@ def cmd_purge(args):
 
 def cmd_external_targets(args):
     return run_command(["python", str(EXTERNAL_TARGET_INDEX)])
+
+
+def _emit_target_proof_terminal(**fields) -> None:
+    print(json.dumps({"operation": "target_repository_proof", **fields}, ensure_ascii=False))
+
+
+def _optional_file_sha256(path: Path) -> str | None:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def cmd_target_proof(args):
+    cli_contract = target_repository_proof_cli_contract()
+    if args.refresh_policy not in cli_contract["refresh_policies"]:
+        _emit_target_proof_terminal(
+            status="BLOCKED",
+            reason="invalid_refresh_policy",
+            refresh_policy=str(args.refresh_policy),
+        )
+        return 2
+    target_env = _target_root_env(args)
+    if target_env is False or target_env is None:
+        _emit_target_proof_terminal(
+            status="BLOCKED",
+            reason="invalid_or_missing_target_root",
+            refresh_policy=str(args.refresh_policy),
+        )
+        return 2
+
+    from tools.core.external_target_generation import (
+        external_target_output_slug,
+        resolve_current_external_target_generation,
+    )
+
+    target_path = Path(str(target_env["CODEMAPS_TARGET_ROOT"])).resolve()
+    target_dir = (
+        CODE_MAPS_DIR
+        / "output"
+        / "external_targets"
+        / external_target_output_slug(str(target_path))
+    )
+    current_dir, pointer, current_reason = resolve_current_external_target_generation(
+        target_dir
+    )
+    refresh_performed = False
+    should_refresh = args.refresh_policy == "always" or (
+        args.refresh_policy == "if-missing" and current_dir is None
+    )
+    if should_refresh:
+        refresh_performed = True
+        refresh_code = cmd_run(
+            argparse.Namespace(
+                list_steps=False,
+                target_root=str(target_path),
+                projects=args.projects,
+                full=False,
+                force=False,
+                refresh=True,
+                profile=str(cli_contract["refresh_execution_profile"]),
+                step=None,
+                from_step=None,
+                scope=None,
+                ai_context=False,
+                skip_audit=False,
+                skip_target_preflight=False,
+            )
+        )
+        if refresh_code != 0:
+            _emit_target_proof_terminal(
+                status="BLOCKED",
+                reason="target_refresh_failed",
+                refresh_policy=str(args.refresh_policy),
+                refresh_performed=True,
+                refresh_exit_code=int(refresh_code),
+                target_root=str(target_path),
+            )
+            return refresh_code
+        current_dir, pointer, current_reason = resolve_current_external_target_generation(
+            target_dir
+        )
+
+    if current_dir is None:
+        _emit_target_proof_terminal(
+            status="BLOCKED",
+            reason="validated_current_generation_unavailable",
+            current_reason=current_reason,
+            refresh_policy=str(args.refresh_policy),
+            refresh_performed=refresh_performed,
+            target_root=str(target_path),
+        )
+        return 2
+
+    run_id = str(pointer.get("run_id") or "")
+    target_env["CODEMAPS_EXTERNAL_RUN_ID"] = run_id
+    command = [
+        "python",
+        str(TARGET_REPOSITORY_PROOF_GENERATOR),
+        "--target-root",
+        str(target_path),
+        "--mode",
+        str(args.mode),
+    ]
+    if args.projects:
+        command.extend(["--projects", str(args.projects)])
+    proof_path = current_dir / ".raw" / "target_repository_proof_bundle.json"
+    proof_identity_before = _optional_file_sha256(proof_path)
+    proof_code = run_command(command, env=target_env)
+    proof_identity_after = _optional_file_sha256(proof_path)
+    proof_refreshed = (
+        proof_identity_after is not None
+        and proof_identity_after != proof_identity_before
+    )
+    proof_payload = load_json_file(proof_path, {})
+    proof_summary = (
+        proof_payload.get("summary", {}) if isinstance(proof_payload, dict) else {}
+    )
+    proof_verdict = (
+        str(proof_summary.get("verdict") or "")
+        if isinstance(proof_summary, dict)
+        else ""
+    )
+    summary_valid = (
+        proof_refreshed
+        and proof_verdict in cli_contract["allowed_verdicts"]
+    )
+    exit_status_consistent = (
+        summary_valid
+        and (proof_code == 0)
+        == (proof_verdict in cli_contract["successful_verdicts"])
+    )
+    if not proof_refreshed:
+        terminal_status = "BLOCKED"
+        terminal_reason = "proof_artifact_not_refreshed"
+        final_code = 3
+    elif not summary_valid:
+        terminal_status = "BLOCKED"
+        terminal_reason = "proof_summary_unavailable_or_invalid"
+        final_code = 3
+    elif not exit_status_consistent:
+        terminal_status = "BLOCKED"
+        terminal_reason = "proof_exit_status_mismatch"
+        final_code = 3
+    else:
+        terminal_status = proof_verdict
+        terminal_reason = "proof_builder_completed"
+        final_code = proof_code
+    _emit_target_proof_terminal(
+        status=terminal_status,
+        reason=terminal_reason,
+        target_root=str(target_path),
+        requested_projects=str(args.projects or ""),
+        mode=str(args.mode),
+        refresh_policy=str(args.refresh_policy),
+        refresh_performed=refresh_performed,
+        generation_run_id=run_id,
+        proof_artifact=str(proof_path),
+        proof_exit_code=int(proof_code),
+        proof_artifact_refreshed=proof_refreshed,
+        claim_boundary="This is bounded target-repository evidence, not SAGE release authority or mutation permission.",
+    )
+    return final_code
 
 
 def cmd_inspect(args):
@@ -1889,6 +2136,46 @@ def cmd_dashboard(args):
     return run_command(["python", str(NEXORA_DASHBOARD_GENERATOR)])
 
 
+def cmd_storage_maintenance(args):
+    from tools.core.artifact_store import STORE
+    from tools.core.pipeline_registry import pipeline_lock_policy
+    from tools.core.sqlite_storage_maintenance import (
+        maintenance_succeeded,
+        run_sqlite_storage_maintenance,
+    )
+
+    if not STORE.use_sqlite:
+        print(json.dumps({"status": "REFUSED_SQLITE_DISABLED", "applied": False}))
+        return 1
+
+    lock_endpoint = str(pipeline_lock_policy().get("endpoint") or ".pipeline_run.lock")
+
+    def emit_progress(phase, details):
+        print(
+            "[SQLITE_MAINTENANCE] "
+            + json.dumps({"phase": phase, **details}, ensure_ascii=False, sort_keys=True),
+            flush=True,
+        )
+
+    result = run_sqlite_storage_maintenance(
+        STORE.db_manager.db_path,
+        lock_path=CODE_MAPS_DIR / lock_endpoint,
+        apply=bool(args.apply),
+        confirmed=bool(args.confirm),
+        max_pages=(
+            int(args.max_pages)
+            if args.max_pages is not None
+            else sqlite_maintenance_incremental_page_limit()
+        ),
+        full_vacuum_free_space_percent=sqlite_maintenance_full_vacuum_free_space_percent(),
+        timeout_seconds=sqlite_write_timeout_seconds(),
+        progress_interval_seconds=pipeline_step_heartbeat_seconds(),
+        progress=emit_progress,
+    )
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return 0 if maintenance_succeeded(result) else 1
+
+
 def cmd_backup(args):
     try:
         from pathlib import Path
@@ -1923,6 +2210,12 @@ def cmd_restore(args):
 
 
 def build_parser():
+    from tools.core.pipeline_registry import load_pipeline_execution_policy
+
+    target_proof_cli = target_repository_proof_cli_contract()
+    execution_profile_choices = sorted(
+        load_pipeline_execution_policy().get("execution_profiles", {})
+    )
     if is_public_distribution():
         common_flows = [
             "`python sage.py init --target-root <repository>`",
@@ -1939,6 +2232,10 @@ def build_parser():
     common_flows.append(
         "`python sage.py install-proof --level release --skip-deps "
         "--target-root <repository> --projects MAIN`"
+    )
+    common_flows.append(
+        "`python sage.py target-proof --target-root <repository> "
+        "--projects MAIN --mode baseline --refresh-policy current`"
     )
     parser = argparse.ArgumentParser(
         description="Nexora SAGE CLI (Sovereign Architectural Governance Engine).",
@@ -2032,8 +2329,8 @@ def build_parser():
     run_parser.add_argument("--refresh", action="store_true", help="Refresh stale project truth while preserving normal profile, claim, and capability applicability boundaries.")
     run_parser.add_argument(
         "--profile",
-        choices=["daily", "full", "release-bounded", "release-deep"],
-        help="Execution profile. Use daily for iteration, release-bounded only for canonical bounded release integration, full for default analysis, and release-deep for heavyweight proof runs.",
+        choices=execution_profile_choices,
+        help="Execution profile id from config/pipeline_execution_policy.json; each profile preserves its declared scope and claim boundary.",
     )
     run_parser.add_argument("--step", help="Run a specific step with its required upstream dependencies.")
     run_parser.add_argument("--from-step", help="Run from a specific step onward.")
@@ -2069,7 +2366,8 @@ def build_parser():
     )
     watch_parser.add_argument(
         "--path",
-        help="Exact source file or directory smoke-sample path; overrides the default path from compiled runtime truth.",
+        action="append",
+        help="Exact source path; repeat with --once for one bounded change set, or pass one directory for smoke/live watch. Overrides the compiled default.",
     )
     watch_parser.add_argument("--target-root", help="Watch/analyze another repository/folder without rewriting Nexora SAGE runtime config.")
     watch_parser.add_argument("--debounce", type=float, help="Debounce seconds before a pulse is triggered.")
@@ -2158,6 +2456,26 @@ def build_parser():
         description="Generate output/external_targets/index.json and output/reports/external_target_runs.md.",
     )
     external_targets_parser.set_defaults(func=cmd_external_targets)
+
+    target_proof_parser = subparsers.add_parser(
+        "target-proof",
+        help="Build bounded proof for one analyzed target repository.",
+        description="Reuse or explicitly refresh one validated external-target generation, then delegate proof construction to the canonical target repository proof builder.",
+    )
+    target_proof_parser.add_argument("--target-root", required=True, help="Analyzed repository root.")
+    target_proof_parser.add_argument("--projects", help="Comma-separated project scope; when present it must match the analyzed scope authority.")
+    target_proof_parser.add_argument(
+        "--mode",
+        choices=list(target_proof_cli["modes"]),
+        default=str(target_proof_cli["default_mode"]),
+    )
+    target_proof_parser.add_argument(
+        "--refresh-policy",
+        choices=list(target_proof_cli["refresh_policies"]),
+        default=str(target_proof_cli["default_refresh_policy"]),
+        help="Use validated current evidence, refresh only when missing, or always run one full refresh before proof.",
+    )
+    target_proof_parser.set_defaults(func=cmd_target_proof)
 
     inspect_parser = subparsers.add_parser(
         "inspect",
@@ -2474,6 +2792,32 @@ def build_parser():
     ci_parser.add_argument("--skip-release-check", action="store_true", help="Only run fast CI checks without the heavy release-check.")
     ci_parser.set_defaults(func=cmd_ci_check)
 
+    storage_maintenance_parser = subparsers.add_parser(
+        "storage-maintenance",
+        help="Inspect SQLite allocation or explicitly reclaim reusable pages.",
+        description=(
+            "Read-only by default. --apply --confirm acquires the shared SAGE pipeline lock, "
+            "checkpoints WAL, verifies SQLite integrity, enforces disk-space preflight and "
+            "uses bounded incremental vacuum when available or offline full VACUUM otherwise."
+        ),
+    )
+    storage_maintenance_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute the planned reclamation instead of reporting storage telemetry only.",
+    )
+    storage_maintenance_parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Required with --apply; confirms an offline SQLite maintenance window.",
+    )
+    storage_maintenance_parser.add_argument(
+        "--max-pages",
+        type=int,
+        help="Maximum pages for an incremental-vacuum database; ignored by full VACUUM.",
+    )
+    storage_maintenance_parser.set_defaults(func=cmd_storage_maintenance)
+
     backup_parser = subparsers.add_parser(
         "backup",
         help="Backup SQLite state payloads to a JSON zip package.",
@@ -2501,12 +2845,14 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
     
-    # Initialize SQLite database schema transparently if SQLite mode is enabled
-    try:
-        from tools.core.artifact_store import STORE
-        STORE.initialize_schema()
-    except Exception as e:
-        print(f"Warning: Failed to initialize SQLite schema on startup: {e}")
+    # Read-only storage inspection must not create or migrate a missing database.
+    # Its explicit apply path acquires the shared pipeline lock before schema setup.
+    if args.command != "storage-maintenance":
+        try:
+            from tools.core.artifact_store import STORE
+            STORE.initialize_schema()
+        except Exception as e:
+            print(f"Warning: Failed to initialize SQLite schema on startup: {e}")
         
     raise SystemExit(args.func(args))
 

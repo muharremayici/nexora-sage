@@ -157,11 +157,46 @@ class SQLiteManager:
                     producer_contract TEXT NOT NULL,
                     payload TEXT NOT NULL,
                     payload_sha TEXT NOT NULL,
+                    payload_bytes INTEGER NOT NULL DEFAULT 0,
+                    storage_mode TEXT NOT NULL DEFAULT 'inline_json',
+                    generation_id TEXT,
+                    part_count INTEGER NOT NULL DEFAULT 0,
                     source_mtime REAL,
                     size_bytes INTEGER NOT NULL,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (project_key, rel_path, stage_kind),
                     FOREIGN KEY(run_id) REFERENCES atlas_staging_runs(run_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS atlas_staging_file_parts (
+                    project_key TEXT NOT NULL,
+                    rel_path TEXT NOT NULL,
+                    stage_kind TEXT NOT NULL,
+                    generation_id TEXT NOT NULL,
+                    part_index INTEGER NOT NULL,
+                    run_id TEXT NOT NULL,
+                    producer_contract TEXT NOT NULL,
+                    payload BLOB NOT NULL,
+                    payload_bytes INTEGER NOT NULL,
+                    payload_sha TEXT NOT NULL,
+                    PRIMARY KEY (project_key, rel_path, stage_kind, generation_id, part_index),
+                    FOREIGN KEY(run_id) REFERENCES atlas_staging_runs(run_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS sage_sqlite_maintenance_runs (
+                    run_id TEXT PRIMARY KEY,
+                    operation TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    phase TEXT NOT NULL,
+                    database_identity TEXT NOT NULL,
+                    requested_pages INTEGER NOT NULL DEFAULT 0,
+                    reclaimed_pages INTEGER NOT NULL DEFAULT 0,
+                    before_profile TEXT NOT NULL,
+                    after_profile TEXT,
+                    error_type TEXT NOT NULL DEFAULT 'none',
+                    started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    finished_at TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS projects (
@@ -284,7 +319,9 @@ class SQLiteManager:
                 CREATE INDEX IF NOT EXISTS idx_governance_trace_events_recorded ON governance_trace_events(recorded_at);
                 CREATE INDEX IF NOT EXISTS idx_state_payload_parts_generation ON state_payload_parts(name, generation_id, part_index);
                 CREATE INDEX IF NOT EXISTS idx_atlas_staging_files_contract ON atlas_staging_files(producer_contract, stage_kind, project_key);
+                CREATE INDEX IF NOT EXISTS idx_atlas_staging_file_parts_contract ON atlas_staging_file_parts(producer_contract, stage_kind, project_key, rel_path, generation_id, part_index);
                 CREATE INDEX IF NOT EXISTS idx_atlas_staging_runs_status ON atlas_staging_runs(status, updated_at);
+                CREATE INDEX IF NOT EXISTS idx_sage_sqlite_maintenance_runs_status ON sage_sqlite_maintenance_runs(status, updated_at);
             """)
             for statement in (
                 "ALTER TABLE state_payloads ADD COLUMN payload_sha TEXT;",
@@ -296,6 +333,10 @@ class SQLiteManager:
                 "ALTER TABLE state_payloads ADD COLUMN updated_at TEXT;",
                 "ALTER TABLE symbols ADD COLUMN end_line INTEGER;",
                 "ALTER TABLE symbols ADD COLUMN source_lines TEXT;",
+                "ALTER TABLE atlas_staging_files ADD COLUMN payload_bytes INTEGER NOT NULL DEFAULT 0;",
+                "ALTER TABLE atlas_staging_files ADD COLUMN storage_mode TEXT NOT NULL DEFAULT 'inline_json';",
+                "ALTER TABLE atlas_staging_files ADD COLUMN generation_id TEXT;",
+                "ALTER TABLE atlas_staging_files ADD COLUMN part_count INTEGER NOT NULL DEFAULT 0;",
             ):
                 try:
                     conn.execute(statement)

@@ -112,6 +112,21 @@ def render(contract: dict[str, Any]) -> str:
         evidence = contract["adapter_contract"]["implementation_evidence"].get(adapter, [])
         evidence_text = ", ".join(f"`{item}`" for item in evidence) or "no implementation evidence"
         lines.append(f"- `{adapter}`: `{status}`; {evidence_text}")
+    lines.extend(["", "Adapter conformance:", ""])
+    conformance_adapters = contract["adapter_contract"]["conformance_evidence"]["adapters"]
+    for adapter, row in conformance_adapters.items():
+        dimensions = row.get("dimensions", {}) if isinstance(row, dict) else {}
+        dimension_text = ", ".join(
+            f"`{name}={details.get('status', 'not_assessed')}`"
+            for name, details in dimensions.items()
+            if isinstance(details, dict)
+        ) or "no assessed promotion dimensions"
+        surfaces = row.get("available_surfaces", {}) if isinstance(row, dict) else {}
+        surface_text = ", ".join(f"`{name}`" for name in surfaces) or "none"
+        lines.append(
+            f"- `{adapter}`: `{row.get('status', 'not_available')}`; dimensions: {dimension_text}; "
+            f"available surfaces: {surface_text}. Claim boundary: {row.get('claim_boundary', 'not declared')}"
+        )
     lines.extend(["", f"Promotion rule: {contract['adapter_contract']['promotion_rule']}"])
     lines.extend(["", "## Trace And Privacy", "", contract["trace_contract"]["privacy_rule"], ""])
     for trace_kind, source in contract["trace_contract"]["sources"].items():

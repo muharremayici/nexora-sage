@@ -72,7 +72,12 @@ def build_validation() -> dict[str, Any]:
     mcp_honesty_policy = target_by_id.get("mcp_honesty_telemetry", {})
     telemetry_traces_policy = target_by_id.get("telemetry_traces", {})
     pipeline_receipt_policy = target_by_id.get("pipeline_run_receipt_shadow", {})
+    watchdog_session_policy = target_by_id.get("watchdog_session", {})
     external_fixture_policy = target_by_id.get("external_target_generated_fixtures", {})
+    external_history_policy = target_by_id.get(
+        "external_target_generation_history_index",
+        {},
+    )
 
     pipeline_max_bytes = int(pipeline_policy.get("max_bytes") or 0)
     pipeline_backup_count = int(pipeline_policy.get("backup_count") or 0)
@@ -96,6 +101,12 @@ def build_validation() -> dict[str, Any]:
         for path in external_producer_paths
     }
     external_keep_per_prefix = int(external_fixture_policy.get("default_keep_per_prefix") or 0)
+    external_history_scan = int(
+        external_history_policy.get("max_manifest_scan_per_target") or 0
+    )
+    external_history_entries = int(
+        external_history_policy.get("max_history_entries_per_target") or 0
+    )
 
     logger_uses_rotation = (
         "RotatingFileHandler" in logger_text
@@ -180,6 +191,18 @@ def build_validation() -> dict[str, Any]:
             },
         ),
         _check(
+            "watchdog_session_event_provenance_matches_policy",
+            watchdog_session_policy.get("kind") == "single_latest_session_with_bounded_event_provenance"
+            and int(watchdog_session_policy.get("max_files") or 0) == 1
+            and int(watchdog_session_policy.get("max_event_provenance") or 0) > 0
+            and watchdog_session_policy.get("path") == "output/.raw/watchdog_session.json",
+            {
+                "policy_max_files": watchdog_session_policy.get("max_files"),
+                "policy_max_event_provenance": watchdog_session_policy.get("max_event_provenance"),
+                "implementation": "tools/orchestrators/watchdog.py",
+            },
+        ),
+        _check(
             "pipeline_run_receipt_shadow_is_single_latest_sqlite_projection",
             pipeline_receipt_policy.get("kind") == "single_latest_sqlite_projection"
             and int(pipeline_receipt_policy.get("max_files") or 0) == 1
@@ -219,6 +242,19 @@ def build_validation() -> dict[str, Any]:
                 "policy_prefixes": external_fixture_prefixes,
                 "policy_keep_per_prefix": external_keep_per_prefix,
                 "producer_validators": external_producer_paths,
+            },
+        ),
+        _check(
+            "external_target_generation_history_projection_is_bounded",
+            external_history_policy.get("kind")
+            == "bounded_history_projection_without_deletion"
+            and external_history_scan >= external_history_entries >= 4
+            and external_history_policy.get("user_scoped_generations_pruned") is False
+            and "generation_history_limits" in external_retention_text,
+            {
+                "policy_max_manifest_scan": external_history_scan,
+                "policy_max_history_entries": external_history_entries,
+                "implementation": "tools/generate_external_target_index.py",
             },
         ),
         _check(

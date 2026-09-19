@@ -18,7 +18,7 @@ from tools.core.artifact_validator import validate_all_artifacts, ensure_valid_p
 from tools.core.atlas_io import load_atlas_data
 from tools.core.runtime_project_scope import project_runtime_atlas
 from tools.core.genome_io import load_genome_data
-from tools.core.json_io import load_json_file
+from tools.core.json_io import load_json_file, load_raw_artifact_path
 from tools.core.fractal_io import load_fractal_map_data
 from tools.core.logger import logger
 from tools.core.path_engine import to_posix_path
@@ -29,6 +29,96 @@ from tools.core.text_normalizer import SUSPICIOUS_MARKERS
 from tools.core.workspace_mode import get_workspace_mode
 from tools.core.workload_profile import manual_review_budget_selection
 from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+
+
+_CLAIM_OPTIONAL_ARTIFACT_IDS = {
+    "ui_runtime_contracts",
+    "merge_dependency_packages",
+    "merge_simulation",
+    "merge_decision_cockpit",
+    "quality_review",
+    "proof_obligations",
+}
+
+
+def _execution_claim_exclusions(execution_claim: dict | None) -> dict[str, set[str]]:
+    if execution_claim is None:
+        return {"artifacts": set(), "checks": set(), "signals": set()}
+    if (
+        not isinstance(execution_claim, dict)
+        or execution_claim.get("mode") != "claim_closure"
+        or not str(execution_claim.get("profile") or "").strip()
+        or not str(execution_claim.get("claim_boundary") or "").strip()
+        or execution_claim.get("release_authority") is not False
+    ):
+        raise ValueError("Quality Gate execution claim is incomplete or release-authoritative")
+    artifacts = {str(item) for item in execution_claim.get("excluded_artifact_ids", []) if str(item).strip()}
+    checks = {str(item) for item in execution_claim.get("excluded_quality_check_ids", []) if str(item).strip()}
+    signals = {str(item) for item in execution_claim.get("excluded_quality_signal_ids", []) if str(item).strip()}
+    if not artifacts or not checks or artifacts - _CLAIM_OPTIONAL_ARTIFACT_IDS:
+        raise ValueError("Quality Gate execution claim has an invalid excluded evidence partition")
+    return {"artifacts": artifacts, "checks": checks, "signals": signals}
+
+
+def _load_claim_scoped_quality_input(
+    artifact_id: str,
+    path: Path,
+    execution_claim: dict | None,
+) -> dict:
+    exclusions = _execution_claim_exclusions(execution_claim)
+    if str(artifact_id) in exclusions["artifacts"]:
+        return {}
+    return load_raw_artifact_path(path, {})
+
+
+def _apply_quality_execution_claim(
+    checks: list[dict],
+    ecosystem_warning_signals: dict[str, int],
+    execution_claim: dict | None,
+) -> tuple[list[dict], dict[str, int]]:
+    exclusions = _execution_claim_exclusions(execution_claim)
+    if execution_claim is None:
+        return checks, ecosystem_warning_signals
+
+    observed_checks = {str(check.get("name") or "") for check in checks if isinstance(check, dict)}
+    missing_checks = sorted(exclusions["checks"] - observed_checks)
+    missing_signals = sorted(exclusions["signals"] - set(ecosystem_warning_signals))
+    if missing_checks or missing_signals:
+        raise ValueError(
+            "Quality Gate execution claim drift: "
+            f"missing_checks={missing_checks} missing_signals={missing_signals}"
+        )
+
+    profile = str(execution_claim.get("profile") or "")
+    boundary = str(execution_claim.get("claim_boundary") or "")
+    scoped_checks: list[dict] = []
+    for check in checks:
+        if str(check.get("name") or "") not in exclusions["checks"]:
+            scoped_checks.append(check)
+            continue
+        scoped_checks.append(
+            {
+                **check,
+                "actual": 0,
+                "expected": 0,
+                "operator": "not_in_claim",
+                "passed": True,
+                "enforced": False,
+                "details": [
+                    {
+                        "reason": "evidence_family_not_in_selected_claim",
+                        "profile": profile,
+                        "claim_boundary": boundary,
+                    }
+                ],
+            }
+        )
+    scoped_signals = {
+        key: value
+        for key, value in ecosystem_warning_signals.items()
+        if key not in exclusions["signals"]
+    }
+    return scoped_checks, scoped_signals
 
 
 def _audit_summary(audit_report: dict | None) -> dict:
@@ -577,7 +667,7 @@ def _effective_dead_code_ratio_threshold(configured_threshold: float, export_uni
     return configured_threshold
 
 
-def run_quality_gates():
+def run_quality_gates(execution_claim: dict | None = None):
     logger.info('Running pipeline quality gates...')
 
     gates = get_quality_gates()
@@ -647,12 +737,36 @@ def run_quality_gates():
     react_support_matrix = load_json_file(RAW_DIR / 'react_support_matrix.json', {})
     project_dna_payload = load_json_file(RAW_DIR / 'project_dna_profile.json', {})
     dead_code_payload = load_json_file(RAW_DIR / 'dead_code.json', {})
-    ui_runtime_payload = load_json_file(RAW_DIR / 'ui_runtime_contracts.json', {})
-    merge_packages_payload = load_json_file(RAW_DIR / 'merge_dependency_packages.json', {})
-    merge_simulation_payload = load_json_file(RAW_DIR / 'merge_simulation.json', {})
-    merge_cockpit_payload = load_json_file(RAW_DIR / 'merge_decision_cockpit.json', {})
-    quality_review_payload = load_json_file(RAW_DIR / 'quality_review.json', {})
-    proof_obligations_payload = load_json_file(RAW_DIR / 'proof_obligations.json', {})
+    ui_runtime_payload = _load_claim_scoped_quality_input(
+        'ui_runtime_contracts',
+        RAW_DIR / 'ui_runtime_contracts.json',
+        execution_claim,
+    )
+    merge_packages_payload = _load_claim_scoped_quality_input(
+        'merge_dependency_packages',
+        RAW_DIR / 'merge_dependency_packages.json',
+        execution_claim,
+    )
+    merge_simulation_payload = _load_claim_scoped_quality_input(
+        'merge_simulation',
+        RAW_DIR / 'merge_simulation.json',
+        execution_claim,
+    )
+    merge_cockpit_payload = _load_claim_scoped_quality_input(
+        'merge_decision_cockpit',
+        RAW_DIR / 'merge_decision_cockpit.json',
+        execution_claim,
+    )
+    quality_review_payload = _load_claim_scoped_quality_input(
+        'quality_review',
+        RAW_DIR / 'quality_review.json',
+        execution_claim,
+    )
+    proof_obligations_payload = _load_claim_scoped_quality_input(
+        'proof_obligations',
+        RAW_DIR / 'proof_obligations.json',
+        execution_claim,
+    )
     required_artifacts = gates.get('required_artifacts', [])
     artifact_validation = validate_all_artifacts(required_artifacts=required_artifacts, storage_root=RAW_DIR)
     workspace_mode = get_workspace_mode()
@@ -1216,11 +1330,6 @@ def run_quality_gates():
                 ],
             })
 
-    overall_pass = all(check['passed'] for check in checks if check.get('enforced', True))
-    ecosystem_attention = any(
-        not check.get('enforced', True) and not check.get('passed', True)
-        for check in checks
-    )
     ecosystem_warning_signals = {
         'total_audit_violations': total_audit_violations,
         'healable_violations': int(audit_mode_breakdown['totals'].get('heal', 0) or 0),
@@ -1238,6 +1347,16 @@ def run_quality_gates():
         'effective_cockpit_import_with_review': effective_cockpit_import_with_review,
         'suppressed_cockpit_decisions': merge_cockpit_suppressed,
     }
+    checks, ecosystem_warning_signals = _apply_quality_execution_claim(
+        checks,
+        ecosystem_warning_signals,
+        execution_claim,
+    )
+    overall_pass = all(check['passed'] for check in checks if check.get('enforced', True))
+    ecosystem_attention = any(
+        not check.get('enforced', True) and not check.get('passed', True)
+        for check in checks
+    )
     payload = {
         'passed': overall_pass,
         'release_gate_status': 'PASS' if overall_pass else 'FAIL',
@@ -1248,6 +1367,10 @@ def run_quality_gates():
         'audit_enforcement_authority': _audit_enforcement_authority(),
         'checks': checks,
     }
+    if isinstance(execution_claim, dict):
+        payload['execution_claim'] = execution_claim
+        payload['claim_boundary'] = str(execution_claim.get('claim_boundary') or '')
+        payload['release_authority'] = False
 
     ensure_valid_payload("quality_gate", payload)
 
@@ -1278,6 +1401,11 @@ def run_quality_gates():
         '| Check | Scope | Enforced | Actual | Rule | Expected | Result |',
         '|---|---|---|---:|---|---:|---|',
     ]
+    if isinstance(execution_claim, dict):
+        lines[6:6] = [
+            f"> Execution claim: `{execution_claim.get('profile')}`; boundary: `{execution_claim.get('claim_boundary')}`.",
+            "> This bounded target-quality result grants no SAGE release, merge, UI-runtime, comparative Oracle or broad review/proof authority.",
+        ]
     for check in checks:
         scope = 'ecosystem'
         name = str(check.get('name', ''))

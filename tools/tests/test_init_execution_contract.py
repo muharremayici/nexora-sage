@@ -557,6 +557,55 @@ def test_public_watch_launches_module_to_avoid_package_shadowing(monkeypatch):
     ]]
 
 
+def test_public_watch_forwards_repeated_paths_as_one_once_command(monkeypatch):
+    commands = []
+    monkeypatch.setattr(codemaps, "_target_root_env", lambda _args: None)
+    monkeypatch.setattr(codemaps, "ensure_runtime_truth", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(codemaps, "import_target_available", lambda *_args: True)
+    monkeypatch.setattr(codemaps, "python_subprocess_env", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(codemaps, "run_command", lambda command, **_kwargs: commands.append(command) or 0)
+
+    result = codemaps.cmd_watch(
+        argparse.Namespace(
+            path=["src/feature.ts", "src/feature.test.ts"],
+            debounce=0.5,
+            once=True,
+            target_root=None,
+        )
+    )
+
+    assert result == 0
+    assert commands == [[
+        "python",
+        "-m",
+        "tools.orchestrators.watchdog",
+        "--path",
+        "src/feature.ts",
+        "--path",
+        "src/feature.test.ts",
+        "--debounce",
+        "0.5",
+        "--once",
+    ]]
+
+
+def test_public_watch_rejects_repeated_paths_in_live_mode_before_target_side_effects(monkeypatch):
+    target_env = Mock(side_effect=AssertionError("target setup must not start"))
+    monkeypatch.setattr(codemaps, "_target_root_env", target_env)
+
+    result = codemaps.cmd_watch(
+        argparse.Namespace(
+            path=["src/feature.ts", "src/feature.test.ts"],
+            debounce=0.5,
+            once=False,
+            target_root=None,
+        )
+    )
+
+    assert result == 2
+    target_env.assert_not_called()
+
+
 def test_external_watch_transports_one_preflight_receipt_to_watchdog(monkeypatch, tmp_path):
     target_env = {"CODEMAPS_TARGET_ROOT": str(tmp_path.resolve())}
     preflight_calls = []

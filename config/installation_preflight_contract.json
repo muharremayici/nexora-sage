@@ -51,7 +51,21 @@
       "module": "mcp.server.fastmcp",
       "attribute": "FastMCP",
       "package": "mcp",
-      "required_by_default_profile": true
+      "required_by_default_profile": true,
+      "runtime_compatibility": {
+        "contract": "mcp_v1_fastmcp_settings_lifespan_v1",
+        "dependency_specifier_source": "pyproject.toml#project.dependencies:mcp",
+        "settings_model": "mcp.server.fastmcp.server.Settings",
+        "preconstruction_public_hook": "model_rebuild",
+        "required_order": [
+          "fastmcp_module_imported",
+          "settings_model_rebuilt",
+          "profiled_server_constructed",
+          "transport_started"
+        ],
+        "warning_suppression_allowed": false,
+        "claim_boundary": "Completing the MCP v1 FastMCP Settings model prevents the known unresolved lifespan forward-reference warning. It does not suppress stderr, widen the supported major range, adopt MCP v2 or prove every future MCP/Pydantic combination."
+      }
     },
     "watch-live": {
       "module": "watchdog.events",
@@ -88,10 +102,188 @@
       "--ignore-scripts"
     ]
   },
+  "dependency_acquisition": {
+    "contract": "capability_scoped_sage_runtime_acquisition_v1",
+    "target_repository_threat_boundary": "config/target_repository_threat_boundary_contract.json",
+    "budget_profile_source": "config/pipeline_execution_policy.json#dependency_acquisition_budgets",
+    "authorities": {
+      "sage_runtime": {
+        "automatic_on_init": true,
+        "target_repository_mutation": false
+      },
+      "target_native_validation": {
+        "automatic_on_init": false,
+        "mode": "manifest_and_source_observation_only",
+        "target_repository_mutation": false
+      }
+    },
+    "action_profiles": {
+      "install_sage_python_dependencies": {
+        "dependency_authority": "sage_runtime",
+        "operation_class": "network_package_acquisition",
+        "telemetry_identifier": "dependency install_sage_python_dependencies completed",
+        "capability_source": "python_features.required_by_default_profile",
+        "progress_relative_paths": [],
+        "stall_authority_sources": []
+      },
+      "install_sage_node_ast_dependencies": {
+        "dependency_authority": "sage_runtime",
+        "operation_class": "network_package_acquisition",
+        "telemetry_identifier": "dependency install_sage_node_ast_dependencies completed",
+        "capability_source": "node.required_for_languages_or_react_signal",
+        "progress_relative_paths": [
+          "node_modules"
+        ],
+        "stall_authority_sources": [
+          "filesystem"
+        ]
+      }
+    },
+    "cache_reuse": {
+      "node_ast": "package_manifest_plus_lockfile_identity_and_installed_typescript_version",
+      "claim_boundary": "A verified cache proves the declared manifest/lock identity and installed TypeScript package version. It does not hash every installed file or prove future command execution."
+    },
+    "outcome_classes": [
+      "SUCCESS",
+      "OFFLINE",
+      "MISSING_MANAGER",
+      "STALLED",
+      "TIMED_OUT",
+      "INSTALL_FAILED"
+    ],
+    "claim_boundary": "Automatic acquisition is limited to selected SAGE runtime capabilities. Target-native package installation, binaries, hooks and lifecycle scripts remain forbidden in automatic analysis and require a separate future execution authority that V1 does not provide."
+  },
   "git": {
     "role": "source_acquisition_only",
     "required_after_source_and_target_are_present": false,
     "system_runtime_install_policy": "never_automatic"
+  },
+  "embedded_host_footprint": {
+    "contract": "embedded_sage_host_footprint_v1",
+    "applicability_by_installation_mode": {
+      "self_target": "not_applicable_sage_self_analysis",
+      "embedded": "operator_review_required",
+      "central_external": "not_applicable_installation_outside_target"
+    },
+    "single_root_exclusion": true,
+    "target_configuration_mutation_allowed": false,
+    "pattern_templates": {
+      "directory": "{embedded_root}/",
+      "recursive_glob": "{embedded_root}/**"
+    },
+    "runtime_surfaces": [
+      {
+        "id": "source",
+        "kind": "source",
+        "relative_paths": [
+          "."
+        ]
+      },
+      {
+        "id": "cache",
+        "kind": "cache",
+        "relative_paths": [
+          ".mypy_cache",
+          ".pytest_cache",
+          ".ruff_cache",
+          "tools/engines/node_modules"
+        ],
+        "recursive_names": [
+          "__pycache__",
+          "*.egg-info"
+        ]
+      },
+      {
+        "id": "database",
+        "kind": "database",
+        "relative_paths": [
+          "codemaps.db",
+          "nexora_kernel.db",
+          "output/.raw/codemaps.db"
+        ]
+      },
+      {
+        "id": "log",
+        "kind": "log",
+        "relative_paths": [
+          "output/logs"
+        ]
+      },
+      {
+        "id": "output",
+        "kind": "output",
+        "relative_paths": [
+          "output",
+          "reports",
+          "scratch",
+          "tenants"
+        ]
+      }
+    ],
+    "host_tools": {
+      "eslint": {
+        "surface": "lint",
+        "configuration_surfaces": [
+          "flat_config_ignores",
+          "legacy_ignore_file"
+        ]
+      },
+      "biome": {
+        "surface": "lint_and_formatter",
+        "configuration_surfaces": [
+          "files_ignore_or_negative_include"
+        ]
+      },
+      "stylelint": {
+        "surface": "lint",
+        "configuration_surfaces": [
+          "ignore_files_or_ignore_pattern"
+        ]
+      },
+      "prettier": {
+        "surface": "formatter",
+        "configuration_surfaces": [
+          "prettierignore"
+        ]
+      },
+      "typescript": {
+        "surface": "compiler",
+        "configuration_surfaces": [
+          "tsconfig_exclude_or_bounded_include"
+        ]
+      },
+      "vitest": {
+        "surface": "test",
+        "configuration_surfaces": [
+          "test_exclude"
+        ]
+      },
+      "jest": {
+        "surface": "test",
+        "configuration_surfaces": [
+          "test_path_or_module_path_ignore_patterns"
+        ]
+      }
+    },
+    "baseline_surfaces": {
+      "search": {
+        "surface": "search",
+        "configuration_surfaces": [
+          "tool_native_exclude_or_bounded_search_root"
+        ]
+      },
+      "packaging": {
+        "surface": "packaging",
+        "configuration_surfaces": [
+          "tool_native_package_file_selection_or_ignore"
+        ]
+      }
+    },
+    "traversal_probe": {
+      "probe_existing_declared_paths": true,
+      "permission_mutation_allowed": false
+    },
+    "claim_boundary": "The footprint projection identifies one embedded SAGE root and emits non-mutating operator guidance. It does not prove that a host tool consumed the guidance, infer effective executable configuration, rewrite target-owned files or grant permission to change filesystem ACLs."
   },
   "status_policy": {
     "ready": "READY",

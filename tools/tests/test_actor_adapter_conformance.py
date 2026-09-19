@@ -84,6 +84,41 @@ def test_clean_work_queue_json_uses_shared_no_action_projection() -> None:
     }
 
 
+def test_actor_gateway_maps_real_clean_work_queue_status_as_accepted() -> None:
+    visible = server.project_mcp_tool_names(
+        server.BASE_DIR,
+        "target_repository_default",
+    )["visible_tools"]
+    with (
+        patch.object(server.mcp, "active_tool_profile", "target_repository_default"),
+        patch.object(server.mcp, "_visible_tool_names", frozenset(visible)),
+        patch.object(server.mcp, "_record_governance_trace") as trace_recorder,
+        patch.object(server, "_raw_dir_for_target", return_value=server.RAW_DIR),
+        patch.object(server, "_ensure_agent_artifact_chain_current", return_value={"status": "PASS"}),
+        patch.object(server, "_audit_queue_trust_projection", return_value={"status": "PASS"}),
+        patch.object(server, "_audit_violation_work_items_from_sqlite", return_value=([], 0, True)),
+        patch.object(server, "_analysis_snapshot_id", return_value="snapshot-clean"),
+        patch.object(server, "_record_mcp_call_result", side_effect=lambda _name, _started, result, **_kwargs: result),
+    ):
+        content, structured = asyncio.run(
+            server.mcp.call_tool(
+                "dispatch_actor_request",
+                {
+                    "request": _request(),
+                    "tool_name": "get_violation_work_queue",
+                    "tool_arguments": {},
+                },
+            )
+        )
+        rendered = "".join(str(getattr(item, "text", "")) for item in content)
+        payload = json.loads(rendered)
+
+    assert payload["status"] == "ACCEPTED"
+    assert json.loads(payload["tool_result"])["status"] == "clean_within_sage_audit"
+    assert payload["trace_id"] == trace_recorder.call_args.args[6]
+    assert json.loads(structured["result"]) == payload
+
+
 def test_mcp_inventory_discovers_async_tools() -> None:
     metadata = _mcp_tool_metadata()
     assert "dispatch_actor_request" in metadata
@@ -772,11 +807,16 @@ def test_surgical_packet_rejects_stale_context_before_building_packet() -> None:
         patch.object(server, "_record_mcp_call_result", side_effect=lambda _name, _started, result, **_kwargs: result),
     ):
         payload = json.loads(server.get_surgical_operation_packet(format="json", target_root="C:/isolated"))
+        brief = server.get_surgical_operation_packet(format="brief", target_root="C:/isolated")
 
     assert payload["status"] == "INVALID_CONTEXT"
     assert payload["blocking"] is True
     assert payload["recovery_plan"]["reason"] == "packet_artifact_trust_recovery_required"
     assert payload["recovery_plan"]["blocked_required_inputs"] == ["artifact_trust_chain"]
+    assert brief.startswith("# Invalid Repository Context")
+    assert "status: INVALID_CONTEXT" in brief
+    assert "tool: get_surgical_operation_packet" in brief
+    assert "blocking: true" in brief
     assert payload["recovery_plan"]["command_argv"] == [
         "python",
         "sage.py",
@@ -829,20 +869,35 @@ def test_recommended_write_lease_action_names_required_profile_transition() -> N
     assert action["return_profile"] == "target_repository_default"
 
 
+def _current_atlas_trust() -> dict:
+    return {
+        "status": "PASS",
+        "checks": [
+            {"name": "artifact_present:atlas", "passed": True, "severity": "error"},
+            {"name": "sqlite_primary:atlas", "passed": True, "severity": "warning"},
+        ],
+    }
+
+
 def test_surgical_packet_rejects_unbound_required_input_before_building_packet() -> None:
     evidence = {"status": "BLOCKED", "blocked_inputs": ["signals"], "omitted_inputs": []}
     with (
         patch.object(server, "_raw_dir_for_target", return_value=server.RAW_DIR),
-        patch.object(server, "_ensure_agent_artifact_chain_current", return_value={"status": "PASS"}),
+        patch.object(server, "_ensure_agent_artifact_chain_current", return_value=_current_atlas_trust()),
         patch("tools.core.surgical_packet_inputs.evaluate_surgical_packet_inputs", return_value=(evidence, {})),
         patch("tools.core.contextos_mcp.build_surgical_operation_packet") as builder,
         patch.object(server, "_record_mcp_call_result", side_effect=lambda _name, _started, result, **_kwargs: result),
     ):
         payload = json.loads(server.get_surgical_operation_packet(format="json", target_root="C:/isolated"))
+        brief = server.get_surgical_operation_packet(format="brief", target_root="C:/isolated")
 
     assert payload["status"] == "INVALID_CONTEXT"
     assert payload["blocking"] is True
     assert payload["input_evidence"] == evidence
+    assert brief.startswith("# Invalid Repository Context")
+    assert "status: INVALID_CONTEXT" in brief
+    assert "tool: get_surgical_operation_packet" in brief
+    assert "blocking: true" in brief
     assert payload["recovery_plan"]["reason"] == "required_packet_input_generation_mismatch"
     assert payload["refresh_command"]
     assert payload["recovery_plan"]["command_argv"] == [
@@ -870,7 +925,7 @@ def test_surgical_packet_reports_optional_input_omission() -> None:
     packet = {"summary": {}, "agent_action_directives": []}
     with (
         patch.object(server, "_raw_dir_for_target", return_value=server.RAW_DIR),
-        patch.object(server, "_ensure_agent_artifact_chain_current", return_value={"status": "PASS"}),
+        patch.object(server, "_ensure_agent_artifact_chain_current", return_value=_current_atlas_trust()),
         patch("tools.core.surgical_packet_inputs.evaluate_surgical_packet_inputs", return_value=(evidence, {"signals": signals})),
         patch("tools.core.contextos_mcp.build_surgical_operation_packet", return_value=packet),
         patch.object(server, "_record_mcp_call_result", side_effect=lambda _name, _started, result, **_kwargs: result),
@@ -878,4 +933,7 @@ def test_surgical_packet_reports_optional_input_omission() -> None:
         payload = json.loads(server.get_surgical_operation_packet(format="json", target_root="C:/isolated"))
 
     assert payload["status"] == "INCOMPLETE_EVIDENCE"
-    assert payload["input_evidence"] == evidence
+    assert payload["input_evidence"]["status"] == evidence["status"]
+    assert payload["input_evidence"]["omitted_inputs"] == evidence["omitted_inputs"]
+    assert payload["input_evidence"]["context_inputs"]["audit"]["status"] == "OMITTED"
+    assert payload["input_evidence"]["context_inputs"]["quality_gate"]["status"] == "OMITTED"

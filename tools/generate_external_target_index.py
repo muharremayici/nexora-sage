@@ -12,9 +12,11 @@ if str(_ROOT) not in sys.path:
 
 from tools.core.config import CODE_MAPS_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.external_target_generation import (
+    external_target_generation_history,
     resolve_current_external_target_generation,
     resolve_external_target_artifact_dir,
 )
+from tools.core.external_target_retention import generation_history_limits
 from tools.core.json_io import load_json_file
 
 
@@ -37,12 +39,18 @@ def _load_summary(run_dir: Path) -> dict[str, Any]:
 
 def build_index() -> dict[str, Any]:
     rows = []
+    max_manifest_scan, max_history_entries = generation_history_limits()
     if EXTERNAL_TARGETS_DIR.exists():
         for run_dir in sorted(EXTERNAL_TARGETS_DIR.iterdir(), key=lambda p: p.name.lower()):
             if not run_dir.is_dir():
                 continue
             current_dir, pointer, current_reason = resolve_current_external_target_generation(run_dir)
             summary_dir, artifact_reason = resolve_external_target_artifact_dir(run_dir)
+            generation_history = external_target_generation_history(
+                run_dir,
+                max_manifest_scan=max_manifest_scan,
+                max_history_entries=max_history_entries,
+            )
             stat_source = summary_dir if summary_dir.exists() else run_dir
             stat = stat_source.stat()
             rows.append(
@@ -55,6 +63,7 @@ def build_index() -> dict[str, Any]:
                     "artifact_resolution": artifact_reason,
                     "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
                     "summary": _load_summary(summary_dir),
+                    "generation_history": generation_history,
                 }
             )
     return {
@@ -69,6 +78,27 @@ def build_index() -> dict[str, Any]:
             "with_preflight": sum(1 for row in rows if row["summary"].get("preflight")),
             "with_capability_probe": sum(1 for row in rows if row["summary"].get("capability_probe")),
             "validated_current": sum(1 for row in rows if row["current_status"] == "VALIDATED"),
+            "generation_dirs": sum(
+                int(row["generation_history"].get("total_generation_dirs") or 0)
+                for row in rows
+            ),
+            "generation_manifests_scanned": sum(
+                int(row["generation_history"].get("scanned_generation_dirs") or 0)
+                for row in rows
+            ),
+            "generation_scan_omitted": sum(
+                int(row["generation_history"].get("omitted_from_scan") or 0)
+                for row in rows
+            ),
+            "invalid_generation_manifests": sum(
+                int(row["generation_history"].get("invalid_manifests") or 0)
+                for row in rows
+            ),
+        },
+        "history_policy": {
+            "max_manifest_scan_per_target": max_manifest_scan,
+            "max_history_entries_per_target": max_history_entries,
+            "user_scoped_generations_pruned": False,
         },
         "targets": rows,
     }
@@ -83,16 +113,22 @@ def render_report(index: dict[str, Any]) -> str:
         f"- with_preflight: `{summary.get('with_preflight')}`",
         f"- with_capability_probe: `{summary.get('with_capability_probe')}`",
         f"- validated_current: `{summary.get('validated_current')}`",
+        f"- generation_dirs: `{summary.get('generation_dirs')}`",
+        f"- generation_manifests_scanned: `{summary.get('generation_manifests_scanned')}`",
+        f"- generation_scan_omitted: `{summary.get('generation_scan_omitted')}`",
+        f"- invalid_generation_manifests: `{summary.get('invalid_generation_manifests')}`",
         "",
-        "| Target | Current | Run ID | Workspace Root | Preflight | Repo Present | Declared Detected | Modified |",
-        "|---|---|---|---|---|---:|---:|---|",
+        "| Target | Current | Current Run | Latest Attempt | Latest Completed | Latest Validated | History | Workspace Root | Preflight | Repo Present | Declared Detected | Modified |",
+        "|---|---|---|---|---|---|---:|---|---|---:|---:|---|",
     ]
     for row in index.get("targets", []):
         summary_row = row.get("summary", {})
         preflight = summary_row.get("preflight", {})
         capability = summary_row.get("capability_probe", {})
+        history = row.get("generation_history", {})
+        roles = history.get("roles", {})
         lines.append(
-            f"| `{row.get('slug')}` | `{row.get('current_status')}` | `{row.get('current_run_id')}` | `{summary_row.get('workspace_root')}` | `{preflight.get('status')}` | {capability.get('repo_present', 0)} | {capability.get('declared_detected', 0)} | `{row.get('modified_at')}` |"
+            f"| `{row.get('slug')}` | `{row.get('current_status')}` | `{roles.get('validated_current')}` | `{roles.get('latest_attempt')}` | `{roles.get('latest_completed')}` | `{roles.get('latest_validated')}` | {len(history.get('history', []))} | `{summary_row.get('workspace_root')}` | `{preflight.get('status')}` | {capability.get('repo_present', 0)} | {capability.get('declared_detected', 0)} | `{row.get('modified_at')}` |"
         )
     return "\n".join(lines) + "\n"
 

@@ -5,15 +5,34 @@ from collections.abc import Iterable
 from pathlib import Path
 
 
+SELF_TARGET_MODE = "self_target"
+EMBEDDED_TARGET_MODE = "embedded"
+CENTRAL_EXTERNAL_TARGET_MODE = "central_external"
+
+
+def installation_target_mode(
+    target_root: str | Path,
+    installation_root: str | Path,
+) -> str:
+    """Classify the filesystem relationship without inferring operator authority."""
+
+    target = Path(target_root).resolve()
+    installation = Path(installation_root).resolve()
+    if installation == target:
+        return SELF_TARGET_MODE
+    if installation.is_relative_to(target):
+        return EMBEDDED_TARGET_MODE
+    return CENTRAL_EXTERNAL_TARGET_MODE
+
+
 def runtime_installation_excluded_roots(
     target_root: str | Path,
     installation_root: str | Path,
 ) -> set[Path]:
     """Return the running installation root only when it is embedded in the target."""
 
-    target = Path(target_root).resolve()
     installation = Path(installation_root).resolve()
-    if installation != target and installation.is_relative_to(target):
+    if installation_target_mode(target_root, installation) == EMBEDDED_TARGET_MODE:
         return {installation}
     return set()
 

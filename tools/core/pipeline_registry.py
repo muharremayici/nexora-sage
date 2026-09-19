@@ -582,6 +582,181 @@ def dependency_closure_for_step(catalog: list[dict[str, Any]], step_name: str) -
     return ordered
 
 
+def claim_owned_execution_plan(
+    catalog: list[dict[str, Any]],
+    profile_name: str,
+    *,
+    projects: list[str] | None = None,
+    policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Derive one claim profile from the canonical DAG or fail on policy drift."""
+    execution_policy = policy if isinstance(policy, dict) else load_pipeline_execution_policy()
+    profiles = execution_policy.get("execution_profiles", {})
+    profile = profiles.get(str(profile_name or "").strip().lower(), {}) if isinstance(profiles, dict) else {}
+    if not isinstance(profile, dict) or profile.get("mode") != "claim_closure":
+        raise ValueError(f"execution profile is not claim-owned: {profile_name}")
+
+    by_slug: dict[str, dict[str, Any]] = {}
+    for step in catalog:
+        slug = normalize_step_slug(step.get("name"))
+        if not slug or slug in by_slug:
+            raise ValueError(f"claim-owned execution requires unique step slugs: {slug or '<empty>'}")
+        by_slug[slug] = step
+
+    target_slug = normalize_step_slug(profile.get("target_step_slug"))
+    target = by_slug.get(target_slug)
+    if target is None:
+        raise ValueError(f"claim-owned target step is unavailable: {target_slug}")
+    if target.get("accepts_execution_claim") is not True:
+        raise ValueError(f"claim-owned target step cannot consume its plan: {target.get('name')}")
+
+    required_direct = {
+        normalize_step_slug(item)
+        for item in profile.get("required_direct_dependency_slugs", [])
+        if str(item).strip()
+    }
+    families = profile.get("excluded_evidence_families", [])
+    if not required_direct or not isinstance(families, list) or not families:
+        raise ValueError(f"claim-owned profile has no dependency partition: {profile_name}")
+
+    family_ids: set[str] = set()
+    excluded_direct: set[str] = set()
+    excluded_artifacts: set[str] = set()
+    excluded_checks: set[str] = set()
+    excluded_signals: set[str] = set()
+    normalized_families: list[dict[str, Any]] = []
+    for family in families:
+        if not isinstance(family, dict):
+            raise ValueError(f"claim-owned excluded evidence family is not an object: {profile_name}")
+        family_id = str(family.get("id") or "").strip()
+        producer_slug = normalize_step_slug(family.get("producer_step_slug"))
+        artifact_ids = sorted({str(item) for item in family.get("artifact_ids", []) if str(item).strip()})
+        check_ids = sorted({str(item) for item in family.get("quality_check_ids", []) if str(item).strip()})
+        signal_ids = sorted({str(item) for item in family.get("quality_signal_ids", []) if str(item).strip()})
+        if (
+            not family_id
+            or family_id in family_ids
+            or not producer_slug
+            or not artifact_ids
+            or not check_ids
+        ):
+            raise ValueError(f"claim-owned excluded evidence family is incomplete or duplicated: {family_id or '<empty>'}")
+        duplicated_evidence = {
+            "producer_step_slug": [producer_slug] if producer_slug in excluded_direct else [],
+            "artifact_ids": sorted(set(artifact_ids) & excluded_artifacts),
+            "quality_check_ids": sorted(set(check_ids) & excluded_checks),
+            "quality_signal_ids": sorted(set(signal_ids) & excluded_signals),
+        }
+        if any(duplicated_evidence.values()):
+            raise ValueError(
+                "claim-owned excluded evidence families overlap: "
+                f"profile={profile_name} family={family_id} duplicates={duplicated_evidence}"
+            )
+        family_ids.add(family_id)
+        excluded_direct.add(producer_slug)
+        excluded_artifacts.update(artifact_ids)
+        excluded_checks.update(check_ids)
+        excluded_signals.update(signal_ids)
+        normalized_families.append(
+            {
+                "id": family_id,
+                "producer_step_slug": producer_slug,
+                "artifact_ids": artifact_ids,
+                "quality_check_ids": check_ids,
+                "quality_signal_ids": signal_ids,
+                "reason": str(family.get("reason") or "").strip(),
+            }
+        )
+
+    direct_by_slug = {
+        normalize_step_slug(dependency): str(dependency)
+        for dependency in target.get("depends_on", []) or []
+    }
+    actual_direct = set(direct_by_slug)
+    if required_direct & excluded_direct:
+        raise ValueError(f"claim-owned dependency partition overlaps: {profile_name}")
+    if required_direct | excluded_direct != actual_direct:
+        raise ValueError(
+            "claim-owned dependency partition drift: "
+            f"profile={profile_name} missing={sorted(actual_direct - required_direct - excluded_direct)} "
+            f"unknown={sorted((required_direct | excluded_direct) - actual_direct)}"
+        )
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def visit(step_slug: str) -> None:
+        if step_slug in seen:
+            return
+        step = by_slug.get(step_slug)
+        if step is None:
+            raise ValueError(f"claim-owned dependency step is unavailable: {step_slug}")
+        seen.add(step_slug)
+        for dependency in step.get("depends_on", []) or []:
+            dependency_slug = normalize_step_slug(dependency)
+            if step_slug == target_slug and dependency_slug in excluded_direct:
+                continue
+            visit(dependency_slug)
+        ordered.append(str(step.get("name") or ""))
+
+    visit(target_slug)
+    selected_slugs = {normalize_step_slug(item) for item in ordered}
+    boundary_edges: list[dict[str, str]] = []
+    for selected_slug in sorted(selected_slugs):
+        step = by_slug[selected_slug]
+        for dependency in step.get("depends_on", []) or []:
+            dependency_slug = normalize_step_slug(dependency)
+            if dependency_slug not in selected_slugs:
+                boundary_edges.append(
+                    {
+                        "consumer": str(step.get("name") or ""),
+                        "producer": str(dependency),
+                        "producer_slug": dependency_slug,
+                    }
+                )
+    expected_boundary = {
+        (str(target.get("name") or ""), direct_by_slug[slug], slug)
+        for slug in excluded_direct
+    }
+    actual_boundary = {
+        (row["consumer"], row["producer"], row["producer_slug"])
+        for row in boundary_edges
+    }
+    if actual_boundary != expected_boundary:
+        raise ValueError(f"claim-owned closure has undeclared boundary edges: {profile_name}")
+
+    requested_projects = sorted({str(item).strip().upper() for item in (projects or []) if str(item).strip()})
+    cost_band = profile.get("cost_band", {}) if isinstance(profile.get("cost_band"), dict) else {}
+    return {
+        "profile": str(profile_name).strip().lower(),
+        "mode": "claim_closure",
+        "execution_mode": str(profile.get("execution_mode_id") or ""),
+        "target_step": str(target.get("name") or ""),
+        "target_step_slug": target_slug,
+        "claim_boundary": str(profile.get("claim_boundary") or ""),
+        "release_authority": profile.get("release_authority") is True,
+        "freshness_claim": str(profile.get("freshness_claim") or ""),
+        "cache_posture": str(profile.get("cache_posture") or ""),
+        "project_scope": {
+            "policy": str(profile.get("project_scope") or ""),
+            "requested_projects": requested_projects,
+        },
+        "cost_band": {
+            "status": str(cost_band.get("status") or "UNKNOWN"),
+            "basis": str(cost_band.get("basis") or "insufficient_exact_profile_samples"),
+        },
+        "step_count": len(ordered),
+        "selected_steps": ordered,
+        "required_direct_dependency_slugs": sorted(required_direct),
+        "excluded_direct_dependency_slugs": sorted(excluded_direct),
+        "excluded_evidence_families": normalized_families,
+        "excluded_artifact_ids": sorted(excluded_artifacts),
+        "excluded_quality_check_ids": sorted(excluded_checks),
+        "excluded_quality_signal_ids": sorted(excluded_signals),
+        "boundary_edges": boundary_edges,
+    }
+
+
 def _direct_artifact_dependencies(
     by_name: dict[str, dict[str, Any]],
     step_name: str,
@@ -840,6 +1015,24 @@ def step_registry_from_catalog(catalog: list[dict[str, Any]]) -> dict[str, Any]:
         for artifact, names in sorted(writers.items())
         if len(names) > 1
     }
+    claim_targets = {
+        normalize_step_slug(step.get("name"))
+        for step in catalog
+        if step.get("accepts_execution_claim") is True
+    }
+    claim_owned_profiles = {
+        str(profile): claim_owned_execution_plan(
+            catalog,
+            str(profile),
+            policy=execution_policy,
+        )
+        for profile, config in sorted(execution_profiles.items())
+        if (
+            isinstance(config, dict)
+            and config.get("mode") == "claim_closure"
+            and normalize_step_slug(config.get("target_step_slug")) in claim_targets
+        )
+    }
     return {
         "meta": {"kind": "pipeline_step_registry", "version": "v1"},
         "execution_profiles": {
@@ -848,6 +1041,8 @@ def step_registry_from_catalog(catalog: list[dict[str, Any]]) -> dict[str, Any]:
                 "include_full_only": config.get("include_full_only") is True,
                 "description": str(config.get("description") or ""),
                 "keep_slugs": list(config.get("keep_slugs", []) or []) if isinstance(config, dict) else [],
+                "execution_mode_id": str(config.get("execution_mode_id") or ""),
+                "claim_plan": claim_owned_profiles.get(str(profile)),
             }
             for profile, config in sorted(execution_profiles.items())
             if isinstance(config, dict)
@@ -890,10 +1085,12 @@ def step_registry_from_catalog(catalog: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "sqlite_writers": sum(1 for step in steps if step["execution_contract"]["sqlite_writer"]),
             "invocation_contracts": sum(1 for step in steps if step.get("invocation_contract")),
+            "claim_owned_profiles": len(claim_owned_profiles),
         },
         "artifact_ownership": {
             "writers": writers,
             "write_conflicts": write_conflicts,
         },
+        "claim_owned_execution_plans": claim_owned_profiles,
         "steps": steps,
     }

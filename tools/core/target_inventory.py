@@ -3,12 +3,20 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from fnmatch import fnmatchcase
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
 from tools.core.json_syntax import loads_json_strict
+from tools.core.inventory_classification import (
+    finalize_inventory_classification as _finalize_inventory_classification,
+    inventory_classification_policy as _inventory_classification_policy,
+    is_analysis_source_file as _is_analysis_source_file,
+    matches_marker as _matches_marker,
+    new_inventory_classification_state as _inventory_classification_state,
+    record_inventory_classification as _record_inventory_classification,
+)
+from tools.core.target_repository_trust import is_target_path_contained
 
 
 TARGET_OBSERVATION_IDENTITY_ALGORITHM = "path-kind-size-mtime-config-content-sha256-v1"
@@ -72,32 +80,6 @@ def _analysis_source_policy(
     return source_extensions, compound_suffixes, template_extensions
 
 
-def _is_analysis_source_file(
-    path: Path,
-    *,
-    skip: set[str],
-    source_extensions: set[str],
-    compound_suffixes: set[str],
-    template_extensions: set[str],
-) -> bool:
-    if any(part.lower() in skip for part in path.parts):
-        return False
-    suffixes = [suffix.lower() for suffix in path.suffixes]
-    if not suffixes:
-        return False
-    compound = "".join(suffixes[-2:]) if len(suffixes) >= 2 else suffixes[-1]
-    return (
-        compound not in compound_suffixes
-        and suffixes[-1] not in template_extensions
-        and suffixes[-1] in source_extensions
-    )
-
-
-def _matches_marker(filename: str, patterns: list[str]) -> bool:
-    lowered = filename.lower()
-    return any(fnmatchcase(lowered, str(pattern).lower()) for pattern in patterns)
-
-
 def _has_skipped_ancestor(
     relative: Path,
     skip: set[str],
@@ -126,6 +108,8 @@ def source_inventory(
     continue_for_observer_after_limit: bool = False,
     traversal_state: dict[str, Any] | None = None,
     observation_state: dict[str, Any] | None = None,
+    classification_state: dict[str, Any] | None = None,
+    path_boundary_state: dict[str, Any] | None = None,
 ) -> tuple[
     int,
     bool,
@@ -226,6 +210,8 @@ def source_inventory(
         )
     try:
         for path in root.rglob("*"):
+            if not is_target_path_contained(root, path, state=path_boundary_state):
+                continue
             resolved_path = path.resolve()
             if any(
                 resolved_path == excluded_root
@@ -284,6 +270,20 @@ def source_inventory(
             if file_observer is not None:
                 observer_needs_more = file_observer(path)
             relative_path = path.relative_to(identity_root).as_posix()
+            if isinstance(classification_state, dict):
+                _record_inventory_classification(
+                    classification_state,
+                    path,
+                    relative_path,
+                    policy=policy,
+                    config_patterns=config_patterns,
+                    manifest_patterns=manifest_patterns,
+                    language_by_extension=language_by_extension,
+                    skip=skip,
+                    source_extensions=source_extensions,
+                    compound_suffixes=compound_suffixes,
+                    template_extensions=template_extensions,
+                )
             if _matches_marker(path.name, config_patterns):
                 config_files.add(relative_path)
             for ecosystem, patterns in manifest_patterns.items():
@@ -380,6 +380,8 @@ def repository_and_selected_project_inventory(
     excluded_roots: set[Path] | None = None,
     projects: dict[str, Any] | None = None,
     observation_state: dict[str, Any] | None = None,
+    classification_projection: dict[str, Any] | None = None,
+    path_boundary_state: dict[str, Any] | None = None,
 ) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
     """Produce repository and nearest-owner project summaries from one filesystem walk."""
 
@@ -447,6 +449,8 @@ def repository_and_selected_project_inventory(
     }
     selected_total = 0
     selected_truncated = False
+    repository_classification_state = _inventory_classification_state()
+    selected_classification_state = _inventory_classification_state()
 
     def observe_selected(path: Path) -> bool:
         nonlocal selected_total, selected_truncated
@@ -471,6 +475,19 @@ def repository_and_selected_project_inventory(
         extension = path.suffix.lower() or "<none>"
         state["extension_counts"][extension] = state["extension_counts"].get(extension, 0) + 1
         relative_path = path.relative_to(target).as_posix()
+        _record_inventory_classification(
+            selected_classification_state,
+            path,
+            relative_path,
+            policy=policy,
+            config_patterns=config_patterns,
+            manifest_patterns=manifest_patterns,
+            language_by_extension=language_by_extension,
+            skip=skip,
+            source_extensions=source_extensions,
+            compound_suffixes=compound_suffixes,
+            template_extensions=template_extensions,
+        )
         if _matches_marker(path.name, config_patterns):
             state["config_files"].add(relative_path)
         for ecosystem, patterns in manifest_patterns.items():
@@ -526,6 +543,8 @@ def repository_and_selected_project_inventory(
         continue_for_observer_after_limit=True,
         traversal_state=traversal_state,
         observation_state=observation_state,
+        classification_state=repository_classification_state,
+        path_boundary_state=path_boundary_state,
     )
     if traversal_state.get("error"):
         selected_truncated = True
@@ -594,6 +613,28 @@ def repository_and_selected_project_inventory(
         project_file_counts,
         project_inventory_evidence,
     )
+    if isinstance(classification_projection, dict):
+        classification_policy = _inventory_classification_policy(policy)
+        classification_projection.update(
+            {
+                "contract": classification_policy.get("contract"),
+                "precedence": list(classification_policy.get("precedence") or []),
+                "decision_effect": classification_policy.get(
+                    "decision_effect",
+                    "observability_only",
+                ),
+                "repository": _finalize_inventory_classification(
+                    repository_classification_state,
+                    policy=policy,
+                    truncated=bool(repository_result[1]),
+                ),
+                "effective_scope": _finalize_inventory_classification(
+                    selected_classification_state,
+                    policy=policy,
+                    truncated=bool(selected_truncated),
+                ),
+            }
+        )
     return repository_result, selected_result
 
 

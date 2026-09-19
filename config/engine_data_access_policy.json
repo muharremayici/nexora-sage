@@ -117,6 +117,11 @@
       "status": "accepted_bounded",
       "reason": "enumerates only centrally declared policy-config patterns beneath one selected project root without executing target configuration"
     },
+    "tools/core/dependency_acquisition.py": {
+      "class": "execution_adapter",
+      "status": "accepted_bounded",
+      "reason": "walks only declared dependency-action output paths with a fixed entry cap to report installation progress"
+    },
     "tools/core/artifact_store.py": {
       "class": "artifact_storage",
       "status": "accepted",

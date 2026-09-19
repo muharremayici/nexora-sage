@@ -51,6 +51,7 @@
         "analysis_snapshot_kind",
         "analysis_snapshot_id",
         "root_binding",
+        "target_repository_threat_boundary",
         "repository_reference_kind",
         "repository_reference_id",
         "working_tree_status"
@@ -82,6 +83,89 @@
             "MISMATCH",
             "UNAVAILABLE"
           ]
+        },
+        "requested_projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "effective_projects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "project_scope_binding": {
+          "enum": [
+            "BOUND",
+            "MISMATCH",
+            "UNAVAILABLE",
+            "NOT_REQUESTED"
+          ]
+        },
+        "scope_authority_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope_evidence_status": {
+          "type": "string"
+        },
+        "target_repository_threat_boundary": {
+          "type": "object",
+          "required": [
+            "contract",
+            "hostile_repository_safety"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "contract": {
+              "const": "target_repository_threat_boundary_v1"
+            },
+            "contract_source": {
+              "type": "string"
+            },
+            "trust_class": {
+              "type": "string"
+            },
+            "trust_class_known": {
+              "type": "boolean"
+            },
+            "analysis_admission": {
+              "type": "string"
+            },
+            "repository_content_trust": {
+              "type": "string"
+            },
+            "target_code_execution": {
+              "type": "string"
+            },
+            "target_dependency_installation": {
+              "type": "string"
+            },
+            "hostile_repository_safety": {
+              "const": "not_available"
+            },
+            "secret_confidentiality_guarantee": {
+              "type": "string"
+            },
+            "resource_exhaustion_resistance": {
+              "type": "string"
+            },
+            "path_boundary": {
+              "type": "object"
+            },
+            "claim_boundary": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
         },
         "repository_reference_kind": {
           "enum": [

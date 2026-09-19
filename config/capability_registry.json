@@ -1,8 +1,8 @@
 {
   "_meta": {
     "kind": "nexora.capability_registry",
-    "version": "1.0.6",
-    "product_release": "1.0.6",
+    "version": "1.1.0",
+    "product_release": "1.1.0",
     "description": "Machine-readable capability/plugin foundation for Nexora SAGE engines, adapters, artifacts and claim boundaries. Product release and capability introduction use SemVer; internal artifact contracts version independently.",
     "validation_contract": {
       "roadmap_decision_matrix": {
@@ -1072,7 +1072,7 @@
       "roadmap_scope": "Check README/API docs/ADR freshness and map documented claims back to code evidence.",
       "rationale": "Low implementation risk and helps product trust, but less core than architecture/runtime analysis.",
       "claim_boundary": "Roadmap capability slot for README/API docs/ADR freshness and code-to-documentation alignment; not active in V1 release claims.",
-      "target_release": "1.1.0"
+      "target_release": "1.2.0"
     },
     {
       "id": "distributed_service_governance",
@@ -1164,10 +1164,10 @@
         "tools/validate_target_repository_action_memory.py"
       ],
       "current_state": "SAGE can derive one read-only target action projection from schema-valid Audit violations, the watchdog pulse/proof-debt ledger and Merge Decision Cockpit while preserving source authority, lifecycle, declared freshness uncertainty and human-review boundaries. Missing or invalid sources produce PARTIAL rather than a false clean result, and cross-source semantic similarity is never used to erase evidence.",
-      "roadmap_scope": "Expose the projection through the bounded target actor surfaces and calibrate action priority and freshness against external target workflows before activating a 1.1.0 product claim.",
+      "roadmap_scope": "Expose the projection through the bounded target actor surfaces and calibrate action priority and freshness against external target workflows before activating a 1.2.0 product claim.",
       "rationale": "Lets humans and target-repository actors route existing actions without reconstructing three domain queues or polluting SAGE product debt.",
       "claim_boundary": "Implemented roadmap projection only. It is not a second action ledger, does not authorize mutation, does not prove currentness from timestamps alone and is not active in V1.0.0 release claims.",
-      "target_release": "1.1.0"
+      "target_release": "1.2.0"
     },
     {
       "id": "target_repository_proof_bundle",
@@ -1195,13 +1195,14 @@
         "target_repository_proof_bundle"
       ],
       "validators": [
-        "tools/validate_target_repository_proof_contract.py"
+        "tools/validate_target_repository_proof_contract.py",
+        "tools/validate_pipeline_execution_contract.py"
       ],
-      "current_state": "SAGE can assemble existing target evidence into a dedicated target_repository_proof_bundle, derive target identity from validated Atlas commit evidence, bind analyzed project roots, suppress unbound statistics and fail closed on missing, stale, tampered or snapshot-unbound required evidence. Genome, Audit, Quality Gate, Dead Code, Circular Dependencies and Test Impact now emit producer-owned, content-hash-bound Atlas snapshot lineage receipts; real baseline and change evidence can prove snapshot coherence while preserving a red source verdict. Merge Decision Cockpit remains an explicitly declared transitional payload-pointer surface until its upstream merge evidence chain is lineage-bound.",
-      "roadmap_scope": "Calibrate positive target proof on external mutation workflows, deliver the separate merge evidence snapshot lineage chain, then activate the 1.1.0 claim profile only after independent target evidence and human authority pass.",
+      "current_state": "SAGE can assemble existing target evidence into a dedicated target_repository_proof_bundle, derive target identity from validated Atlas commit evidence, bind analyzed project roots, suppress unbound statistics and fail closed on missing, stale, tampered or snapshot-unbound required evidence. Target-proof refresh now selects the claim-owned target-quality profile: the canonical pipeline DAG derives its exact retained producer closure, while merge, UI-runtime, comparative Oracle and broad review/proof families remain explicit out-of-claim evidence and are not read by the bounded Quality Gate. The selected plan, project scope, cache posture, honest cost status and claim boundary are exposed through pipeline registry and run receipts. Genome, Audit, Quality Gate, Dead Code, Circular Dependencies and Test Impact emit producer-owned, content-hash-bound Atlas snapshot lineage receipts; real baseline and change evidence can prove snapshot coherence while preserving a red source verdict. Merge Decision Cockpit remains an explicitly declared transitional payload-pointer surface until its upstream merge evidence chain is lineage-bound.",
+      "roadmap_scope": "Calibrate positive target proof on external mutation workflows, deliver the separate merge evidence snapshot lineage chain, then activate the 1.2.0 claim profile only after independent target evidence and human authority pass.",
       "rationale": "Gives customers and agents a single honest proof envelope for the analyzed repository without confusing it with SAGE's own release proof. It should aggregate existing evidence first, not create new claims.",
       "claim_boundary": "Implemented roadmap envelope for bounded target repository proof; snapshot coherence is proven for baseline and change evidence producers, but a positive target verdict still depends on each source verdict and independent calibration. Merge proof lineage remains transitional. This capability is not active in V1 release claims, not a production-runtime certificate and not a replacement for SAGE release_proof_bundle.",
-      "target_release": "1.1.0"
+      "target_release": "1.2.0"
     },
     {
       "id": "target_repository_lesson_memory",
@@ -1275,7 +1276,7 @@
       "roadmap_scope": "Add an opt-in local SQLite governance event ledger with trace_id, principal, task and context fingerprints, tool calls, policy decision/version, state changes, retries, cost, latency, outcome, attributed failure layer, correction_loop_count, packet_first_pass_rate, average_loops_to_pass, same_violation_recurrence_rate and watchdog_resolution_time exports.",
       "rationale": "Turns agent governance from anecdotal success into local-first measurable eval infrastructure while preserving repository privacy.",
       "claim_boundary": "Roadmap capability slot for local governance metrics and private eval loops; not active in V1 release claims and not remote telemetry.",
-      "target_release": "1.1.0"
+      "target_release": "1.2.0"
     },
     {
       "id": "principle_pack_expansion",
@@ -1362,7 +1363,7 @@
       "roadmap_scope": "Ingest provenance-bound target-native build stdout and stderr, normalize and deduplicate diagnostics, preserve warning severity and tool identity, distinguish syntax/integrity warnings from informational output, and correlate generated CSS or comparable output diagnostics to likely source literals without claiming certainty when source maps are absent.",
       "rationale": "An external target evaluation showed valid TypeScript and green lint/type checks producing invalid generated CSS that only the native build warning stream exposed. Native build evidence remains authoritative until an explicit ingestion contract is delivered.",
       "claim_boundary": "Roadmap capability slot for target-native build diagnostic ingestion and source attribution. V1 does not claim runtime/build-output observability or complete warning ingestion. Not active in V1 release claims.",
-      "target_release": "1.1.0"
+      "target_release": "1.2.0"
     },
     {
       "id": "target_runtime_schema_and_mutation_invariants",
