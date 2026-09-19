@@ -523,6 +523,15 @@
       "body_fingerprint": "ba591152bc191be6",
       "try_context_fingerprint": "67bcd44ddf2b214f",
       "purpose": "Bounded worker cleanup returns after a second timeout because the owned process tree has already received forced termination."
+    },
+    {
+      "file": "tools/core/sqlite_storage_maintenance.py",
+      "function": "heartbeat",
+      "exception_type": "(OSError, RuntimeError)",
+      "pass_only": true,
+      "body_fingerprint": "ba591152bc191be6",
+      "try_context_fingerprint": "1ac59a98087ceeb2",
+      "purpose": "A failed advisory reclamation heartbeat does not change the SQLite transaction or terminal verification result; maintenance completion and the terminal receipt remain authoritative."
     }
   ]
 }

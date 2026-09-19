@@ -8,6 +8,7 @@ from tools.core.db import SQLiteManager
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.logger import logger
 from tools.core.projects_registry import resolve_runtime_projects
+from tools.core.target_repository_trust import is_target_path_contained
 
 
 DB_PATH = RAW_DIR / "codemaps.db"
@@ -42,6 +43,8 @@ def _normalize_fallback_path(project_key: str, rel_path: str, fallback_path: Pat
             resolved = candidate.resolve()
         except Exception:
             resolved = candidate
+        if not is_target_path_contained(root, resolved):
+            return
         if resolved not in candidates:
             candidates.append(resolved)
 
@@ -64,10 +67,14 @@ def _normalize_fallback_path(project_key: str, rel_path: str, fallback_path: Pat
     if project_root is not None and rel:
         root_name = project_root.name.replace("\\", "/").strip("/")
         if root_name and rel.startswith(f"{root_name}/"):
-            return (project_root / rel[len(root_name) + 1 :]).resolve()
+            candidate = (project_root / rel[len(root_name) + 1 :]).resolve()
+            if is_target_path_contained(root, candidate):
+                return candidate
     if rel:
-        return (root / rel).resolve()
-    return Path(fallback_path)
+        candidate = (root / rel).resolve()
+        if is_target_path_contained(root, candidate):
+            return candidate
+    return None
 
 
 def load_source_text(

@@ -15,6 +15,8 @@ from tools.core.json_io import load_json_file, load_json_object_strict
 from tools.core.pipeline_registry import (
     STEP_DIAGNOSTIC_COMMANDS,
     catalog_args_from_execution_policy,
+    claim_owned_execution_plan,
+    dependency_closure_for_step,
     normalize_step_slug,
     step_registry_from_catalog,
 )
@@ -119,6 +121,80 @@ def _steps(registry: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(registry, dict):
         return []
     return [step for step in registry.get("steps", []) if isinstance(step, dict)]
+
+
+def _claim_owned_profile_validation(policy: dict[str, Any]) -> dict[str, Any]:
+    try:
+        from tools.orchestrators.orchestrator import build_step_catalog
+
+        catalog = build_step_catalog(
+            catalog_args_from_execution_policy(policy),
+            stale_projects=None,
+            changed_files=None,
+        )
+        profiles = policy.get("execution_profiles", {}) if isinstance(policy, dict) else {}
+        execution_modes = policy.get("execution_modes", {}) if isinstance(policy, dict) else {}
+        claim_profiles = [
+            str(name)
+            for name, config in sorted(profiles.items())
+            if isinstance(config, dict) and config.get("mode") == "claim_closure"
+        ] if isinstance(profiles, dict) else []
+        plans = {
+            name: claim_owned_execution_plan(catalog, name, policy=policy)
+            for name in claim_profiles
+        }
+        target_contract = load_json_object_strict(
+            ROOT / "config" / "target_repository_proof_contract.json",
+            label="Target repository proof contract",
+        )
+        refresh_profile = str(target_contract.get("public_cli", {}).get("refresh_execution_profile") or "")
+        selected_plan = plans.get(refresh_profile, {})
+        broad_quality_count = len(dependency_closure_for_step(catalog, "Quality Gates"))
+        profile_links = {
+            str(name): str(config.get("quality_gate_claim_profile") or "")
+            for name, config in sorted(profiles.items())
+            if isinstance(config, dict) and config.get("quality_gate_claim_profile")
+        }
+        invalid_links = {
+            name: linked
+            for name, linked in profile_links.items()
+            if linked not in plans
+        }
+        invalid_profile_modes: dict[str, str] = {}
+        for name in plans:
+            mode_id = str(profiles.get(name, {}).get("execution_mode_id") or "")
+            mode_config = execution_modes.get(mode_id, {}) if mode_id else {}
+            if not isinstance(mode_config, dict) or str(mode_config.get("profile") or "") != name:
+                invalid_profile_modes[name] = mode_id
+        valid = (
+            bool(plans)
+            and refresh_profile in plans
+            and bool(selected_plan.get("claim_boundary"))
+            and selected_plan.get("release_authority") is False
+            and int(selected_plan.get("step_count") or 0) < broad_quality_count
+            and bool(selected_plan.get("excluded_evidence_families"))
+            and bool(selected_plan.get("freshness_claim"))
+            and bool(selected_plan.get("cache_posture"))
+            and bool(selected_plan.get("project_scope", {}).get("policy"))
+            and bool(selected_plan.get("cost_band", {}).get("status"))
+            and not invalid_links
+            and not invalid_profile_modes
+        )
+        return {
+            "status": "PASS" if valid else "FAIL",
+            "refresh_profile": refresh_profile,
+            "broad_quality_step_count": broad_quality_count,
+            "plans": plans,
+            "profile_links": profile_links,
+            "invalid_profile_links": invalid_links,
+            "invalid_profile_modes": invalid_profile_modes,
+        }
+    except Exception as exc:
+        return {
+            "status": "FAIL",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
 
 
 def _release_proof_dag_validation() -> dict[str, Any]:
@@ -684,6 +760,7 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
     release_proof_dag = _release_proof_dag_validation()
     release_proof_timeout_profiles = _release_proof_timeout_profile_validation(policy)
     release_proof_scope = _release_proof_scope_validation()
+    claim_owned_profiles = _claim_owned_profile_validation(policy)
     known_slugs = {normalize_step_slug(step.get("name")) for step in steps}
     profile_guidance = {}
     if isinstance(registry, dict):
@@ -1682,6 +1759,11 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
         _check("finalizer_steps_are_not_parallel_safe", not unsafe_finalizers, unsafe_finalizers),
         _check("all_execution_contracts_explain_reasons", not unreasoned_steps, unreasoned_steps),
         _check("execution_profiles_are_exported", valid_profiles.issubset(profile_names), sorted(profile_names)),
+        _check(
+            "claim_owned_target_proof_profiles_are_dependency_closed",
+            claim_owned_profiles.get("status") == "PASS",
+            claim_owned_profiles,
+        ),
         _check("profile_guidance_targets_known_steps", not guidance_for_unknown_steps, guidance_for_unknown_steps),
         _check("profile_guidance_uses_known_values", not invalid_profile_guidance, invalid_profile_guidance),
         _check("daily_profile_matches_step_guidance", not daily_profile_contradictions, daily_profile_contradictions),
@@ -1772,6 +1854,7 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
             "scheduler_counts": scheduler_counts,
             "sqlite_writers": sqlite_writers,
             "execution_modes": len(mode_names),
+            "claim_owned_profiles": len(claim_owned_profiles.get("plans", {})),
             "validator_preconditions": len(validator_contracts) if isinstance(validator_contracts, dict) else 0,
             "validator_observability_contracts": (
                 len(validator_contracts) - len({item.get("validator") for item in validators_without_observability_contract if isinstance(item, dict)})
@@ -1794,6 +1877,7 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
         },
         "release_proof_dag": release_proof_dag,
         "release_proof_scope": release_proof_scope,
+        "claim_owned_execution_profiles": claim_owned_profiles,
         "execution_modes": {
             str(mode): {
                 "profile": str(config.get("profile") or ""),

@@ -26,6 +26,7 @@ from tools.core.installation_identity import (
 from tools.core.jsonc import loads_jsonc
 from tools.core.unmanaged_atomic_io import native_filesystem_path
 from tools.core.external_target_generation import external_target_output_slug
+from tools.core.target_repository_trust import is_target_path_contained
 
 # Directory setup
 # [Architect Protocol] Unified Atomic Paths (Sealed 4.0)
@@ -245,7 +246,7 @@ def load_runtime_config(auto_compile: bool = True):
 
 def _load_package_manifest(root: Path) -> dict:
     package_path = root / "package.json"
-    if not package_path.exists():
+    if not is_target_path_contained(root, package_path) or not package_path.exists():
         return {}
     try:
         return json.loads(package_path.read_text(encoding="utf-8"))
@@ -264,7 +265,10 @@ def _target_dependency_names(root: Path) -> set[str]:
 
 
 def _target_has_any(root: Path, names: tuple[str, ...]) -> bool:
-    return any((root / name).exists() for name in names)
+    return any(
+        is_target_path_contained(root, root / name) and (root / name).exists()
+        for name in names
+    )
 
 
 def _target_has_source_ext(root: Path, extensions: tuple[str, ...], limit: int = 1200) -> bool:
@@ -301,7 +305,7 @@ def _infer_target_bundler(root: Path, deps: set[str]) -> str:
 def _infer_target_path_aliases(root: Path) -> dict:
     for name in ("tsconfig.json", "jsconfig.json"):
         config_path = root / name
-        if not config_path.exists():
+        if not is_target_path_contained(root, config_path) or not config_path.exists():
             continue
         try:
             raw = config_path.read_text(encoding="utf-8")
@@ -589,6 +593,7 @@ def external_target_repository_topology(
     scope_projection: dict,
     *,
     requested_mode: str | None = None,
+    path_boundary_state: dict | None = None,
 ) -> dict:
     """Normalize an external acquisition into the canonical repository ontology."""
 
@@ -628,6 +633,7 @@ def external_target_repository_topology(
         excluded_path_predicate=is_managed_clean_mirror_path,
         config_or_manifest_predicate=is_config_or_manifest_file,
         skipped_names=registry_skip_dirs(),
+        path_boundary_state=path_boundary_state,
     )
     return {
         **topology,

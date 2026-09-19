@@ -34,7 +34,11 @@ def _read(raw_dir: Path, artifact_id: str) -> dict:
     return load_json_file(_path(raw_dir, artifact_id), {})
 
 
-def _baseline(target_root: Path) -> str:
+def _baseline(
+    target_root: Path,
+    *,
+    projects: list[str] | str | None = None,
+) -> str:
     raw_dir = _raw_dir(target_root)
     basis = datetime.now(timezone.utc) - timedelta(seconds=2)
     atlas = {"MAIN": {"project": {"root": str(target_root)}, "files": {}}}
@@ -55,7 +59,7 @@ def _baseline(target_root: Path) -> str:
             "excluded_projects": {},
             "excluded_project_reasons": {},
         },
-        projects=None,
+        projects=projects,
         repository_file_count=0,
         repository_inventory_truncated=False,
         repository_language_counts={},
@@ -291,3 +295,59 @@ def test_merge_bundle_requires_human_decision(tmp_path: Path) -> None:
     assert payload["summary"]["verdict"] == "REVIEW_REQUIRED"
     assert payload["human_decisions"] == ["review_merge_decision_cockpit"]
     assert payload["statistics"][-1]["value"] == 4
+
+
+def test_target_proof_binds_explicit_project_scope_to_scope_authority(
+    tmp_path: Path,
+) -> None:
+    _baseline(tmp_path, projects=["MAIN"])
+
+    payload = build_target_repository_proof(
+        target_root=tmp_path,
+        raw_dir=_raw_dir(tmp_path),
+        mode="baseline",
+        projects="main",
+    )
+
+    assert payload["summary"]["verdict"] == "PASS"
+    assert payload["subject"]["requested_projects"] == ["MAIN"]
+    assert payload["subject"]["effective_projects"] == ["MAIN"]
+    assert payload["subject"]["project_scope_binding"] == "BOUND"
+    assert payload["subject"]["scope_authority_id"]
+
+
+def test_target_proof_blocks_requested_project_scope_mismatch(
+    tmp_path: Path,
+) -> None:
+    _baseline(tmp_path, projects=["MAIN"])
+
+    payload = build_target_repository_proof(
+        target_root=tmp_path,
+        raw_dir=_raw_dir(tmp_path),
+        mode="baseline",
+        projects="OTHER",
+    )
+
+    assert payload["summary"]["verdict"] == "BLOCKED"
+    assert payload["subject"]["project_scope_binding"] == "MISMATCH"
+    assert "requested_project_scope:mismatch" in payload["unknowns"]
+
+
+def test_target_proof_rejects_non_bounded_scope_status_for_explicit_projects(
+    tmp_path: Path,
+) -> None:
+    _baseline(tmp_path, projects=["MAIN"])
+    scope = _read(tmp_path, "analysis_scope_authority")
+    scope["scope_authority"]["evidence_status"] = "COMPLETE_REPOSITORY"
+    _write(tmp_path, "analysis_scope_authority", scope)
+
+    payload = build_target_repository_proof(
+        target_root=tmp_path,
+        raw_dir=_raw_dir(tmp_path),
+        mode="baseline",
+        projects="MAIN",
+    )
+
+    assert payload["summary"]["verdict"] == "BLOCKED"
+    assert payload["subject"]["project_scope_binding"] == "MISMATCH"
+    assert payload["subject"]["scope_evidence_status"] == "COMPLETE_REPOSITORY"

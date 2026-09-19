@@ -449,6 +449,34 @@ Generate the external target run index:
 python .\sage.py external-targets
 ```
 
+The index keeps `validated_current` separate from the observed
+`latest_attempt`, `latest_completed`, and `latest_validated` roles. Generation
+manifests and returned history are bounded by
+`config/runtime_output_retention_policy.json`; omitted scan/history counts and
+invalid manifests stay visible. This is an index projection only. It never
+deletes a user-scoped generation and a bounded scan cannot claim complete
+latest-role coverage.
+
+Build bounded proof from the already validated current generation without
+starting another analysis:
+
+```powershell
+python .\sage.py target-proof --target-root "<absolute-path-to-target-repo>" --projects MAIN --mode baseline --refresh-policy current
+```
+
+`--refresh-policy if-missing` starts one claim-owned `target-quality`, target-bound refresh only when a
+validated current generation does not exist. `--refresh-policy always` starts
+the same dependency-complete target-quality refresh first. Merge, UI-runtime,
+comparative Oracle and broad review/proof producers remain outside that bounded
+claim and their old artifacts are not read by its Quality Gate. Neither policy
+retries after a failed refresh. When
+`--projects` is present, the requested keys must exactly match the current
+generation's `analysis_scope_authority`; a missing, incomplete, or mismatched
+scope blocks proof construction. The command delegates to the existing
+`target_repository_proof_bundle` builder and emits a structured terminal
+status. That bundle is target evidence only, not SAGE release authority, a
+human seal, or target mutation permission.
+
 Clean only external target outputs:
 
 ```powershell
@@ -460,6 +488,16 @@ python .\sage.py purge --mode external-targets
 External target mode is for repository-independent analysis, target-repository AI coding, and quality-control runs.
 
 Do not copy SAGE into target repositories. Keep SAGE central and pass the target path as input.
+
+Legacy embedded/default layouts remain observable rather than silently rewritten. When the
+running SAGE checkout is physically inside the analyzed repository, `sage.py init` emits an
+`embedded_sage_host_footprint_v1` projection in the installation plan. The projection names
+one exact embedded root, inventories source/cache/database/log/output surfaces, probes declared
+paths for host traversal, and provides non-mutating review guidance for detected ESLint, Biome,
+Stylelint, Prettier, TypeScript, Vitest and Jest surfaces plus search and packaging discovery.
+Apply any exclusion through the target repository's own tool configuration and version-specific
+syntax. SAGE does not edit those files or filesystem permissions. Self-analysis and a central
+SAGE checkout analyzing an external target report this guidance as not applicable.
 
 The target repository should receive:
 

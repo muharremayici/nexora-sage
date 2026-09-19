@@ -10,6 +10,19 @@ from typing import Any, Callable, Iterable
 TOPOLOGY_MODES = {"auto", "single_project", "multi_project"}
 
 
+def _is_target_path_contained(
+    root: Path,
+    candidate: Path,
+    *,
+    state: dict[str, Any] | None = None,
+) -> bool:
+    """Keep topology import-light while delegating boundary semantics to the SSoT helper."""
+
+    from tools.core.target_repository_trust import is_target_path_contained
+
+    return is_target_path_contained(root, candidate, state=state)
+
+
 def _string_set(values: Any) -> set[str]:
     return {
         str(value).strip().lower()
@@ -276,10 +289,10 @@ def scope_authority_id(
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
-def workspace_patterns(root: Path) -> list[str]:
+def workspace_patterns(root: Path, *, path_boundary_state: dict[str, Any] | None = None) -> list[str]:
     patterns: set[str] = set()
     pnpm_workspace = root / "pnpm-workspace.yaml"
-    if pnpm_workspace.is_file():
+    if _is_target_path_contained(root, pnpm_workspace, state=path_boundary_state) and pnpm_workspace.is_file():
         in_packages = False
         package_indent = 0
         for line in pnpm_workspace.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -298,7 +311,7 @@ def workspace_patterns(root: Path) -> list[str]:
                     patterns.add(pattern)
 
     package_json = root / "package.json"
-    if package_json.is_file():
+    if _is_target_path_contained(root, package_json, state=path_boundary_state) and package_json.is_file():
         try:
             payload = json.loads(package_json.read_text(encoding="utf-8-sig"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
@@ -342,6 +355,7 @@ def discover_project_candidates(
     config_or_manifest_predicate: Callable[[str], bool] | None = None,
     skipped_names: Iterable[str] = (),
     max_depth: int = 4,
+    path_boundary_state: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     """Discover repository project boundaries without depending on acquisition mode."""
 
@@ -351,7 +365,7 @@ def discover_project_candidates(
     skipped = {str(item).lower() for item in skipped_names}
     is_config_or_manifest = config_or_manifest_predicate or (lambda _name: False)
     excluded = {Path(path).resolve() for path in excluded_paths}
-    declared_workspace_patterns = workspace_patterns(root)
+    declared_workspace_patterns = workspace_patterns(root, path_boundary_state=path_boundary_state)
     processed = {root, *excluded}
     queue: list[tuple[Path, int, bool]] = [(root, 0, False)]
 
@@ -379,6 +393,8 @@ def discover_project_candidates(
             ):
                 continue
             resolved = entry.resolve()
+            if not _is_target_path_contained(root, entry, state=path_boundary_state):
+                continue
             if resolved in processed or (
                 excluded_path_predicate is not None
                 and excluded_path_predicate(resolved)
@@ -643,6 +659,7 @@ def resolve_repository_topology(
     excluded_path_predicate: Callable[[Path], bool] | None = None,
     config_or_manifest_predicate: Callable[[str], bool] | None = None,
     skipped_names: Iterable[str] = (),
+    path_boundary_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if requested_mode not in TOPOLOGY_MODES:
         raise ValueError(f"Unsupported repository topology mode: {requested_mode}")
@@ -657,6 +674,7 @@ def resolve_repository_topology(
         excluded_path_predicate=excluded_path_predicate,
         config_or_manifest_predicate=config_or_manifest_predicate,
         skipped_names=skipped_names,
+        path_boundary_state=path_boundary_state,
     )
     candidate_roles = classify_project_roles(candidates, role_markers)
     candidate_evidence = project_candidate_selection_evidence(

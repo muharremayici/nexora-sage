@@ -434,7 +434,7 @@
     "translation_failure": "fail_closed",
     "implementation_status": {
       "cli": "partial",
-      "mcp": "partial",
+      "mcp": "available",
       "ci": "partial",
       "hook": "partial",
       "api": "not_available",
@@ -448,7 +448,14 @@
       ],
       "mcp": [
         "config/mcp_tool_roles.json",
-        "config/agent_surface_contract.json"
+        "config/agent_surface_contract.json",
+        "tools/core/actor_interaction_runtime.py",
+        "tools/core/mcp_tool_profiles.py",
+        "tools/mcp/server.py",
+        "tools/tests/test_actor_adapter_conformance.py",
+        "tools/tests/test_actor_interaction_contract.py",
+        "tools/tests/test_actor_interaction_runtime.py",
+        "tools/tests/test_agent_surface_target_visibility.py"
       ],
       "ci": [
         ".github/workflows/quality-gate.yml"
@@ -473,13 +480,14 @@
           "claim_boundary": "CLI commands exist, but no dedicated end-to-end Actor Interaction Contract conformance suite is declared."
         },
         "mcp": {
-          "status": "partial",
+          "status": "available",
           "dimensions": {
             "request_translation": {
-              "status": "partial",
+              "status": "pass",
               "evidence": [
                 "tools/tests/test_actor_adapter_conformance.py",
-                "tools/tests/test_actor_interaction_runtime.py"
+                "tools/tests/test_actor_interaction_runtime.py",
+                "tools/tests/test_agent_surface_target_visibility.py"
               ]
             },
             "authority_non_escalation": {
@@ -535,12 +543,14 @@
               ],
               "evidence": [
                 "tools/tests/test_actor_adapter_conformance.py",
+                "tools/tests/test_actor_interaction_contract.py",
                 "tools/tests/test_actor_interaction_runtime.py",
+                "tools/tests/test_agent_surface_target_visibility.py",
                 "tools/tests/test_surgical_packet_inputs.py"
               ]
             }
           },
-          "claim_boundary": "The dispatch_actor_request surface proves bounded request translation, profile authority, stale target-context rejection, local trace routing, separate completed-state evidence, registry-bound terminal outcome mapping and unchanged raw tool results for its declared inspect, advise, propose, validate, decision-support and exception-request tools. Proposal conformance is identity-, snapshot- and category-scope-bound but never grants authorization or proves technical correctness. Exception requests may write only a scoped governance record and remain APPROVAL_REQUIRED; they cannot mutate repository state or grant approval. Surgical advice uses only producer-lineage-bound inputs from one target Atlas snapshot; optional unbound inputs are omitted and reported. Unknown, unparseable or failed dispatch yields INCOMPLETE_EVIDENCE. MCP remains partial overall because legacy direct tool calls do not carry the canonical actor request envelope and repository mutation conformance is not implemented."
+          "claim_boundary": "The available MCP Actor Interaction Contract adapter is exactly the dispatch_actor_request surface; legacy direct MCP tool calls remain backward-compatible non-actor surfaces and are not claimed to carry the canonical actor request envelope. The adapter proves bounded request translation, profile authority, stale target-context rejection, local trace routing, separate completed-state evidence, registry-bound terminal outcome mapping and unchanged raw tool results for its declared inspect, advise, propose, validate, decision-support and exception-request tools. Proposal conformance is identity-, snapshot- and category-scope-bound but never grants authorization or proves technical correctness. Exception requests may write only a scoped governance record and remain APPROVAL_REQUIRED; they cannot mutate repository state or grant approval. Surgical advice uses only producer-lineage-bound inputs from one target Atlas snapshot; optional unbound inputs are omitted and reported. Unknown, unparseable or failed dispatch yields INCOMPLETE_EVIDENCE. Repository-state mutation and pause/resume remain unavailable and are not implied by this promotion."
         },
         "ci": {
           "status": "partial",

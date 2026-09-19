@@ -5,11 +5,12 @@
     "purpose": "Central taxonomy and authority semantics for repository-declared policy discovery and runtime projection."
   },
   "authority": {
+    "target_repository_threat_boundary": "config/target_repository_threat_boundary_contract.json",
     "declared": "declared_not_evaluated",
     "not_observed": "not_observed_in_configured_taxonomy",
     "profile_incomplete": "profile_incomplete_refresh_required",
     "combined_without_execution": "not_available",
-    "claim_boundary": "Configuration, package and script presence proves declared policy sources only. It does not prove the effective per-file configuration, successful native execution or a combined governance verdict.",
+    "claim_boundary": "Configuration, package and script presence proves declared policy sources only. Executable configuration and script strings are never imported or executed. This does not prove the effective per-file configuration, successful native execution or a combined governance verdict.",
     "quality_gate_projection": {
       "target_native_enforcement_statuses": [
         "declared_not_evaluated",
@@ -108,6 +109,21 @@
         "biome"
       ]
     },
+    "prettier": {
+      "config_groups": [
+        "prettier"
+      ],
+      "package_exact": [
+        "prettier"
+      ],
+      "package_prefixes": [
+        "@prettier/",
+        "prettier-plugin-"
+      ],
+      "command_tokens": [
+        "prettier"
+      ]
+    },
     "typescript": {
       "config_groups": [
         "javascript_typescript"
@@ -119,6 +135,35 @@
       "command_tokens": [
         "tsc",
         "typescript"
+      ]
+    },
+    "vitest": {
+      "config_groups": [
+        "vitest"
+      ],
+      "package_exact": [
+        "vitest"
+      ],
+      "package_prefixes": [
+        "@vitest/"
+      ],
+      "command_tokens": [
+        "vitest"
+      ]
+    },
+    "jest": {
+      "config_groups": [
+        "jest"
+      ],
+      "package_exact": [
+        "jest",
+        "ts-jest"
+      ],
+      "package_prefixes": [
+        "@jest/"
+      ],
+      "command_tokens": [
+        "jest"
       ]
     },
     "sonar": {

@@ -232,7 +232,14 @@ class GovernanceTraceTests(unittest.TestCase):
                     patch("tools.core.governance_trace.RAW_DIR", Path(temp_dir)),
                     patch(
                         "tools.mcp.server._ensure_agent_artifact_chain_current",
-                        return_value={"status": "PASS", "blocking": False},
+                        return_value={
+                            "status": "PASS",
+                            "blocking": False,
+                            "checks": [
+                                {"name": "artifact_present:atlas", "passed": True, "severity": "error"},
+                                {"name": "sqlite_primary:atlas", "passed": True, "severity": "warning"},
+                            ],
+                        },
                     ),
                     patch("tools.core.contextos_mcp.build_surgical_operation_packet", return_value=packet),
                     patch(

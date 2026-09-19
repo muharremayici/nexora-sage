@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 
 from tools.core.config import OUTPUT_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic, _target_output_slug
 from tools.core.agent_packet_budget import BOUNDED_AGENT_PACKET_TOKENS, estimate_tokens, token_budget_class
+from tools.core.agent_surface_target_visibility import is_structured_precondition_block
 from tools.core.atlas_io import load_atlas_data
 from tools.core.external_target_generation import resolve_external_target_artifact_dir
 from tools.core.json_io import load_json_file
@@ -1036,6 +1037,10 @@ def _review_named_sample(sample: dict[str, Any], *, target_root: str = "") -> di
             )
         review["passed"] = all(review["checks"].values())
     if name in {"domain_ui_work_queue", "domain_ui_all_projects_work_queue"}:
+        invalid_context = is_structured_precondition_block(
+            sample,
+            expected_tool="get_violation_work_queue",
+        )
         stale_fail_closed = (
             'status: "fail"' in body
             and "refresh_sage_evidence_before_editing" in body
@@ -1043,15 +1048,26 @@ def _review_named_sample(sample: dict[str, Any], *, target_root: str = "") -> di
             and "Do not edit target repository code from stale or incomplete queue evidence." in body
         )
         clean_queue = _is_bounded_clean_sage_audit_queue_brief(body)
+        if invalid_context:
+            # A canonical lifecycle precondition block is a complete alternate
+            # response shape; it is not a queue brief with an embedded YAML
+            # payload. Its structured fields are validated by the shared
+            # classifier above.
+            review["checks"]["has_single_yaml_block"] = True
+            review["checks"]["has_closed_fenced_block"] = True
+            review["checks"]["has_action_language"] = True
+            review["checks"]["has_scope_guard"] = True
         review["checks"]["domain_ui_import_target_is_extension_resolved"] = (
             clean_queue
             or stale_fail_closed
+            or invalid_context
             or "types/domain/stores.ts imports ../ui" not in body
             or "types/ui.ts" in body
         )
         review["checks"]["domain_ui_enforced_rule_requires_human_approval"] = (
             clean_queue
             or stale_fail_closed
+            or invalid_context
             or (
                 'rule: "domain_ui_leaks"' in body
                 and "human_approval_required: true" in body

@@ -39,7 +39,7 @@ def save_unmanaged_json_atomic(
     try:
         with os.fdopen(file_descriptor, "w", encoding="utf-8") as stream:
             json.dump(payload, stream, indent=indent, ensure_ascii=False)
-        last_error: OSError | None = None
+        last_error: PermissionError | None = None
         for attempt in range(6):
             try:
                 os.replace(
@@ -47,11 +47,11 @@ def save_unmanaged_json_atomic(
                     native_filesystem_path(destination),
                 )
                 return
-            except OSError as exc:
+            except PermissionError as exc:
                 last_error = exc
                 if attempt == 5:
                     raise
-                time.sleep(0.05 * (attempt + 1))
+                time.sleep(0.05 * (2 ** attempt))
         if last_error is not None:
             raise last_error
     finally:

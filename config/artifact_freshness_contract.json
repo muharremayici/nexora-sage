@@ -22,6 +22,93 @@
       "artifact_freshness_contract_validation"
     ]
   },
+  "generation_composition": {
+    "kind": "nexora.audit_findings_generation",
+    "version": "v1",
+    "sqlite_fact": {
+      "artifact_name": "audit_findings_generation",
+      "fact_key": "manifest"
+    },
+    "transition_contract": {
+      "kind": "scoped_delta",
+      "required_identity_fields": [
+        "parent_snapshot_id",
+        "changed_files",
+        "changed_files_sha256"
+      ],
+      "optional_tombstone_fields": [
+        "deleted_files",
+        "deleted_files_sha256"
+      ],
+      "scope_rule": "Scoped Audit requested refs must equal the Atlas transition; audited refs plus declared tombstones must partition that exact set.",
+      "failure_rule": "A failed composition leaves the prior finding manifest unchanged, so consumers fail closed against the advanced Atlas snapshot."
+    },
+    "consumer_profiles": {
+      "audit_queue": {
+        "surfaces": [
+          "get_violation_work_queue",
+          "check_module_integrity"
+        ],
+        "canonical_required_trust_checks": [
+          "artifact_present:atlas",
+          "artifact_present:analysis_scope_authority",
+          "artifact_present:audit_report",
+          "sqlite_primary:atlas",
+          "sqlite_primary:analysis_scope_authority",
+          "sqlite_primary:audit_report",
+          "scope_authority:present",
+          "scope_authority:claim_usable",
+          "scope_authority:audit_identity_matches",
+          "audit_scope:present",
+          "audit_scope:atlas_project_count_matches",
+          "audit_scope:audited_projects_are_atlas_subset",
+          "audit_scope:violation_projects_are_audited_subset",
+          "freshness:audit_not_older_than_atlas",
+          "freshness:scope_not_older_than_atlas"
+        ],
+        "composed_required_trust_checks": [
+          "artifact_present:atlas",
+          "artifact_present:analysis_scope_authority",
+          "sqlite_primary:atlas",
+          "sqlite_primary:analysis_scope_authority",
+          "scope_authority:present",
+          "scope_authority:claim_usable",
+          "freshness:scope_not_older_than_atlas"
+        ],
+        "required_generation_checks": [
+          "snapshot_match",
+          "coverage_match"
+        ],
+        "fallback_rule": "When the generation manifest is current, SQLite read failure must fail closed; stale canonical Audit JSON is not a fallback."
+      },
+      "surgical_packet": {
+        "surfaces": [
+          "get_surgical_operation_packet"
+        ],
+        "base_required_trust_checks": [
+          "artifact_present:atlas",
+          "sqlite_primary:atlas"
+        ],
+        "canonical_audit_required_trust_checks": [
+          "artifact_present:audit_report",
+          "lineage:audit_report_bound_to_current_snapshot",
+          "audit_scope:present",
+          "audit_scope:atlas_project_count_matches",
+          "audit_scope:audited_projects_are_atlas_subset",
+          "audit_scope:violation_projects_are_audited_subset",
+          "freshness:audit_not_older_than_atlas"
+        ],
+        "canonical_quality_required_trust_checks": [
+          "artifact_present:quality_gate",
+          "lineage:quality_gate_bound_to_current_snapshot",
+          "scope_authority:quality_identity_matches",
+          "scope_authority:quality_gate_accepts_scope",
+          "quality_gate:has_explicit_release_status"
+        ],
+        "selection_rule": "Prefer an exact current scoped Watchdog Audit; otherwise use only canonical Audit and Quality artifacts whose complete profile checks pass. Omit stale optional context."
+      }
+    }
+  },
   "chains": [
     {
       "id": "contextos_quant_input_chain",
@@ -71,6 +158,7 @@
         "all_inputs_available",
         "consumer_not_older_than_producer"
       ],
+      "currentness_requirement": "consumer_activation",
       "stale_behavior": "mark_partial_and_require_dependency_refresh",
       "refresh_plan": [
         "python sage.py run --step \"Circular Dependency Detection\"",
@@ -97,6 +185,7 @@
         "all_inputs_available",
         "consumer_not_older_than_producer"
       ],
+      "currentness_requirement": "consumer_activation",
       "stale_behavior": "mark_partial_and_require_audit_refresh",
       "refresh_plan": [
         "python sage.py run --step \"Audit\""
@@ -214,6 +303,7 @@
         "audit_projects_subset_of_atlas",
         "quality_gate_not_older_than_audit"
       ],
+      "currentness_requirement": "consumer_activation",
       "stale_behavior": "fail_closed_for_agent_action",
       "refresh_plan": [
         "python sage.py run --step \"Audit\"",

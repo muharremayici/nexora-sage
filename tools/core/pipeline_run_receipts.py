@@ -222,6 +222,7 @@ def pipeline_run_status(
     evidence_identities: list[str] = []
     blocking_run: dict[str, Any] = {}
     phase_timestamps: dict[str, str] = {}
+    execution_claim_plan: dict[str, Any] = {}
     shadow_closeout: dict[str, Any] = {
         "started_count": 0,
         "completed_count": 0,
@@ -247,6 +248,26 @@ def pipeline_run_status(
             blocking_run = {
                 "run_id": row.get("active_run_id"),
                 "pid": row.get("active_pid"),
+            }
+        if str(row.get("execution_claim_profile") or "") not in {"", "not_available"}:
+            execution_claim_plan = {
+                "profile": str(row.get("execution_claim_profile")),
+                "target_step": str(row.get("execution_claim_target_step") or ""),
+                "step_count": int(row.get("execution_claim_step_count") or 0),
+                "claim_boundary": str(row.get("execution_claim_boundary") or ""),
+                "release_authority": row.get("execution_claim_release_authority") is True,
+                "project_scope": {
+                    "requested_projects": [
+                        str(item) for item in row.get("execution_claim_projects", [])
+                    ] if isinstance(row.get("execution_claim_projects"), list) else [],
+                },
+                "excluded_direct_dependency_slugs": [
+                    str(item) for item in row.get("execution_claim_excluded_steps", [])
+                ] if isinstance(row.get("execution_claim_excluded_steps"), list) else [],
+                "cost_band": {
+                    "status": str(row.get("execution_claim_cost_status") or "UNKNOWN"),
+                    "basis": str(row.get("execution_claim_cost_basis") or ""),
+                },
             }
         for identity in row.get("evidence_identities", []) if isinstance(row.get("evidence_identities"), list) else []:
             if str(identity) not in evidence_identities:
@@ -333,6 +354,7 @@ def pipeline_run_status(
         "shadow_write_closeout": shadow_closeout,
         "blocking_run": blocking_run or None,
         "steps": step_states,
+        "execution_claim_plan": execution_claim_plan or None,
         "evidence_identities": evidence_identities[:50],
         "event_count": len(events),
         "retry_guidance": retry_guidance,
@@ -357,6 +379,8 @@ def render_pipeline_run_status(payload: dict[str, Any]) -> str:
         f"- projects: `{', '.join(str(item) for item in payload.get('projects', [])) or 'all'}`",
         f"- pid: `{payload.get('pid')}`",
         f"- process_alive: `{payload.get('process_alive')}`",
+        f"- execution_claim_profile: `{(payload.get('execution_claim_plan') or {}).get('profile') or 'none'}`",
+        f"- execution_claim_steps: `{(payload.get('execution_claim_plan') or {}).get('step_count') or 0}`",
         f"- last_phase: `{payload.get('last_phase')}`",
         f"- updated_at: `{payload.get('updated_at')}`",
         f"- status_query: `{payload.get('status_query')}`",

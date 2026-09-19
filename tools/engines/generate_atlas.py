@@ -17,7 +17,7 @@ if str(_ROOT) not in sys.path:
 
 from tools.core.config import CONFIG_FILE, ROOT, RAW_DIR, SOURCE_EXTENSIONS, SKIP_DIRS, normalize_path, ensure_output_dir, save_json_atomic, DYNAMIC_CONFIG
 from tools.core.artifact_validator import ensure_valid_payload
-from tools.core.json_io import load_json_file
+from tools.core.json_io import load_json_file, raw_artifact_content_fingerprint
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
 from tools.core.polyglot_imports import (
     extract_go_qualified_imports,
@@ -35,7 +35,8 @@ from tools.core.repository_topology import (
 )
 from tools.core.logger import logger
 from tools.core.state_flow import summarize_state_flow_features
-from tools.core.atlas_integrity import build_atlas_commit
+from tools.core.atlas_integrity import build_atlas_commit, validate_atlas_commit
+from tools.core.analysis_snapshot_lineage import load_atlas_commit
 from tools.core.workload_profile import (
     ast_batch_strategy,
     atlas_project_worker_count as resolve_atlas_project_worker_count,
@@ -278,6 +279,28 @@ def previous_atlas_required_for_generation(
     stale = {str(project) for project in stale_projects}
     expected = {str(project) for project in expected_projects}
     return not expected.issubset(stale)
+
+
+def atlas_state_payload_reuse_hint(
+    previous_atlas: object,
+    current_atlas: object,
+    canonical_fingerprint: str,
+) -> dict[str, str]:
+    """Authorize state reuse only for exact prior/current object equality."""
+    if not isinstance(previous_atlas, dict) or not previous_atlas:
+        return {}
+    if not isinstance(current_atlas, dict) or previous_atlas != current_atlas:
+        return {}
+    fingerprint = str(canonical_fingerprint or "")
+    if not fingerprint.startswith("sqlite:"):
+        return {}
+    payload_sha = fingerprint.split(":", 1)[1].strip()
+    if not payload_sha:
+        return {}
+    return {
+        "expected_payload_sha": payload_sha,
+        "equality_contract": "exact_previous_atlas_object_equality_v1",
+    }
 
 
 def preserve_unselected_bounded_projects(
@@ -1065,6 +1088,27 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         logger.info(
             "[CACHE] Full runtime project scope is stale; rebuilding without materializing the previous Atlas document."
         )
+    previous_atlas_commit = {}
+    if surgical_files_by_project:
+        previous_atlas_commit = load_atlas_commit(RAW_DIR)
+        parent_checks = (
+            validate_atlas_commit(prev_atlas, previous_atlas_commit)
+            if isinstance(prev_atlas, dict)
+            and prev_atlas
+            and isinstance(previous_atlas_commit, dict)
+            and previous_atlas_commit
+            else []
+        )
+        parent_failures = [
+            row.get("name")
+            for row in parent_checks
+            if isinstance(row, dict) and not row.get("passed")
+        ]
+        if not parent_checks or parent_failures:
+            raise ValueError(
+                "Surgical Atlas generation requires a valid committed parent snapshot; "
+                f"failures={parent_failures or ['parent_snapshot_unavailable']}"
+            )
     if surgical_files_by_project and isinstance(prev_atlas, dict):
         normalized_surgical_files_by_project = {}
         for pkey, paths in surgical_files_by_project.items():
@@ -2182,7 +2226,9 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         lifted_by_staging = 0
         lifted_sequencer_results = 0
         staging_files_persisted = 0
+        staging_files_partitioned = 0
         staging_files_skipped_oversize = 0
+        staging_sequencer_results_partitioned = 0
         staging_file_batch = []
         lifted_by_mtime = 0
         lifted_by_fingerprint = 0
@@ -2201,6 +2247,12 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 for file in sorted(files):
                     full_path = os.path.join(root, file)
                     rel_path = normalize_path(os.path.relpath(full_path, str(project_root)))
+                    if not is_project_owned_path(
+                        project_root,
+                        rel_path,
+                        excluded_roots=excluded_project_roots,
+                    ):
+                        continue
                     walk_items.append((full_path, file, rel_path))
 
         package_manifest_paths = [Path(full_path) for full_path, file, _ in walk_items if file == "package.json"]
@@ -2210,7 +2262,14 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             for manifest_root, manifest_dirs, manifest_files in os.walk(str(project_root)):
                 prune_walk_dirs(manifest_root, manifest_dirs, excluded_project_roots)
                 if "package.json" in manifest_files:
-                    package_manifest_paths.append(Path(manifest_root) / "package.json")
+                    manifest_path = Path(manifest_root) / "package.json"
+                    manifest_rel = normalize_path(os.path.relpath(manifest_path, str(project_root)))
+                    if is_project_owned_path(
+                        project_root,
+                        manifest_rel,
+                        excluded_roots=excluded_project_roots,
+                    ):
+                        package_manifest_paths.append(manifest_path)
         if not surgical_mode or package_contract_changed:
             atlas["public_contracts"] = build_package_public_contracts(project_root, package_manifest_paths)
 
@@ -2374,6 +2433,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         )
 
         def checkpoint_sequencer_results(results_by_path):
+            nonlocal staging_sequencer_results_partitioned
             if staging_store is None or not staging_run_id or not results_by_path:
                 return
             rows = []
@@ -2401,6 +2461,14 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                         rows[offset:offset + batch_size],
                         stage_kind="sequencer_result",
                     )
+                    partitioned = int(checkpoint_profile.get("partitioned", 0) or 0)
+                    staging_sequencer_results_partitioned += partitioned
+                    if partitioned:
+                        logger.info(
+                            "[ATLAS_STAGING] Partitioned %s oversized sequencer checkpoint(s) in %s.",
+                            partitioned,
+                            pkey,
+                        )
                     skipped = int(checkpoint_profile.get("skipped_oversize", 0) or 0)
                     if skipped:
                         logger.warning(
@@ -2551,7 +2619,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         ast_elapsed = perf_counter() - ast_start
 
         def flush_staging_file_batch():
-            nonlocal staging_files_persisted, staging_files_skipped_oversize
+            nonlocal staging_files_persisted, staging_files_partitioned, staging_files_skipped_oversize
             if staging_store is None or not staging_run_id or not staging_file_batch:
                 return
             try:
@@ -2567,7 +2635,14 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     f"Completed Atlas file checkpoint failed for project {pkey}."
                 ) from exc
             staging_files_persisted += int(result.get("persisted", 0) or 0)
+            staging_files_partitioned += int(result.get("partitioned", 0) or 0)
             staging_files_skipped_oversize += int(result.get("skipped_oversize", 0) or 0)
+            if int(result.get("partitioned", 0) or 0):
+                logger.info(
+                    "[ATLAS_STAGING] Partitioned %s oversized completed-file checkpoint(s) in %s.",
+                    int(result.get("partitioned", 0) or 0),
+                    pkey,
+                )
             if int(result.get("skipped_oversize", 0) or 0):
                 logger.warning(
                     "[ATLAS_STAGING] %s completed Atlas files exceeded the per-file checkpoint bound in %s.",
@@ -2889,6 +2964,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             "lifted_by_staging": lifted_by_staging,
             "lifted_sequencer_results": lifted_sequencer_results,
             "staging_files_persisted": staging_files_persisted,
+            "staging_files_partitioned": staging_files_partitioned,
+            "staging_sequencer_results_partitioned": staging_sequencer_results_partitioned,
             "staging_files_skipped_oversize": staging_files_skipped_oversize,
             "walk_s": round(walk_elapsed, 3),
             "content_s": round(content_elapsed, 3),
@@ -2985,7 +3062,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             dna_changed_files.extend(project_dna_changed)
             project_metrics.append(metric)
             logger.info(
-                "[PROFILE] Atlas %s | files=%s ast=%s lift_mtime=%s lift_fingerprint=%s lift_hash=%s ast_workers=%s ast_chunk=%s ast_jobs=%s ast_adaptive=%s walk=%.2fs content=%.2fs ast_batch=%.2fs enrich=%.2fs index=%.2fs cluster=%.2fs total=%.2fs"
+                "[PROFILE] Atlas %s | files=%s ast=%s lift_mtime=%s lift_fingerprint=%s lift_hash=%s ast_workers=%s ast_chunk=%s ast_jobs=%s ast_adaptive=%s stage_partitioned=%s stage_seq_partitioned=%s stage_skipped=%s walk=%.2fs content=%.2fs ast_batch=%.2fs enrich=%.2fs index=%.2fs cluster=%.2fs total=%.2fs"
                 % (
                     pkey,
                     metric["files"],
@@ -2997,6 +3074,9 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     metric.get("ast_batch_chunk_size", 0),
                     metric.get("ast_batch_jobs", 0),
                     "yes" if metric.get("ast_batch_adaptive", False) else "no",
+                    metric.get("staging_files_partitioned", 0),
+                    metric.get("staging_sequencer_results_partitioned", 0),
+                    metric.get("staging_files_skipped_oversize", 0),
                     metric["walk_s"],
                     metric["content_s"],
                     metric["ast_s"],
@@ -3045,6 +3125,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         payload_validation_seconds = perf_counter() - payload_validation_start
         output_path = RAW_DIR / 'atlas.json'
         previous_snapshot_scope = DYNAMIC_CONFIG.get("_source_snapshot_projection_scope")
+        previous_state_reuse_hint = DYNAMIC_CONFIG.get("_atlas_state_payload_reuse")
         bounded_snapshot_scope = bounded_atlas_snapshot_scope(
             multi_atlas,
             projects,
@@ -3056,6 +3137,17 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         else:
             DYNAMIC_CONFIG.pop("_source_snapshot_projection_scope", None)
         atlas_persist_start = perf_counter()
+        state_reuse_hint = {}
+        if isinstance(prev_atlas, dict) and prev_atlas and prev_atlas == multi_atlas:
+            state_reuse_hint = atlas_state_payload_reuse_hint(
+                prev_atlas,
+                multi_atlas,
+                raw_artifact_content_fingerprint(output_path),
+            )
+        if state_reuse_hint:
+            DYNAMIC_CONFIG["_atlas_state_payload_reuse"] = state_reuse_hint
+        else:
+            DYNAMIC_CONFIG.pop("_atlas_state_payload_reuse", None)
         try:
             try:
                 atlas_persist_profile = save_json_atomic(output_path, multi_atlas) or {}
@@ -3076,13 +3168,31 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 DYNAMIC_CONFIG.pop("_source_snapshot_projection_scope", None)
             else:
                 DYNAMIC_CONFIG["_source_snapshot_projection_scope"] = previous_snapshot_scope
+            if previous_state_reuse_hint is None:
+                DYNAMIC_CONFIG.pop("_atlas_state_payload_reuse", None)
+            else:
+                DYNAMIC_CONFIG["_atlas_state_payload_reuse"] = previous_state_reuse_hint
         atlas_persist_seconds = perf_counter() - atlas_persist_start
         generation_mode = atlas_generation_mode(effective_stale_projects, projects.keys(), surgical_files)
         atlas_commit_start = perf_counter()
+        changed_file_refs = [
+            f"{project_key}::{rel_path}"
+            for project_key, paths in sorted(surgical_files_by_project.items())
+            for rel_path in sorted(paths)
+        ]
+        deleted_file_refs = [
+            f"{project_key}::{rel_path}"
+            for project_key, paths in sorted(surgical_files_by_project.items())
+            for rel_path in sorted(paths)
+            if not (Path(projects[project_key]) / Path(rel_path)).is_file()
+        ]
         atlas_commit = build_atlas_commit(
             multi_atlas,
             generation_mode=generation_mode,
             atlas_sha256=str(atlas_persist_profile.get("state_payload_sha256") or ""),
+            parent_snapshot_id=str(previous_atlas_commit.get("snapshot_id") or ""),
+            changed_files=changed_file_refs,
+            deleted_files=deleted_file_refs,
         )
         ensure_valid_payload("atlas_commit", atlas_commit)
         save_json_atomic(RAW_DIR / "atlas_commit.json", atlas_commit)
@@ -3137,18 +3247,46 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             )
         )
         logger.info(
-            "[PROFILE] Atlas persistence | mode=%s parts=%s chars=%s bytes=%s serialize=%.3fs encode=%.3fs hash=%.3fs sqlite=%.3fs relational=%.3fs total=%.3fs"
+            "[PROFILE] Atlas persistence | mode=%s parts=%s chars=%s bytes=%s stream_chunks=%s serialize=%.3fs encode=%.3fs hash=%.3fs sqlite=%.3fs relational=%.3fs total=%.3fs"
             % (
                 str(atlas_persist_profile.get("state_payload_storage_mode") or "not_available"),
                 int(atlas_persist_profile.get("state_payload_part_count", 0) or 0),
                 int(atlas_persist_profile.get("state_payload_chars", 0) or 0),
                 int(atlas_persist_profile.get("state_payload_bytes", 0) or 0),
+                int(atlas_persist_profile.get("state_payload_stream_chunks", 0) or 0),
                 float(atlas_persist_profile.get("state_payload_serialize_seconds", 0.0) or 0.0),
                 float(atlas_persist_profile.get("state_payload_encode_seconds", 0.0) or 0.0),
                 float(atlas_persist_profile.get("state_payload_hash_seconds", 0.0) or 0.0),
                 float(atlas_persist_profile.get("state_payload_sqlite_seconds", 0.0) or 0.0),
                 float(atlas_persist_profile.get("atlas_relational_index_seconds", 0.0) or 0.0),
                 float(atlas_persist_profile.get("total_save_raw_seconds", 0.0) or 0.0),
+            )
+        )
+        logger.info(
+            "[PROFILE] Atlas materialization | generation=%s canonical_projects=%s canonical_files=%s "
+            "relational_mode=%s relational_projects=%s relational_files=%s scoped_projects=%s "
+            "scoped_files=%s unselected_projects=%s dependency_sources=%s baseline_status=%s "
+            "baseline_reason=%s state_reuse=%s reused_bytes=%s state_write=%.3fs "
+            "relational=%.3fs transaction=%.3fs commit=%.3fs"
+            % (
+                str(atlas_persist_profile.get("atlas_materialization_generation_id") or "not_available"),
+                int(atlas_persist_profile.get("atlas_canonical_project_count", 0) or 0),
+                int(atlas_persist_profile.get("atlas_canonical_file_count", 0) or 0),
+                str(atlas_persist_profile.get("atlas_relational_mode") or "not_available"),
+                int(atlas_persist_profile.get("atlas_relational_project_count", 0) or 0),
+                int(atlas_persist_profile.get("atlas_relational_file_count", 0) or 0),
+                int(atlas_persist_profile.get("atlas_scoped_projects", 0) or 0),
+                int(atlas_persist_profile.get("atlas_scoped_files", 0) or 0),
+                int(atlas_persist_profile.get("atlas_unselected_canonical_projects", 0) or 0),
+                int(atlas_persist_profile.get("atlas_dependency_sources_updated", 0) or 0),
+                str(atlas_persist_profile.get("atlas_scoped_baseline_status") or "not_available"),
+                str(atlas_persist_profile.get("atlas_scoped_baseline_reason") or "not_available"),
+                str(atlas_persist_profile.get("state_payload_reuse_status") or "not_available"),
+                int(atlas_persist_profile.get("state_payload_reused_bytes", 0) or 0),
+                float(atlas_persist_profile.get("atlas_state_payload_write_seconds", 0.0) or 0.0),
+                float(atlas_persist_profile.get("atlas_relational_index_seconds", 0.0) or 0.0),
+                float(atlas_persist_profile.get("atlas_primary_transaction_seconds", 0.0) or 0.0),
+                float(atlas_persist_profile.get("atlas_transaction_commit_seconds", 0.0) or 0.0),
             )
         )
         logger.info(

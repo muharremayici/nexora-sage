@@ -37,6 +37,15 @@
       "claim_boundary": "Keeps local runtime timing and hot-path traces bounded. It is advisory telemetry, not repository truth or a release-proof input."
     },
     {
+      "id": "watchdog_session",
+      "path": "output/.raw/watchdog_session.json",
+      "kind": "single_latest_session_with_bounded_event_provenance",
+      "implemented_by": "tools/orchestrators/watchdog.py",
+      "max_files": 1,
+      "max_event_provenance": 200,
+      "claim_boundary": "Keeps the exact acquired change scope in the latest session while bounding raw filesystem-event provenance; governance trace retains counts only."
+    },
+    {
       "id": "mcp_call_telemetry",
       "path": "output/.operational/mcp/mcp_call_telemetry.db",
       "kind": "bounded_product_global_sqlite_ledger",
@@ -87,7 +96,21 @@
         "tools/validate_external_target_agent_surface.py"
       ],
       "default_keep_per_prefix": 5,
+      "active_lease_protocol": "os_advisory_file_lock_v1",
+      "active_lease_endpoint": "output/external_targets/.generated_fixture_leases/<target-output-slug>.lock",
+      "prune_rule": "A generated fixture may be removed only while retention holds its stable per-fixture advisory lease. A busy lease proves an active producer or consumer and must be skipped without weakening the retention result.",
       "claim_boundary": "Generated external-target fixture outputs are bounded; user-scoped target outputs are preserved."
+    },
+    {
+      "id": "external_target_generation_history_index",
+      "path": "output/external_targets/*/generations/*/generation.json",
+      "kind": "bounded_history_projection_without_deletion",
+      "implemented_by": "tools/generate_external_target_index.py",
+      "validator": "tools/validate_external_target_retention.py",
+      "max_manifest_scan_per_target": 200,
+      "max_history_entries_per_target": 20,
+      "user_scoped_generations_pruned": false,
+      "claim_boundary": "The external-target index bounds manifest reads and returned history while preserving all user-scoped generations. A bounded scan exposes omitted counts and cannot claim complete latest-role coverage."
     }
   ]
 }

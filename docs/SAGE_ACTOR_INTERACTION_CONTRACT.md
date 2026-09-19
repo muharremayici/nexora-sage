@@ -1,7 +1,7 @@
 # SAGE Actor Interaction Contract
 
 > Generated from `config/actor_interaction_contract.json`. Do not edit this document directly.
-> Contract SHA-256: `91076dcb178f3cf51a27f3c765b0e2dd49e8dcb3dd39d11355cb6c4d98aa90e7`
+> Contract SHA-256: `bbfd4c070cfc750efc84a99150a267a6941313c3b66dbfccc401cc62b0c66aad`
 
 Version: `0.3.0`
 Status: `normative_draft`
@@ -117,12 +117,22 @@ Claim boundary: PROPOSAL_CONFORMANT proves only structured identity, freshness r
 ## Adapter Status
 
 - `cli`: `partial`; `config/pipeline_execution_policy.json`, `config/cli_command_contract.json`
-- `mcp`: `partial`; `config/mcp_tool_roles.json`, `config/agent_surface_contract.json`
+- `mcp`: `available`; `config/mcp_tool_roles.json`, `config/agent_surface_contract.json`, `tools/core/actor_interaction_runtime.py`, `tools/core/mcp_tool_profiles.py`, `tools/mcp/server.py`, `tools/tests/test_actor_adapter_conformance.py`, `tools/tests/test_actor_interaction_contract.py`, `tools/tests/test_actor_interaction_runtime.py`, `tools/tests/test_agent_surface_target_visibility.py`
 - `ci`: `partial`; `.github/workflows/quality-gate.yml`
 - `hook`: `partial`; `config/pipeline_execution_policy.json`, `tools/orchestrators/watchdog.py`
 - `api`: `not_available`; no implementation evidence
 - `ide`: `not_available`; no implementation evidence
 - `dashboard`: `not_available`; no implementation evidence
+
+Adapter conformance:
+
+- `cli`: `partial`; dimensions: no assessed promotion dimensions; available surfaces: none. Claim boundary: CLI commands exist, but no dedicated end-to-end Actor Interaction Contract conformance suite is declared.
+- `mcp`: `available`; dimensions: `request_translation=pass`, `authority_non_escalation=pass`, `stale_context_rejection=pass`, `trace_routing=pass`, `validation_outcome_preservation=pass`; available surfaces: `dispatch_actor_request`. Claim boundary: The available MCP Actor Interaction Contract adapter is exactly the dispatch_actor_request surface; legacy direct MCP tool calls remain backward-compatible non-actor surfaces and are not claimed to carry the canonical actor request envelope. The adapter proves bounded request translation, profile authority, stale target-context rejection, local trace routing, separate completed-state evidence, registry-bound terminal outcome mapping and unchanged raw tool results for its declared inspect, advise, propose, validate, decision-support and exception-request tools. Proposal conformance is identity-, snapshot- and category-scope-bound but never grants authorization or proves technical correctness. Exception requests may write only a scoped governance record and remain APPROVAL_REQUIRED; they cannot mutate repository state or grant approval. Surgical advice uses only producer-lineage-bound inputs from one target Atlas snapshot; optional unbound inputs are omitted and reported. Unknown, unparseable or failed dispatch yields INCOMPLETE_EVIDENCE. Repository-state mutation and pause/resume remain unavailable and are not implied by this promotion.
+- `ci`: `partial`; dimensions: no assessed promotion dimensions; available surfaces: none. Claim boundary: CI evidence exists without a dedicated end-to-end Actor Interaction Contract conformance suite.
+- `hook`: `partial`; dimensions: no assessed promotion dimensions; available surfaces: none. Claim boundary: Hook evidence exists without a dedicated end-to-end Actor Interaction Contract conformance suite.
+- `api`: `not_available`; dimensions: no assessed promotion dimensions; available surfaces: none. Claim boundary: No API adapter is available.
+- `ide`: `not_available`; dimensions: no assessed promotion dimensions; available surfaces: none. Claim boundary: No IDE adapter is available.
+- `dashboard`: `not_available`; dimensions: no assessed promotion dimensions; available surfaces: none. Claim boundary: No dashboard adapter is available.
 
 Promotion rule: An adapter may become available only after dedicated conformance evidence proves request, authority, freshness, trace and validation semantics end to end.
 

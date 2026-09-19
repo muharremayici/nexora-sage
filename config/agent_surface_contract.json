@@ -75,6 +75,7 @@
           "target_repo_agent_and_human"
         ],
         "include_tools": [
+          "dispatch_actor_request",
           "create_hitl_decision_request",
           "record_agent_response",
           "manage_target_write_lease",
@@ -82,7 +83,7 @@
           "get_impact_radius"
         ],
         "exclude_heavy": true,
-        "max_tools": 22,
+        "max_tools": 23,
         "selection_rule": "Add bounded supporting context or HITL tools only after the agent has a concrete target or approval need."
       }
     },

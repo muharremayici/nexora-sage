@@ -58,6 +58,11 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
                     patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
                     patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
                     patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
+                    patch.object(
+                        generate_atlas_module,
+                        "load_atlas_commit",
+                        return_value=generate_atlas_module.build_atlas_commit(previous),
+                    ),
                     patch.object(generate_atlas_module, "ensure_output_dir"),
                     patch.dict(generate_atlas_module.DYNAMIC_CONFIG, runtime_projection, clear=True),
                 ):
@@ -97,6 +102,11 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
                 patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
                 patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
                 patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
+                patch.object(
+                    generate_atlas_module,
+                    "load_atlas_commit",
+                    return_value=generate_atlas_module.build_atlas_commit(previous),
+                ),
                 patch.object(generate_atlas_module, "ensure_output_dir"),
                 patch.dict(generate_atlas_module.DYNAMIC_CONFIG, {}, clear=True),
             ):
@@ -134,6 +144,11 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
                     patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
                     patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
                     patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
+                    patch.object(
+                        generate_atlas_module,
+                        "load_atlas_commit",
+                        return_value=generate_atlas_module.build_atlas_commit(previous),
+                    ),
                     patch.object(generate_atlas_module, "ensure_output_dir"),
                     patch.dict(generate_atlas_module.DYNAMIC_CONFIG, {}, clear=True),
                 ):
@@ -207,6 +222,11 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
                 patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
                 patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
                 patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
+                patch.object(
+                    generate_atlas_module,
+                    "load_atlas_commit",
+                    return_value=generate_atlas_module.build_atlas_commit(previous),
+                ),
                 patch.object(generate_atlas_module, "ensure_output_dir"),
                 patch.object(generate_atlas_module, "run_observed_subprocess", side_effect=observed_node_result),
                 patch.dict(generate_atlas_module.DYNAMIC_CONFIG, {}, clear=True),

@@ -17,6 +17,7 @@
       "atlas_total_seconds_pattern",
       "atlas_phase_pattern",
       "atlas_persistence_pattern",
+      "atlas_materialization_pattern",
       "atlas_ast_lifecycle_pattern",
       "fractal_total_seconds_pattern",
       "dead_code_step_seconds_pattern"
@@ -113,7 +114,8 @@
     "atlas_context_pattern": "Atlas total \\| projects=(\\d+) files=(\\d+) total=([0-9.]+)s",
     "atlas_total_seconds_pattern": "Atlas total \\| projects=\\d+ files=\\d+ total=([0-9.]+)s",
     "atlas_phase_pattern": "Atlas phases \\| pre_build=([0-9.]+)s build=([0-9.]+)s bridge=([0-9.]+)s validate=([0-9.]+)s persist=([0-9.]+)s commit=([0-9.]+)s workload=([0-9.]+)s ram_cache=([0-9.]+)s",
-    "atlas_persistence_pattern": "Atlas persistence \\| mode=([^ ]+) parts=(\\d+) chars=(\\d+) bytes=(\\d+) serialize=([0-9.]+)s encode=([0-9.]+)s hash=([0-9.]+)s sqlite=([0-9.]+)s relational=([0-9.]+)s total=([0-9.]+)s",
+    "atlas_persistence_pattern": "Atlas persistence \\| mode=([^ ]+) parts=(\\d+) chars=(\\d+) bytes=(\\d+)(?: stream_chunks=(\\d+))? serialize=([0-9.]+)s encode=([0-9.]+)s hash=([0-9.]+)s sqlite=([0-9.]+)s relational=([0-9.]+)s total=([0-9.]+)s",
+    "atlas_materialization_pattern": "Atlas materialization \\| generation=([^ ]+) canonical_projects=(\\d+) canonical_files=(\\d+) relational_mode=([^ ]+) relational_projects=(\\d+) relational_files=(\\d+) scoped_projects=(\\d+) scoped_files=(\\d+) unselected_projects=(\\d+) dependency_sources=(\\d+) baseline_status=([^ ]+) baseline_reason=([^ ]+) state_reuse=([^ ]+) reused_bytes=(\\d+) state_write=([0-9.]+)s relational=([0-9.]+)s transaction=([0-9.]+)s commit=([0-9.]+)s",
     "atlas_ast_lifecycle_pattern": "Atlas Node AST lifecycle \\| process_starts=(\\d+) batch_starts=(\\d+) fallback_starts=(\\d+) batch_failures=(\\d+) fallback_chunks=(\\d+) identity_failures=(\\d+) worker_restarts=(\\d+) request_replays=(\\d+) files_requested=(\\d+) checkpoint_callbacks=(\\d+) checkpoint_files=(\\d+) subprocess=([0-9.]+)s checkpoint=([0-9.]+)s node_rss_max_bytes=(\\d+)",
     "fractal_total_seconds_pattern": "Fractal total \\| .* total=([0-9.]+)s",
     "dead_code_step_seconds_pattern": "STEP COMPLETED: Dead Code Detector \\(Time: ([0-9.]+)s\\)"

@@ -13,11 +13,13 @@ if str(ROOT) not in sys.path:
 
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.agent_surface_seal_contract import load_agent_surface_seal_contract
-from tools.core.json_io import load_json_object_strict, load_json_file
-from tools.core.evidence_status import evidence_passed
+from tools.core.json_io import load_json_object_strict
 from tools.core.distribution_policy import is_clean_install_root
-from tools.core.release_proof_steps import load_release_proof_steps
 from tools.core.execution_waves import project_execution_waves
+from tools.core.work_item_readiness import (
+    assess_work_item_technical_readiness,
+    technical_evidence_artifacts,
+)
 from tools.core.sage_active_work_package import active_work_package
 
 
@@ -50,62 +52,17 @@ def _policy_list(policy: dict[str, Any], key: str) -> list[str]:
 
 
 def _technical_evidence_artifacts() -> set[str]:
-    """Only required upstream proof may support readiness; no self/downstream cycle."""
-    steps = {step["id"]: step for step in load_release_proof_steps()}
-    consumer = "sage_work_item_registry_validation"
-    pending = list(steps[consumer].get("depends_on", []))
-    ancestors: set[str] = set()
-    while pending:
-        step_id = pending.pop()
-        if step_id == consumer:
-            raise ValueError("Work-item technical evidence has a proof dependency cycle")
-        if step_id in ancestors:
-            continue
-        ancestors.add(step_id)
-        pending.extend(steps[step_id].get("depends_on", []))
-    return {
-        "output/.raw/" + step["raw_artifact"].name
-        for step_id in ancestors for step in [steps[step_id]]
-        if step.get("required") and step.get("raw_artifact")
-        and step["raw_artifact"].parent == RAW_DIR
-    }
+    """Compatibility wrapper for existing validator and test consumers."""
+    return technical_evidence_artifacts()
 
 
 def assess_delivery_readiness(row: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any]:
-    """Assess technical evidence, never shipment or release authorization.
-
-    Pre-seal independently requires current full source-bound proof. This
-    assessment alone cannot substitute for that proof or human authority.
-    """
-    result = {"id": row.get("id"), "ready": False, "errors": [], "runtime_evidence_checked": False}
-    if row.get("status") != "ready_for_delivery":
-        return result
-    completion = row.get("technical_completion")
-    if not isinstance(completion, dict) or not isinstance(completion.get("review"), str) or not completion["review"].strip():
-        result["errors"].append("missing_technical_review")
-        return result
-    references = completion.get("validation_artifacts")
-    if not isinstance(references, list) or not references or not all(isinstance(ref, str) for ref in references):
-        result["errors"].append("missing_validation_artifact_references")
-        return result
-    allowed = _technical_evidence_artifacts()
-    unavailable = False
-    for reference in references:
-        if reference not in allowed:
-            result["errors"].append(f"not_required_upstream_proof_artifact:{reference}")
-            continue
-        path = (root / reference).resolve()
-        if not path.is_relative_to(root.resolve()):
-            result["errors"].append(f"evidence_path_escapes_root:{reference}")
-            continue
-        if not path.is_file() and is_clean_install_root(root):
-            unavailable = True
-            continue
-        if not evidence_passed(load_json_file(path, {}), default=False):
-            result["errors"].append(f"validation_not_passed:{reference}")
-    result["runtime_evidence_checked"] = not unavailable
-    result["ready"] = not result["errors"] and not unavailable
-    return result
+    """Compatibility wrapper; technical readiness never grants delivery authority."""
+    return assess_work_item_technical_readiness(
+        row,
+        root=root,
+        clean_install=is_clean_install_root(root),
+    )
 
 
 def build_report() -> dict[str, Any]:
@@ -134,7 +91,15 @@ def build_report() -> dict[str, Any]:
     agent_surface_ids = {str(row.get("id") or "") for row in agent_surface_followups}
     registry_ids = {str(row.get("id") or "") for row in work_items}
     untracked_agent_surface_followups = sorted(agent_surface_ids - registry_ids)
-    execution_plan = project_execution_waves(work_items, active_package=active_work_package())
+    execution_plan = project_execution_waves(
+        work_items,
+        active_package=active_work_package(),
+        technical_ready_work_item_ids=technically_ready,
+    )
+    release_delivery = execution_plan.get("release_delivery") if isinstance(execution_plan.get("release_delivery"), dict) else {}
+    release_planning = release_delivery.get("planning") if isinstance(release_delivery.get("planning"), dict) else {}
+    semver_candidate = release_delivery.get("semver_candidate") if isinstance(release_delivery.get("semver_candidate"), dict) else {}
+    bounded_package = release_delivery.get("bounded_package") if isinstance(release_delivery.get("bounded_package"), dict) else {}
     payload = {
         "meta": {
             "kind": "sage_work_item_report",
@@ -160,6 +125,16 @@ def build_report() -> dict[str, Any]:
             "closed_by_delivered_release": _group_counts(closed_items, "delivered_release"),
             "closed_delivery_variances": len(delivery_variances),
             "current_execution_wave": execution_plan.get("current_wave"),
+            "next_open_delivery_wave": execution_plan.get("next_open_delivery_wave"),
+            "next_technical_development_wave": execution_plan.get("next_technical_development_wave"),
+            "release_delivery_status": release_delivery.get("status"),
+            "roadmap_phase": release_planning.get("roadmap_phase"),
+            "concrete_release": release_planning.get("concrete_release"),
+            "publication_target_status": release_planning.get("publication_target_status"),
+            "semver_candidate_status": semver_candidate.get("status"),
+            "recommended_concrete_release": semver_candidate.get("recommended_release"),
+            "semver_candidate_work_items": semver_candidate.get("candidate_scope", {}).get("work_items", 0),
+            "bounded_package_work_items": len(bounded_package.get("work_item_ids", [])),
         },
         "registry": str(REGISTRY_PATH.relative_to(ROOT)),
         "open_items": open_items,
@@ -170,7 +145,7 @@ def build_report() -> dict[str, Any]:
         "agent_surface_followup_ids": sorted(agent_surface_ids),
         "untracked_agent_surface_followups": untracked_agent_surface_followups,
         "execution_plan": execution_plan,
-        "rule": "Open work is grouped by planned target_release; closed work is grouped by actual delivered_release. Planning history and shipped scope are never inferred from one another.",
+        "rule": "Open work is grouped by planned roadmap phase; a bounded package may omit concrete_release until publication planning. Every ready_for_delivery item carries an explicit SemVer impact disposition, so the highest impact across all eligible undelivered work recommends the next release without selecting or publishing it. Closed work is grouped by actual delivered_release.",
     }
     return payload
 
@@ -192,6 +167,16 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- closed_by_delivered_release: `{json.dumps(summary.get('closed_by_delivered_release') or {}, ensure_ascii=False, sort_keys=True)}`",
         f"- closed_delivery_variances: `{summary.get('closed_delivery_variances')}`",
         f"- current_execution_wave: `{summary.get('current_execution_wave')}`",
+        f"- next_open_delivery_wave: `{summary.get('next_open_delivery_wave')}`",
+        f"- next_technical_development_wave: `{summary.get('next_technical_development_wave')}`",
+        f"- release_delivery_status: `{summary.get('release_delivery_status')}`",
+        f"- roadmap_phase: `{summary.get('roadmap_phase')}`",
+        f"- concrete_release: `{summary.get('concrete_release') or 'not_selected'}`",
+        f"- publication_target_status: `{summary.get('publication_target_status')}`",
+        f"- semver_candidate_status: `{summary.get('semver_candidate_status')}`",
+        f"- recommended_concrete_release: `{summary.get('recommended_concrete_release') or 'not_available'}`",
+        f"- semver_candidate_work_items: `{summary.get('semver_candidate_work_items')}`",
+        f"- bounded_package_work_items: `{summary.get('bounded_package_work_items')}`",
         "",
         "## Rule",
         "",
@@ -205,7 +190,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
             continue
         lines.append(
             f"- `{wave.get('id')}` `{wave.get('computed_status')}`: "
-            f"{wave.get('open_work_items')}/{wave.get('work_items')} open - {wave.get('title')}"
+            f"delivery_open={wave.get('open_work_items')}/{wave.get('work_items')}, "
+            f"technical_blockers={wave.get('technical_blocking_work_items')} - {wave.get('title')}"
         )
     lines.extend(["", "## Open Items", ""])
     open_items = payload.get("open_items") if isinstance(payload.get("open_items"), list) else []

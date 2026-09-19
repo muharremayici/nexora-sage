@@ -208,6 +208,7 @@ def run_update(repo_band: str | None, notes: str, run_id: str | None) -> dict[st
         "performance_evidence_status": str(metrics.get("performance_evidence_status") or ""),
         "physical_atlas_phase_timings": metrics.get("physical_atlas_phase_timings", {}),
         "physical_atlas_state_payload_profile": metrics.get("physical_atlas_state_payload_profile", {}),
+        "physical_atlas_materialization_profile": metrics.get("physical_atlas_materialization_profile", {}),
         "physical_atlas_ast_lifecycle_profile": metrics.get("physical_atlas_ast_lifecycle_profile", {}),
         "fractal_total_seconds": metrics.get("fractal_total_seconds"),
         "dead_code_step_seconds": metrics.get("dead_code_step_seconds"),

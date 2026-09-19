@@ -12,7 +12,11 @@ if str(CODE_MAPS_DIR) not in sys.path:
     sys.path.insert(0, str(CODE_MAPS_DIR))
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
-from tools.core.external_target_retention import DEFAULT_KEEP_PER_PREFIX, prune_generated_external_target_fixtures
+from tools.core.external_target_retention import (
+    DEFAULT_KEEP_PER_PREFIX,
+    generated_fixture_lease,
+    prune_generated_external_target_fixtures,
+)
 from tools.core.operational_limits import external_polyglot_smoke_timeout_seconds
 from tools.core.subprocess_telemetry import run_observed_subprocess
 
@@ -91,7 +95,9 @@ def _project_files(atlas: dict[str, Any]) -> dict[str, dict[str, Any]]:
 def run_validation() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
-    with tempfile.TemporaryDirectory(prefix="nexora_external_polyglot_smoke_") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="nexora_external_polyglot_smoke_"
+    ) as tmp, generated_fixture_lease(Path(tmp)):
         target_root = Path(tmp)
         _write_fixture(target_root)
         env = dict(os.environ)

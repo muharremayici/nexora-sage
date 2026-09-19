@@ -139,13 +139,16 @@ def resolve_projects(root_path: Path, filter_keys: Iterable[str] | None = None) 
     if filter_keys:
         allowed = {canonical_project_name(str(k)) for k in filter_keys}
 
+    root = Path(root_path).resolve()
     resolved_paths: Dict[str, Path] = {}
     for proj_name, paths in PROJECTS.items():
         canon = canonical_project_name(proj_name)
         if allowed and canon not in allowed:
             continue
         for p in paths:
-            candidate = root_path / p
+            candidate = (root / p).resolve()
+            if candidate != root and root not in candidate.parents:
+                continue
             if candidate.exists() and candidate.is_dir():
                 resolved_paths[canon] = candidate
                 break

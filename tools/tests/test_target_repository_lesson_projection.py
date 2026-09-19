@@ -78,7 +78,7 @@ def _approvals(*, scope: str = "target_repository:example-main:lesson") -> dict:
 def _proof(target_root: Path) -> dict:
     return {
         "meta": {"kind": "target_repository_proof_bundle", "version": "v1", "generated_at": NOW, "generator": "tools.generate_target_repository_proof_bundle", "contract_identity": "a" * 64},
-        "subject": {"scope": "target_repository", "root": str(target_root.resolve()), "analysis_snapshot_kind": "atlas_commit", "analysis_snapshot_id": "snapshot-a", "root_binding": "BOUND", "repository_reference_kind": "explicit", "repository_reference_id": "fixture", "working_tree_status": "not_applicable"},
+        "subject": {"scope": "target_repository", "root": str(target_root.resolve()), "analysis_snapshot_kind": "atlas_commit", "analysis_snapshot_id": "snapshot-a", "root_binding": "BOUND", "target_repository_threat_boundary": {"contract": "target_repository_threat_boundary_v1", "hostile_repository_safety": "not_available"}, "repository_reference_kind": "explicit", "repository_reference_id": "fixture", "working_tree_status": "not_applicable"},
         "claim_boundary": "Fixture target proof binding only.",
         "summary": {"mode": "baseline", "verdict": "PASS", "required_evidence": 1, "required_ready": 1, "optional_evidence": 0, "optional_ready": 0},
         "evidence": [{"artifact_id": "atlas", "required": True, "path": "atlas.json", "availability": "PRESENT", "freshness": "NOT_APPLICABLE", "snapshot_binding": "BOUND", "bound_snapshot_id": "snapshot-a", "content_sha256": "b" * 64, "source_verdict": "PRESENT", "human_decision": False}],

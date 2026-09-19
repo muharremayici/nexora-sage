@@ -65,7 +65,7 @@
         },
         {
           "file": "tools/core/contextos_mcp.py",
-          "contains": "\"source_artifacts\": [\"output/.raw/audit_report.json\", \"config/architecture_doctrine.json\"]"
+          "contains": "\"source_artifacts\": [source_artifact, \"config/architecture_doctrine.json\"]"
         },
         {
           "file": "tools/validate_agent_context_payloads.py",

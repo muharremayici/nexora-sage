@@ -14,6 +14,84 @@ function normalizePath(value) {
   return String(value || "").replace(/\\/g, "/");
 }
 
+function isPathWithin(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isResolvedPathWithin(root, candidate) {
+  if (!isPathWithin(root, candidate)) return false;
+  try {
+    const realRoot = fs.realpathSync.native(path.resolve(root));
+    const realCandidate = fs.realpathSync.native(path.resolve(candidate));
+    return isPathWithin(realRoot, realCandidate);
+  } catch {
+    return false;
+  }
+}
+
+function boundedParseHost(workspaceRoot) {
+  const allow = (candidate) => isResolvedPathWithin(workspaceRoot, candidate);
+  return {
+    ...ts.sys,
+    fileExists: (candidate) => allow(candidate) && ts.sys.fileExists(candidate),
+    readFile: (candidate, encoding) => allow(candidate) ? ts.sys.readFile(candidate, encoding) : undefined,
+    directoryExists: (candidate) => allow(candidate) && ts.sys.directoryExists(candidate),
+    getDirectories: (candidate) => allow(candidate) ? ts.sys.getDirectories(candidate) : [],
+    readDirectory: (candidate, extensions, excludes, includes, depth) => (
+      allow(candidate)
+        ? ts.sys.readDirectory(candidate, extensions, excludes, includes, depth).filter((item) => allow(item))
+        : []
+    ),
+    realpath: (candidate) => allow(candidate) ? ts.sys.realpath(candidate) : path.resolve(workspaceRoot),
+  };
+}
+
+function boundedCompilerHost(options, workspaceRoot) {
+  const host = ts.createCompilerHost(options, true);
+  const typescriptLibRoot = path.dirname(require.resolve("typescript"));
+  const allow = (candidate) => (
+    isResolvedPathWithin(workspaceRoot, candidate)
+    || isResolvedPathWithin(typescriptLibRoot, candidate)
+  );
+  const originalFileExists = host.fileExists.bind(host);
+  const originalReadFile = host.readFile.bind(host);
+  const originalDirectoryExists = host.directoryExists ? host.directoryExists.bind(host) : undefined;
+  const originalGetDirectories = host.getDirectories ? host.getDirectories.bind(host) : undefined;
+  const originalGetSourceFile = host.getSourceFile.bind(host);
+  const originalRealpath = host.realpath ? host.realpath.bind(host) : undefined;
+  return {
+    ...host,
+    fileExists: (candidate) => allow(candidate) && originalFileExists(candidate),
+    readFile: (candidate) => allow(candidate) ? originalReadFile(candidate) : undefined,
+    directoryExists: (candidate) => (
+      allow(candidate) && (originalDirectoryExists ? originalDirectoryExists(candidate) : false)
+    ),
+    getDirectories: (candidate) => (
+      allow(candidate) && originalGetDirectories
+        ? originalGetDirectories(candidate).filter((item) => allow(item))
+        : []
+    ),
+    getSourceFile: (fileName, languageVersion, onError, shouldCreateNewSourceFile) => (
+      allow(fileName)
+        ? originalGetSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile)
+        : undefined
+    ),
+    realpath: (candidate) => (
+      allow(candidate) && originalRealpath ? originalRealpath(candidate) : path.resolve(workspaceRoot)
+    ),
+  };
+}
+
+function boundedCompilerOptions(options) {
+  const bounded = { ...options, noEmit: true, skipLibCheck: true, incremental: false, composite: false };
+  for (const key of ["paths", "plugins", "rootDirs", "typeRoots", "tsBuildInfoFile"]) {
+    delete bounded[key];
+  }
+  bounded.baseUrl = undefined;
+  return bounded;
+}
+
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -46,9 +124,9 @@ function diagnosticPayload(diag, projectRoot) {
   };
 }
 
-function collectForProject(project, projectRoot, maxDiagnostics, maxFiles, semantic) {
-  const tsconfig = ts.findConfigFile(projectRoot, ts.sys.fileExists, "tsconfig.json");
-  if (!tsconfig) {
+function collectForProject(project, projectRoot, workspaceRoot, maxDiagnostics, maxFiles, semantic) {
+  const tsconfig = path.join(projectRoot, "tsconfig.json");
+  if (!isResolvedPathWithin(projectRoot, tsconfig) || !ts.sys.fileExists(tsconfig)) {
     return {
       project,
       project_root: normalizePath(projectRoot),
@@ -59,7 +137,8 @@ function collectForProject(project, projectRoot, maxDiagnostics, maxFiles, seman
     };
   }
 
-  const configFile = ts.readConfigFile(tsconfig, ts.sys.readFile);
+  const parseHost = boundedParseHost(workspaceRoot);
+  const configFile = ts.readConfigFile(tsconfig, parseHost.readFile);
   if (configFile.error) {
     const diag = diagnosticPayload(configFile.error, projectRoot);
     return {
@@ -72,17 +151,19 @@ function collectForProject(project, projectRoot, maxDiagnostics, maxFiles, seman
     };
   }
 
-  const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(tsconfig), {
+  const parsed = ts.parseJsonConfigFileContent(configFile.config, parseHost, path.dirname(tsconfig), {
     noEmit: true,
     skipLibCheck: true,
     incremental: false,
     composite: false,
   });
-  const rootNames = maxFiles > 0 ? parsed.fileNames.slice(0, maxFiles) : parsed.fileNames;
+  parsed.options = boundedCompilerOptions(parsed.options);
+  const containedRootNames = parsed.fileNames.filter((fileName) => isResolvedPathWithin(workspaceRoot, fileName));
+  const rootNames = maxFiles > 0 ? containedRootNames.slice(0, maxFiles) : containedRootNames;
   if (!semantic) {
     const diagnostics = [];
     for (const fileName of rootNames) {
-      const content = ts.sys.readFile(fileName);
+      const content = parseHost.readFile(fileName);
       if (typeof content !== "string") continue;
       const sourceFile = ts.createSourceFile(fileName, content, parsed.options.target || ts.ScriptTarget.Latest, true);
       diagnostics.push(...sourceFile.parseDiagnostics);
@@ -108,7 +189,7 @@ function collectForProject(project, projectRoot, maxDiagnostics, maxFiles, seman
         emitted: rows.length,
         by_code: byCode,
         by_category: byCategory,
-        root_files_total: parsed.fileNames.length,
+        root_files_total: containedRootNames.length,
         root_files_checked: rootNames.length,
       },
     };
@@ -117,6 +198,7 @@ function collectForProject(project, projectRoot, maxDiagnostics, maxFiles, seman
   const program = ts.createProgram({
     rootNames,
     options: parsed.options,
+    host: boundedCompilerHost(parsed.options, workspaceRoot),
   });
   const diagnostics = [
     ...program.getOptionsDiagnostics(),
@@ -144,8 +226,10 @@ function collectForProject(project, projectRoot, maxDiagnostics, maxFiles, seman
       emitted: rows.length,
       by_code: byCode,
       by_category: byCategory,
-      source_files: program.getSourceFiles().filter((file) => !file.isDeclarationFile).length,
-      root_files_total: parsed.fileNames.length,
+      source_files: program.getSourceFiles().filter(
+        (file) => !file.isDeclarationFile && isResolvedPathWithin(workspaceRoot, file.fileName),
+      ).length,
+      root_files_total: containedRootNames.length,
       root_files_checked: rootNames.length,
     },
   };
@@ -174,8 +258,26 @@ function main() {
       continue;
     }
     const projectRoot = path.resolve(workspaceRoot, relPath || ".");
+    if (!isResolvedPathWithin(workspaceRoot, projectRoot)) {
+      projects[project] = {
+        project,
+        project_root: normalizePath(projectRoot),
+        status: "BOUNDARY_REJECTED",
+        error: "configured_project_root_escapes_workspace",
+        diagnostics: [],
+        summary: { total: 0, by_code: {}, by_category: {} },
+      };
+      continue;
+    }
     try {
-      projects[project] = collectForProject(project, projectRoot, maxDiagnostics, maxFiles, semantic);
+      projects[project] = collectForProject(
+        project,
+        projectRoot,
+        workspaceRoot,
+        maxDiagnostics,
+        maxFiles,
+        semantic,
+      );
     } catch (error) {
       projects[project] = {
         project,

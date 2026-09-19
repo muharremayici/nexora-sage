@@ -141,7 +141,8 @@ def test_public_installation_profile_keeps_product_checks_and_omits_maintainer_c
 
     assert payload["summary"]["authority_profile"] == PUBLIC_TARGET_REPOSITORY_PROFILE
     assert payload["summary"]["failed_checks"] == 0
-    assert payload["summary"]["total_checks"] == 22
+    assert payload["summary"]["passed_checks"] == payload["summary"]["total_checks"]
+    assert payload["summary"]["total_checks"] == len(payload["checks"])
     assert set(payload["summary"]["omitted_maintainer_checks"]) == EXPECTED_MAINTAINER_ONLY_CHECKS
     assert not (names & EXPECTED_MAINTAINER_ONLY_CHECKS)
     assert {
@@ -151,17 +152,26 @@ def test_public_installation_profile_keeps_product_checks_and_omits_maintainer_c
         "doctor_command_is_publicly_documented",
         "ci_fresh_target_lifecycle_is_explicit_and_ordered",
         "target_aware_installation_contract_is_explicit",
+        "dependency_acquisition_is_capability_scoped_and_evidence_bounded",
+        "embedded_host_footprint_is_mode_aware_and_non_mutating",
+        "mcp_fastmcp_settings_lifespan_compatibility_is_explicit",
         "default_profile_keeps_mcp_and_watchdog_first_class",
         "setup_only_init_is_public_and_install_proof_avoids_duplicate_analysis",
     }.issubset(names)
 
 
+@pytest.mark.skipif(
+    installation_contract.PUBLIC_DISTRIBUTION_MANIFEST_PATH.is_file(),
+    reason="Private maintainer checks are not applicable to a public distribution.",
+)
 def test_private_installation_profile_retains_maintainer_checks() -> None:
     payload = run_validation(public_distribution=False)
     names = {str(check["name"]) for check in payload["checks"]}
 
     assert payload["summary"]["authority_profile"] == PRIVATE_MAINTAINER_PROFILE
-    assert payload["summary"]["total_checks"] == 26
+    assert payload["summary"]["failed_checks"] == 0
+    assert payload["summary"]["passed_checks"] == payload["summary"]["total_checks"]
+    assert payload["summary"]["total_checks"] == len(payload["checks"])
     assert payload["summary"]["omitted_maintainer_checks"] == []
     assert EXPECTED_MAINTAINER_ONLY_CHECKS <= names
 

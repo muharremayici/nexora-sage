@@ -129,6 +129,7 @@ def test_small_state_payload_remains_inline_and_byte_equivalent() -> None:
         assert int(row["part_count"]) == 0
         assert part_rows == 0
         assert profile["state_payload_storage_mode"] == "inline_json"
+        assert profile["state_payload_generation_id"].startswith("inline-sha256-")
         assert store.load_raw("atlas", {}) == payload
 
 
@@ -193,6 +194,7 @@ def test_generated_over_inline_limit_uses_bounded_parts_without_truncation() -> 
         assert row["storage_mode"] == "partitioned_json_v1"
         assert json.loads(row["payload"])["__sage_partitioned_payload__"]["generation_id"] == row["generation_id"]
         assert len(parts) == int(row["part_count"]) == profile["state_payload_part_count"]
+        assert profile["state_payload_generation_id"] == row["generation_id"]
         assert [int(part["part_index"]) for part in parts] == list(range(len(parts)))
         assert max(int(part["size"]) for part in parts) <= 64
         assert int(row["payload_bytes"]) > 128

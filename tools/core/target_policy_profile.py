@@ -183,6 +183,8 @@ def _static_projection(path: Path, tool_id: str, policy: dict[str, Any]) -> dict
     executable_suffixes = {".js", ".cjs", ".mjs", ".ts", ".cts", ".mts"}
     if suffix in executable_suffixes:
         return {"status": "executable_config_not_statically_resolved", "tool_state": "unknown"}
+    if tool_id not in {"eslint", "stylelint", "biome", "typescript", "sonar"}:
+        return {"status": "inventory_only_config_identity", "tool_state": "unknown"}
     static_policy = policy.get("static_projection") if isinstance(policy.get("static_projection"), dict) else {}
     if tool_id == "sonar" and name == "sonar-project.properties":
         allowed = {str(item) for item in static_policy.get("sonar_property_allowlist", [])}
@@ -378,7 +380,12 @@ def inventory_project_target_policy(
     policy_adapters = {row["id"]: row["policy_adapter"] for row in rows}
     target_tool_states = {row["id"]: row["declared_tool_state"] for row in rows}
     manifest = None
-    if package_path is not None and package_path.is_file():
+    package_boundary = (
+        package_path.resolve() == workspace or workspace in package_path.resolve().parents
+        if package_path is not None
+        else False
+    )
+    if package_path is not None and package_boundary and package_path.is_file():
         manifest = {
             "path": _relative(package_path.resolve(), workspace),
             "sha256": _sha256(package_path.resolve()),

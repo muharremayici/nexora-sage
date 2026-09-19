@@ -16,7 +16,11 @@ from tools.core.agent_surface_seal_contract import load_agent_surface_seal_contr
 from tools.core.distribution_policy import is_clean_install_root
 from tools.core.execution_waves import release_scope_matches_wave
 from tools.core.json_io import load_json_object_strict, load_raw_artifact_path
-from tools.core.roadmap_phase_registry import current_product_release, roadmap_phase_rows
+from tools.core.roadmap_phase_registry import (
+    current_product_release,
+    release_impact_issues,
+    roadmap_phase_rows,
+)
 from tools.generate_sage_work_item_report import run as generate_work_item_report
 from tools.core.work_package_receipts import record_work_package_operation_safely
 
@@ -44,6 +48,7 @@ def _render_report(payload: dict[str, Any]) -> str:
         f"- blocking_work_items: `{summary.get('blocking_work_items')}`",
         f"- current_execution_wave: `{summary.get('current_execution_wave')}`",
         f"- next_open_delivery_wave: `{summary.get('next_open_delivery_wave')}`",
+        f"- next_technical_development_wave: `{summary.get('next_technical_development_wave')}`",
         "",
         "| Check | Result | Details |",
         "|---|---|---|",
@@ -63,16 +68,23 @@ def duplicate_identity_values(values: list[str]) -> list[str]:
     return sorted(value for value, count in Counter(values).items() if count > 1)
 
 
-def wave_projection_identity(report: dict[str, Any], first_open_wave: str) -> dict[str, Any]:
-    """Keep active execution and next delivery identities explicit and non-conflicting."""
+def wave_projection_identity(
+    report: dict[str, Any],
+    first_open_wave: str,
+    first_technical_wave: str,
+) -> dict[str, Any]:
+    """Keep active execution, delivery debt and technical progression explicit."""
     execution_plan = report.get("execution_plan") if isinstance(report.get("execution_plan"), dict) else {}
     current_wave = str(execution_plan.get("current_wave") or "")
-    projected_next = str(execution_plan.get("next_open_delivery_wave") or "")
+    projected_delivery = str(execution_plan.get("next_open_delivery_wave") or "")
+    projected_technical = str(execution_plan.get("next_technical_development_wave") or "")
     return {
         "current_execution_wave": current_wave,
-        "next_open_delivery_wave": projected_next,
+        "next_open_delivery_wave": projected_delivery,
+        "next_technical_development_wave": projected_technical,
         "selection_basis": str(execution_plan.get("selection_basis") or ""),
-        "projection_matches_independent_first_open": projected_next == first_open_wave,
+        "delivery_projection_matches_independent_first_open": projected_delivery == first_open_wave,
+        "technical_projection_matches_independent_first_ready": projected_technical == first_technical_wave,
     }
 
 
@@ -245,6 +257,15 @@ def run_validation() -> dict[str, Any]:
         [row for row in all_items if isinstance(row, dict)],
         roadmap_releases=roadmap_releases,
     )
+    ready_release_impact_issues = []
+    for row in all_items:
+        if not isinstance(row, dict) or row.get("status") != "ready_for_delivery":
+            continue
+        impact_issues = release_impact_issues(row, roadmap_registry)
+        if impact_issues:
+            ready_release_impact_issues.append(
+                {"id": str(row.get("id") or ""), "issues": impact_issues}
+            )
     for row in open_items:
         if not isinstance(row, dict):
             continue
@@ -317,6 +338,18 @@ def run_validation() -> dict[str, Any]:
         if item_id in set(work_item_ids) and len(owners) != 1
     }
     first_open_wave = ""
+    first_technical_wave = ""
+    readiness_assessments = (
+        report.get("delivery_assessments")
+        if isinstance(report.get("delivery_assessments"), list)
+        else []
+    )
+    technically_ready_ids = {
+        str(row.get("id") or "")
+        for row in readiness_assessments
+        if isinstance(row, dict) and row.get("ready") is True
+    }
+    technical_open_by_wave: dict[str, list[str]] = {}
     wave_dependency_issues: list[dict[str, Any]] = []
     completed_waves_without_evidence: list[str] = []
     completed_waves_missing_local_evidence: list[dict[str, str]] = []
@@ -340,6 +373,9 @@ def run_validation() -> dict[str, Any]:
             invalid_wave_release_scopes.append(release_scope_details)
         assigned = [str(item) for item in wave.get("work_item_ids", [])]
         open_assigned = [item for item in assigned if item_status_by_id.get(item) != "closed"]
+        technical_open_by_wave[wave_id] = [
+            item for item in open_assigned if item not in technically_ready_ids
+        ]
         dependencies = [str(item) for item in wave.get("blocked_by", [])]
         for dependency in dependencies:
             if dependency not in wave_positions or wave_positions[dependency] >= wave_positions.get(wave_id, -1):
@@ -358,7 +394,25 @@ def run_validation() -> dict[str, Any]:
                 if not closure_evidence_is_available(root=ROOT, evidence=evidence_text):
                     completed_waves_missing_local_evidence.append({"wave": wave_id, "evidence": evidence_text})
 
-    wave_identity = wave_projection_identity(report, first_open_wave)
+    for wave in waves:
+        if not isinstance(wave, dict):
+            continue
+        wave_id = str(wave.get("id") or "")
+        dependencies = [str(item) for item in wave.get("blocked_by", [])]
+        if (
+            technical_open_by_wave.get(wave_id)
+            and all(not technical_open_by_wave.get(dependency) for dependency in dependencies)
+        ):
+            first_technical_wave = wave_id
+            break
+
+    wave_identity = wave_projection_identity(report, first_open_wave, first_technical_wave)
+    execution_plan = report.get("execution_plan") if isinstance(report.get("execution_plan"), dict) else {}
+    release_delivery = execution_plan.get("release_delivery") if isinstance(execution_plan.get("release_delivery"), dict) else {}
+    release_delivery_status = str(release_delivery.get("status") or "")
+    release_delivery_issues = release_delivery.get("issues") if isinstance(release_delivery.get("issues"), list) else ["missing_issues"]
+    release_delivery_claim = str(release_delivery.get("claim_boundary") or "")
+    release_delivery_authority = release_delivery.get("authority") if isinstance(release_delivery.get("authority"), dict) else {}
     checks = [
         _check(
             "registry_report_was_generated",
@@ -425,6 +479,11 @@ def run_validation() -> dict[str, Any]:
             {"assessments": report.get("delivery_assessments", [])},
         ),
         _check(
+            "delivery_ready_items_have_semver_impact_disposition",
+            not ready_release_impact_issues,
+            {"invalid_release_impacts": ready_release_impact_issues},
+        ),
+        _check(
             "closed_work_items_have_closed_lifecycle_language",
             not closed_items_with_open_language,
             {"closed_items_with_open_language": closed_items_with_open_language},
@@ -460,7 +519,8 @@ def run_validation() -> dict[str, Any]:
         ),
         _check(
             "execution_wave_state_is_derived_and_dependencies_are_ordered",
-            wave_identity["projection_matches_independent_first_open"]
+            wave_identity["delivery_projection_matches_independent_first_open"]
+            and wave_identity["technical_projection_matches_independent_first_ready"]
             and not wave_dependency_issues
             and not completed_waves_without_evidence
             and not completed_waves_missing_local_evidence,
@@ -468,9 +528,16 @@ def run_validation() -> dict[str, Any]:
                 "first_open_wave": first_open_wave,
                 "projected_current_execution_wave": wave_identity["current_execution_wave"],
                 "projected_next_open_delivery_wave": wave_identity["next_open_delivery_wave"],
+                "independent_first_technical_wave": first_technical_wave,
+                "projected_next_technical_development_wave": wave_identity[
+                    "next_technical_development_wave"
+                ],
                 "selection_basis": wave_identity["selection_basis"],
-                "projection_matches_independent_first_open": wave_identity[
-                    "projection_matches_independent_first_open"
+                "delivery_projection_matches_independent_first_open": wave_identity[
+                    "delivery_projection_matches_independent_first_open"
+                ],
+                "technical_projection_matches_independent_first_ready": wave_identity[
+                    "technical_projection_matches_independent_first_ready"
                 ],
                 "dependency_issues": wave_dependency_issues,
                 "completed_waves_without_evidence": completed_waves_without_evidence,
@@ -488,6 +555,22 @@ def run_validation() -> dict[str, Any]:
                 "invalid_wave_release_scopes": invalid_wave_release_scopes,
             },
         ),
+        _check(
+            "release_delivery_projection_is_bounded_and_non_authorizing",
+            release_delivery_status in {"PASS", "ATTENTION_PLANNING_ONLY"}
+            and not release_delivery_issues
+            and release_delivery_authority.get("publication_authorized") is False
+            and release_delivery_authority.get("release_preparation_authorized") is False
+            and release_delivery_authority.get("claim_profile_activation_authorized") is False,
+            {
+                "status": release_delivery_status,
+                "issues": release_delivery_issues,
+                "planning": release_delivery.get("planning"),
+                "bounded_package": release_delivery.get("bounded_package"),
+                "authority": release_delivery_authority,
+                "claim_boundary": release_delivery_claim,
+            },
+        ),
     ]
     failed = [check for check in checks if not check["passed"]]
     payload = {
@@ -503,6 +586,9 @@ def run_validation() -> dict[str, Any]:
             "delivery_pending_work_items": report.get("summary", {}).get("delivery_pending_work_items"),
             "current_execution_wave": wave_identity["current_execution_wave"],
             "next_open_delivery_wave": wave_identity["next_open_delivery_wave"],
+            "next_technical_development_wave": wave_identity[
+                "next_technical_development_wave"
+            ],
             "execution_wave_selection_basis": wave_identity["selection_basis"],
             "execution_waves": len(waves),
         },

@@ -155,6 +155,9 @@ def _typescript_declaration_fixture() -> dict[str, Any]:
         )
         detector = DeadCodeDetector()
         detector.projects = {"FIXTURE": root}
+        detector._file_content_cache[("FIXTURE", "src/theme.d.ts")] = (
+            root / "src" / "theme.d.ts"
+        ).read_text(encoding="utf-8")
         match = detector._match_contract_registry("FIXTURE", "src/theme.d.ts", "Theme")
         return {
             "matched": bool(match),

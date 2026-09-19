@@ -5,7 +5,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from tools.core.artifact_contracts import AUDIT_REPORT_JSON_PATH, AUDIT_REPORT_TEXT_PATH
-from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage
+from tools.core.analysis_snapshot_lineage import load_atlas_commit, write_current_atlas_lineage
+from tools.core.atlas_integrity import validate_atlas_commit
 from tools.core.artifact_store import flush_shadow_writes
 from tools.core.architecture_blueprints import load_effective_architecture_policy_context
 from tools.core.audit_report import invalidate_audit_report_cache
@@ -42,6 +43,26 @@ VIOLATION_LABELS = require_doctrine_mapping("violation_labels")
 RELATIVE_IMPORTS_NO_ALIAS_RULE = "relative_imports_no_alias"
 
 DEFAULT_VIOLATION_KEYS = list(VIOLATION_LABELS.keys())
+
+
+def _canonical_audit_artifact_identity(atlas: dict) -> dict:
+    commit = load_atlas_commit(RAW_DIR)
+    checks = (
+        validate_atlas_commit(atlas, commit)
+        if isinstance(atlas, dict) and atlas and isinstance(commit, dict) and commit
+        else []
+    )
+    failures = [
+        str(row.get("name") or "unknown")
+        for row in checks
+        if isinstance(row, dict) and not row.get("passed")
+    ]
+    snapshot_id = str(commit.get("snapshot_id") or "") if not failures else ""
+    return {
+        "status": "BOUND" if checks and snapshot_id else "INCOMPLETE",
+        "atlas_snapshot_id": snapshot_id or None,
+        "errors": failures or ([] if checks else ["atlas_commit_unavailable"]),
+    }
 
 
 def _add_violation(violations, rule_key: str, project: str, file_path: str, detail: str, metadata=None):
@@ -489,8 +510,11 @@ def _write_outputs(
         'violations': structured_violations,
         'report_sections': report_sections
     }
-    if is_scoped:
-        payload["artifact_identity"] = watchdog_artifact_identity()
+    payload["artifact_identity"] = (
+        watchdog_artifact_identity()
+        if is_scoped
+        else _canonical_audit_artifact_identity(atlas)
+    )
     payload_built_at = time.perf_counter()
 
     backlog_lines = [

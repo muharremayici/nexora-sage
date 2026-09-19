@@ -135,6 +135,10 @@ def validate_cli_command_contract() -> dict[str, Any]:
     contract = load_json_file(CONTRACT_PATH, {})
     if not isinstance(contract, dict):
         contract = {}
+    target_proof_contract = load_json_file(
+        ROOT / "config" / "target_repository_proof_contract.json",
+        {},
+    )
     cli_source = (ROOT / "codemaps.py").read_text(encoding="utf-8", errors="replace")
     bootstrap_source = (ROOT / "tools" / "core" / "bootstrap_env.py").read_text(encoding="utf-8", errors="replace")
     discovery_source = (ROOT / "tools" / "orchestrators" / "discovery.py").read_text(
@@ -281,6 +285,29 @@ def validate_cli_command_contract() -> dict[str, Any]:
         and by_id.get("run_explicit_step", {}).get("execution_mode") == "explicit_step"
         and by_id.get("run_explicit_step", {}).get("requires_contract") == "pipeline_step_registry.invocation_contract.explicit_step_closure"
         and "dependency closure" in str(by_id.get("run_explicit_step", {}).get("canonical_use") or "")
+    )
+    target_proof_cli = (
+        target_proof_contract.get("public_cli", {})
+        if isinstance(target_proof_contract, dict)
+        else {}
+    )
+    target_proof_cli_ok = (
+        by_id.get("target_repository_proof", {}).get("intent")
+        == "bounded_target_repository_proof"
+        and target_proof_cli.get("refresh_policies")
+        == ["current", "if-missing", "always"]
+        and target_proof_cli.get("default_refresh_policy") == "current"
+        and target_proof_cli.get("default_mode") == "baseline"
+        and target_proof_cli.get("successful_verdicts")
+        == ["PASS", "REVIEW_REQUIRED"]
+        and "def target_repository_proof_cli_contract()" in cli_source
+        and 'profile=str(cli_contract["refresh_execution_profile"])' in cli_source
+        and "proof_artifact_not_refreshed" in cli_source
+        and "def cmd_target_proof(args):" in cli_source
+        and "resolve_current_external_target_generation" in cli_source
+        and "TARGET_REPOSITORY_PROOF_GENERATOR" in cli_source
+        and 'args.refresh_policy == "if-missing"' in cli_source
+        and 'args.refresh_policy == "always"' in cli_source
     )
     help_surface_errors: list[dict[str, Any]] = []
     help_surface_snapshots: dict[str, dict[str, Any]] = {}
@@ -554,6 +581,14 @@ def validate_cli_command_contract() -> dict[str, Any]:
         _check("release_check_is_distinct_from_proof_bundle", release_bundle_distinct_ok, {"release_check_all": by_id.get("release_check_all"), "release_proof_bundle": by_id.get("release_proof_bundle")}),
         _check("list_steps_is_registry_refresh_not_analysis_run", list_steps_distinct_ok, {"run_list_steps": by_id.get("run_list_steps"), "run_full": by_id.get("run_full")}),
         _check("explicit_step_declares_dependency_closure_contract", explicit_step_contract_ok, {"run_explicit_step": by_id.get("run_explicit_step")}),
+        _check(
+            "target_repository_proof_cli_uses_current_generation_and_canonical_builder",
+            target_proof_cli_ok,
+            {
+                "command": by_id.get("target_repository_proof"),
+                "public_cli": target_proof_cli,
+            },
+        ),
         _check(
             "development_and_public_help_surfaces_preserve_authority_boundary",
             help_surfaces_ok,

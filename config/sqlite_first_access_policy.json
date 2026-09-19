@@ -59,6 +59,7 @@
         "tools/engines/variation_manager.py",
         "tools/generate_agent_surface_quality_review.py",
         "tools/mcp/server.py",
+        "tools/orchestrators/watchdog.py",
         "tools/validate_react_support.py",
         "tools/validate_agent_context_payloads.py",
         "tools/validate_agent_semantic_contract_smoke.py"
@@ -482,6 +483,7 @@
     "tools/tests/test_external_target_generation.py": "external-generation tests synthesize required shadow manifests in isolated directories",
     "tools/tests/test_release_evidence_boundaries.py": "release-boundary tests synthesize isolated keyword artifact fixtures",
     "tools/tests/test_engine_contracts.py": "unit tests synthesize artifact fixtures and expected contract names",
+    "tools/tests/test_external_raw_sqlite_first_guard.py": "SQLite-first guard tests synthesize artifact path references to prove proxy and shadow-read classification",
     "tools/tests/test_agent_semantic_contract_smoke.py": "semantic smoke tests synthesize isolated circular dependency fixtures without consuming production runtime shadows",
     "tools/tests/test_surgical_packet_inputs.py": "unit test synthesizes proxy-aware managed-artifact fixture mappings without consuming production runtime shadows",
     "tools/tests/test_watchdog_runtime_contract.py": "watchdog regression tests reference managed artifact names as fixture and negative-contract evidence without consuming production runtime payloads",

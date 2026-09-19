@@ -264,6 +264,16 @@ def record_watchdog_session_trace(session: dict[str, Any]) -> dict[str, Any]:
     debt = session.get(debt_field) if isinstance(session.get(debt_field), dict) else {}
     ledger = session.get("watchdog_pulse_ledger") if isinstance(session.get("watchdog_pulse_ledger"), dict) else {}
     pulse_id = _bounded_text(ledger.get("pulse_id"), limit=80)
+    acquisition = session.get("acquisition") if isinstance(session.get("acquisition"), dict) else {}
+    provenance = (
+        acquisition.get("filesystem_event_provenance")
+        if isinstance(acquisition.get("filesystem_event_provenance"), dict)
+        else {}
+    )
+    decision = acquisition.get("scope_decision") if isinstance(acquisition.get("scope_decision"), dict) else {}
+    event_batch_id = _bounded_text(provenance.get("batch_id"), limit=80)
+    analysis_status = _bounded_text(summary.get("analysis_status") or "completed", limit=80)
+    analysis_completed = analysis_status == "completed"
     return record_trace_event(
         event_type="watchdog_session",
         principal="watchdog",
@@ -271,17 +281,26 @@ def record_watchdog_session_trace(session: dict[str, Any]) -> dict[str, Any]:
         context_fingerprint=fingerprint(
             {
                 "pulse_id": pulse_id,
+                "event_batch_id": event_batch_id,
+                "analysis_status": analysis_status,
                 "changed_file_count": int(summary.get("changed_files") or 0),
                 "violation_count": int(summary.get("violation_count") or 0),
             }
         ),
         policy_version=str(_contract().get("meta", {}).get("version") or UNKNOWN_VALUE),
-        state_change="watchdog_pulse_completed",
+        state_change="watchdog_pulse_completed" if analysis_completed else "watchdog_event_scope_observed",
         latency_ms=float(summary.get("elapsed_seconds") or 0) * 1000,
-        outcome="success",
-        failure_layer="none",
+        outcome="success" if analysis_completed or analysis_status == "no_content_change" else "unknown",
+        failure_layer="none" if analysis_completed or analysis_status == "no_content_change" else "unknown",
         details={
             "pulse_id": pulse_id,
+            "event_batch_id": event_batch_id,
+            "analysis_status": analysis_status,
+            "raw_event_count": int(summary.get("raw_event_count") or 0),
+            "deduplicated_path_count": int(summary.get("deduplicated_path_count") or 0),
+            "metadata_only_count": int(summary.get("metadata_only_count") or 0),
+            "unknown_path_count": int(summary.get("unknown_path_count") or 0),
+            "scope_decision_status": _bounded_text(decision.get("status"), limit=80),
             "changed_file_count": int(summary.get("changed_files") or 0),
             "violation_count": int(summary.get("violation_count") or 0),
             "system_scope": _bounded_text(descriptor.get("system_scope"), limit=80),
@@ -289,7 +308,13 @@ def record_watchdog_session_trace(session: dict[str, Any]) -> dict[str, Any]:
             "proof_debt_field": _bounded_text(debt_field, limit=80),
             "deep_proof_debt_status": _bounded_text(debt.get("status"), limit=80),
         },
-        trace_id=f"watchdog:{pulse_id}" if pulse_id != UNKNOWN_VALUE else None,
+        trace_id=(
+            f"watchdog:{pulse_id}"
+            if analysis_completed and pulse_id != UNKNOWN_VALUE
+            else f"watchdog-event:{event_batch_id}"
+            if event_batch_id != UNKNOWN_VALUE
+            else None
+        ),
     )
 
 

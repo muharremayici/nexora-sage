@@ -121,6 +121,158 @@ def test_confidence_recommended_action_fails_closed_when_mapping_is_missing(monk
     assert server._confidence_recommended_action("elevated_risk") == "confidence_action_unavailable_due_to_invalid_contract"
 
 
+def _confidence_engine_result(target: str) -> dict:
+    return {
+        "target": target,
+        "confidence_matrix": {
+            "dead_code_confidence": 0.97,
+            "merge_safety": "SAFE",
+            "architecture_drift_certainty": 0.1,
+            "dynamic_magic_hazard": 0.0,
+        },
+        "metrics": {
+            "loc": 12,
+            "blast_radius_dependents": 0,
+            "cyclic_member": False,
+            "reflection_indicators_found": [],
+            "risk_mitigation_reasons": [
+                "File adheres completely to standard static and architectural safety constraints."
+            ],
+        },
+        "input_evidence": {
+            "circular_deps": {"status": "PASS", "source": "sqlite", "shape_status": "valid"}
+        },
+        "verdict": "Low Risk Level",
+        "decision_boundary": "Confidence is a risk estimate, not a standalone merge or deploy approval.",
+    }
+
+
+def test_default_confidence_resolves_repo_path_before_engine_evaluation() -> None:
+    canonical_node = "MAIN::platform/ai/ai/schemas.ts"
+    context = {
+        "repo_relative_path": "src/platform/ai/ai/schemas.ts",
+        "atlas_relative_path": "platform/ai/ai/schemas.ts",
+        "atlas_node": canonical_node,
+    }
+    target_status = {"exists": True, "indexed": True}
+    with (
+        patch.object(server, "_raw_dir_for_target", return_value=Path("unused")),
+        patch.object(server, "_resolve_target_node_from_raw", return_value=(canonical_node, context)),
+        patch.object(server, "_target_path_status", return_value=target_status),
+        patch.object(
+            server,
+            "_calibrate_confidence_with_sqlite_impact",
+            side_effect=lambda _raw, _target, _root, result: result,
+        ),
+        patch.object(
+            server,
+            "_record_mcp_call_result",
+            side_effect=lambda _tool, _started, result, **_kwargs: result,
+        ),
+        patch(
+            "tools.engines.confidence_engine.evaluate_file_confidence",
+            return_value=_confidence_engine_result(canonical_node),
+        ) as evaluate,
+    ):
+        payload = json.loads(
+            server.get_confidence_score(
+                "src/platform/ai/ai/schemas.ts",
+                format="json",
+            )
+        )
+
+    evaluate.assert_called_once_with(canonical_node)
+    assert payload["target_ref"] == "MAIN::src/platform/ai/ai/schemas.ts"
+    assert payload["target_file"] == "src/platform/ai/ai/schemas.ts"
+    assert payload["target_grounding_status"] == "grounded"
+
+
+def test_default_confidence_missing_target_does_not_borrow_an_indexed_file() -> None:
+    missing_node = "MAIN::src/missing.ts"
+    context = {
+        "repo_relative_path": "src/missing.ts",
+        "atlas_relative_path": "src/missing.ts",
+        "atlas_node": missing_node,
+    }
+    with (
+        patch.object(server, "_raw_dir_for_target", return_value=Path("unused")),
+        patch.object(server, "_resolve_target_node_from_raw", return_value=(missing_node, context)),
+        patch.object(server, "_target_path_status", return_value={"exists": False, "indexed": False}),
+        patch.object(
+            server,
+            "_calibrate_confidence_with_sqlite_impact",
+            side_effect=lambda _raw, _target, _root, result: result,
+        ),
+        patch.object(
+            server,
+            "_record_mcp_call_result",
+            side_effect=lambda _tool, _started, result, **_kwargs: result,
+        ),
+        patch(
+            "tools.engines.confidence_engine.evaluate_file_confidence",
+            return_value=_confidence_engine_result(missing_node),
+        ) as evaluate,
+    ):
+        payload = json.loads(server.get_confidence_score("src/missing.ts", format="json"))
+
+    evaluate.assert_called_once_with(missing_node)
+    assert payload["target"] == missing_node
+    assert payload["target_exists"] is False
+    assert payload["target_indexed"] is False
+    assert payload["target_grounding_status"] == "missing_or_unindexed"
+    assert payload["confidence_matrix"]["merge_safety"] == "UNKNOWN_TARGET_NOT_GROUNDED"
+    assert payload["recommended_action"] == "refresh_target_analysis_before_confidence_decision"
+
+
+def test_sqlite_confidence_reason_is_present_when_engine_already_matches_risk() -> None:
+    result = _confidence_engine_result("MAIN::shared/utils/text.ts")
+    result["confidence_matrix"]["merge_safety"] = "CRITICAL"
+    result["reasons"] = ["Highly volatile dependent count (Blast radius dependents: 20)"]
+    with (
+        patch.object(
+            server,
+            "_sqlite_impact_radius_from_raw",
+            return_value={"direct_dependents_count": 20, "blast_radius_size": 155},
+        ),
+        patch.object(
+            server,
+            "require_doctrine_mapping",
+            return_value={"critical_dep_threshold": 10, "low_dep_threshold": 5},
+        ),
+    ):
+        calibrated = server._calibrate_confidence_with_sqlite_impact(
+            Path("unused"), "src/shared/utils/text.ts", "", result
+        )
+
+    sqlite_reason = "SQLite impact radius reports 20 direct dependents and 155 total impacted files."
+    assert calibrated["confidence_matrix"]["merge_safety"] == "CRITICAL"
+    assert calibrated["metrics"]["confidence_dependency_source"] == "sqlite_dependencies"
+    assert calibrated["reasons"].count(sqlite_reason) == 1
+    assert sqlite_reason not in result["reasons"]
+
+
+def test_sqlite_confidence_zero_dependents_does_not_invent_risk_reason() -> None:
+    result = _confidence_engine_result("MAIN::src/isolated.ts")
+    with (
+        patch.object(
+            server,
+            "_sqlite_impact_radius_from_raw",
+            return_value={"direct_dependents_count": 0, "blast_radius_size": 0},
+        ),
+        patch.object(
+            server,
+            "require_doctrine_mapping",
+            return_value={"critical_dep_threshold": 10, "low_dep_threshold": 5},
+        ),
+    ):
+        calibrated = server._calibrate_confidence_with_sqlite_impact(
+            Path("unused"), "src/isolated.ts", "", result
+        )
+
+    assert calibrated["confidence_matrix"]["merge_safety"] == "SAFE"
+    assert not any("SQLite impact radius reports" in reason for reason in calibrated["reasons"])
+
+
 def test_agent_artifact_query_is_read_only_when_evidence_is_stale(tmp_path: Path) -> None:
     stale = {
         "status": "FAIL",
@@ -932,3 +1084,81 @@ def test_watchdog_reader_fails_closed_on_incomplete_execution_identity(tmp_path:
     assert 'status: "incomplete"' in rendered
     assert '"system_scope"' in rendered
     assert 'status: "not_created"' in rendered
+
+
+def test_watchdog_reader_preserves_filesystem_acquisition_decision(tmp_path: Path) -> None:
+    session_path = tmp_path / "watchdog_session.json"
+    session_path.write_text("{}", encoding="utf-8")
+    session = {
+        "meta": {"generated_at": "2026-09-13T00:00:00+00:00"},
+        "summary": {
+            "input_origin": "filesystem_event",
+            "analysis_status": "operator_confirmation_required",
+            "input_files": 0,
+            "changed_files": 0,
+            "integrity": "UNKNOWN",
+            "violation_count": 0,
+            "claim_boundary": "surgical_change_context",
+            "raw_event_count": 680,
+            "deduplicated_path_count": 680,
+            "metadata_only_count": 0,
+            "unknown_path_count": 680,
+            "scope_decision_status": "operator_confirmation_required",
+        },
+        "target_descriptor": {
+            "system_scope": "SAGE_ON_REPOSITORY",
+            "acquisition_mode": "DEFAULT_WORKSPACE",
+            "profile_id": "target_repository_default",
+            "subject_root": str(tmp_path),
+            "artifact_strategy": "primary_workspace",
+            "proof_debt_field": "target_repository_deep_proof_debt",
+        },
+        "producer": {"kind": "live_filesystem_observer", "command": ["python", "sage.py", "watch"]},
+        "proof_boundary": {"recommended_deep_proof": "python sage.py run --profile release-deep"},
+        "path_contract": {"analysis_root": str(tmp_path)},
+        "input_origin": "filesystem_event",
+        "input_files": [],
+        "changed_files": [],
+        "sample_files": [],
+        "acquisition": {
+            "held_file_count": 680,
+            "scope_decision": {
+                "status": "operator_confirmation_required",
+                "reason": "large_event_scope_contains_unresolved_content_identity",
+                "unknown_path_count": 680,
+                "selected_path_count": 0,
+                "held_path_count": 680,
+                "silent_scope_truncation": False,
+            },
+            "filesystem_event_provenance": {
+                "raw_event_count": 680,
+                "deduplicated_path_count": 680,
+                "duplicate_event_count": 0,
+            },
+        },
+        "target_repository_deep_proof_debt": {"status": "current"},
+        "watchdog_pulse_ledger": {"status": "CLEAR", "unresolved_unread_count": 0},
+        "violations": [],
+    }
+
+    def load_fixture(path: Path):
+        return session if Path(path).name == "watchdog_session.json" else {}
+
+    with (
+        patch.object(server, "_watchdog_session_roots", return_value=(tmp_path, tmp_path, "")),
+        patch.object(server, "_load_json", side_effect=load_fixture),
+        patch.object(server, "_raw_artifact_source_mtime", return_value=1.0),
+        patch.object(
+            server,
+            "_record_mcp_call_result",
+            side_effect=lambda _name, _started, result, **_kwargs: result,
+        ),
+    ):
+        rendered = server.get_watchdog_session()
+
+    assert "status: watchdog_session_available" in rendered
+    assert 'analysis_status: "operator_confirmation_required"' in rendered
+    assert 'scope_decision_status: "operator_confirmation_required"' in rendered
+    assert "raw_event_count: 680" in rendered
+    assert "held_path_count: 680" in rendered
+    assert "silent_scope_truncation: false" in rendered

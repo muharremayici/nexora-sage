@@ -7,11 +7,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from tools.core.analysis_scope_authority import (
+    BOUNDED_PROJECT_SELECTION,
+    INCOMPLETE_EVIDENCE,
+    load_scope_authority_for_consumer,
+)
 from tools.core.artifact_registry import artifact_metadata
 from tools.core.analysis_snapshot_lineage import receipt_binding
 from tools.core.atlas_integrity import validate_atlas_commit
 from tools.core.config import CONFIG_DIR, RAW_DIR
 from tools.core.json_io import load_json_object_strict, load_raw_artifact_path_strict
+from tools.core.repository_topology import normalize_project_filter
 
 
 CONTRACT_PATH = CONFIG_DIR / "target_repository_proof_contract.json"
@@ -150,6 +156,7 @@ def build_target_repository_proof(
     mode: str,
     repository_reference: str | None = None,
     evidence_not_before: str | None = None,
+    projects: list[str] | str | None = None,
 ) -> dict[str, Any]:
     contract = load_json_object_strict(CONTRACT_PATH, label="target repository proof contract")
     mode_contract = contract.get("modes", {}).get(mode)
@@ -212,6 +219,30 @@ def build_target_repository_proof(
     atlas_commit = payloads.get("atlas_commit")
     analysis_snapshot_id, atlas_identity_valid = _atlas_identity(atlas, atlas_commit)
     root_binding = _root_binding(target_root, atlas)
+    requested_projects = normalize_project_filter(projects)
+    _scope_artifact, scope_authority = load_scope_authority_for_consumer(raw_dir)
+    observed_requested_projects = normalize_project_filter(
+        scope_authority.get("requested_project_filter")
+    )
+    effective_projects = sorted(
+        str(project)
+        for project in (scope_authority.get("effective_runtime_projects") or {})
+        if str(project)
+    )
+    effective_project_keys = sorted({project.upper() for project in effective_projects})
+    scope_authority_id = str(scope_authority.get("scope_authority_id") or "")
+    if not requested_projects:
+        scope_binding = "NOT_REQUESTED"
+    elif not scope_authority_id:
+        scope_binding = "UNAVAILABLE"
+    elif (
+        observed_requested_projects == requested_projects
+        and effective_project_keys == requested_projects
+        and scope_authority.get("evidence_status") == BOUNDED_PROJECT_SELECTION
+    ):
+        scope_binding = "BOUND"
+    else:
+        scope_binding = "MISMATCH"
     reference = _repository_reference(target_root.resolve(), repository_reference)
     subject = {
         "scope": "target_repository",
@@ -219,12 +250,30 @@ def build_target_repository_proof(
         "analysis_snapshot_kind": "atlas_commit" if analysis_snapshot_id else "unavailable",
         "analysis_snapshot_id": analysis_snapshot_id,
         "root_binding": root_binding,
+        "requested_projects": requested_projects,
+        "effective_projects": effective_projects,
+        "project_scope_binding": scope_binding,
+        "scope_authority_id": scope_authority_id or None,
+        "scope_evidence_status": str(
+            scope_authority.get("evidence_status") or INCOMPLETE_EVIDENCE
+        ),
+        "target_repository_threat_boundary": (
+            scope_authority.get("target_repository_threat_boundary")
+            if isinstance(scope_authority.get("target_repository_threat_boundary"), dict)
+            else {
+                "contract": "target_repository_threat_boundary_v1",
+                "status": "not_available_for_legacy_analysis_generation",
+                "hostile_repository_safety": "not_available",
+            }
+        ),
         **reference,
     }
     if not atlas_identity_valid:
         unknowns.append("analysis_snapshot:invalid_or_unavailable")
     if root_binding != "BOUND":
         unknowns.append(f"target_root:{root_binding.lower()}")
+    if requested_projects and scope_binding != "BOUND":
+        unknowns.append(f"requested_project_scope:{scope_binding.lower()}")
     commit_generated_at = _parse_time(
         str((atlas_commit.get("meta") or {}).get("generated_at") or "")
         if isinstance(atlas_commit, dict)
@@ -301,7 +350,12 @@ def build_target_repository_proof(
         or row["snapshot_binding"] != "BOUND"
         or row["source_verdict"] == "BLOCKED"
     ]
-    if not atlas_identity_valid or root_binding != "BOUND" or blockers:
+    if (
+        not atlas_identity_valid
+        or root_binding != "BOUND"
+        or (requested_projects and scope_binding != "BOUND")
+        or blockers
+    ):
         verdict = "BLOCKED"
     elif human_decisions:
         verdict = "REVIEW_REQUIRED"

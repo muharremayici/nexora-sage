@@ -44,6 +44,58 @@ def load_watchdog_runtime_contract() -> dict[str, Any]:
         raise ValueError("watchdog must not emit a clean result while indexed tombstones are omitted")
     if change_events.get("rename_projection") != "linked_delete_plus_create":
         raise ValueError("watchdog rename events must preserve linked delete and create identities")
+    explicit_change_set = change_events.get("explicit_change_set_acquisition")
+    if not isinstance(explicit_change_set, dict):
+        raise ValueError("watchdog change-event contract is missing explicit change-set acquisition policy")
+    if explicit_change_set.get("transport") != "repeated_path_arguments":
+        raise ValueError("watchdog explicit change sets must use the declared repeated-path transport")
+    if int(explicit_change_set.get("max_paths") or 0) < 2:
+        raise ValueError("watchdog explicit change-set bound must support related multi-file edits")
+    if "reject_not_truncate" not in str(explicit_change_set.get("bound_basis") or ""):
+        raise ValueError("watchdog explicit change-set bound must reject rather than truncate")
+    if explicit_change_set.get("path_authority") != "canonical_resolved_repository_path":
+        raise ValueError("watchdog explicit change-set paths must resolve under repository authority")
+    if explicit_change_set.get("deduplication") != "canonical_path_identity_with_duplicate_receipt":
+        raise ValueError("watchdog explicit change sets must preserve duplicate-path receipts")
+    if set(explicit_change_set.get("accepted_entry_kinds") or []) != {
+        "existing_supported_source",
+        "current_atlas_tombstone",
+    }:
+        raise ValueError("watchdog explicit change sets must admit only exact source files and current tombstones")
+    if explicit_change_set.get("directory_behavior") != "single_path_smoke_only":
+        raise ValueError("watchdog directories must remain single-path smoke acquisition")
+    if explicit_change_set.get("invalid_entry_behavior") != "reject_entire_change_set_without_partial_analysis":
+        raise ValueError("watchdog invalid change-set entries must block partial analysis")
+    if explicit_change_set.get("git_change_inference") != "forbidden":
+        raise ValueError("watchdog must not infer an explicit change set from Git state")
+    if explicit_change_set.get("silent_scope_truncation") != "forbidden":
+        raise ValueError("watchdog explicit change sets must never be silently truncated")
+    acquisition = change_events.get("filesystem_event_acquisition")
+    guard = acquisition.get("amplification_guard") if isinstance(acquisition, dict) else None
+    if not isinstance(acquisition, dict) or not isinstance(guard, dict):
+        raise ValueError("watchdog change-event contract is missing filesystem event acquisition policy")
+    if acquisition.get("baseline_authority") != "exact_committed_canonical_atlas_file_hash":
+        raise ValueError("watchdog filesystem events must use the exact committed canonical Atlas baseline")
+    if acquisition.get("content_hash_algorithm") != "atlas_md5_utf8_ignore":
+        raise ValueError("watchdog filesystem event identity must match the Atlas text hash contract")
+    if acquisition.get("unchanged_event_disposition") != "omit_with_evidence":
+        raise ValueError("watchdog unchanged filesystem events must be omitted only with evidence")
+    if acquisition.get("unknown_event_disposition") != "retain_or_require_operator_confirmation":
+        raise ValueError("watchdog unknown filesystem events must fail open to analysis or operator confirmation")
+    if int(acquisition.get("provenance_ring_max_events") or 0) < 1:
+        raise ValueError("watchdog filesystem event provenance ring must be bounded and non-empty")
+    if float(acquisition.get("cold_start_window_seconds") or -1) < 0:
+        raise ValueError("watchdog filesystem event cold-start window must be non-negative")
+    if int(guard.get("candidate_path_threshold") or 0) < 2:
+        raise ValueError("watchdog amplification guard threshold must distinguish single-file edits")
+    if "decision_boundary_not_scope_cap" not in str(guard.get("threshold_basis") or ""):
+        raise ValueError("watchdog amplification threshold must be declared as a decision boundary, not a scope cap")
+    if guard.get("ambiguous_large_scope_behavior") != "require_operator_confirmation_without_partial_analysis":
+        raise ValueError("watchdog ambiguous large scopes must not be partially analyzed")
+    if guard.get("verified_bulk_behavior") != "process_all":
+        raise ValueError("watchdog must preserve every path in a verified bulk edit")
+    if guard.get("silent_scope_truncation") != "forbidden":
+        raise ValueError("watchdog filesystem scope must never be silently truncated")
 
     artifacts = contract.get("artifacts")
     audit = artifacts.get("audit") if isinstance(artifacts, dict) else None
@@ -89,6 +141,16 @@ def load_watchdog_runtime_contract() -> dict[str, Any]:
     ):
         raise ValueError("watchdog scoped evidence contract has incomplete integrity_states")
     return contract
+
+
+def filesystem_event_acquisition_policy() -> dict[str, Any]:
+    contract = load_watchdog_runtime_contract()
+    return dict(contract["change_event_contract"]["filesystem_event_acquisition"])
+
+
+def explicit_change_set_policy() -> dict[str, Any]:
+    contract = load_watchdog_runtime_contract()
+    return dict(contract["change_event_contract"]["explicit_change_set_acquisition"])
 
 
 def watchdog_artifact_path(role: str, storage_root=None):

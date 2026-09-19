@@ -1,7 +1,6 @@
 import os
 import json
 import re
-import shutil
 from typing import List, Dict, Tuple
 from pathlib import Path
 from tools.core.config import (
@@ -11,6 +10,7 @@ from tools.core.config import (
     DYNAMIC_CONFIG,
     MAIN_PROJECT_ROOT,
     DOCTRINE,
+    CODE_MAPS_DIR,
     normalize_path,
     save_json_atomic,
     save_text_atomic,
@@ -18,8 +18,11 @@ from tools.core.config import (
 from tools.core.logger import logger
 from tools.core.doctrine_contract import require_doctrine_mapping
 from tools.core.jsonc import loads_jsonc
-from tools.core.workload_profile import allow_oracle_npx_fallback
 from tools.core.subprocess_telemetry import run_observed_subprocess
+from tools.core.target_repository_trust import (
+    is_target_path_contained,
+    load_target_repository_threat_boundary_contract,
+)
 
 SUSPICIOUS_JSX_PATTERNS = [
     (
@@ -63,7 +66,7 @@ def _iter_files_under(root: Path | str, extensions: tuple[str, ...] | set[str] |
         ]
         for name in names:
             path = Path(current_root) / name
-            if path.suffix.lower() in suffixes:
+            if path.suffix.lower() in suffixes and is_target_path_contained(base, path):
                 files.append(path)
     return files
 
@@ -190,10 +193,12 @@ class ValidationOracle:
         if not node_modules_root:
             return {
                 "applicable": False,
-                "reason": "node_modules not found; Sanctuary hydration was not started.",
+                "reason": "SAGE-owned TypeScript compiler not found; Sanctuary hydration was not started.",
                 "source_root": str(source_root),
                 "node_modules_root": "",
                 "command": [],
+                "compiler_authority": "not_available",
+                "executes_target_code": False,
             }
         command = self._resolve_tsc_command(node_modules_root)
         if not command:
@@ -203,6 +208,8 @@ class ValidationOracle:
                 "source_root": str(source_root),
                 "node_modules_root": str(node_modules_root),
                 "command": [],
+                "compiler_authority": "not_available",
+                "executes_target_code": False,
             }
         return {
             "applicable": True,
@@ -210,6 +217,9 @@ class ValidationOracle:
             "source_root": str(source_root),
             "node_modules_root": str(node_modules_root),
             "command": command,
+            "compiler_authority": "sage_runtime",
+            "executes_target_code": False,
+            "target_native_binary_resolution": "forbidden",
         }
 
     def _run_tsc_validation(
@@ -220,7 +230,7 @@ class ValidationOracle:
         node_modules_root: Path | None = None,
         command: List[str] | None = None,
     ) -> List[Dict]:
-        """Runs npx tsc --noEmit with a custom config for the Sanctuary."""
+        """Run the SAGE-owned TypeScript compiler over a bounded Sanctuary projection."""
         logger.info(f"[ORACLE] Executing Deep TSC Validation for {project_name}...")
 
         source_root = self._source_root_for_project(project_name)
@@ -229,18 +239,20 @@ class ValidationOracle:
             logger.warning("[ORACLE] node_modules not found; skipping Deep TSC.")
             return []
 
-        tsconfig = self._build_sanctuary_tsconfig(source_root)
-        
-        tsconfig_path = Path(project_dir) / "tsconfig.sanctuary.json"
-        save_json_atomic(tsconfig_path, tsconfig)
-
-        # 2. Execute TSC
-        # Resolve a concrete TypeScript executable first; fall back to npx only if needed.
-        cmd = command or self._resolve_tsc_command(node_modules_root)
+        # Resolve and verify the executable authority before materializing transient input.
+        cmd = self._resolve_tsc_command(node_modules_root)
         if not cmd:
             logger.warning("[ORACLE] TypeScript executable not found; skipping Deep TSC.")
             return []
+        if command is not None and list(command) != cmd:
+            logger.error("[ORACLE] Refusing non-canonical TypeScript command for %s.", project_name)
+            return []
 
+        tsconfig = self._build_sanctuary_tsconfig(source_root)
+        tsconfig_path = Path(project_dir) / "tsconfig.sanctuary.json"
+        save_json_atomic(tsconfig_path, tsconfig)
+
+        # Execute the SAGE-owned compiler over the transient bounded projection.
         try:
             full_cmd = [*cmd, "--project", "tsconfig.sanctuary.json", "--noEmit", "--pretty", "false"]
             safe_env = {k: v for k, v in os.environ.items() if k in {"PATH", "SYSTEMROOT", "COMSPEC", "TEMP", "TMP"}}
@@ -295,30 +307,50 @@ class ValidationOracle:
         variations = DYNAMIC_CONFIG.get("variations", {}) or {}
         project_rel = normalize_path(variations.get(project_name))
         if project_rel and project_rel != ".":
-            return (ROOT / project_rel).resolve()
-        return MAIN_PROJECT_ROOT.resolve()
+            candidate = (ROOT / project_rel).resolve()
+        else:
+            candidate = MAIN_PROJECT_ROOT.resolve()
+        if not is_target_path_contained(ROOT, candidate):
+            raise ValueError(f"Configured project root escapes analyzed repository: {project_name}")
+        return candidate
 
     def _resolve_node_modules_root(self, source_root: Path) -> Path | None:
-        """Prefer the analyzed repo's dependencies, then workspace-level fallbacks."""
-        candidates = [
-            source_root / "node_modules",
-            ROOT / "node_modules",
-            self.workspace_root / "node_modules",
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
-        return None
+        """Return only the SAGE-owned TypeScript runtime; never a target dependency tree."""
+        _ = source_root
+        node_modules_root = CODE_MAPS_DIR / "tools" / "engines" / "node_modules"
+        compiler = node_modules_root / "typescript" / "bin" / "tsc"
+        return node_modules_root if compiler.is_file() else None
 
     def _build_sanctuary_tsconfig(self, source_root: Path) -> Dict:
         """Build a project-aware transient tsconfig without leaking host files into scope."""
         compiler_options: Dict = {}
+        boundary = load_target_repository_threat_boundary_contract().get(
+            "typescript_static_compiler_projection",
+            {},
+        )
+        allowed_options = {
+            str(value)
+            for value in boundary.get("allowed_literal_compiler_options", [])
+            if str(value).strip()
+        }
         source_tsconfig = source_root / "tsconfig.json"
-        if source_tsconfig.exists():
+        if is_target_path_contained(source_root, source_tsconfig) and source_tsconfig.is_file():
             try:
                 source_config = loads_jsonc(source_tsconfig.read_text(encoding="utf-8"))
-                if isinstance(source_config.get("compilerOptions"), dict):
-                    compiler_options.update(source_config["compilerOptions"])
+                source_options = source_config.get("compilerOptions")
+                if isinstance(source_options, dict):
+                    compiler_options.update(
+                        {
+                            str(key): value
+                            for key, value in source_options.items()
+                            if str(key) in allowed_options
+                            and (
+                                isinstance(value, (str, int, float, bool))
+                                or isinstance(value, list)
+                                and all(isinstance(item, (str, int, float, bool)) for item in value)
+                            )
+                        }
+                    )
             except Exception as exc:
                 logger.warning("[ORACLE] Could not read source tsconfig %s: %s", source_tsconfig, exc)
 
@@ -330,12 +362,7 @@ class ValidationOracle:
                 "jsx": compiler_options.get("jsx", "preserve"),
             }
         )
-        compiler_options.pop("incremental", None)
-        compiler_options.pop("tsBuildInfoFile", None)
-
-        paths = dict(compiler_options.get("paths") or {})
-        paths["@/*"] = ["./src/*"]
-        compiler_options["paths"] = paths
+        compiler_options["paths"] = dict(boundary.get("sanctuary_aliases") or {"@/*": ["./src/*"]})
 
         oracle_settings = require_doctrine_mapping("validation_oracle_settings")
         default_include = ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.jsx"]
@@ -347,31 +374,20 @@ class ValidationOracle:
         }
 
     def _resolve_tsc_command(self, node_modules_root: Path | None = None) -> List[str]:
-        """Resolve TypeScript CLI in a deterministic order across environments."""
-        roots = [root for root in [node_modules_root, self.workspace_root / "node_modules"] if root]
-        for root in roots:
-            node_modules_bin = root / ".bin"
-            if os.name == "nt":
-                tsc_cmd = node_modules_bin / "tsc.cmd"
-                if tsc_cmd.exists():
-                    return [str(tsc_cmd)]
-            else:
-                tsc_sh = node_modules_bin / "tsc"
-                if tsc_sh.exists():
-                    return [str(tsc_sh)]
-
-            ts_lib = root / "typescript" / "bin" / "tsc"
-            if ts_lib.exists():
-                return ["node", str(ts_lib)]
-
-        if allow_oracle_npx_fallback() and shutil.which("npx"):
-            return ["npx", "tsc"]
-        return []
+        """Resolve only the direct SAGE-owned TypeScript entry point."""
+        root = node_modules_root or self._resolve_node_modules_root(ROOT)
+        if root is None:
+            return []
+        ts_lib = Path(root) / "typescript" / "bin" / "tsc"
+        expected = CODE_MAPS_DIR / "tools" / "engines" / "node_modules" / "typescript" / "bin" / "tsc"
+        if ts_lib.resolve() != expected.resolve() or not ts_lib.is_file():
+            return []
+        return ["node", str(ts_lib)]
 
     def _declared_dependencies_for_project(self, project_name: str) -> set[str]:
         source_root = self._source_root_for_project(project_name)
         package_path = source_root / "package.json"
-        if not package_path.exists():
+        if not is_target_path_contained(source_root, package_path) or not package_path.is_file():
             return set()
         try:
             package = json.loads(package_path.read_text(encoding="utf-8"))
@@ -473,8 +489,9 @@ class ValidationOracle:
 
     def _safe_source_line(self, project_dir: str, file_path: str, line_number: str) -> str:
         try:
-            target = Path(project_dir) / str(file_path)
-            if not target.exists():
+            sanctuary_root = Path(project_dir).resolve()
+            target = (sanctuary_root / str(file_path)).resolve()
+            if not is_target_path_contained(sanctuary_root, target) or not target.is_file():
                 return ""
             number = int(line_number)
             lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -584,7 +601,7 @@ class ValidationOracle:
         if not project_rel or project_rel == ".":
             return {"added_files": 0, "unresolved_aliases": 0}
 
-        variation_root = (ROOT / project_rel).resolve()
+        variation_root = self._source_root_for_project(project_name)
         sanctuary_root = Path(project_dir).resolve()
         if not variation_root.exists() or not sanctuary_root.exists():
             return {"added_files": 0, "unresolved_aliases": 0}
@@ -683,7 +700,7 @@ class ValidationOracle:
         if not project_rel or project_rel == ".":
             return 0, []
 
-        variation_root = (ROOT / project_rel).resolve()
+        variation_root = self._source_root_for_project(project_name)
         sanctuary_root = Path(project_dir).resolve()
         if not variation_root.exists() or not sanctuary_root.exists():
             return 0, []
@@ -695,13 +712,17 @@ class ValidationOracle:
             return 0, []
 
         source_file = (variation_root / relative_file).resolve()
-        if not source_file.exists():
+        if not is_target_path_contained(variation_root, source_file) or not source_file.is_file():
             return 0, []
 
         added_files = 0
         hydrated_paths: List[Path] = []
         for import_str in list(dict.fromkeys(str(item or "").strip() for item in imports if str(item or "").strip())):
-            resolved_var = self._resolve_relative_under_source(source_file, import_str)
+            resolved_var = self._resolve_relative_under_source(
+                source_file,
+                import_str,
+                source_root=variation_root,
+            )
             if not resolved_var:
                 continue
             try:
@@ -717,6 +738,8 @@ class ValidationOracle:
                 copied_files, created_paths = self._materialize_variation_path(
                     source_path=resolved_var,
                     destination_path=sanctuary_target,
+                    source_root=variation_root,
+                    destination_root=sanctuary_root,
                 )
             except Exception as exc:
                 logger.warning("[ORACLE] Failed to materialize variation path for %s: %s", resolved_var, exc)
@@ -725,18 +748,24 @@ class ValidationOracle:
             hydrated_paths.extend(created_paths)
         return added_files, hydrated_paths
 
-    def _resolve_relative_under_source(self, source_file: Path, import_str: str) -> Path | None:
+    def _resolve_relative_under_source(
+        self,
+        source_file: Path,
+        import_str: str,
+        *,
+        source_root: Path,
+    ) -> Path | None:
         base = (source_file.parent / import_str).resolve()
-        if base.exists():
+        if is_target_path_contained(source_root, base) and base.exists():
             return base
         extensions = [".ts", ".tsx", ".js", ".jsx", ".d.ts", ".json"]
         for ext in extensions:
             candidate = Path(f"{base}{ext}")
-            if candidate.exists():
+            if is_target_path_contained(source_root, candidate) and candidate.exists():
                 return candidate
         for index_name in ["index.ts", "index.tsx", "index.js", "index.jsx", "index.d.ts"]:
             candidate = base / index_name
-            if candidate.exists():
+            if is_target_path_contained(source_root, candidate) and candidate.exists():
                 return candidate
         return None
 
@@ -746,7 +775,7 @@ class ValidationOracle:
         if not project_rel or project_rel == ".":
             return 0, set(), []
 
-        variation_root = (ROOT / project_rel).resolve()
+        variation_root = self._source_root_for_project(project_name)
         sanctuary_root = Path(project_dir).resolve()
         if not variation_root.exists() or not sanctuary_root.exists():
             return 0, set(), []
@@ -784,6 +813,8 @@ class ValidationOracle:
                 copied_files, created_paths = self._materialize_variation_path(
                     source_path=resolved_var,
                     destination_path=sanctuary_target,
+                    source_root=variation_root,
+                    destination_root=sanctuary_root,
                 )
                 if copied_files > 0:
                     added_files += copied_files
@@ -796,13 +827,27 @@ class ValidationOracle:
 
         return added_files, unresolved_aliases, hydrated_paths
 
-    def _materialize_variation_path(self, source_path: Path, destination_path: Path) -> Tuple[int, List[Path]]:
+    def _materialize_variation_path(
+        self,
+        source_path: Path,
+        destination_path: Path,
+        *,
+        source_root: Path,
+        destination_root: Path,
+    ) -> Tuple[int, List[Path]]:
+        if (
+            not is_target_path_contained(source_root, source_path)
+            or not is_target_path_contained(destination_root, destination_path)
+        ):
+            return 0, []
         if source_path.is_dir():
             copied_files = 0
             created_paths: List[Path] = []
             for child in _iter_files_under(source_path, {".ts", ".tsx", ".js", ".jsx", ".d.ts", ".json"}):
                 relative = child.relative_to(source_path)
                 target = destination_path / relative
+                if not is_target_path_contained(destination_root, target):
+                    continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 save_text_atomic(target, child.read_text(encoding="utf-8"))
                 copied_files += 1
@@ -948,10 +993,16 @@ class ValidationOracle:
         variations = DYNAMIC_CONFIG.get("variations", {}) or {}
         project_rel = normalize_path(variations.get(project_name))
         if project_rel and project_rel != ".":
-            source_root = (ROOT / project_rel).resolve()
-            roots.extend(self._register_scope_roots("variation_source", source_root))
+            try:
+                source_root = self._source_root_for_project(project_name)
+            except ValueError:
+                source_root = None
+            if source_root is not None:
+                roots.extend(self._register_scope_roots("variation_source", source_root))
 
-        roots.extend(self._register_scope_roots("main", Path(MAIN_PROJECT_ROOT).resolve()))
+        main_root = Path(MAIN_PROJECT_ROOT).resolve()
+        if is_target_path_contained(ROOT, main_root):
+            roots.extend(self._register_scope_roots("main", main_root))
 
         # Stable ordering and de-duplication
         seen = set()
@@ -1024,15 +1075,15 @@ class ValidationOracle:
         index_extensions = ["index.ts", "index.tsx", "index.js", "index.jsx", "index.d.ts"]
         for rel in rel_candidates:
             candidate = root / rel
-            if candidate.exists():
+            if is_target_path_contained(root, candidate) and candidate.exists():
                 return candidate
             for ext in extensions:
                 with_ext = Path(f"{candidate}{ext}")
-                if with_ext.exists():
+                if is_target_path_contained(root, with_ext) and with_ext.exists():
                     return with_ext
             for index_name in index_extensions:
                 with_index = candidate / index_name
-                if with_index.exists():
+                if is_target_path_contained(root, with_index) and with_index.exists():
                     return with_index
         return None
 

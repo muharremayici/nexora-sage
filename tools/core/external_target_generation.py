@@ -15,6 +15,13 @@ from tools.core.unmanaged_atomic_io import native_filesystem_path, save_unmanage
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 INVALID_CURRENT_SENTINEL = ".invalid-current"
 GENERATED_RUN_ID_HEX_CHARS = 16
+TERMINAL_GENERATION_STATES = {
+    "VALIDATED",
+    "VALIDATION_FAILED",
+    "FAILED",
+    "COMPLETED_UNPROMOTED",
+}
+KNOWN_GENERATION_STATES = TERMINAL_GENERATION_STATES | {"ACTIVE"}
 
 
 def external_target_output_slug(target_root: str) -> str:
@@ -29,6 +36,16 @@ def external_target_output_slug(target_root: str) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _history_time(value: Any) -> float:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
 
 
 def new_external_target_run_id(prefix: str = "sage-run") -> str:
@@ -89,6 +106,160 @@ def resolve_current_external_target_generation(
     if pointer.get("sqlite") != manifest.get("sqlite"):
         return None, pointer, "current_sqlite_identity_mismatch"
     return generation, pointer, "validated_current"
+
+
+def external_target_generation_history(
+    target_dir: Path,
+    *,
+    max_manifest_scan: int,
+    max_history_entries: int,
+) -> dict[str, Any]:
+    """Project bounded attempt history without changing current authority."""
+
+    target_dir = Path(target_dir)
+    max_manifest_scan = max(1, int(max_manifest_scan))
+    max_history_entries = max(4, int(max_history_entries))
+    generations_dir = Path(native_filesystem_path(target_dir / "generations"))
+    candidates: list[tuple[float, str, Path]] = []
+    if generations_dir.is_dir():
+        for path in generations_dir.iterdir():
+            if not path.is_dir() or path.name == INVALID_CURRENT_SENTINEL:
+                continue
+            manifest_path = path / "generation.json"
+            try:
+                modified = manifest_path.stat().st_mtime
+            except OSError:
+                modified = 0.0
+            candidates.append((modified, path.name, path))
+    candidates.sort(key=lambda row: (row[0], row[1]), reverse=True)
+
+    current_dir, pointer, current_reason = resolve_current_external_target_generation(target_dir)
+    selected = candidates[:max_manifest_scan]
+    current_run_id = str(pointer.get("run_id") or "") if current_dir is not None else ""
+    if current_run_id and all(row[1] != current_run_id for row in selected):
+        current_candidate = next((row for row in candidates if row[1] == current_run_id), None)
+        if current_candidate is not None:
+            selected = (
+                selected[: max_manifest_scan - 1] + [current_candidate]
+                if len(selected) >= max_manifest_scan
+                else selected + [current_candidate]
+            )
+
+    rows: list[dict[str, Any]] = []
+    invalid_manifests = 0
+    for modified, directory_run_id, run_dir in selected:
+        row: dict[str, Any] = {
+            "run_id": directory_run_id,
+            "manifest_status": "INVALID",
+            "state": "UNKNOWN",
+            "started_at": None,
+            "finished_at": None,
+            "validated_at": None,
+            "exit_code": None,
+            "roles": [],
+            "observed_manifest_mtime": datetime.fromtimestamp(
+                modified,
+                timezone.utc,
+            ).isoformat() if modified else None,
+        }
+        try:
+            manifest = _strict_json(run_dir / "generation.json")
+            manifest_run_id = str(manifest.get("run_id") or "")
+            state = str(manifest.get("state") or "")
+            if (
+                manifest.get("meta", {}).get("kind") != "external_target_generation"
+                or manifest_run_id != directory_run_id
+                or not RUN_ID_RE.fullmatch(manifest_run_id)
+                or state not in KNOWN_GENERATION_STATES
+            ):
+                raise ValueError("generation_manifest_identity_invalid")
+            row.update({
+                "manifest_status": "VALID",
+                "state": state,
+                "started_at": manifest.get("started_at"),
+                "finished_at": manifest.get("finished_at"),
+                "validated_at": manifest.get("validated_at"),
+                "exit_code": manifest.get("exit_code"),
+            })
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            row["manifest_error"] = type(exc).__name__
+            invalid_manifests += 1
+        rows.append(row)
+
+    valid_rows = [row for row in rows if row["manifest_status"] == "VALID"]
+    latest_attempt = max(
+        valid_rows,
+        key=lambda row: (_history_time(row.get("started_at")), str(row["run_id"])),
+        default=None,
+    )
+    completed_rows = [row for row in valid_rows if row["state"] in TERMINAL_GENERATION_STATES]
+    latest_completed = max(
+        completed_rows,
+        key=lambda row: (_history_time(row.get("finished_at")), str(row["run_id"])),
+        default=None,
+    )
+    validated_rows = [row for row in valid_rows if row["state"] == "VALIDATED"]
+    latest_validated = max(
+        validated_rows,
+        key=lambda row: (_history_time(row.get("validated_at")), str(row["run_id"])),
+        default=None,
+    )
+    role_ids = {
+        "latest_attempt": str((latest_attempt or {}).get("run_id") or ""),
+        "latest_completed": str((latest_completed or {}).get("run_id") or ""),
+        "latest_validated": str((latest_validated or {}).get("run_id") or ""),
+        "validated_current": current_run_id,
+    }
+    for role, run_id in role_ids.items():
+        if not run_id:
+            continue
+        for row in rows:
+            if row["run_id"] == run_id:
+                row["roles"].append(role)
+
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            _history_time(row.get("started_at")),
+            str(row.get("observed_manifest_mtime") or ""),
+            str(row["run_id"]),
+        ),
+        reverse=True,
+    )
+    role_run_ids = {run_id for run_id in role_ids.values() if run_id}
+    projected = [row for row in ordered if row["run_id"] in role_run_ids]
+    projected.extend(
+        row
+        for row in ordered
+        if row["run_id"] not in role_run_ids
+        and row["manifest_status"] == "INVALID"
+    )
+    projected.extend(
+        row
+        for row in ordered
+        if row["run_id"] not in role_run_ids
+        and row["manifest_status"] != "INVALID"
+    )
+    projected = projected[:max_history_entries]
+    projected.sort(
+        key=lambda row: (
+            _history_time(row.get("started_at")),
+            str(row.get("observed_manifest_mtime") or ""),
+            str(row["run_id"]),
+        ),
+        reverse=True,
+    )
+    return {
+        "roles": {key: value or None for key, value in role_ids.items()},
+        "current_reason": current_reason,
+        "history": projected,
+        "total_generation_dirs": len(candidates),
+        "scanned_generation_dirs": len(selected),
+        "omitted_from_scan": max(0, len(candidates) - len(selected)),
+        "omitted_from_history": max(0, len(rows) - len(projected)),
+        "invalid_manifests": invalid_manifests,
+        "role_completeness": "COMPLETE" if len(candidates) <= len(selected) else "BOUNDED_SCAN",
+    }
 
 
 def resolve_external_target_artifact_dir(target_dir: Path) -> tuple[Path, str]:

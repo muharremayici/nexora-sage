@@ -82,6 +82,55 @@ class ExceptionHonestyTests(unittest.TestCase):
                 self.assertEqual(target.read_bytes(), original)
                 self.assertEqual(len(list(Path(directory).glob("cm_tmp_*.tmp"))), 1)
 
+    def test_unmanaged_atomic_writer_retries_only_permission_conflicts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "state.json"
+            unmanaged_atomic_io.save_unmanaged_json_atomic(target, {"value": "old"})
+            real_replace = unmanaged_atomic_io.os.replace
+            attempts = 0
+
+            def replace_after_transient_conflicts(source, destination):
+                nonlocal attempts
+                attempts += 1
+                if attempts < 3:
+                    raise PermissionError("transient lock")
+                return real_replace(source, destination)
+
+            with (
+                patch.object(
+                    unmanaged_atomic_io.os,
+                    "replace",
+                    side_effect=replace_after_transient_conflicts,
+                ),
+                patch.object(unmanaged_atomic_io.time, "sleep") as sleep,
+            ):
+                unmanaged_atomic_io.save_unmanaged_json_atomic(target, {"value": "new"})
+
+            self.assertEqual(attempts, 3)
+            self.assertEqual(sleep.call_count, 2)
+            self.assertEqual(json.loads(target.read_text(encoding="utf-8")), {"value": "new"})
+            self.assertEqual(list(Path(directory).glob("cm_tmp_*.tmp")), [])
+
+    def test_unmanaged_atomic_writer_does_not_retry_missing_temp_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "state.json"
+            unmanaged_atomic_io.save_unmanaged_json_atomic(target, {"value": "old"})
+            original = target.read_bytes()
+            missing = FileNotFoundError("temporary source disappeared")
+
+            with (
+                patch.object(unmanaged_atomic_io.os, "replace", side_effect=missing) as replace,
+                patch.object(unmanaged_atomic_io.time, "sleep") as sleep,
+            ):
+                with self.assertRaises(FileNotFoundError) as caught:
+                    unmanaged_atomic_io.save_unmanaged_json_atomic(target, {"value": "new"})
+
+            self.assertIs(caught.exception, missing)
+            self.assertEqual(replace.call_count, 1)
+            sleep.assert_not_called()
+            self.assertEqual(target.read_bytes(), original)
+            self.assertEqual(list(Path(directory).glob("cm_tmp_*.tmp")), [])
+
     def test_critical_generic_exceptions_are_observed_or_declared(self):
         result = validate_exception_honesty()
         self.assertEqual(result["summary"]["status"], "PASS")
