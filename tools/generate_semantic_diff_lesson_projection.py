@@ -21,25 +21,34 @@ LOOP_PATH = CODE_MAPS_DIR / "config" / "sage_development_loop_contract.json"
 LESSON_PATH = CODE_MAPS_DIR / "config" / "audit_lesson_registry.json"
 
 
-def _run_git(args: list[str], *, timeout_seconds: int) -> list[str]:
+def _run_git_paths(args: list[str], *, timeout_seconds: int) -> list[str]:
     result = subprocess.run(
         ["git", *args],
         cwd=CODE_MAPS_DIR,
         capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        text=False,
         timeout=timeout_seconds,
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or f"git {' '.join(args)} failed with {result.returncode}")
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(stderr or f"git {' '.join(args)} failed with {result.returncode}")
+    return [
+        raw_path.decode("utf-8", errors="surrogateescape")
+        for raw_path in result.stdout.split(b"\0")
+        if raw_path
+    ]
 
 
 def changed_files_from_git(*, timeout_seconds: int) -> list[str]:
-    tracked = _run_git(["diff", "--name-only", "--relative", "HEAD", "--", "."], timeout_seconds=timeout_seconds)
-    untracked = _run_git(["ls-files", "--others", "--exclude-standard", "--", "."], timeout_seconds=timeout_seconds)
+    tracked = _run_git_paths(
+        ["diff", "--name-only", "--relative", "-z", "HEAD", "--", "."],
+        timeout_seconds=timeout_seconds,
+    )
+    untracked = _run_git_paths(
+        ["ls-files", "--others", "--exclude-standard", "-z", "--", "."],
+        timeout_seconds=timeout_seconds,
+    )
     return sorted(set(tracked + untracked))
 
 

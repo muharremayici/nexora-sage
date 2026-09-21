@@ -1110,7 +1110,7 @@
         }
       },
       "run_release_proof_bundle": {
-        "command": "python -B tools\\run_release_proof_bundle.py",
+        "command": "python -B tools\\run_release_proof_bundle.py --release-phase frozen_candidate --trigger governed_source_changed",
         "environment_class": "release_deep",
         "clean_source_allowed": false,
         "clean_mirror_behavior": "release_deep_only",

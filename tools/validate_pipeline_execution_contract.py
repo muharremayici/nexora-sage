@@ -404,12 +404,12 @@ def _release_proof_scope_validation() -> dict[str, Any]:
     operating_model = contract.get("proof_operating_model", {}) if isinstance(contract, dict) else {}
     operating_model_valid = (
         isinstance(operating_model, dict)
-        and (operating_model.get("development_iteration") or {}).get("execution")
+        and (operating_model.get("development") or {}).get("execution")
         == "selected_dependency_closure"
-        and (operating_model.get("development_iteration") or {}).get("full_bundle_by_default") is False
-        and (operating_model.get("frozen_release_candidate") or {}).get("execution")
-        == "all_declared_release_steps_once_per_source_freeze"
-        and (operating_model.get("frozen_release_candidate") or {}).get("live_repository_limit") == 1
+        and (operating_model.get("development") or {}).get("full_bundle_by_default") is False
+        and (operating_model.get("frozen_candidate") or {}).get("execution")
+        == "evaluate_all_receipts_execute_invalidated_and_always_fresh"
+        and (operating_model.get("frozen_candidate") or {}).get("live_repository_limit") == 1
         and (operating_model.get("live_multi_project_analysis") or {}).get("execution")
         == "explicit_operator_action_outside_canonical_release_proof"
         and (operating_model.get("external_holdout_refresh") or {}).get("execution")
@@ -420,6 +420,21 @@ def _release_proof_scope_validation() -> dict[str, Any]:
 
     evidence_reuse = contract.get("evidence_reuse", {}) if isinstance(contract, dict) else {}
     checkpoint = evidence_reuse.get("checkpoint", {}) if isinstance(evidence_reuse, dict) else {}
+    diagnostic_planner = (
+        evidence_reuse.get("diagnostic_planner", {})
+        if isinstance(evidence_reuse, dict)
+        else {}
+    )
+    completed_run_reuse = (
+        evidence_reuse.get("completed_run_reuse", {})
+        if isinstance(evidence_reuse, dict)
+        else {}
+    )
+    environment_identity = (
+        evidence_reuse.get("environment_identity", {})
+        if isinstance(evidence_reuse, dict)
+        else {}
+    )
     required_identity_fields = {
         "source_dependency_sha256",
         "validator_sha256",
@@ -440,15 +455,43 @@ def _release_proof_scope_validation() -> dict[str, Any]:
     )
     resume_contract_valid = (
         isinstance(evidence_reuse, dict)
-        and evidence_reuse.get("mode") == "plan_only"
+        and evidence_reuse.get("mode") == "identity_bound_execution_reuse"
         and evidence_reuse.get("authority")
+        == "execution_skip_invalidation_only_no_release_or_publication_authority"
+        and isinstance(diagnostic_planner, dict)
+        and diagnostic_planner.get("mode") == "plan_only"
+        and diagnostic_planner.get("authority")
         == "diagnostic_only_no_execution_or_release_authority"
+        and diagnostic_planner.get("execution_skipping_allowed") is False
         and evidence_reuse.get("execution_mode") == "interruption_resume_exact_identity"
         and evidence_reuse.get("execution_authority")
         == "skip_completed_non_delivery_steps_from_same_interrupted_scope_only_no_release_authority"
         and set(evidence_reuse.get("identity_fields", [])) == required_identity_fields
         and set(evidence_reuse.get("always_fresh_domains", []))
         == {"distribution_installation", "human_legal_authority", "release_envelope"}
+        and isinstance(completed_run_reuse, dict)
+        and completed_run_reuse.get("enabled") is True
+        and completed_run_reuse.get("aggregate_strategy")
+        == "validate_content_bound_receipts_and_execute_invalidated_or_always_fresh"
+        and completed_run_reuse.get("proof_scope") == "full_release_proof"
+        and completed_run_reuse.get("release_phase") == "frozen_candidate"
+        and completed_run_reuse.get("authority")
+        == "execution_skip_only_no_release_or_publication_authority"
+        and isinstance(environment_identity, dict)
+        and environment_identity.get("mode")
+        == "single_bounded_runtime_dependency_receipt_per_invocation"
+        and set(environment_identity.get("required_components", []))
+        == {
+            "python_executable_and_interpreter",
+            "operating_system_release_and_architecture",
+            "active_environment_distribution_versions",
+            "declared_node_runtime_version",
+            "typescript_manifest_lock_and_installed_version",
+        }
+        and environment_identity.get("incomplete_behavior")
+        == "disable_resume_and_completed_run_reuse"
+        and environment_identity.get("authority")
+        == "reuse_invalidation_only_no_release_or_portability_authority"
         and isinstance(checkpoint, dict)
         and checkpoint.get("path")
         == "${code_maps}/output/.operational/release_proof/resume_checkpoint.json"
@@ -461,6 +504,8 @@ def _release_proof_scope_validation() -> dict[str, Any]:
         and checkpoint.get("terminal_state") == "completed"
         and checkpoint.get("required_output_artifact") is True
         and "checkpoint_reuse_eligible" in resume_source
+        and "environment_receipt" in resume_source
+        and "node_ast_cache_state" in resume_source
         and "same_invocation_shared_evidence_required" in resume_source
         and "proof_resume.record_checkpoint_result" in runner_source
         and "AdvisoryFileLock(proof_resume.lock_path())" in runner_source

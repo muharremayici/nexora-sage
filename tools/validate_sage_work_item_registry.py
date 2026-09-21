@@ -49,6 +49,8 @@ def _render_report(payload: dict[str, Any]) -> str:
         f"- current_execution_wave: `{summary.get('current_execution_wave')}`",
         f"- next_open_delivery_wave: `{summary.get('next_open_delivery_wave')}`",
         f"- next_technical_development_wave: `{summary.get('next_technical_development_wave')}`",
+        f"- successor_selection_status: `{summary.get('successor_selection_status')}`",
+        f"- selected_successor_work_item_id: `{summary.get('selected_successor_work_item_id') or 'not_selected'}`",
         "",
         "| Check | Result | Details |",
         "|---|---|---|",
@@ -394,14 +396,23 @@ def run_validation() -> dict[str, Any]:
                 if not closure_evidence_is_available(root=ROOT, evidence=evidence_text):
                     completed_waves_missing_local_evidence.append({"wave": wave_id, "evidence": evidence_text})
 
+    technical_dependency_blocked_by_wave: dict[str, list[str]] = {}
     for wave in waves:
         if not isinstance(wave, dict):
             continue
         wave_id = str(wave.get("id") or "")
         dependencies = [str(item) for item in wave.get("blocked_by", [])]
+        unsatisfied_dependencies = [
+            dependency
+            for dependency in dependencies
+            if dependency not in technical_open_by_wave
+            or bool(technical_open_by_wave.get(dependency))
+            or bool(technical_dependency_blocked_by_wave.get(dependency))
+        ]
+        technical_dependency_blocked_by_wave[wave_id] = unsatisfied_dependencies
         if (
             technical_open_by_wave.get(wave_id)
-            and all(not technical_open_by_wave.get(dependency) for dependency in dependencies)
+            and not unsatisfied_dependencies
         ):
             first_technical_wave = wave_id
             break
@@ -413,6 +424,172 @@ def run_validation() -> dict[str, Any]:
     release_delivery_issues = release_delivery.get("issues") if isinstance(release_delivery.get("issues"), list) else ["missing_issues"]
     release_delivery_claim = str(release_delivery.get("claim_boundary") or "")
     release_delivery_authority = release_delivery.get("authority") if isinstance(release_delivery.get("authority"), dict) else {}
+    successor_selection = (
+        execution_plan.get("successor_selection")
+        if isinstance(execution_plan.get("successor_selection"), dict)
+        else {}
+    )
+    successor_status = str(successor_selection.get("status") or "")
+    ranked_candidates = (
+        successor_selection.get("ranked_candidates")
+        if isinstance(successor_selection.get("ranked_candidates"), list)
+        else []
+    )
+    ranked_candidate_ids = [
+        str(row.get("work_item_id") or "")
+        for row in ranked_candidates
+        if isinstance(row, dict) and str(row.get("work_item_id") or "")
+    ]
+    top_candidate_ids = [
+        str(item)
+        for item in successor_selection.get("top_candidate_work_item_ids", [])
+        if str(item)
+    ]
+    top_candidate_releases = {
+        str(row.get("target_release") or "")
+        for row in ranked_candidates
+        if isinstance(row, dict)
+        and str(row.get("work_item_id") or "") in set(top_candidate_ids)
+    }
+    selected_successor_id = str(successor_selection.get("selected_work_item_id") or "")
+    successor_authority = (
+        successor_selection.get("authority")
+        if isinstance(successor_selection.get("authority"), dict)
+        else {}
+    )
+    expected_successor_authority = {
+        "delivery_authorized",
+        "concrete_release_selected",
+        "release_preparation_authorized",
+        "publication_authorized",
+    }
+    successor_authority_is_explicitly_false = (
+        set(successor_authority) == expected_successor_authority
+        and all(successor_authority.get(key) is False for key in expected_successor_authority)
+    )
+    selected_seed = (
+        successor_selection.get("selected_package_seed")
+        if isinstance(successor_selection.get("selected_package_seed"), dict)
+        else {}
+    )
+    selected_seed_scope = (
+        selected_seed.get("release_scope")
+        if isinstance(selected_seed.get("release_scope"), dict)
+        else {}
+    )
+    selected_seed_matches = (
+        selected_seed.get("work_item_ids") == [selected_successor_id]
+        and bool(str(selected_seed.get("execution_wave") or ""))
+        and selected_seed_scope.get("mode") == "roadmap_delivery"
+        and bool(str(selected_seed_scope.get("roadmap_phase") or ""))
+        and selected_seed_scope.get("concrete_release") is None
+        and selected_seed_scope.get("does_not_expand_current_release_claims") is True
+    )
+    successor_human_choice = (
+        successor_selection.get("human_choice_decision")
+        if isinstance(successor_selection.get("human_choice_decision"), dict)
+        else {}
+    )
+    human_choice_shape_ok = (
+        successor_human_choice.get("present") is False
+        and successor_human_choice.get("applied") is False
+    ) or (
+        successor_human_choice.get("present") is True
+        and successor_human_choice.get("applied") is True
+        and successor_status == "SELECTED"
+        and successor_human_choice.get("work_item_id") == selected_successor_id
+        and successor_human_choice.get("authority") == "tie_resolution_only"
+        and bool(str(successor_human_choice.get("decided_by") or ""))
+        and bool(str(successor_human_choice.get("reason") or ""))
+        and "attributable_human_tie_resolution"
+        in successor_selection.get("reason_codes", [])
+    )
+    release_train = (
+        successor_selection.get("release_train")
+        if isinstance(successor_selection.get("release_train"), dict)
+        else {}
+    )
+    release_train_authority = (
+        release_train.get("authority")
+        if isinstance(release_train.get("authority"), dict)
+        else {}
+    )
+    release_train_status = str(release_train.get("status") or "")
+    release_train_blocker_ids = [
+        str(item)
+        for item in release_train.get("blocking_ready_work_item_ids", [])
+        if str(item)
+    ]
+    release_train_shape_ok = (
+        release_train_status == "CLEAR"
+        and release_train.get("gated_release") is None
+        and not release_train_blocker_ids
+        and release_train.get("later_release_activation_allowed") is True
+        and release_train.get("active_scope_conflict") is False
+        and release_train.get("action_required") is False
+    ) or (
+        release_train_status == "PREDECESSOR_DELIVERY_REQUIRED"
+        and bool(str(release_train.get("gated_release") or ""))
+        and bool(release_train_blocker_ids)
+        and release_train.get("later_release_activation_allowed") is False
+        and isinstance(release_train.get("active_scope_conflict"), bool)
+        and isinstance(release_train.get("action_required"), bool)
+    )
+    release_train_shape_ok = (
+        release_train_shape_ok
+        and release_train.get("parallel_development_authorized") is False
+        and release_train_authority == {
+            "release_preparation_authorized": False,
+            "publication_authorized": False,
+        }
+    )
+    release_train_status_consistent = (
+        successor_status == "RELEASE_TRAIN_ACTION_REQUIRED"
+        and release_train.get("action_required") is True
+        and str(release_train.get("action_reason") or "")
+        in {
+            "no_dependency_ready_same_release_successor",
+            "active_package_is_ahead_of_predecessor_release",
+        }
+    ) or (
+        successor_status != "RELEASE_TRAIN_ACTION_REQUIRED"
+        and release_train.get("action_required") is False
+        and (
+            not release_train.get("gated_release")
+            or (
+                successor_status == "SELECTED"
+                and selected_seed_scope.get("roadmap_phase")
+                == release_train.get("gated_release")
+            )
+            or (
+                successor_status == "HUMAN_CHOICE_REQUIRED"
+                and top_candidate_releases == {release_train.get("gated_release")}
+            )
+        )
+    )
+    successor_status_shape_ok = (
+        successor_status == "SELECTED"
+        and bool(selected_successor_id)
+        and top_candidate_ids == [selected_successor_id]
+        and successor_selection.get("transition_validation_eligible") is True
+        and selected_seed_matches
+    ) or (
+        successor_status == "HUMAN_CHOICE_REQUIRED"
+        and not selected_successor_id
+        and bool(top_candidate_ids)
+        and successor_selection.get("transition_validation_eligible") is False
+        and successor_selection.get("selected_package_seed") is None
+    ) or (
+        successor_status in {
+            "DEPENDENCY_BLOCKED",
+            "NO_CANDIDATE",
+            "RELEASE_TRAIN_ACTION_REQUIRED",
+        }
+        and not selected_successor_id
+        and not top_candidate_ids
+        and successor_selection.get("transition_validation_eligible") is False
+        and successor_selection.get("selected_package_seed") is None
+    )
     checks = [
         _check(
             "registry_report_was_generated",
@@ -571,6 +748,30 @@ def run_validation() -> dict[str, Any]:
                 "claim_boundary": release_delivery_claim,
             },
         ),
+        _check(
+            "successor_selection_is_deterministic_bounded_and_non_authorizing",
+            successor_status_shape_ok
+            and len(ranked_candidate_ids) == len(set(ranked_candidate_ids))
+            and set(top_candidate_ids).issubset(set(ranked_candidate_ids))
+            and successor_authority_is_explicitly_false
+            and human_choice_shape_ok
+            and release_train_shape_ok
+            and release_train_status_consistent
+            and "never closes work" in str(successor_selection.get("claim_boundary") or "").lower(),
+            {
+                "status": successor_status,
+                "reason_codes": successor_selection.get("reason_codes"),
+                "selected_work_item_id": selected_successor_id or None,
+                "top_candidate_work_item_ids": top_candidate_ids,
+                "ranked_candidate_count": len(ranked_candidate_ids),
+                "transition_validation_eligible": successor_selection.get(
+                    "transition_validation_eligible"
+                ),
+                "authority": successor_authority,
+                "release_train": release_train,
+                "claim_boundary": successor_selection.get("claim_boundary"),
+            },
+        ),
     ]
     failed = [check for check in checks if not check["passed"]]
     payload = {
@@ -589,6 +790,10 @@ def run_validation() -> dict[str, Any]:
             "next_technical_development_wave": wave_identity[
                 "next_technical_development_wave"
             ],
+            "successor_selection_status": successor_status,
+            "selected_successor_work_item_id": selected_successor_id or None,
+            "release_train_status": release_train_status,
+            "release_train_gated_release": release_train.get("gated_release"),
             "execution_wave_selection_basis": wave_identity["selection_basis"],
             "execution_waves": len(waves),
         },

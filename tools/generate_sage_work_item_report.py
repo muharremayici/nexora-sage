@@ -96,6 +96,28 @@ def build_report() -> dict[str, Any]:
         active_package=active_work_package(),
         technical_ready_work_item_ids=technically_ready,
     )
+    successor_selection = (
+        execution_plan.get("successor_selection")
+        if isinstance(execution_plan.get("successor_selection"), dict)
+        else {}
+    )
+    successor_projection_ok = successor_selection.get("status") in {
+        "SELECTED",
+        "HUMAN_CHOICE_REQUIRED",
+        "DEPENDENCY_BLOCKED",
+        "NO_CANDIDATE",
+        "RELEASE_TRAIN_ACTION_REQUIRED",
+    }
+    release_train = (
+        successor_selection.get("release_train")
+        if isinstance(successor_selection.get("release_train"), dict)
+        else {}
+    )
+    successor_human_choice = (
+        successor_selection.get("human_choice_decision")
+        if isinstance(successor_selection.get("human_choice_decision"), dict)
+        else {}
+    )
     release_delivery = execution_plan.get("release_delivery") if isinstance(execution_plan.get("release_delivery"), dict) else {}
     release_planning = release_delivery.get("planning") if isinstance(release_delivery.get("planning"), dict) else {}
     semver_candidate = release_delivery.get("semver_candidate") if isinstance(release_delivery.get("semver_candidate"), dict) else {}
@@ -108,8 +130,10 @@ def build_report() -> dict[str, Any]:
             "generator": "tools.generate_sage_work_item_report",
         },
         "summary": {
-            "status": "PASS" if not untracked_agent_surface_followups and not any(
-                assessment["errors"] for assessment in delivery_assessments
+            "status": "PASS" if (
+                not untracked_agent_surface_followups
+                and not any(assessment["errors"] for assessment in delivery_assessments)
+                and successor_projection_ok
             ) else "FAIL",
             "total_work_items": len(work_items),
             "open_work_items": len(open_items),
@@ -127,6 +151,22 @@ def build_report() -> dict[str, Any]:
             "current_execution_wave": execution_plan.get("current_wave"),
             "next_open_delivery_wave": execution_plan.get("next_open_delivery_wave"),
             "next_technical_development_wave": execution_plan.get("next_technical_development_wave"),
+            "successor_selection_status": successor_selection.get("status"),
+            "selected_successor_work_item_id": successor_selection.get("selected_work_item_id"),
+            "successor_top_candidate_work_items": len(
+                successor_selection.get("top_candidate_work_item_ids", [])
+            ),
+            "successor_human_choice_present": successor_human_choice.get("present") is True,
+            "successor_human_choice_applied": successor_human_choice.get("applied") is True,
+            "release_train_status": release_train.get("status"),
+            "release_train_gated_release": release_train.get("gated_release"),
+            "release_train_blocking_ready_work_items": len(
+                release_train.get("blocking_ready_work_item_ids", [])
+            ),
+            "release_train_action_required": release_train.get("action_required") is True,
+            "later_release_activation_allowed": release_train.get(
+                "later_release_activation_allowed"
+            ) is True,
             "release_delivery_status": release_delivery.get("status"),
             "roadmap_phase": release_planning.get("roadmap_phase"),
             "concrete_release": release_planning.get("concrete_release"),
@@ -169,6 +209,16 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- current_execution_wave: `{summary.get('current_execution_wave')}`",
         f"- next_open_delivery_wave: `{summary.get('next_open_delivery_wave')}`",
         f"- next_technical_development_wave: `{summary.get('next_technical_development_wave')}`",
+        f"- successor_selection_status: `{summary.get('successor_selection_status')}`",
+        f"- selected_successor_work_item_id: `{summary.get('selected_successor_work_item_id') or 'not_selected'}`",
+        f"- successor_top_candidate_work_items: `{summary.get('successor_top_candidate_work_items')}`",
+        f"- successor_human_choice_present: `{summary.get('successor_human_choice_present')}`",
+        f"- successor_human_choice_applied: `{summary.get('successor_human_choice_applied')}`",
+        f"- release_train_status: `{summary.get('release_train_status')}`",
+        f"- release_train_gated_release: `{summary.get('release_train_gated_release') or 'none'}`",
+        f"- release_train_blocking_ready_work_items: `{summary.get('release_train_blocking_ready_work_items')}`",
+        f"- release_train_action_required: `{summary.get('release_train_action_required')}`",
+        f"- later_release_activation_allowed: `{summary.get('later_release_activation_allowed')}`",
         f"- release_delivery_status: `{summary.get('release_delivery_status')}`",
         f"- roadmap_phase: `{summary.get('roadmap_phase')}`",
         f"- concrete_release: `{summary.get('concrete_release') or 'not_selected'}`",
@@ -193,6 +243,25 @@ def render_markdown(payload: dict[str, Any]) -> str:
             f"delivery_open={wave.get('open_work_items')}/{wave.get('work_items')}, "
             f"technical_blockers={wave.get('technical_blocking_work_items')} - {wave.get('title')}"
         )
+    successor = (
+        execution_plan.get("successor_selection")
+        if isinstance(execution_plan.get("successor_selection"), dict)
+        else {}
+    )
+    lines.extend(
+        [
+            "",
+            "## Successor Selection",
+            "",
+            f"- status: `{successor.get('status') or 'not_available'}`",
+            f"- selected_work_item_id: `{successor.get('selected_work_item_id') or 'not_selected'}`",
+            f"- reason_codes: `{json.dumps(successor.get('reason_codes') or [], ensure_ascii=False)}`",
+            f"- top_candidate_work_item_ids: `{json.dumps(successor.get('top_candidate_work_item_ids') or [], ensure_ascii=False)}`",
+            f"- transition_validation_eligible: `{successor.get('transition_validation_eligible') is True}`",
+            f"- human_choice_decision: `{json.dumps(successor.get('human_choice_decision') or {}, ensure_ascii=False, sort_keys=True)}`",
+            f"- release_train: `{json.dumps(successor.get('release_train') or {}, ensure_ascii=False, sort_keys=True)}`",
+        ]
+    )
     lines.extend(["", "## Open Items", ""])
     open_items = payload.get("open_items") if isinstance(payload.get("open_items"), list) else []
     if not open_items:

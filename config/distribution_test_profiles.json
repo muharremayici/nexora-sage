@@ -73,6 +73,7 @@
       "tools/tests/test_polyglot_atlas.py",
       "tools/tests/test_progressive_hitl.py",
       "tools/tests/test_python_runtime_env.py",
+      "tools/tests/test_quality_gate_ci_contract.py",
       "tools/tests/test_quality_gate_parser_applicability.py",
       "tools/tests/test_react_contracts.py",
       "tools/tests/test_react_corpus_precision_contracts.py",
@@ -121,5 +122,121 @@
       "tools/tests/test_workload_profile.py"
     ],
     "target_fixture": "tools/tests/fixtures/src"
+  },
+  "partition": {
+    "version": "1.0",
+    "method": "filename_first_token",
+    "unknown_token": "fail_closed",
+    "execution_order": [
+      "target_agent",
+      "analysis_engines",
+      "runtime_platform",
+      "governance_policy",
+      "release_distribution"
+    ],
+    "families": {
+      "target_agent": {
+        "profiles": [
+          "public_target_repository"
+        ],
+        "tokens": [
+          "acquisition",
+          "actor",
+          "agent",
+          "contextos",
+          "progressive",
+          "reality",
+          "repository",
+          "surgical",
+          "target"
+        ]
+      },
+      "analysis_engines": {
+        "profiles": [
+          "public_target_repository"
+        ],
+        "tokens": [
+          "analysis",
+          "artifact",
+          "atlas",
+          "audit",
+          "dead",
+          "discovery",
+          "engine",
+          "fractal",
+          "loc",
+          "merge",
+          "nanometric",
+          "node",
+          "performance",
+          "phase5",
+          "polyglot",
+          "react",
+          "scoped",
+          "sqlite",
+          "symbol",
+          "temporal",
+          "typescript",
+          "universal",
+          "workload"
+        ]
+      },
+      "runtime_platform": {
+        "profiles": [
+          "public_target_repository"
+        ],
+        "tokens": [
+          "dependency",
+          "doctor",
+          "exception",
+          "execution",
+          "external",
+          "heartbeat",
+          "init",
+          "jsonc",
+          "mcp",
+          "path",
+          "pipeline",
+          "python",
+          "runtime",
+          "source",
+          "stdio",
+          "subprocess",
+          "validator",
+          "watchdog"
+        ]
+      },
+      "governance_policy": {
+        "profiles": [
+          "public_target_repository"
+        ],
+        "tokens": [
+          "central",
+          "decision",
+          "declarative",
+          "generate",
+          "generated",
+          "governance",
+          "honesty",
+          "system",
+          "text",
+          "validate"
+        ]
+      },
+      "release_distribution": {
+        "profiles": [
+          "public_target_repository"
+        ],
+        "tokens": [
+          "clean",
+          "distribution",
+          "installation",
+          "lifecycle",
+          "package",
+          "patch",
+          "quality"
+        ]
+      }
+    }
   }
 }

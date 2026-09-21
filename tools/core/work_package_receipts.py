@@ -8,7 +8,7 @@ import sqlite3
 import sys
 import time
 from contextlib import closing
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, RAW_DIR
@@ -16,6 +16,7 @@ from tools.core.distribution_policy import is_clean_install_root
 from tools.core.governance_trace import UNKNOWN_VALUE, fingerprint, record_trace_event
 from tools.core.json_io import load_json_object_strict
 from tools.core.sage_active_work_package import active_work_package
+from tools.core.source_layer_classifier import classify_source_layer
 
 
 CONTRACT_PATH = CONFIG_DIR / "governance_trace_contract.json"
@@ -272,26 +273,119 @@ def build_work_package_closeout_proposal(
     closure_validation: dict[str, Any],
     changed_files: list[str],
 ) -> dict[str, Any]:
+    receipt_contract = _receipt_contract()
+    closeout_policy = (
+        receipt_contract.get("closeout_policy")
+        if isinstance(receipt_contract.get("closeout_policy"), dict)
+        else {}
+    )
+    scope_policy = (
+        closeout_policy.get("changed_file_scope")
+        if isinstance(closeout_policy.get("changed_file_scope"), dict)
+        else {}
+    )
     declared = {
         str(item).replace("\\", "/")
         for item in package.get("affected_contracts", [])
         if str(item).strip()
     }
-    changed = sorted({str(item).replace("\\", "/") for item in changed_files if str(item).strip()})
-    undeclared = [item for item in changed if item not in declared]
+    changed: list[str] = []
+    excluded: list[dict[str, str]] = []
+    governed: list[dict[str, str]] = []
+    unknown: list[dict[str, str]] = []
+    invalid: list[dict[str, str]] = []
+    excluded_layers = {
+        str(item) for item in scope_policy.get("excluded_source_layers", []) if str(item)
+    }
+    unknown_layers = {
+        str(item) for item in scope_policy.get("unknown_source_layers", []) if str(item)
+    }
+    root = CODE_MAPS_DIR.resolve()
+    for raw_path in sorted({str(item) for item in changed_files if str(item)}):
+        normalized = raw_path.replace("\\", "/")
+        pure = PurePosixPath(normalized)
+        unsafe = (
+            pure.is_absolute()
+            or not pure.parts
+            or any(part in {"", ".", ".."} for part in pure.parts)
+            or ":" in pure.parts[0]
+        )
+        if unsafe:
+            invalid.append({"path": normalized, "reason": "invalid_relative_changed_path"})
+            continue
+        normalized = pure.as_posix()
+        candidate = (root / Path(*pure.parts)).resolve()
+        if candidate == root or root not in candidate.parents:
+            invalid.append({"path": normalized, "reason": "changed_path_escapes_sage_root"})
+            continue
+        changed.append(normalized)
+        layer, reason = classify_source_layer(candidate, root=root)
+        row = {"path": normalized, "source_layer": layer, "reason": reason}
+        if layer in excluded_layers:
+            excluded.append(row)
+        elif layer in unknown_layers:
+            unknown.append(row)
+        else:
+            governed.append(row)
+    changed = sorted(set(changed))
+    undeclared = sorted(row["path"] for row in governed if row["path"] not in declared)
     proposals = (
         receipt_projection.get("proposals", {})
         if isinstance(receipt_projection.get("proposals"), dict)
         else {}
     )
+    closure_records = package.get("closure", {}).get("evidence", {})
+    closure_records = closure_records if isinstance(closure_records, dict) else {}
+    release_scope = package.get("release_scope") if isinstance(package.get("release_scope"), dict) else {}
+    release_mode = str(release_scope.get("mode") or "")
+    applicability_profiles = (
+        closeout_policy.get("evidence_applicability_by_release_mode")
+        if isinstance(closeout_policy.get("evidence_applicability_by_release_mode"), dict)
+        else {}
+    )
+    applicability_profile = applicability_profiles.get(release_mode)
+    applicability_errors: list[str] = []
+    applicability_profile_known = isinstance(applicability_profile, dict)
+    if not applicability_profile_known:
+        applicability_profile = {}
+        applicability_errors.append(f"unknown_release_mode:{release_mode or '<missing>'}")
+    all_machine_groups = {
+        str(item) for item in receipt_contract.get("evidence_requirements", {}) if str(item)
+    }
+    required_machine_groups = sorted(
+        str(item)
+        for item in applicability_profile.get("required_evidence_groups", [])
+        if str(item)
+    )
+    not_applicable_reasons = (
+        applicability_profile.get("not_applicable_evidence_groups")
+        if isinstance(applicability_profile.get("not_applicable_evidence_groups"), dict)
+        else {}
+    )
+    not_applicable_groups = {
+        str(evidence_id): str(reason)
+        for evidence_id, reason in not_applicable_reasons.items()
+        if str(evidence_id) and str(reason)
+    }
+    if applicability_profile_known and set(required_machine_groups) & set(not_applicable_groups):
+        applicability_errors.append("evidence_group_is_both_required_and_not_applicable")
+    if applicability_profile_known and set(required_machine_groups) | set(not_applicable_groups) != all_machine_groups:
+        applicability_errors.append("release_mode_does_not_classify_every_machine_group")
+    expected_not_applicable = str(
+        closeout_policy.get("explicit_not_applicable_closure_status") or ""
+    )
+    for evidence_id in sorted(not_applicable_groups):
+        record = closure_records.get(evidence_id)
+        status = str(record.get("status") or "") if isinstance(record, dict) else ""
+        if not expected_not_applicable or status != expected_not_applicable:
+            applicability_errors.append(
+                f"explicit_not_applicable_closure_status_missing:{evidence_id}"
+            )
     incomplete_groups = sorted(
         evidence_id
-        for evidence_id, row in proposals.items()
+        for evidence_id in required_machine_groups
+        for row in [proposals.get(evidence_id)]
         if not isinstance(row, dict) or row.get("readiness") != "receipt_group_complete_review_required"
-    )
-    receipt_contract = _receipt_contract()
-    required_machine_groups = sorted(
-        str(item) for item in receipt_contract.get("evidence_requirements", {}) if str(item)
     )
     missing_groups = [item for item in required_machine_groups if item not in proposals]
     preflight = (
@@ -303,17 +397,19 @@ def build_work_package_closeout_proposal(
     machine_ready = (
         closure_validation.get("status") == "PASS"
         and not undeclared
+        and not unknown
+        and not invalid
+        and not applicability_errors
         and not missing_groups
         and not incomplete_groups
         and stale_receipts == 0
         and preflight.get("ready") is True
     )
-    closure_records = package.get("closure", {}).get("evidence", {})
     manual_evidence_ids = sorted(
         evidence_id
         for evidence_id in closure_records
-        if evidence_id not in required_machine_groups
-    ) if isinstance(closure_records, dict) else []
+        if evidence_id not in all_machine_groups
+    )
     return {
         "meta": {"kind": "sage_work_package_closeout_proposal", "version": "v1"},
         "status": "EVIDENCE_READY_HUMAN_ACTION_REQUIRED" if machine_ready else "BLOCKED",
@@ -325,11 +421,16 @@ def build_work_package_closeout_proposal(
         },
         "live_diff": {
             "changed_files": changed,
+            "governed_changed_files": governed,
+            "excluded_changed_files": excluded,
+            "unknown_source_files": unknown,
+            "invalid_changed_files": invalid,
             "declared_affected_contracts": sorted(declared),
             "undeclared_changed_files": undeclared,
         },
         "machine_evidence": {
             "required_groups": required_machine_groups,
+            "not_applicable_groups": not_applicable_groups,
             "missing_groups": missing_groups,
             "incomplete_groups": incomplete_groups,
             "stale_or_mismatched_receipts": stale_receipts,
@@ -338,6 +439,13 @@ def build_work_package_closeout_proposal(
                 for evidence_id, row in proposals.items()
                 if isinstance(row, dict) and row.get("readiness") == "receipt_group_complete_review_required"
             },
+        },
+        "applicability": {
+            "release_mode": release_mode or None,
+            "status": "VALID" if not applicability_errors else "BLOCKED",
+            "errors": sorted(set(applicability_errors)),
+            "required_machine_groups": required_machine_groups,
+            "not_applicable_machine_groups": not_applicable_groups,
         },
         "mutation_preflight": preflight,
         "closure_validation": closure_validation,
@@ -365,6 +473,9 @@ def render_work_package_closeout_proposal(payload: dict[str, Any]) -> str:
         f"- package: `{package.get('id')}`",
         f"- package_status: `{package.get('status')}`",
         f"- changed_files: `{len(live_diff.get('changed_files', []))}`",
+        f"- excluded_changed_files: `{len(live_diff.get('excluded_changed_files', []))}`",
+        f"- unknown_source_files: `{len(live_diff.get('unknown_source_files', []))}`",
+        f"- invalid_changed_files: `{len(live_diff.get('invalid_changed_files', []))}`",
         f"- undeclared_changed_files: `{len(live_diff.get('undeclared_changed_files', []))}`",
         f"- missing_machine_groups: `{', '.join(machine.get('missing_groups', [])) or 'none'}`",
         f"- incomplete_machine_groups: `{', '.join(machine.get('incomplete_groups', [])) or 'none'}`",

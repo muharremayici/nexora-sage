@@ -77,9 +77,20 @@ def validate_policy(policy: Mapping[str, Any]) -> None:
         "allowed_signals",
         "allowed_reversibility",
         "allowed_release_phases",
+        "release_profile_phases",
         "allowed_scope_kinds",
     ):
         _non_empty_string_list(input_contract.get(key), f"input_contract.{key}")
+    allowed_release_phases = set(input_contract["allowed_release_phases"])
+    release_profile_phases = set(input_contract["release_profile_phases"])
+    unknown_release_profile_phases = sorted(
+        release_profile_phases - allowed_release_phases
+    )
+    if unknown_release_profile_phases:
+        raise ValueError(
+            "Release-profile phases must be declared allowed release phases: "
+            f"{unknown_release_profile_phases}"
+        )
     if input_contract.get("unknown_signal_minimum_profile") not in profiles:
         raise ValueError("Unknown-signal minimum profile is invalid")
     if selection.get("default_profile") not in profiles:
@@ -95,6 +106,7 @@ def validate_policy(policy: Mapping[str, Any]) -> None:
     if not isinstance(rules, list) or not rules:
         raise ValueError("Selection rules must be non-empty")
     rule_ids: set[str] = set()
+    hard_release_phase_coverage: set[str] = set()
     for rule in rules:
         if not isinstance(rule, Mapping):
             raise ValueError("Selection rule must be an object")
@@ -112,6 +124,46 @@ def validate_policy(policy: Mapping[str, Any]) -> None:
         unknown_operators = set(condition) - allowed_operators
         if unknown_operators:
             raise ValueError(f"Unknown condition operators for {rule_id}: {sorted(unknown_operators)}")
+        condition_release_phases: set[str] = set()
+        if "release_phase_in" in condition:
+            condition_release_phases = set(
+                _non_empty_string_list(
+                    condition.get("release_phase_in"),
+                    f"selection.rules.{rule_id}.when.release_phase_in",
+                )
+            )
+            unknown_condition_phases = sorted(
+                condition_release_phases - allowed_release_phases
+            )
+            if unknown_condition_phases:
+                raise ValueError(
+                    f"Unknown release phases for {rule_id}: {unknown_condition_phases}"
+                )
+        if rule.get("minimum_profile") == "release":
+            if not condition_release_phases:
+                raise ValueError(
+                    "Release-profile rules must be explicitly phase-gated: "
+                    f"{rule_id}"
+                )
+            non_release_phases = sorted(
+                condition_release_phases - release_profile_phases
+            )
+            if non_release_phases:
+                raise ValueError(
+                    "Release-profile rules cannot activate before the declared "
+                    f"release phases: {rule_id}={non_release_phases}"
+                )
+            if rule.get("strength") == "hard":
+                hard_release_phase_coverage.update(condition_release_phases)
+
+    missing_hard_release_phases = sorted(
+        release_profile_phases - hard_release_phase_coverage
+    )
+    if missing_hard_release_phases:
+        raise ValueError(
+            "Declared release-profile phases need hard selection coverage: "
+            f"{missing_hard_release_phases}"
+        )
 
     evidence = policy.get("evidence_identity")
     downgrade = policy.get("downgrade")

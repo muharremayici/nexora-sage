@@ -1,4 +1,4 @@
-# Nexora SAGE v1.1.0 Clean Source Distribution
+# Nexora SAGE v1.1.1 Clean Source Distribution
 
 This is a clean public product projection. It is not the private development
 workspace. Check `PUBLICATION_STATUS.md` for the exact publication state.

@@ -53,7 +53,7 @@
       "exception_type": "Exception",
       "pass_only": false,
       "body_fingerprint": "11b6d7b81fcbac53",
-      "try_context_fingerprint": "5f991daf185443ee",
+      "try_context_fingerprint": "c2e4d8ff0c086524",
       "purpose": "Optional import capability probe returns false without claiming the target is available."
     },
     {
@@ -422,7 +422,7 @@
       "exception_type": "Exception",
       "pass_only": false,
       "body_fingerprint": "11b6d7b81fcbac53",
-      "try_context_fingerprint": "5f991daf185443ee",
+      "try_context_fingerprint": "c2e4d8ff0c086524",
       "purpose": "Dependency capability probing returns false when importing the requested module target fails."
     },
     {

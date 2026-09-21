@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.python_source_index import PythonSourceIndex
 from tools.core.sqlite_first_access_policy import (
     sqlite_first_large_allowed_references,
     sqlite_first_large_artifact_policies,
@@ -242,7 +243,7 @@ def _scan_file(
     return results
 
 
-def validate() -> dict[str, Any]:
+def validate(*, source_index: PythonSourceIndex | None = None) -> dict[str, Any]:
     files = _python_files()
     _log(f"START files={len(files)} artifacts={len(ARTIFACTS)} mode=single_pass")
     artifact_scan = {
@@ -253,13 +254,19 @@ def validate() -> dict[str, Any]:
     for index, file_path in enumerate(files, start=1):
         if index == 1 or index % 100 == 0 or index == len(files):
             _log(f"SCAN files={index}/{len(files)}")
-        file_text = file_path.read_text(encoding="utf-8", errors="replace")
-        try:
-            file_tree = ast.parse(file_text, filename=_rel(file_path))
-            syntax_error = None
-        except SyntaxError as exc:
-            file_tree = None
-            syntax_error = exc
+        if source_index is not None:
+            source_record = source_index.record(file_path)
+            file_text = source_record.replacement_text
+            file_tree = source_record.replacement_tree
+            syntax_error = source_record.replacement_syntax_error
+        else:
+            file_text = file_path.read_text(encoding="utf-8", errors="replace")
+            try:
+                file_tree = ast.parse(file_text, filename=_rel(file_path))
+                syntax_error = None
+            except SyntaxError as exc:
+                file_tree = None
+                syntax_error = exc
         external_raw_shadow_reads.extend(
             _external_raw_consumer_findings(
                 file_path,

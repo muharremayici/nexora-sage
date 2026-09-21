@@ -202,6 +202,11 @@
       "status": "accepted",
       "reason": "bounded AST inventory of repeated source acquisitions for central-decision validation"
     },
+    "tools/core/release_validation_dependencies.py": {
+      "class": "source_governance_inventory",
+      "status": "accepted_bounded",
+      "reason": "builds the deterministic local Python module index for content-bound release-validation dependency closures while excluding generated and runtime roots"
+    },
     "tools/core/source_state_identity.py": {
       "class": "source_governance_identity",
       "status": "accepted",

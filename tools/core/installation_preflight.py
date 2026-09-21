@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib
 import importlib.util
 import json
 import os
@@ -22,6 +21,7 @@ from tools.core.installation_identity import (
     EMBEDDED_TARGET_MODE,
     installation_target_mode,
 )
+from tools.core.external_feature_modules import import_declared_external_module
 from tools.core.json_io import load_json_object_strict
 from tools.core.python_runtime_env import utf8_subprocess_env
 
@@ -222,7 +222,7 @@ def build_embedded_host_footprint(
 
 def _module_target_available(module_name: str, attribute_name: str | None = None) -> bool:
     try:
-        module = importlib.import_module(module_name)
+        module = import_declared_external_module(module_name)
     except Exception:
         return False
     return not attribute_name or hasattr(module, attribute_name)

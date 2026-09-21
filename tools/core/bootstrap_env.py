@@ -34,6 +34,7 @@ from tools.core.installation_preflight import (
     render_console_lines,
     write_installation_plan,
 )
+from tools.core.external_feature_modules import import_declared_external_module
 from tools.core.dependency_acquisition import (
     DependencyAcquisitionError,
     execute_dependency_action,
@@ -167,7 +168,7 @@ def module_available(module_name):
 
 def import_target_available(module_name, attribute_name=None):
     try:
-        module = importlib.import_module(module_name)
+        module = import_declared_external_module(module_name)
     except Exception:
         return False
     if not attribute_name:

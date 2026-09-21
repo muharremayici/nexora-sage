@@ -501,10 +501,12 @@
     "latest_candidate_records": 166180,
     "latest_candidate_records_adjudicated": 0,
     "release_gate_work_items": [
-      "release_preparation_concrete_scope_and_claim_continuity_contract"
+      "public_release_claim_projection_and_artifact_resolved_authority_contract",
+      "release_train_candidate_cutover_and_patch_lane_contract",
+      "release_train_predecessor_publication_arbitration_contract"
     ],
     "release_ready": true,
-    "release_readiness_claim": "All bounded v1.0.5 family candidates retain explicit outcomes and the centrally registered v1.1.0 release blocker is technically ready_for_delivery. This does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize a broad Corpus replay, satisfy projected-public Linux evidence, or prove release shipment.",
-    "next_action": "Preserve the completed Corpus disposition evidence while the technically ready v1.1.0 work crosses its separately governed proof, seal, clean, public-projection and delivery boundaries. Native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this closure."
+    "release_readiness_claim": "All bounded v1.0.5 family candidates retain explicit outcomes and the three centrally registered v1.1.1 release blockers are technically ready_for_delivery. This does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize a broad Corpus replay, satisfy projected-public Linux evidence, or prove release shipment.",
+    "next_action": "Preserve the completed Corpus disposition evidence while the technically ready v1.1.1 work crosses its separately governed proof, seal, clean, public-projection and delivery boundaries. Native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this closure."
   }
 }

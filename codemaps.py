@@ -16,6 +16,7 @@ from tools.core.vendor_bootstrap import inject_vendor_paths
 from tools.core.python_runtime_env import isolated_python_subprocess_env, python_subprocess_env
 from tools.core.mcp_runtime_config import build_mcp_runtime_contract
 from tools.core.installation_preflight import installation_feature_dependencies
+from tools.core.external_feature_modules import import_declared_external_module
 from tools.core.stdio import configure_utf8_stdio
 
 
@@ -573,7 +574,7 @@ def import_target_available(module_name, attribute_name=None):
     package_name = str(module_name or "").split(".", 1)[0]
 
     try:
-        module = importlib.import_module(module_name)
+        module = import_declared_external_module(module_name)
     except PermissionError:
         blocked_sys_paths = _blocked_sys_paths_for_package(package_name)
         if not blocked_sys_paths:
@@ -582,7 +583,7 @@ def import_target_available(module_name, attribute_name=None):
         try:
             sys.path = [entry for entry in original_sys_path if entry not in blocked_sys_paths]
             importlib.invalidate_caches()
-            module = importlib.import_module(module_name)
+            module = import_declared_external_module(module_name)
         except Exception:
             return False
         finally:
