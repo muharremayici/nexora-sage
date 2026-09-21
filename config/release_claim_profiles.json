@@ -4,7 +4,7 @@
     "version": "v1",
     "description": "Machine-readable release claim boundaries. Active profiles define what the current release may claim; roadmap profiles preserve future work without expanding V1 claims."
   },
-  "current_product_release": "1.1.0",
+  "current_product_release": "1.1.1",
   "active_profile_id": "v1_react_architecture_governance",
   "validation_contract": {
     "allowed_profile_statuses": [
@@ -130,11 +130,11 @@
     {
       "id": "v1_react_architecture_governance",
       "status": "active",
-      "target_release": "1.1.0",
+      "target_release": "1.1.1",
       "claim_origin_release": "1.0.0",
       "execution_mode": "release_deep",
       "allowed_claim": "evidence_backed_bounded_react_typescript_static_governance",
-      "claim_boundary": "Release candidate 1.1.0: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
+      "claim_boundary": "Release candidate 1.1.1: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
       "capability_ids": [
         "react_surgical_intelligence",
         "sqlite_artifact_store",

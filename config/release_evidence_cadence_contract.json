@@ -1,0 +1,913 @@
+{
+  "meta": {
+    "kind": "nexora.release_evidence_cadence_contract",
+    "version": "1.1.0",
+    "status": "normative",
+    "purpose": "Select the minimum dependency-correct release evidence cadence without weakening exact-byte, human-authority, fail-closed or final-candidate boundaries."
+  },
+  "governance": {
+    "target_release": "1.1.1",
+    "work_item_ids": [
+      "release_train_candidate_cutover_and_patch_lane_contract",
+      "installation_evidence_cadence_dependency_closure_contract",
+      "release_validation_shared_source_index_and_test_suite_partition_contract"
+    ],
+    "one_publisher_owner_id": "existing_private_release_controller",
+    "decision_authority": "evidence_cadence_only",
+    "publication_authority": "never_inferred",
+    "rule": "This contract chooses evidence cadence for the existing source-to-clean-to-public release train. It does not execute release stages, create a second publisher, issue a human seal, grant a license or authorize publication."
+  },
+  "validation": {
+    "required_cadence_classes": [
+      "always_fresh",
+      "change_triggered",
+      "baseline_plus_delta",
+      "periodic",
+      "final_candidate_aggregate"
+    ],
+    "required_aggregate_strategies": [
+      "validate_content_bound_receipts_and_execute_invalidated_or_always_fresh",
+      "fresh_execution"
+    ],
+    "required_subjects": [
+      "full_release_proof",
+      "clean_projection_bytes",
+      "public_projection_bytes",
+      "projected_public_tests",
+      "independent_physical_install",
+      "isolated_install",
+      "ci_pull_request_fast",
+      "ci_release_deep",
+      "ci_periodic_compatibility",
+      "human_doctrine_seal",
+      "publication_authority",
+      "react_corpus_replay",
+      "claim_review",
+      "license_review"
+    ],
+    "required_work_item_ids": [
+      "release_train_candidate_cutover_and_patch_lane_contract",
+      "installation_evidence_cadence_dependency_closure_contract"
+    ],
+    "required_independent_retest_triggers": [
+      "installer_semantics_changed",
+      "bootstrap_semantics_changed",
+      "dependency_semantics_changed",
+      "runtime_support_changed",
+      "os_support_changed",
+      "environment_specific_failure_observed"
+    ],
+    "required_owner_fields": [
+      "id",
+      "boundary",
+      "authority",
+      "sources",
+      "may_publish"
+    ],
+    "required_subject_cadences": {
+      "full_release_proof": [
+        "final_candidate_aggregate"
+      ],
+      "clean_projection_bytes": [
+        "always_fresh"
+      ],
+      "public_projection_bytes": [
+        "always_fresh"
+      ],
+      "projected_public_tests": [
+        "change_triggered",
+        "final_candidate_aggregate"
+      ],
+      "independent_physical_install": [
+        "baseline_plus_delta"
+      ],
+      "isolated_install": [
+        "always_fresh"
+      ],
+      "ci_pull_request_fast": [
+        "change_triggered"
+      ],
+      "ci_release_deep": [
+        "final_candidate_aggregate"
+      ],
+      "ci_periodic_compatibility": [
+        "periodic"
+      ],
+      "human_doctrine_seal": [
+        "change_triggered"
+      ],
+      "publication_authority": [
+        "always_fresh"
+      ],
+      "react_corpus_replay": [
+        "change_triggered"
+      ],
+      "claim_review": [
+        "change_triggered"
+      ],
+      "license_review": [
+        "change_triggered"
+      ]
+    },
+    "independent_install_evidence_id": "independent_physical_install",
+    "version_only_trigger_id": "version_identity_changed",
+    "allowed_owner_boundaries": [
+      "source_repository",
+      "private_release_controller"
+    ],
+    "unknown_cadence_behavior": "block",
+    "unknown_trigger_behavior": "block",
+    "unknown_owner_behavior": "block",
+    "unknown_release_phase_behavior": "block"
+  },
+  "invariants": {
+    "version_identity_change_alone_requires_independent_physical_retest": false,
+    "independent_physical_retest_requires_protected_semantic_trigger": true,
+    "missing_required_baseline_behavior": "block",
+    "failed_stale_tampered_or_ambiguous_evidence_reuse": "forbidden",
+    "final_candidate_aggregate_reuse": "content_bound_current_receipts_and_exact_frozen_candidate_identity_only",
+    "machine_evidence_may_issue_human_authority": false,
+    "cadence_decision_may_execute_publication": false,
+    "release_version_is_not_an_evidence_identity": true,
+    "change_invalidation_scope": "changed_evidence_and_semantic_descendants_only"
+  },
+  "input_contract": {
+    "required_fields": [
+      "release_phase",
+      "triggers",
+      "available_baselines"
+    ],
+    "release_phase_authority": {
+      "source": "config/sage_self_development_validation_profiles.json",
+      "json_pointer": "/input_contract/allowed_release_phases",
+      "mapping_mode": "exact_shared_vocabulary"
+    },
+    "release_phases": [
+      "development",
+      "candidate",
+      "frozen_candidate",
+      "pre_seal",
+      "publication"
+    ],
+    "trigger_catalog": [
+      {
+        "id": "governed_source_changed",
+        "class": "source"
+      },
+      {
+        "id": "configuration_changed",
+        "class": "configuration"
+      },
+      {
+        "id": "release_proof_dependency_changed",
+        "class": "validation"
+      },
+      {
+        "id": "clean_projection_input_changed",
+        "class": "distribution"
+      },
+      {
+        "id": "public_projection_input_changed",
+        "class": "distribution"
+      },
+      {
+        "id": "distribution_manifest_changed",
+        "class": "distribution"
+      },
+      {
+        "id": "public_test_contract_changed",
+        "class": "validation"
+      },
+      {
+        "id": "test_suite_changed",
+        "class": "validation"
+      },
+      {
+        "id": "explicit_focused_validation_selected",
+        "class": "validation"
+      },
+      {
+        "id": "installer_semantics_changed",
+        "class": "installation"
+      },
+      {
+        "id": "bootstrap_semantics_changed",
+        "class": "installation"
+      },
+      {
+        "id": "dependency_semantics_changed",
+        "class": "installation"
+      },
+      {
+        "id": "runtime_support_changed",
+        "class": "installation"
+      },
+      {
+        "id": "os_support_changed",
+        "class": "installation"
+      },
+      {
+        "id": "environment_specific_failure_observed",
+        "class": "installation"
+      },
+      {
+        "id": "ci_contract_changed",
+        "class": "ci"
+      },
+      {
+        "id": "periodic_compatibility_due",
+        "class": "ci"
+      },
+      {
+        "id": "protected_doctrine_changed",
+        "class": "human_authority"
+      },
+      {
+        "id": "agent_surface_semantics_changed",
+        "class": "human_authority"
+      },
+      {
+        "id": "publication_requested",
+        "class": "human_authority"
+      },
+      {
+        "id": "analysis_semantics_changed",
+        "class": "external_evidence"
+      },
+      {
+        "id": "corpus_contract_changed",
+        "class": "external_evidence"
+      },
+      {
+        "id": "external_evidence_gap_observed",
+        "class": "external_evidence"
+      },
+      {
+        "id": "explicit_corpus_evaluation_selected",
+        "class": "external_evidence"
+      },
+      {
+        "id": "claim_boundary_changed",
+        "class": "claim"
+      },
+      {
+        "id": "license_strategy_changed",
+        "class": "license"
+      },
+      {
+        "id": "version_identity_changed",
+        "class": "metadata"
+      }
+    ]
+  },
+  "installation_trigger_derivation": {
+    "schema": "v1_content_bound_semantic_ownership",
+    "authority": "central_source_cli_installation_and_runtime_owners",
+    "source_role_contract": "config/source_role_obligation_contract.json",
+    "root_entrypoint_role": "root_entrypoint",
+    "proof_steps_contract": "config/release_proof_steps_contract.json",
+    "proof_steps": [
+      {
+        "id": "installation_contract",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "id": "installation_proof_smoke",
+        "trigger": "installer_semantics_changed"
+      }
+    ],
+    "exact_authority_paths": [
+      {
+        "path": "config/release_evidence_cadence_contract.json",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "config/cli_command_contract.json",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "config/installation_preflight_contract.json",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "config/external_clean_machine_evidence_contract.json",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "config/source_role_obligation_contract.json",
+        "trigger": "bootstrap_semantics_changed"
+      },
+      {
+        "path": "config/release_proof_steps_contract.json",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/release_evidence_cadence.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/derive_release_evidence_cadence.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/release_validation_dependencies.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/source_layer_classifier.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/source_layer_classification_policy.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "config/source_layer_classification_policy.json",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "config/source_layer_taxonomy.json",
+        "trigger": "installer_semantics_changed"
+      }
+    ],
+    "source_layer_triggers": {
+      "installation_onboarding": "bootstrap_semantics_changed",
+      "package_runtime": "dependency_semantics_changed"
+    },
+    "semantic_metadata": [
+      {
+        "path": "pyproject.toml",
+        "ignored_json_paths": [
+          "project.version"
+        ],
+        "changed_triggers": [
+          "dependency_semantics_changed",
+          "runtime_support_changed"
+        ]
+      }
+    ],
+    "transitive_local_python_imports_for_proof_steps": true,
+    "unknown_source_layer_behavior": "block",
+    "generated_runtime_change_behavior": "block",
+    "known_unmatched_path_behavior": "unaffected",
+    "receipt_authority": "cadence_input_only_no_baseline_acceptance_or_publication_authority"
+  },
+  "evidence_identity": {
+    "dimensions": [
+      "source",
+      "configuration",
+      "policy",
+      "runtime",
+      "environment",
+      "scope",
+      "artifact",
+      "controller"
+    ],
+    "rule": "A PASS, timestamp or version label is not reusable evidence. Reuse requires every identity dimension declared by the evidence row and a current untampered receipt."
+  },
+  "owners": [
+    {
+      "id": "release_proof_scope",
+      "boundary": "source_repository",
+      "authority": "Full proof domains, frozen-candidate aggregation and internal proof reuse boundaries.",
+      "sources": [
+        "config/release_proof_scope_contract.json",
+        "config/release_proof_steps_contract.json"
+      ],
+      "may_publish": false
+    },
+    {
+      "id": "existing_private_release_controller",
+      "boundary": "private_release_controller",
+      "authority": "The existing private source-to-clean-to-public controller is the only publication pipeline owner.",
+      "sources": [
+        "private://CONTROL_CONTRACT.json",
+        "private://release_projection_pipeline.py",
+        "private://public_release_publication.py"
+      ],
+      "may_publish": true
+    },
+    {
+      "id": "distribution_test_profiles",
+      "boundary": "source_repository",
+      "authority": "Canonical/public test applicability and projected-public suite membership.",
+      "sources": [
+        "config/distribution_test_profiles.json"
+      ],
+      "may_publish": false
+    },
+    {
+      "id": "installation_evidence",
+      "boundary": "source_repository",
+      "authority": "Installation preflight, isolated proof and independently supplied clean-machine evidence semantics.",
+      "sources": [
+        "config/installation_preflight_contract.json",
+        "config/external_clean_machine_evidence_contract.json"
+      ],
+      "may_publish": false
+    },
+    {
+      "id": "github_quality_gate",
+      "boundary": "source_repository",
+      "authority": "Pull-request, main and release CI execution over the distribution-owned test profiles.",
+      "sources": [
+        ".github/workflows/quality-gate.yml",
+        "config/distribution_test_profiles.json"
+      ],
+      "may_publish": false
+    },
+    {
+      "id": "human_seal_authority",
+      "boundary": "source_repository",
+      "authority": "Doctrine and agent-surface seal impact, currentness and explicit human decision scope.",
+      "sources": [
+        "config/seal_impact_policy.json",
+        "config/agent_surface_seal_contract.json",
+        "config/hitl_governance_contract.json"
+      ],
+      "may_publish": false
+    },
+    {
+      "id": "external_repository_evaluation",
+      "boundary": "source_repository",
+      "authority": "Corpus, holdout and external-evidence refresh selection without implicit full-proof replay.",
+      "sources": [
+        "config/external_repository_evaluation_contract.json",
+        "config/release_proof_scope_contract.json"
+      ],
+      "may_publish": false
+    },
+    {
+      "id": "claim_and_license_authority",
+      "boundary": "source_repository",
+      "authority": "Claim profile, product boundary and future-license review triggers.",
+      "sources": [
+        "config/release_claim_profiles.json",
+        "config/product_boundary_contract.json",
+        "config/roadmap_phase_registry.json"
+      ],
+      "may_publish": false
+    }
+  ],
+  "evidence": [
+    {
+      "id": "full_release_proof",
+      "subject": "full_release_proof",
+      "cadence": "final_candidate_aggregate",
+      "aggregate_strategy": "validate_content_bound_receipts_and_execute_invalidated_or_always_fresh",
+      "owner_id": "release_proof_scope",
+      "required_phases": [
+        "frozen_candidate"
+      ],
+      "run_triggers": [
+        "release_proof_dependency_changed"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Run one complete aggregate for the exact frozen candidate. Development repairs use dependency-correct focused evidence; a changed proof dependency invalidates the next aggregate but does not force a full development-loop replay."
+    },
+    {
+      "id": "clean_projection_byte_identity",
+      "subject": "clean_projection_bytes",
+      "cadence": "always_fresh",
+      "owner_id": "existing_private_release_controller",
+      "required_phases": [
+        "candidate"
+      ],
+      "run_triggers": [],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "artifact",
+        "controller"
+      ],
+      "rule": "Prove clean-delivery bytes once during exact candidate preparation, then consume the content-bound receipt at freeze; never rebuild an unchanged projection or reuse another candidate's manifest or a version label."
+    },
+    {
+      "id": "public_projection_byte_identity",
+      "subject": "public_projection_bytes",
+      "cadence": "always_fresh",
+      "owner_id": "existing_private_release_controller",
+      "required_phases": [
+        "candidate"
+      ],
+      "run_triggers": [],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "artifact",
+        "controller"
+      ],
+      "rule": "Prove candidate and staged public bytes once during exact candidate preparation, then consume the content-bound receipt at freeze. The cadence decision does not transport, commit, tag or publish them."
+    },
+    {
+      "id": "projected_public_affected_tests",
+      "subject": "projected_public_tests",
+      "cadence": "change_triggered",
+      "owner_id": "distribution_test_profiles",
+      "required_phases": [],
+      "run_triggers": [
+        "public_projection_input_changed",
+        "distribution_manifest_changed",
+        "public_test_contract_changed",
+        "test_suite_changed"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Run the affected public-applicable shard during iteration so packaging defects fail before the clean commit."
+    },
+    {
+      "id": "projected_public_test_aggregate",
+      "subject": "projected_public_tests",
+      "cadence": "final_candidate_aggregate",
+      "aggregate_strategy": "fresh_execution",
+      "owner_id": "distribution_test_profiles",
+      "required_phases": [
+        "frozen_candidate"
+      ],
+      "run_triggers": [],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Aggregate the exact contract-owned public test union once for the frozen projected package."
+    },
+    {
+      "id": "independent_physical_install",
+      "subject": "independent_physical_install",
+      "cadence": "baseline_plus_delta",
+      "owner_id": "installation_evidence",
+      "required_phases": [
+        "frozen_candidate"
+      ],
+      "run_triggers": [
+        "version_identity_changed",
+        "installer_semantics_changed",
+        "bootstrap_semantics_changed",
+        "dependency_semantics_changed",
+        "runtime_support_changed",
+        "os_support_changed",
+        "environment_specific_failure_observed"
+      ],
+      "fresh_retest_triggers": [
+        "installer_semantics_changed",
+        "bootstrap_semantics_changed",
+        "dependency_semantics_changed",
+        "runtime_support_changed",
+        "os_support_changed",
+        "environment_specific_failure_observed"
+      ],
+      "baseline_required": true,
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "scope",
+        "artifact"
+      ],
+      "rule": "A version-only release uses an accepted independent baseline plus current isolated delta. A protected installation semantic change, OS/runtime expansion or environment-specific failure requires a fresh independent environment."
+    },
+    {
+      "id": "isolated_installation_smoke",
+      "subject": "isolated_install",
+      "cadence": "always_fresh",
+      "owner_id": "installation_evidence",
+      "required_phases": [
+        "frozen_candidate"
+      ],
+      "run_triggers": [],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "artifact"
+      ],
+      "rule": "Compatibility id retained for the frozen-candidate fresh boundary. The current producer is a same-checkout doctor/MCP/validator smoke, not a temporary-package or isolated-venv installation, and must not be claimed as independent isolation. A future producer upgrade requires its own verified receipt semantics; this row never replaces conditional physical-machine proof."
+    },
+    {
+      "id": "ci_pull_request_fast",
+      "subject": "ci_pull_request_fast",
+      "cadence": "change_triggered",
+      "owner_id": "github_quality_gate",
+      "required_phases": [],
+      "run_triggers": [
+        "governed_source_changed",
+        "configuration_changed",
+        "ci_contract_changed"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "scope"
+      ],
+      "rule": "Run the fast reference-runtime gate on pull requests and source-bearing updates."
+    },
+    {
+      "id": "ci_release_deep",
+      "subject": "ci_release_deep",
+      "cadence": "final_candidate_aggregate",
+      "aggregate_strategy": "fresh_execution",
+      "owner_id": "github_quality_gate",
+      "required_phases": [
+        "frozen_candidate"
+      ],
+      "run_triggers": [],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Run the release-deep matrix once for the exact candidate rather than multiplying the full suite across every development push."
+    },
+    {
+      "id": "ci_periodic_compatibility",
+      "subject": "ci_periodic_compatibility",
+      "cadence": "periodic",
+      "owner_id": "github_quality_gate",
+      "required_phases": [],
+      "run_triggers": [
+        "periodic_compatibility_due"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "scope"
+      ],
+      "rule": "Run supported-runtime and platform compatibility on its declared schedule and on release-deep boundaries, not by duplicating every pull-request suite."
+    },
+    {
+      "id": "human_doctrine_seal",
+      "subject": "human_doctrine_seal",
+      "cadence": "change_triggered",
+      "owner_id": "human_seal_authority",
+      "required_phases": [],
+      "run_triggers": [
+        "protected_doctrine_changed",
+        "agent_surface_semantics_changed",
+        "claim_boundary_changed",
+        "license_strategy_changed"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Request a new scoped human seal only when the seal-impact owner classifies protected semantics as changed. A version bump or agent-authored output alone does not require resealing."
+    },
+    {
+      "id": "publication_authority",
+      "subject": "publication_authority",
+      "cadence": "always_fresh",
+      "owner_id": "existing_private_release_controller",
+      "required_phases": [
+        "publication"
+      ],
+      "run_triggers": [
+        "publication_requested"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "scope",
+        "artifact",
+        "controller"
+      ],
+      "rule": "Require one explicit human publication statement bound to exact source, clean and public identities. No validation result can synthesize it."
+    },
+    {
+      "id": "react_corpus_replay",
+      "subject": "react_corpus_replay",
+      "cadence": "change_triggered",
+      "owner_id": "external_repository_evaluation",
+      "required_phases": [],
+      "run_triggers": [
+        "analysis_semantics_changed",
+        "corpus_contract_changed",
+        "external_evidence_gap_observed",
+        "explicit_corpus_evaluation_selected"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "runtime",
+        "environment",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Replay only the affected, declared external-evidence family or evaluation wave. A normal release or version change does not imply a broad Corpus replay."
+    },
+    {
+      "id": "claim_review",
+      "subject": "claim_review",
+      "cadence": "change_triggered",
+      "owner_id": "claim_and_license_authority",
+      "required_phases": [],
+      "run_triggers": [
+        "claim_boundary_changed"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Perform human claim review only when a public capability or claim boundary changes; unchanged patch releases retain the active claim profile."
+    },
+    {
+      "id": "license_review",
+      "subject": "license_review",
+      "cadence": "change_triggered",
+      "owner_id": "claim_and_license_authority",
+      "required_phases": [],
+      "run_triggers": [
+        "license_strategy_changed"
+      ],
+      "identity_dimensions": [
+        "source",
+        "configuration",
+        "policy",
+        "scope",
+        "artifact"
+      ],
+      "rule": "Perform human license review only for an explicit future unpublished-release strategy change. Published grants remain immutable; version increments alone do not reopen license strategy."
+    }
+  ],
+  "acceptance_cases": [
+    {
+      "id": "version_only_frozen_candidate_reuses_independent_baseline",
+      "context": {
+        "release_phase": "frozen_candidate",
+        "triggers": [
+          "version_identity_changed"
+        ],
+        "available_baselines": [
+          "independent_physical_install"
+        ]
+      },
+      "expected": {
+        "full_release_proof": "run_fresh",
+        "clean_projection_byte_identity": "not_required",
+        "public_projection_byte_identity": "not_required",
+        "projected_public_test_aggregate": "run_fresh",
+        "isolated_installation_smoke": "run_fresh",
+        "independent_physical_install": "baseline_plus_delta",
+        "human_doctrine_seal": "not_required",
+        "react_corpus_replay": "not_required",
+        "claim_review": "not_required",
+        "license_review": "not_required"
+      }
+    },
+    {
+      "id": "installer_semantics_require_fresh_independent_environment",
+      "context": {
+        "release_phase": "frozen_candidate",
+        "triggers": [
+          "installer_semantics_changed"
+        ],
+        "available_baselines": [
+          "independent_physical_install"
+        ]
+      },
+      "expected": {
+        "independent_physical_install": "run_fresh"
+      }
+    },
+    {
+      "id": "environment_failure_requires_fresh_independent_environment",
+      "context": {
+        "release_phase": "frozen_candidate",
+        "triggers": [
+          "environment_specific_failure_observed"
+        ],
+        "available_baselines": [
+          "independent_physical_install"
+        ]
+      },
+      "expected": {
+        "independent_physical_install": "run_fresh"
+      }
+    },
+    {
+      "id": "development_change_does_not_run_final_aggregate",
+      "context": {
+        "release_phase": "development",
+        "triggers": [
+          "governed_source_changed"
+        ],
+        "available_baselines": []
+      },
+      "expected": {
+        "full_release_proof": "not_required",
+        "ci_pull_request_fast": "run_fresh",
+        "ci_release_deep": "not_required",
+        "independent_physical_install": "not_required"
+      }
+    },
+    {
+      "id": "protected_doctrine_change_requests_human_seal",
+      "context": {
+        "release_phase": "candidate",
+        "triggers": [
+          "protected_doctrine_changed"
+        ],
+        "available_baselines": []
+      },
+      "expected": {
+        "human_doctrine_seal": "run_fresh"
+      }
+    },
+    {
+      "id": "explicit_corpus_evaluation_is_not_implicit_release_proof",
+      "context": {
+        "release_phase": "development",
+        "triggers": [
+          "explicit_corpus_evaluation_selected"
+        ],
+        "available_baselines": []
+      },
+      "expected": {
+        "react_corpus_replay": "run_fresh",
+        "full_release_proof": "not_required"
+      }
+    },
+    {
+      "id": "publication_authority_is_current_and_explicit",
+      "context": {
+        "release_phase": "publication",
+        "triggers": [
+          "publication_requested"
+        ],
+        "available_baselines": []
+      },
+      "expected": {
+        "publication_authority": "run_fresh"
+      }
+    },
+    {
+      "id": "claim_and_license_review_are_separate_triggers",
+      "context": {
+        "release_phase": "candidate",
+        "triggers": [
+          "claim_boundary_changed"
+        ],
+        "available_baselines": []
+      },
+      "expected": {
+        "claim_review": "run_fresh",
+        "license_review": "not_required"
+      }
+    },
+    {
+      "id": "periodic_ci_does_not_expand_release_authority",
+      "context": {
+        "release_phase": "development",
+        "triggers": [
+          "periodic_compatibility_due"
+        ],
+        "available_baselines": []
+      },
+      "expected": {
+        "ci_periodic_compatibility": "run_fresh",
+        "publication_authority": "not_required"
+      }
+    }
+  ]
+}

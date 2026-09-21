@@ -1716,6 +1716,55 @@
       "storage_class": "managed_runtime_artifact"
     },
     {
+      "id": "test_suite_partition_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_suite_partition_target_agent_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_target_agent_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_suite_partition_analysis_engines_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_analysis_engines_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_suite_partition_runtime_platform_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_runtime_platform_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_suite_partition_governance_policy_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_governance_policy_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "test_suite_partition_release_distribution_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_release_distribution_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "shared_python_source_validation_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/shared_python_source_validation_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
       "id": "text_surface_integrity_validation",
       "schema": "config/schemas/generic_object.schema.json",
       "path": "output/.raw/text_surface_integrity_validation.json",

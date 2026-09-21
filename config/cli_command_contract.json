@@ -809,11 +809,11 @@
     },
     {
       "id": "release_proof_bundle",
-      "surface": "python tools/run_release_proof_bundle.py",
+      "surface": "python tools/run_release_proof_bundle.py --release-phase frozen_candidate --trigger governed_source_changed",
       "canonical": true,
       "intent": "complete_release_proof_bundle",
       "execution_mode": "release_deep",
-      "canonical_use": "Assemble the complete machine-readable release proof bundle with ordered proof steps and artifact snapshots.",
+      "canonical_use": "At the exact frozen-candidate boundary, assemble the complete machine-readable release proof bundle with ordered proof steps and artifact snapshots under a registered semantic trigger. Development work must select a focused dependency closure instead.",
       "not_for": [
         "interactive development loop"
       ]

@@ -50,6 +50,7 @@
         "allowed_signals",
         "allowed_reversibility",
         "allowed_release_phases",
+        "release_profile_phases",
         "allowed_scope_kinds",
         "unknown_signal_minimum_profile"
       ]

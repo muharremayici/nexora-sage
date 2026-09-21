@@ -51,6 +51,9 @@ def run() -> dict[str, Any]:
         operation_profiles = receipts.get("operation_profiles") if isinstance(receipts.get("operation_profiles"), dict) else {}
         evidence_requirements = receipts.get("evidence_requirements") if isinstance(receipts.get("evidence_requirements"), dict) else {}
         mutation_preflight = receipts.get("mutation_preflight") if isinstance(receipts.get("mutation_preflight"), dict) else {}
+        closeout_policy = receipts.get("closeout_policy") if isinstance(receipts.get("closeout_policy"), dict) else {}
+        changed_file_scope = closeout_policy.get("changed_file_scope") if isinstance(closeout_policy.get("changed_file_scope"), dict) else {}
+        applicability_profiles = closeout_policy.get("evidence_applicability_by_release_mode") if isinstance(closeout_policy.get("evidence_applicability_by_release_mode"), dict) else {}
         pipeline_policy_source = PIPELINE_POLICY_PATH.read_text(encoding="utf-8")
         pipeline_policy = json.loads(pipeline_policy_source)
         pipeline_receipts = (
@@ -84,6 +87,23 @@ def run() -> dict[str, Any]:
             )
             and bool(profile.get("evidence_artifact"))
             for operation_id, profile in operation_profiles.items()
+        )
+        machine_group_ids = set(map(str, evidence_requirements))
+        expected_release_modes = {"roadmap_delivery", "active_product_release", "active_release_closure"}
+        applicability_is_complete = set(map(str, applicability_profiles)) == expected_release_modes and all(
+            isinstance(profile, dict)
+            and isinstance(profile.get("required_evidence_groups"), list)
+            and isinstance(profile.get("not_applicable_evidence_groups"), dict)
+            and not (
+                set(map(str, profile.get("required_evidence_groups", [])))
+                & set(map(str, profile.get("not_applicable_evidence_groups", {})))
+            )
+            and (
+                set(map(str, profile.get("required_evidence_groups", [])))
+                | set(map(str, profile.get("not_applicable_evidence_groups", {})))
+            ) == machine_group_ids
+            and all(str(reason).strip() for reason in profile.get("not_applicable_evidence_groups", {}).values())
+            for profile in applicability_profiles.values()
         )
         observed_surfaces = set(map(str, integration.get("observed_surfaces") or []))
         mcp_source = MCP_SERVER_PATH.read_text(encoding="utf-8", errors="replace") if MCP_SERVER_PATH.exists() else ""
@@ -134,7 +154,7 @@ def run() -> dict[str, Any]:
             {"id": "sqlite_event_table", "ok": event.get("table") == "governance_trace_events"},
             {"id": "trace_fields_complete", "ok": required_trace_fields.issubset(set(map(str, required)))},
             {"id": "unknown_is_explicit", "ok": event.get("unknown_value") == "not_available"},
-            {"id": "detail_allowlist_is_declared", "ok": set(detail_allowed.get("mcp_tool_call", [])) == {"argument_keys", "payload_chars", "result_status", "fail_closed_reason", "target_mode"} and set(detail_allowed.get("watchdog_session", [])) == {"pulse_id", "event_batch_id", "analysis_status", "raw_event_count", "deduplicated_path_count", "metadata_only_count", "unknown_path_count", "scope_decision_status", "changed_file_count", "violation_count", "deep_proof_debt_status"} and set(detail_allowed.get("release_proof_step", [])) == {"step_id", "required", "timed_out", "timeout_basis", "raw_artifact_present", "execution_status", "blocked_dependency_count"} and set(detail_allowed.get("agent_handoff", [])) == {"packet_kind", "packet_status", "source_grounding_status"} and set(detail_allowed.get("work_package_operation", [])) == {"package_id", "package_status", "operation_id", "result_status", "evidence_artifact", "evidence_fingerprint", "authority"} and set(detail_allowed.get("pipeline_invocation", [])) == pipeline_detail_fields},
+            {"id": "detail_allowlist_is_declared", "ok": set(detail_allowed.get("mcp_tool_call", [])) == {"argument_keys", "payload_chars", "result_status", "fail_closed_reason", "target_mode"} and set(detail_allowed.get("watchdog_session", [])) == {"pulse_id", "event_batch_id", "analysis_status", "raw_event_count", "deduplicated_path_count", "metadata_only_count", "unknown_path_count", "scope_decision_status", "changed_file_count", "violation_count", "deep_proof_debt_status"} and set(detail_allowed.get("release_proof_step", [])) == {"step_id", "required", "timed_out", "timeout_basis", "raw_artifact_present", "execution_status", "blocked_dependency_count", "advisory_dependency_failure_count"} and set(detail_allowed.get("agent_handoff", [])) == {"packet_kind", "packet_status", "source_grounding_status"} and set(detail_allowed.get("work_package_operation", [])) == {"package_id", "package_status", "operation_id", "result_status", "evidence_artifact", "evidence_fingerprint", "authority"} and set(detail_allowed.get("pipeline_invocation", [])) == pipeline_detail_fields},
             {"id": "mcp_trace_storage_authority_is_product_global", "ok": isinstance(scope.get("storage_authority_by_event_type"), dict) and scope.get("storage_authority_by_event_type", {}).get("mcp_tool_call") == "product-global output/.operational/mcp/mcp_call_telemetry.db"},
             {"id": "observed_surfaces_declared", "ok": {"mcp_server", "watchdog", "release_proof", "agent_handoff", "work_package_operations", "pipeline_orchestrator"}.issubset(observed_surfaces)},
             {"id": "mcp_trace_writer_is_connected", "ok": "persist_completed_mcp_call" in mcp_source and "_record_governance_trace" in mcp_source and "activate_trace_storage" in mcp_source and "reset_trace_storage" in mcp_source},
@@ -147,6 +167,7 @@ def run() -> dict[str, Any]:
             {"id": "work_package_receipt_authority_is_non_mutating", "ok": receipts.get("authority") == "non_authoritative_evidence_proposal" and receipts.get("closure_mutation_allowed") is False},
             {"id": "work_package_receipts_do_not_dirty_clean_mirrors", "ok": receipts.get("write_scope") == "development_workspace_only" and receipts.get("clean_mirror_behavior") == "skip_with_explicit_notice"},
             {"id": "work_package_operation_profiles_are_contract_derived_and_coherent", "ok": operation_profiles_are_coherent},
+            {"id": "work_package_closeout_scope_and_applicability_are_fail_closed", "ok": closeout_policy.get("version") == "v1" and changed_file_scope.get("classification_authority") == "tools.core.source_layer_classifier.classify_source_layer" and changed_file_scope.get("excluded_source_layers") == ["generated_runtime_artifact"] and changed_file_scope.get("excluded_behavior") == "report_without_affected_contract_requirement" and changed_file_scope.get("unknown_source_layers") == ["unknown_or_review"] and changed_file_scope.get("unknown_behavior") == "block" and changed_file_scope.get("undeclared_governed_behavior") == "block" and changed_file_scope.get("invalid_path_behavior") == "block" and closeout_policy.get("explicit_not_applicable_closure_status") == "not_applicable" and closeout_policy.get("unknown_release_mode_behavior") == "block" and applicability_is_complete},
             {"id": "mutation_preflight_is_fail_closed_and_non_authoritative", "ok": bool(preflight_operations) and bool(mutation_preflight.get("accepted_package_statuses")) and mutation_preflight.get("blocked_status") == "BLOCKED" and mutation_preflight.get("external_editor_enforcement") == "not_available" and mutation_preflight.get("enforced_surfaces") == ["mcp_sage_internal_mutating_tools"] and mutation_preflight.get("read_only_recovery_allowed_when_blocked") is True and "requires_sage_developer_mutation_preflight" in mcp_source and "propose_work_package_evidence" in mcp_source},
             {"id": "bounded_retention", "ok": int(retention.get("max_events_per_tenant") or 0) > 0},
         ])

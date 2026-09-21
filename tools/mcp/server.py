@@ -1189,6 +1189,21 @@ def _build_sage_learning_system_payload(
         if isinstance(scope_projection.get("execution_plan"), dict)
         else {}
     )
+    successor_selection = (
+        execution_plan.get("successor_selection")
+        if isinstance(execution_plan.get("successor_selection"), dict)
+        else {}
+    )
+    successor_human_choice = (
+        successor_selection.get("human_choice_decision")
+        if isinstance(successor_selection.get("human_choice_decision"), dict)
+        else {}
+    )
+    release_train = (
+        successor_selection.get("release_train")
+        if isinstance(successor_selection.get("release_train"), dict)
+        else {}
+    )
 
     coverage_rows = []
     if isinstance(audit_progress, dict):
@@ -1283,6 +1298,22 @@ def _build_sage_learning_system_payload(
             "current_execution_wave": execution_plan.get("current_wave"),
             "next_open_delivery_wave": execution_plan.get("next_open_delivery_wave"),
             "next_technical_development_wave": execution_plan.get("next_technical_development_wave"),
+            "successor_selection_status": successor_selection.get("status"),
+            "selected_successor_work_item_id": successor_selection.get("selected_work_item_id"),
+            "successor_top_candidate_work_item_ids": successor_selection.get(
+                "top_candidate_work_item_ids", []
+            ),
+            "successor_human_choice_present": successor_human_choice.get("present") is True,
+            "successor_human_choice_applied": successor_human_choice.get("applied") is True,
+            "release_train_status": release_train.get("status"),
+            "release_train_gated_release": release_train.get("gated_release"),
+            "release_train_blocking_ready_work_item_ids": release_train.get(
+                "blocking_ready_work_item_ids", []
+            ),
+            "release_train_action_required": release_train.get("action_required") is True,
+            "later_release_activation_allowed": release_train.get(
+                "later_release_activation_allowed"
+            ) is True,
             "active_work_package_status": active_package_status,
             "manual_audit_current_layer": (audit_progress or {}).get("current_layer_id")
             if isinstance(audit_progress, dict)
@@ -1325,6 +1356,14 @@ def _render_sage_learning_system_report(payload: dict[str, Any]) -> str:
         f"- current_execution_wave: `{summary.get('current_execution_wave')}`",
         f"- next_open_delivery_wave: `{summary.get('next_open_delivery_wave')}`",
         f"- next_technical_development_wave: `{summary.get('next_technical_development_wave')}`",
+        f"- successor_selection_status: `{summary.get('successor_selection_status')}`",
+        f"- selected_successor_work_item_id: `{summary.get('selected_successor_work_item_id') or 'not_selected'}`",
+        f"- successor_human_choice_present: `{summary.get('successor_human_choice_present')}`",
+        f"- successor_human_choice_applied: `{summary.get('successor_human_choice_applied')}`",
+        f"- release_train_status: `{summary.get('release_train_status')}`",
+        f"- release_train_gated_release: `{summary.get('release_train_gated_release') or 'none'}`",
+        f"- release_train_action_required: `{summary.get('release_train_action_required')}`",
+        f"- later_release_activation_allowed: `{summary.get('later_release_activation_allowed')}`",
         f"- manual_audit_current_layer: `{summary.get('manual_audit_current_layer')}`",
         f"- manual_audit_current_status: `{summary.get('manual_audit_current_status')}`",
         "",
@@ -1349,6 +1388,23 @@ def _render_sage_learning_system_report(payload: dict[str, Any]) -> str:
                 f"delivery_open={wave.get('open_work_items')}/{wave.get('work_items')}, "
                 f"technical_blockers={wave.get('technical_blocking_work_items')} - {wave.get('title')}"
             )
+    successor = (
+        execution_plan.get("successor_selection")
+        if isinstance(execution_plan.get("successor_selection"), dict)
+        else {}
+    )
+    lines.extend(
+        [
+            "",
+            "## Successor Selection",
+            "",
+            f"- status: `{successor.get('status') or 'not_available'}`",
+            f"- selected_work_item_id: `{successor.get('selected_work_item_id') or 'not_selected'}`",
+            f"- reason_codes: `{json.dumps(successor.get('reason_codes') or [], ensure_ascii=False)}`",
+            f"- top_candidate_work_item_ids: `{json.dumps(successor.get('top_candidate_work_item_ids') or [], ensure_ascii=False)}`",
+            f"- human_choice_decision: `{json.dumps(successor.get('human_choice_decision') or {}, ensure_ascii=False, sort_keys=True)}`",
+        ]
+    )
     lines.extend(["", "## Package Closure", ""])
     closure = payload.get("package_closure", {}) if isinstance(payload.get("package_closure"), dict) else {}
     for item in closure.get("required", []) or []:

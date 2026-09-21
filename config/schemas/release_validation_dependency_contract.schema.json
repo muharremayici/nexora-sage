@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "release_validation_dependency_contract.schema.json",
+  "title": "Nexora SAGE Release Validation Dependency Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "authorities",
+    "defaults",
+    "validation",
+    "semantic_reuse_engine_paths",
+    "step_dispositions",
+    "semantic_closures"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "authority",
+        "description"
+      ],
+      "properties": {
+        "kind": {
+          "const": "release_validation_dependency_contract"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "authority": {
+          "const": "reuse_invalidation_only_no_release_or_publication_authority"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "semantic_reuse_engine_paths": {
+      "type": "array",
+      "minItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/relativePath"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "tools/core/release_proof_resume.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "tools/run_release_proof_bundle.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "tools/core/release_validation_dependencies.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "config/release_validation_dependency_contract.json"
+          }
+        },
+        {
+          "contains": {
+            "const": "config/schemas/release_validation_dependency_contract.schema.json"
+          }
+        }
+      ]
+    },
+    "authorities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proof_steps",
+        "proof_scope",
+        "source_layers",
+        "source_classification",
+        "test_inventory"
+      ],
+      "properties": {
+        "proof_steps": {
+          "const": "config/release_proof_steps_contract.json"
+        },
+        "proof_scope": {
+          "const": "config/release_proof_scope_contract.json"
+        },
+        "source_layers": {
+          "const": "config/source_layer_taxonomy.json"
+        },
+        "source_classification": {
+          "const": "config/source_layer_classification_policy.json"
+        },
+        "test_inventory": {
+          "const": "config/distribution_test_profiles.json"
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "undeclared_step",
+        "unknown_source_layer",
+        "missing_input",
+        "unresolved_local_import",
+        "dynamic_import_risk"
+      ],
+      "properties": {
+        "undeclared_step": {
+          "const": "global_source_fingerprint_execute"
+        },
+        "unknown_source_layer": {
+          "const": "global_source_fingerprint_execute"
+        },
+        "missing_input": {
+          "const": "global_source_fingerprint_execute"
+        },
+        "unresolved_local_import": {
+          "const": "global_source_fingerprint_execute"
+        },
+        "dynamic_import_risk": {
+          "const": "global_source_fingerprint_execute"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_dispositions",
+        "reviewed_semantic_step_ids",
+        "require_exact_step_partition",
+        "engine_test_sharding_status",
+        "engine_test_aggregate_step_id",
+        "engine_test_shard_step_ids"
+      ],
+      "properties": {
+        "required_dispositions": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "semantic_closure_reviewed",
+              "same_invocation_shared_producer",
+              "always_fresh",
+              "global_source_fingerprint_until_mapped"
+            ]
+          }
+        },
+        "reviewed_semantic_step_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contains": {
+            "const": "source_layer_classification_policy_validation"
+          }
+        },
+        "require_exact_step_partition": {
+          "const": true
+        },
+        "engine_test_sharding_status": {
+          "const": "deterministic_exact_union_proof_family_steps_active_global_reuse_disabled"
+        },
+        "engine_test_aggregate_step_id": {
+          "const": "engine_contract_tests"
+        },
+        "engine_test_shard_step_ids": {
+          "const": [
+            "engine_contract_tests_target_agent",
+            "engine_contract_tests_analysis_engines",
+            "engine_contract_tests_runtime_platform",
+            "engine_contract_tests_governance_policy",
+            "engine_contract_tests_release_distribution"
+          ]
+        }
+      }
+    },
+    "step_dispositions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semantic_closure_reviewed",
+        "same_invocation_shared_producer",
+        "always_fresh",
+        "global_source_fingerprint_until_mapped"
+      ],
+      "properties": {
+        "semantic_closure_reviewed": {
+          "$ref": "#/$defs/stepIds"
+        },
+        "same_invocation_shared_producer": {
+          "$ref": "#/$defs/stepIds"
+        },
+        "always_fresh": {
+          "$ref": "#/$defs/stepIds"
+        },
+        "global_source_fingerprint_until_mapped": {
+          "$ref": "#/$defs/stepIds"
+        }
+      }
+    },
+    "semantic_closures": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/semanticClosure"
+      },
+      "required": [
+        "source_layer_classification_policy_validation"
+      ],
+      "properties": {
+        "source_layer_classification_policy_validation": {
+          "$ref": "#/$defs/semanticClosure"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stepIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "semanticClosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proof_domain",
+        "review_status",
+        "exact_paths",
+        "transitive_local_python_imports",
+        "require_contract_path_expansions",
+        "contract_path_expansions",
+        "allowed_source_layers"
+      ],
+      "properties": {
+        "proof_domain": {
+          "const": "sage_on_sage"
+        },
+        "review_status": {
+          "const": "reviewed"
+        },
+        "exact_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "transitive_local_python_imports": {
+          "const": true
+        },
+        "require_contract_path_expansions": {
+          "type": "boolean"
+        },
+        "contract_path_expansions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract",
+              "json_pointer",
+              "path_field"
+            ],
+            "properties": {
+              "contract": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "json_pointer": {
+                "const": "/exact_path_rules/*/path"
+              },
+              "path_field": {
+                "const": "path"
+              }
+            }
+          }
+        },
+        "allowed_source_layers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

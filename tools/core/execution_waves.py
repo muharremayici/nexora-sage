@@ -5,6 +5,12 @@ from typing import Any
 
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR
 from tools.core.json_io import load_json_object_strict
+from tools.core.release_train import (
+    project_release_train,
+    project_release_train_action_boundary,
+    successor_selection_policy_issues,
+    unavailable_release_train_projection,
+)
 from tools.core.roadmap_phase_registry import (
     current_product_release,
     load_roadmap_phase_registry,
@@ -241,6 +247,401 @@ def project_release_delivery(
     }
 
 
+def project_successor_selection(
+    work_items: list[dict[str, Any]],
+    *,
+    active_package: dict[str, Any] | None,
+    wave_rows: list[dict[str, Any]],
+    roadmap_registry: dict[str, Any],
+    wave_registry: dict[str, Any],
+    excluded_work_item_ids: set[str] | None = None,
+) -> dict[str, Any]:
+    """Rank one dependency-correct successor or expose a bounded human-choice edge."""
+    policy = (
+        wave_registry.get("policy", {}).get("successor_selection_policy", {})
+        if isinstance(wave_registry.get("policy"), dict)
+        else {}
+    )
+    roadmap_validation = (
+        roadmap_registry.get("validation_contract", {})
+        if isinstance(roadmap_registry.get("validation_contract"), dict)
+        else {}
+    )
+    production_release_statuses = {
+        str(item)
+        for item in roadmap_validation.get("production_release_statuses", [])
+        if str(item)
+    }
+    policy_issues = successor_selection_policy_issues(
+        policy,
+        production_release_statuses=production_release_statuses,
+    )
+    raw_human_choice = (
+        active_package.get("successor_selection_decision")
+        if isinstance(active_package, dict)
+        else None
+    )
+    human_choice_present = raw_human_choice is not None
+    human_choice = raw_human_choice if isinstance(raw_human_choice, dict) else {}
+    human_choice_result = {
+        "present": human_choice_present,
+        "applied": False,
+        "work_item_id": str(human_choice.get("work_item_id") or "") or None,
+        "decided_by": str(human_choice.get("decided_by") or "") or None,
+        "reason": str(human_choice.get("reason") or "") or None,
+        "authority": "tie_resolution_only",
+    }
+    authority = {
+        "delivery_authorized": False,
+        "concrete_release_selected": False,
+        "release_preparation_authorized": False,
+        "publication_authorized": False,
+    }
+    boundary = (
+        "Successor projection may seed one bounded roadmap work package, require predecessor "
+        "release action or expose a human-choice boundary. It never closes work, assigns "
+        "delivered_release, selects a concrete release, activates claims, authorizes release "
+        "preparation or publishes artifacts."
+    )
+    if policy_issues:
+        return {
+            "meta": {"kind": "sage_successor_selection_projection", "version": "v1"},
+            "status": "INVALID_POLICY",
+            "reason_codes": policy_issues,
+            "selected_work_item_id": None,
+            "selected_package_seed": None,
+            "top_candidate_work_item_ids": [],
+            "ranked_candidates": [],
+            "excluded_active_work_item_ids": sorted(excluded_work_item_ids or set()),
+            "human_choice_decision": human_choice_result,
+            "release_train": unavailable_release_train_projection(),
+            "transition_validation_eligible": False,
+            "authority": authority,
+            "claim_boundary": boundary,
+        }
+
+    item_by_id = {
+        str(row.get("id") or ""): row
+        for row in work_items
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+    item_order = {item_id: index for index, item_id in enumerate(item_by_id)}
+    row_by_id = {
+        str(row.get("id") or ""): row
+        for row in wave_rows
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+    configured_waves = [
+        row for row in wave_registry.get("waves", []) if isinstance(row, dict)
+    ]
+    ordered_wave_ids = [
+        str(item)
+        for item in wave_registry.get("policy", {}).get("ordered_wave_ids", [])
+        if str(item)
+    ]
+    if not ordered_wave_ids:
+        ordered_wave_ids = [str(row.get("id") or "") for row in configured_waves]
+    wave_order = {wave_id: index for index, wave_id in enumerate(ordered_wave_ids)}
+    assignment: dict[str, tuple[str, int]] = {}
+    duplicate_assignments: set[str] = set()
+    for wave in configured_waves:
+        wave_id = str(wave.get("id") or "")
+        for index, item_id in enumerate(
+            str(item) for item in wave.get("work_item_ids", []) if str(item)
+        ):
+            if item_id in assignment:
+                duplicate_assignments.add(item_id)
+            assignment[item_id] = (wave_id, index)
+
+    phases = {
+        str(row.get("release") or ""): row
+        for row in roadmap_phase_rows(roadmap_registry)
+        if str(row.get("release") or "").strip()
+    }
+    phase_order = [
+        str(item)
+        for item in roadmap_registry.get("activation_planning_window", [])
+        if str(item)
+    ]
+    active_scope = (
+        active_package.get("release_scope", {})
+        if isinstance(active_package, dict)
+        and isinstance(active_package.get("release_scope"), dict)
+        else {}
+    )
+    active_phase = str(
+        active_scope.get("roadmap_phase") or active_scope.get("target_release") or ""
+    )
+    preferred_releases: list[str] = []
+    for release in [active_phase, *phase_order, *phases]:
+        if release and release not in preferred_releases:
+            preferred_releases.append(release)
+
+    candidate_statuses = {
+        str(item) for item in policy.get("candidate_statuses", []) if str(item)
+    }
+    priority_order = [str(item) for item in policy.get("priority_order", []) if str(item)]
+    priority_rank = {priority: index for index, priority in enumerate(priority_order)}
+    interrupt_priorities = {
+        str(item) for item in policy.get("interrupt_priorities", []) if str(item)
+    }
+    automatic_release_statuses = {
+        str(item) for item in policy.get("automatic_release_statuses", []) if str(item)
+    }
+    human_choice_release_statuses = {
+        str(item) for item in policy.get("human_choice_release_statuses", []) if str(item)
+    }
+    excluded = set(excluded_work_item_ids or set())
+    candidates: list[dict[str, Any]] = []
+    for item_id, item in item_by_id.items():
+        status = str(item.get("status") or "")
+        if status not in candidate_statuses or item_id in excluded or item_id not in assignment:
+            continue
+        wave_id, wave_item_order = assignment[item_id]
+        wave = row_by_id.get(wave_id, {})
+        unsatisfied = [
+            str(value)
+            for value in wave.get("unsatisfied_technical_dependencies", [])
+            if str(value)
+        ]
+        target_release = str(item.get("target_release") or "")
+        release_status = str(phases.get(target_release, {}).get("status") or "unknown")
+        priority = str(item.get("priority") or "")
+        candidates.append(
+            {
+                "work_item_id": item_id,
+                "status": status,
+                "priority": priority,
+                "target_release": target_release,
+                "release_status": release_status,
+                "wave_id": wave_id,
+                "dependency_ready": not unsatisfied,
+                "unsatisfied_technical_dependencies": unsatisfied,
+                "interrupt_priority": priority in interrupt_priorities,
+                "automatic_release_scope": release_status in automatic_release_statuses,
+                "human_choice_release_scope": release_status in human_choice_release_statuses,
+                "stable_order": {
+                    "wave": wave_order.get(wave_id, len(wave_order)),
+                    "wave_work_item": wave_item_order,
+                    "work_item_registry": item_order.get(item_id, len(item_order)),
+                },
+            }
+        )
+
+    def stable_key(row: dict[str, Any]) -> tuple[int, int, int]:
+        order = row["stable_order"]
+        return (
+            int(order["wave"]),
+            int(order["wave_work_item"]),
+            int(order["work_item_registry"]),
+        )
+
+    candidates.sort(key=stable_key)
+    release_train = project_release_train(
+        policy=policy,
+        work_items_by_id=item_by_id,
+        item_order=item_order,
+        candidates=candidates,
+        phases=phases,
+        phase_order=phase_order,
+        active_phase=active_phase,
+    )
+    input_issues = [
+        f"duplicate_wave_assignment:{item_id}"
+        for item_id in sorted(duplicate_assignments)
+        if item_id in item_by_id
+    ]
+    for row in candidates:
+        if row["priority"] not in priority_rank:
+            input_issues.append(f"unknown_priority:{row['work_item_id']}")
+        if row["target_release"] not in phases:
+            input_issues.append(f"unknown_target_release:{row['work_item_id']}")
+        if row["wave_id"] not in row_by_id or row["wave_id"] not in wave_order:
+            input_issues.append(f"unknown_wave:{row['work_item_id']}")
+    if human_choice_present:
+        if not isinstance(raw_human_choice, dict):
+            input_issues.append("invalid_human_choice_decision_type")
+        else:
+            for field in ("work_item_id", "decided_by", "reason"):
+                if not str(human_choice.get(field) or "").strip():
+                    input_issues.append(f"missing_human_choice_{field}")
+    if input_issues:
+        return {
+            "meta": {"kind": "sage_successor_selection_projection", "version": "v1"},
+            "status": "INVALID_INPUT",
+            "reason_codes": sorted(set(input_issues)),
+            "selected_work_item_id": None,
+            "selected_package_seed": None,
+            "top_candidate_work_item_ids": [],
+            "ranked_candidates": candidates,
+            "excluded_active_work_item_ids": sorted(excluded),
+            "human_choice_decision": human_choice_result,
+            "release_train": release_train,
+            "transition_validation_eligible": False,
+            "authority": authority,
+            "claim_boundary": boundary,
+        }
+    if release_train["action_required"]:
+        return project_release_train_action_boundary(
+            policy=policy,
+            release_train=release_train,
+            candidates=candidates,
+            excluded=excluded,
+            human_choice_present=human_choice_present,
+            human_choice_result=human_choice_result,
+            authority=authority,
+            boundary=boundary,
+        )
+
+    gated_release = str(release_train.get("gated_release") or "")
+    same_release_candidate_ids = set(
+        release_train.get("same_release_candidate_work_item_ids", [])
+    )
+    selection_candidates = (
+        [
+            row
+            for row in candidates
+            if row["work_item_id"] in same_release_candidate_ids
+        ]
+        if gated_release
+        else candidates
+    )
+    dependency_ready = [
+        row for row in selection_candidates if row["dependency_ready"]
+    ]
+    interrupt = [row for row in dependency_ready if row["interrupt_priority"]]
+    reason_codes: list[str] = []
+    pool: list[dict[str, Any]] = []
+    if interrupt:
+        if any(not row["automatic_release_scope"] for row in interrupt):
+            reason_codes = ["interrupt_candidate_requires_release_scope_choice"]
+            pool = interrupt
+        else:
+            reason_codes = ["interrupt_priority"]
+            pool = interrupt
+    else:
+        automatic = [row for row in dependency_ready if row["automatic_release_scope"]]
+        if automatic:
+            reason_codes = ["unpublished_roadmap_scope"]
+            pool = automatic
+        elif dependency_ready:
+            reason_codes = ["published_carryover_requires_human_scope"]
+            pool = [
+                row
+                for row in dependency_ready
+                if row["human_choice_release_scope"]
+            ] or dependency_ready
+
+    if not selection_candidates:
+        status = "NO_CANDIDATE"
+        reason_codes = ["no_open_or_in_progress_candidate"]
+        top: list[dict[str, Any]] = []
+    elif not dependency_ready:
+        status = "DEPENDENCY_BLOCKED"
+        reason_codes = ["all_candidates_dependency_blocked"]
+        top = []
+    elif not pool:
+        status = "HUMAN_CHOICE_REQUIRED"
+        reason_codes = ["no_automatic_release_scope"]
+        top = dependency_ready
+    elif reason_codes[0] in {
+        "interrupt_candidate_requires_release_scope_choice",
+        "published_carryover_requires_human_scope",
+    }:
+        status = "HUMAN_CHOICE_REQUIRED"
+        top = pool
+    else:
+        available_releases = {row["target_release"] for row in pool}
+        selected_release = next(
+            (release for release in preferred_releases if release in available_releases),
+            "",
+        )
+        if selected_release:
+            pool = [row for row in pool if row["target_release"] == selected_release]
+            reason_codes.append("preferred_release_scope")
+        best_priority = min(
+            (priority_rank.get(row["priority"], len(priority_rank)) for row in pool),
+            default=len(priority_rank),
+        )
+        pool = [
+            row
+            for row in pool
+            if priority_rank.get(row["priority"], len(priority_rank)) == best_priority
+        ]
+        reason_codes.append("highest_priority")
+        best_wave = min(
+            (wave_order.get(row["wave_id"], len(wave_order)) for row in pool),
+            default=len(wave_order),
+        )
+        top = [
+            row
+            for row in pool
+            if wave_order.get(row["wave_id"], len(wave_order)) == best_wave
+        ]
+        top.sort(key=stable_key)
+        reason_codes.append("earliest_dependency_correct_wave")
+        if len(top) == 1:
+            status = "SELECTED"
+            reason_codes.append("unique_top_rank")
+        else:
+            status = "HUMAN_CHOICE_REQUIRED"
+            reason_codes.append("equal_rank_requires_human_choice")
+
+    if gated_release:
+        reason_codes.insert(0, "release_train_predecessor_scope")
+
+    if human_choice_present:
+        chosen_id = str(human_choice.get("work_item_id") or "")
+        top_by_id = {str(row.get("work_item_id") or ""): row for row in top}
+        if (
+            status != "HUMAN_CHOICE_REQUIRED"
+            or "equal_rank_requires_human_choice" not in reason_codes
+        ):
+            status = "INVALID_INPUT"
+            reason_codes = ["human_choice_decision_not_applicable"]
+            top = []
+        elif chosen_id not in top_by_id:
+            status = "INVALID_INPUT"
+            reason_codes = ["human_choice_not_current_top_candidate"]
+            top = []
+        else:
+            top = [top_by_id[chosen_id]]
+            status = "SELECTED"
+            reason_codes.append("attributable_human_tie_resolution")
+            human_choice_result["applied"] = True
+
+    selected = top[0] if status == "SELECTED" else None
+    selected_seed = (
+        {
+            "execution_wave": selected["wave_id"],
+            "work_item_ids": [selected["work_item_id"]],
+            "release_scope": {
+                "mode": "roadmap_delivery",
+                "roadmap_phase": selected["target_release"],
+                "concrete_release": None,
+                "does_not_expand_current_release_claims": True,
+            },
+        }
+        if selected is not None
+        else None
+    )
+    return {
+        "meta": {"kind": "sage_successor_selection_projection", "version": "v1"},
+        "status": status,
+        "reason_codes": reason_codes,
+        "selected_work_item_id": selected["work_item_id"] if selected else None,
+        "selected_package_seed": selected_seed,
+        "top_candidate_work_item_ids": [row["work_item_id"] for row in top],
+        "ranked_candidates": candidates,
+        "excluded_active_work_item_ids": sorted(excluded),
+        "human_choice_decision": human_choice_result,
+        "release_train": release_train,
+        "transition_validation_eligible": status == "SELECTED",
+        "authority": authority,
+        "claim_boundary": boundary,
+    }
+
+
 def project_execution_waves(
     work_items: list[dict[str, Any]],
     *,
@@ -248,9 +649,12 @@ def project_execution_waves(
     technical_ready_work_item_ids: set[str] | None = None,
     readiness_root: Path = CODE_MAPS_DIR,
     wave_registry: dict[str, Any] | None = None,
+    roadmap_registry: dict[str, Any] | None = None,
+    successor_excluded_work_item_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Project public delivery and technical-development readiness as separate axes."""
     registry = wave_registry if wave_registry is not None else load_execution_wave_registry()
+    roadmap = roadmap_registry if roadmap_registry is not None else load_roadmap_phase_registry()
     status_by_id = {
         str(row.get("id") or ""): str(row.get("status") or "")
         for row in work_items
@@ -359,6 +763,7 @@ def project_execution_waves(
             for dependency in row["blocked_by"]
             if dependency not in row_by_id
             or row_by_id[dependency].get("technical_dependency_ready") is not True
+            or bool(row_by_id[dependency].get("unsatisfied_technical_dependencies"))
         ]
 
     next_technical_development_wave = ""
@@ -394,11 +799,29 @@ def project_execution_waves(
         project_release_delivery(
             work_items,
             active_package=active_package,
+            roadmap_registry=roadmap,
             wave_registry=registry,
             technical_ready_work_item_ids=technically_ready,
         )
         if isinstance(active_package, dict) and active_package
         else None
+    )
+    excluded_successor_ids = (
+        set(successor_excluded_work_item_ids)
+        if successor_excluded_work_item_ids is not None
+        else {
+            str(item)
+            for item in (active_package or {}).get("work_item_ids", [])
+            if str(item)
+        }
+    )
+    successor_selection = project_successor_selection(
+        work_items,
+        active_package=active_package,
+        wave_rows=rows,
+        roadmap_registry=roadmap,
+        wave_registry=registry,
+        excluded_work_item_ids=excluded_successor_ids,
     )
     return {
         "meta": {"kind": "sage_execution_wave_projection", "version": "v4"},
@@ -423,6 +846,7 @@ def project_execution_waves(
                 "authorize publication."
             ),
         },
+        "successor_selection": successor_selection,
         "release_delivery": release_delivery,
         "waves": rows,
         "source": "config/sage_execution_wave_registry.json",

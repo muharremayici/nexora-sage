@@ -6,6 +6,10 @@ from pathlib import Path
 import pytest
 
 import tools.validate_installation_contract as installation_contract
+from tools.core.external_feature_modules import (
+    declared_external_module_targets,
+    import_declared_external_module,
+)
 from tools.validate_installation_contract import (
     CI_TARGET_DOCTOR_COMMAND,
     CI_TARGET_INIT_COMMAND,
@@ -111,6 +115,18 @@ def test_current_installation_manifests_preserve_mcp_v1_compatibility() -> None:
 
     assert checks["dependency_specifier_parity"]["passed"] is True
     assert checks["mcp_fastmcp_runtime_is_major_bounded"]["passed"] is True
+    assert checks["default_profile_modules_have_exact_literal_import_adapters"]["passed"] is True
+
+
+def test_external_module_adapter_inventory_is_exact_and_unknown_targets_fail_closed() -> None:
+    assert set(declared_external_module_targets()) == {
+        "mcp.server.fastmcp",
+        "watchdog.events",
+        "rich",
+        "json_repair",
+    }
+    with pytest.raises(ValueError, match="No literal external-module adapter"):
+        import_declared_external_module("tools.not_an_external_dependency")
 
 
 def test_python_source_compiler_reports_invalid_source(tmp_path: Path) -> None:
@@ -132,6 +148,7 @@ def test_current_installation_contract_guards_python_runtime_matrix() -> None:
 
     assert checks["distributed_python_sources_compile_on_active_runtime"]["passed"] is True
     assert checks["declared_python_runtime_matrix_is_ci_guarded"]["passed"] is True
+    assert checks["ci_execution_tiers_are_non_redundant_and_fail_closed"]["passed"] is True
     assert checks["ci_node_dependency_install_is_contract_derived_and_documented"]["passed"] is True
 
 

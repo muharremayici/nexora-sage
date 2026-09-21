@@ -85,10 +85,51 @@ def _stable_package_identity(package: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def successor_matches_selection(
+    successor: dict[str, Any],
+    selection: dict[str, Any],
+) -> bool:
+    """Require one exact machine-selected package seed before ledger transition."""
+    if (
+        selection.get("status") != "SELECTED"
+        or selection.get("transition_validation_eligible") is not True
+    ):
+        return False
+    selected_id = str(selection.get("selected_work_item_id") or "")
+    seed = (
+        selection.get("selected_package_seed")
+        if isinstance(selection.get("selected_package_seed"), dict)
+        else {}
+    )
+    seed_scope = seed.get("release_scope") if isinstance(seed.get("release_scope"), dict) else {}
+    successor_scope = (
+        successor.get("release_scope")
+        if isinstance(successor.get("release_scope"), dict)
+        else {}
+    )
+    scope_fields = (
+        "mode",
+        "roadmap_phase",
+        "concrete_release",
+        "does_not_expand_current_release_claims",
+    )
+    return (
+        bool(selected_id)
+        and [str(item) for item in successor.get("work_item_ids", []) if str(item)]
+        == [selected_id]
+        and [str(item) for item in seed.get("work_item_ids", []) if str(item)]
+        == [selected_id]
+        and str(successor.get("execution_wave") or "")
+        == str(seed.get("execution_wave") or "")
+        and all(successor_scope.get(field) == seed_scope.get(field) for field in scope_fields)
+    )
+
+
 def build_package_transition(
     ledger: dict[str, Any],
     successor: dict[str, Any],
     *,
+    successor_selection: dict[str, Any],
     closed_package: dict[str, Any] | None = None,
     closure_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -120,6 +161,10 @@ def build_package_transition(
         raise ValueError("Existing package history contains incomplete closure evidence")
     if len(history_ids) != len(set(history_ids)) or current_id in history_ids or successor_id in history_ids:
         raise ValueError("Package transition would create duplicate history")
+    if not successor_matches_selection(successor, successor_selection):
+        raise ValueError(
+            "Successor package must match one exact transition-eligible registry projection"
+        )
 
     updated = deepcopy(ledger)
     updated["package_history"].append(deepcopy(snapshot))
@@ -130,6 +175,7 @@ def build_package_transition(
 def save_package_transition(
     successor: dict[str, Any],
     *,
+    successor_selection: dict[str, Any],
     closed_package: dict[str, Any] | None = None,
     closure_contract: dict[str, Any] | None = None,
     ledger_path: Path = LEDGER_PATH,
@@ -139,6 +185,7 @@ def save_package_transition(
     updated = build_package_transition(
         ledger,
         successor,
+        successor_selection=successor_selection,
         closed_package=closed_package,
         closure_contract=closure_contract,
     )

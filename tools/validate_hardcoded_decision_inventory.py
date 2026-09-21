@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
+from tools.core.python_source_index import PythonSourceIndex
 from tools.core.validator_progress import ValidatorProgress
 from tools.core.validator_policy_registry import hardcoded_decision_inventory_policy
 
@@ -308,11 +309,11 @@ def _module_decision_tables_from_tree(
 
 def _python_files() -> list[Path]:
     scan_root = ROOT / _inventory_policy()["scan_root"]
-    return [
+    return sorted(
         path
         for path in scan_root.rglob("*.py")
         if "__pycache__" not in path.parts
-    ]
+    )
 
 
 def _looks_decision_like(row: StringLiteral) -> bool:
@@ -497,7 +498,11 @@ def _is_release_decision_literal(row: StringLiteral) -> bool:
     )
 
 
-def build_validation(progress: ValidatorProgress | None = None) -> dict[str, Any]:
+def build_validation(
+    progress: ValidatorProgress | None = None,
+    *,
+    source_index: PythonSourceIndex | None = None,
+) -> dict[str, Any]:
     _inventory_policy.cache_clear()
     validator_policy = hardcoded_decision_inventory_policy()
     source_contract_policy = load_json_file(ROOT / "config" / "source_contract_policy.json", {})
@@ -514,11 +519,16 @@ def build_validation(progress: ValidatorProgress | None = None) -> dict[str, Any
     central_contract_fallbacks: list[CentralContractFallback] = []
     module_decision_tables: list[ModuleDecisionTable] = []
     for index, path in enumerate(python_files, start=1):
-        tree = _parse_python_source(path)
-        literals.extend(_read_python_literals(path, tree))
-        if not _is_test_file(path):
-            central_contract_fallbacks.extend(_read_central_contract_fallbacks(path, tree))
-            module_decision_tables.extend(_read_module_decision_tables(path, tree))
+        tree = (
+            source_index.record(path).strict_tree
+            if source_index is not None
+            else _parse_python_source(path)
+        )
+        if tree is not None:
+            literals.extend(_read_python_literals(path, tree))
+            if not _is_test_file(path):
+                central_contract_fallbacks.extend(_read_central_contract_fallbacks(path, tree))
+                module_decision_tables.extend(_read_module_decision_tables(path, tree))
         if progress is not None:
             progress.advance(index, current_file=str(path.relative_to(ROOT)).replace("\\", "/"))
     if progress is not None:

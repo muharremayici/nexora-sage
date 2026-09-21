@@ -70,7 +70,8 @@
         "timeout_basis",
         "raw_artifact_present",
         "execution_status",
-        "blocked_dependency_count"
+        "blocked_dependency_count",
+        "advisory_dependency_failure_count"
       ],
       "agent_handoff": [
         "packet_kind",
@@ -286,6 +287,51 @@
         "clean_distribution_sync",
         "clean_distribution_closeout"
       ]
+    },
+    "closeout_policy": {
+      "version": "v1",
+      "changed_file_scope": {
+        "classification_authority": "tools.core.source_layer_classifier.classify_source_layer",
+        "excluded_source_layers": [
+          "generated_runtime_artifact"
+        ],
+        "excluded_behavior": "report_without_affected_contract_requirement",
+        "unknown_source_layers": [
+          "unknown_or_review"
+        ],
+        "unknown_behavior": "block",
+        "undeclared_governed_behavior": "block",
+        "invalid_path_behavior": "block"
+      },
+      "evidence_applicability_by_release_mode": {
+        "roadmap_delivery": {
+          "required_evidence_groups": [
+            "targeted_validators_pass",
+            "semantic_git_diff_review_completed"
+          ],
+          "not_applicable_evidence_groups": {
+            "clean_mirror_synced_and_validated_when_applicable": "roadmap_delivery_has_no_distribution_projection"
+          }
+        },
+        "active_product_release": {
+          "required_evidence_groups": [
+            "targeted_validators_pass",
+            "semantic_git_diff_review_completed",
+            "clean_mirror_synced_and_validated_when_applicable"
+          ],
+          "not_applicable_evidence_groups": {}
+        },
+        "active_release_closure": {
+          "required_evidence_groups": [
+            "targeted_validators_pass",
+            "semantic_git_diff_review_completed",
+            "clean_mirror_synced_and_validated_when_applicable"
+          ],
+          "not_applicable_evidence_groups": {}
+        }
+      },
+      "explicit_not_applicable_closure_status": "not_applicable",
+      "unknown_release_mode_behavior": "block"
     },
     "mutation_preflight": {
       "required_operations": [

@@ -19,6 +19,13 @@ from tools.core.installation_authority import (
     PUBLIC_TARGET_REPOSITORY_PROFILE,
     resolve_installation_authority_profile,
 )
+from tools.core.external_feature_modules import declared_external_module_targets
+from tools.core.quality_gate_ci import (
+    load_ci_execution_policy,
+    supported_python_versions,
+    validate_documentation_text,
+    validate_workflow_text,
+)
 from tools.validate_python_runtime_compatibility import compile_python_sources, distribution_python_files
 
 
@@ -128,14 +135,11 @@ def _ci_node_install_surfaces_match(
     return bool(command) and all(_file_contains(path, command) for path in paths), command
 
 
-CI_TARGET_PREPARE_COMMAND = 'mkdir -p "$RUNNER_TEMP/sage-ci-target/src"'
-CI_TARGET_INIT_COMMAND = (
-    'python sage.py init --skip-deps --target-root "$RUNNER_TEMP/sage-ci-target"'
-)
-CI_TARGET_DOCTOR_COMMAND = (
-    'CODEMAPS_TARGET_ROOT="$RUNNER_TEMP/sage-ci-target" '
-    "python sage.py doctor --include-validate --quick --max-seconds 45"
-)
+_CI_EXECUTION_POLICY = load_ci_execution_policy()
+_CI_EXECUTION_COMMANDS = _CI_EXECUTION_POLICY["commands"]
+CI_TARGET_PREPARE_COMMAND = str(_CI_EXECUTION_COMMANDS["target_prepare"])
+CI_TARGET_INIT_COMMAND = str(_CI_EXECUTION_COMMANDS["target_init"])
+CI_TARGET_DOCTOR_COMMAND = str(_CI_EXECUTION_COMMANDS["target_doctor"])
 
 
 def _ci_target_lifecycle_surfaces_match(
@@ -222,6 +226,11 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
         installation_preflight_contract, authority_profile
     )
     installation_python_features = installation_preflight_contract.get("python_features", {})
+    required_profile_modules = {
+        str(spec.get("module") or "")
+        for spec in installation_python_features.values()
+        if isinstance(spec, dict) and spec.get("required_by_default_profile")
+    }
     installation_node_contract = installation_preflight_contract.get("node", {})
     embedded_host_footprint = installation_preflight_contract.get("embedded_host_footprint", {})
     dependency_acquisition = installation_preflight_contract.get(
@@ -245,6 +254,15 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
     runtime_syntax_failures = compile_python_sources(runtime_source_files)
     quality_gate_workflow = CODE_MAPS_DIR / ".github" / "workflows" / "quality-gate.yml"
     quality_gate_doc = CODE_MAPS_DIR / "docs" / "CI_GITHUB_ACTIONS.md"
+    quality_gate_workflow_validation = validate_workflow_text(
+        quality_gate_workflow.read_text(encoding="utf-8"),
+        policy=load_ci_execution_policy(),
+        versions=supported_python_versions(),
+    )
+    quality_gate_documentation_validation = validate_documentation_text(
+        quality_gate_doc.read_text(encoding="utf-8"),
+        policy=load_ci_execution_policy(),
+    )
     ci_node_install_surfaces_match, ci_node_install_command = _ci_node_install_surfaces_match(
         installation_node_contract,
         [quality_gate_workflow, quality_gate_doc],
@@ -308,7 +326,7 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
         ),
         _check(
             "declared_python_runtime_matrix_is_ci_guarded",
-            distribution_contract.get("tested_python_versions") == ["3.11", "3.12", "3.13", "3.14"]
+            distribution_contract.get("tested_python_versions") == supported_python_versions()
             and _file_contains(
                 quality_gate_workflow,
                 "python-runtime-compatibility",
@@ -351,6 +369,15 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
                 "pyproject_spec": pyproject_specs.get("mcp"),
                 "requirements_spec": requirements_specs.get("mcp"),
                 "required_boundary": "<2",
+            },
+        ),
+        _check(
+            "ci_execution_tiers_are_non_redundant_and_fail_closed",
+            quality_gate_workflow_validation.get("passed") is True
+            and quality_gate_documentation_validation.get("passed") is True,
+            {
+                "workflow": quality_gate_workflow_validation,
+                "documentation": quality_gate_documentation_validation,
             },
         ),
         _check(
@@ -605,6 +632,14 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
                 for feature, spec in installation_python_features.items()
                 if isinstance(spec, dict) and spec.get("required_by_default_profile")
             ),
+        ),
+        _check(
+            "default_profile_modules_have_exact_literal_import_adapters",
+            required_profile_modules == set(declared_external_module_targets()),
+            {
+                "contract_modules": sorted(required_profile_modules),
+                "literal_adapter_modules": sorted(declared_external_module_targets()),
+            },
         ),
         _check(
             "plan_only_init_is_public_and_non_installing",

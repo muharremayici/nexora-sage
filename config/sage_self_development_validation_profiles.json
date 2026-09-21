@@ -76,6 +76,11 @@
       "pre_seal",
       "publication"
     ],
+    "release_profile_phases": [
+      "frozen_candidate",
+      "pre_seal",
+      "publication"
+    ],
     "allowed_scope_kinds": [
       "documentation_only",
       "isolated_behavior_preserving",
@@ -130,7 +135,7 @@
       {
         "id": "release_boundary_surface",
         "strength": "hard",
-        "minimum_profile": "release",
+        "minimum_profile": "critical",
         "when": {
           "any_signal": [
             "clean_distribution",
@@ -145,7 +150,7 @@
       {
         "id": "irreversible_change",
         "strength": "hard",
-        "minimum_profile": "release",
+        "minimum_profile": "critical",
         "when": {
           "reversibility_in": [
             "irreversible"
@@ -245,7 +250,7 @@
     },
     "critical": {
       "rank": 2,
-      "purpose": "Trust, SSoT, safety, lifecycle or high-fan-out change.",
+      "purpose": "Trust, SSoT, safety, lifecycle, release-facing implementation or high-fan-out change.",
       "minimum_checks": [
         "all_bounded_checks",
         "source_grounded_manual_review",
@@ -261,7 +266,7 @@
     },
     "release": {
       "rank": 3,
-      "purpose": "Frozen candidate, public claim, packaging, installation or final seal.",
+      "purpose": "Exact frozen candidate, pre-seal, publication or explicitly broadened final release validation.",
       "minimum_checks": [
         "all_critical_checks",
         "full_release_proof_once_per_exact_source_identity",
@@ -336,6 +341,57 @@
       "expected_profile": "bounded"
     },
     {
+      "id": "release_facing_development_change_is_critical",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/tools/release_proof.py"
+        ],
+        "signals": [
+          "release_proof"
+        ],
+        "consumer_fan_out": 3,
+        "reversibility": "moderate",
+        "release_phase": "development",
+        "behavior_change": true,
+        "scope_kind": "bounded_behavior_change"
+      },
+      "expected_profile": "critical"
+    },
+    {
+      "id": "release_facing_candidate_change_is_critical",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/tools/package_candidate.py"
+        ],
+        "signals": [
+          "packaging"
+        ],
+        "consumer_fan_out": 3,
+        "reversibility": "moderate",
+        "release_phase": "candidate",
+        "behavior_change": true,
+        "scope_kind": "bounded_behavior_change"
+      },
+      "expected_profile": "critical"
+    },
+    {
+      "id": "irreversible_development_change_is_critical",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/tools/migration.py"
+        ],
+        "signals": [
+          "migration"
+        ],
+        "consumer_fan_out": 3,
+        "reversibility": "irreversible",
+        "release_phase": "development",
+        "behavior_change": true,
+        "scope_kind": "bounded_behavior_change"
+      },
+      "expected_profile": "critical"
+    },
+    {
       "id": "sqlite_change_rejects_micro_downgrade",
       "change": {
         "changed_files": [
@@ -367,6 +423,40 @@
         "consumer_fan_out": 0,
         "reversibility": "easy",
         "release_phase": "frozen_candidate",
+        "behavior_change": false,
+        "scope_kind": "documentation_only"
+      },
+      "expected_profile": "release"
+    },
+    {
+      "id": "pre_seal_requires_release",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/documentation/pre-seal.md"
+        ],
+        "signals": [
+          "documentation"
+        ],
+        "consumer_fan_out": 0,
+        "reversibility": "easy",
+        "release_phase": "pre_seal",
+        "behavior_change": false,
+        "scope_kind": "documentation_only"
+      },
+      "expected_profile": "release"
+    },
+    {
+      "id": "publication_requires_release",
+      "change": {
+        "changed_files": [
+          "fixtures/self-development-validation/documentation/publication.md"
+        ],
+        "signals": [
+          "documentation"
+        ],
+        "consumer_fan_out": 0,
+        "reversibility": "easy",
+        "release_phase": "publication",
         "behavior_change": false,
         "scope_kind": "documentation_only"
       },

@@ -54,6 +54,10 @@ def run_ci_release_check(skip_release_check: bool = False) -> dict[str, Any]:
                 str(CODE_MAPS_DIR / "tools" / "run_release_proof_bundle.py"),
                 "--only",
                 "engine_contract_tests",
+                "--release-phase",
+                "development",
+                "--trigger",
+                "explicit_focused_validation_selected",
             ],
         ),
     ]

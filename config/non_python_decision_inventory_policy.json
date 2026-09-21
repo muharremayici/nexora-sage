@@ -48,6 +48,7 @@
     "config/product_boundary_contract.json",
     "config/react_fixture_family_taxonomy.json",
     "config/release_claim_profiles.json",
+    "config/release_evidence_cadence_contract.json",
     "config/release_identity.json",
     "config/roadmap_phase_registry.json",
     "config/sage_work_item_registry.json"

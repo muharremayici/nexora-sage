@@ -90,6 +90,49 @@ def _evidence_checks(policy: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _release_phase_check(policy: dict[str, Any]) -> dict[str, Any]:
+    input_contract = policy.get("input_contract", {})
+    rules = policy.get("selection", {}).get("rules", [])
+    release_phases = set(input_contract.get("release_profile_phases", []))
+    release_rules = [
+        rule
+        for rule in rules
+        if isinstance(rule, dict) and rule.get("minimum_profile") == "release"
+    ]
+    rule_phase_sets = {
+        str(rule.get("id") or "unnamed"): set(
+            rule.get("when", {}).get("release_phase_in", [])
+        )
+        for rule in release_rules
+    }
+    hard_phase_coverage: set[str] = set()
+    for rule in release_rules:
+        if rule.get("strength") == "hard":
+            hard_phase_coverage.update(
+                rule.get("when", {}).get("release_phase_in", [])
+            )
+    phase_gate_ok = (
+        bool(release_rules)
+        and bool(release_phases)
+        and all(
+            phases and phases.issubset(release_phases)
+            for phases in rule_phase_sets.values()
+        )
+        and hard_phase_coverage == release_phases
+    )
+    return _check(
+        "release_profile_rules_are_phase_gated",
+        phase_gate_ok,
+        {
+            "declared_release_phases": sorted(release_phases),
+            "release_rule_phases": {
+                key: sorted(value) for key, value in rule_phase_sets.items()
+            },
+            "hard_phase_coverage": sorted(hard_phase_coverage),
+        },
+    )
+
+
 def run_validation() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     try:
@@ -109,6 +152,7 @@ def run_validation() -> dict[str, Any]:
     if policy:
         checks.extend(_acceptance_checks(policy))
         checks.extend(_evidence_checks(policy))
+        checks.append(_release_phase_check(policy))
         required = set(policy["validation"]["required_universal_invariants"])
         gaps = {}
         for profile_id in policy["profiles"]:

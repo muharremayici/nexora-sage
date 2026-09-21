@@ -33,6 +33,51 @@
       "installation_proof_omit_steps": []
     }
   },
+  "ci_execution_policy": {
+    "contract": "pr_matrix_main_reference_v1",
+    "workflow_path": ".github/workflows/quality-gate.yml",
+    "target_branch": "main",
+    "runtime_versions_source": "pyproject.toml#tool.nexora_sage.distribution.tested_python_versions",
+    "reference_python_version": "3.12",
+    "node_version": "20",
+    "push_association_failure_policy": "full_matrix_with_explicit_reason",
+    "event_tiers": {
+      "pull_request_main": {
+        "tier": "pull_request_full_matrix",
+        "execution": "full_matrix"
+      },
+      "associated_main_push": {
+        "tier": "associated_main_push_reference",
+        "execution": "reference_runtime",
+        "requires_verified_pr_matrix_receipt": true
+      },
+      "direct_main_push": {
+        "tier": "direct_main_push_full_matrix",
+        "execution": "full_matrix"
+      },
+      "unknown": {
+        "tier": "blocked_unknown_event",
+        "execution": "block"
+      }
+    },
+    "commands": {
+      "compile": "python -B tools/validate_python_runtime_compatibility.py",
+      "cli_smoke": "python -B sage.py --help",
+      "full_suite": "python -B tools/run_distribution_tests.py",
+      "target_prepare": "mkdir -p \"$RUNNER_TEMP/sage-ci-target/src\"",
+      "target_init": "python sage.py init --skip-deps --target-root \"$RUNNER_TEMP/sage-ci-target\"",
+      "target_doctor": "CODEMAPS_TARGET_ROOT=\"$RUNNER_TEMP/sage-ci-target\" python sage.py doctor --include-validate --quick --max-seconds 45"
+    },
+    "cache": {
+      "pip_dependency_paths": [
+        "pyproject.toml",
+        "requirements.txt"
+      ],
+      "npm_dependency_path": "tools/engines/package-lock.json",
+      "cancel_in_progress": "pull_request_only"
+    },
+    "claim_boundary": "The pull-request matrix proves the exact GitHub pull-request tree on every declared Python runtime. An associated-main push uses the one-runtime path only after a successful PR-matrix artifact receipt proves every declared runtime and its source tree equals the exact main tree; the main commit is still checked freshly at the reference runtime. A direct main push or missing, stale, cancelled, bypassed, mismatched or unavailable receipt receives the full matrix with an explicit reason. Unsupported events, ungoverned refs and malformed source identities block classification."
+  },
   "python": {
     "requirement_source": "pyproject.toml#project.requires-python",
     "tested_versions_source": "pyproject.toml#tool.nexora_sage.distribution.tested_python_versions",

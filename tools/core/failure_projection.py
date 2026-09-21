@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from tools.core.release_proof_steps import dependency_failure_mode
+
 
 def project_dependency_failures(steps: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Project failed proof steps into roots and dependency-derived cascades."""
@@ -17,6 +19,8 @@ def project_dependency_failures(steps: list[dict[str, Any]]) -> dict[str, list[d
         for dependency in by_id[step_id].get("depends_on", []) or []:
             dependency_id = str(dependency)
             if dependency_id not in by_id:
+                continue
+            if dependency_failure_mode(by_id[step_id], dependency_id) == "advisory":
                 continue
             if dependency_id in failed_ids:
                 ancestors.add(dependency_id)
