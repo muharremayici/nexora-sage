@@ -10,12 +10,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.core.atlas_integrity import payload_sha256, validate_atlas_commit
+from tools.core.atlas_integrity import payload_sha256, source_fingerprint, validate_atlas_commit
 from tools.core.atlas_io import load_atlas_data
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file, load_json_object_strict
+from tools.core.state_flow_import_index import build_resolved_module_importer_index
 from tools.engines.state_flow_scanner import _build_genome_file_index, build_state_flow_results
-from tools.engines.state_data_graph_analyzer import _build_possible_invalidation_edges, _key_tokens
+from tools.engines.state_data_graph_analyzer import _build_possible_invalidation_edges, _key_tokens, _split_project_file
 
 
 RAW_OUTPUT_PATH = RAW_DIR / "derived_graph_integrity_validation.json"
@@ -24,6 +25,21 @@ REPORT_OUTPUT_PATH = REPORTS_DIR / "derived_graph_integrity_validation.md"
 
 def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
+
+
+def _state_flow_import_index_checks(atlas: dict[str, Any]) -> list[dict[str, Any]]:
+    """Independently recompute only present acceleration indexes; old Atlas stays legacy."""
+    indexed = []
+    mismatches = []
+    for project, payload in atlas.items():
+        if not isinstance(payload, dict) or "resolved_module_importer_index" not in payload:
+            continue
+        indexed.append(project)
+        expected = build_resolved_module_importer_index(payload.get("files"))
+        if expected is None or payload["resolved_module_importer_index"] != expected:
+            mismatches.append(project)
+    return [_check("state_flow_importer_index_recomputes_from_atlas_files", not mismatches,
+                   {"indexed_projects": len(indexed), "mismatched_projects": sorted(mismatches)[:20]})]
 
 
 def _project_keys(atlas: dict[str, Any]) -> set[str]:
@@ -115,6 +131,7 @@ def _state_flow_checks(
     atlas: dict[str, Any],
     state_flow: dict[str, Any],
     genome_index: dict[str, Any] | None = None,
+    commit: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     atlas_projects = _project_keys(atlas)
     projected_projects = set((state_flow.get("by_project", {}) or {}).keys()) if isinstance(state_flow, dict) else set()
@@ -134,7 +151,7 @@ def _state_flow_checks(
     }
     expected = build_state_flow_results(
         scoped_atlas,
-        _build_genome_file_index() if genome_index is None else genome_index,
+        _build_genome_file_index(scoped_atlas) if genome_index is None else genome_index,
     )
     compared_fields = [
         "zustand_stores",
@@ -143,11 +160,23 @@ def _state_flow_checks(
         "tanstack_mutations",
         "boundary_signals",
         "transitive_hook_consumers",
+        "transitive_hook_coverage",
         "by_project",
         "state_proof",
         "state_proof_by_project",
     ]
     mismatches = [field for field in compared_fields if state_flow.get(field) != expected.get(field)]
+    scoped_source = source_fingerprint(scoped_atlas)
+    source_inventory_current = run_meta.get("analyzed_source_fingerprint") == scoped_source
+    commit_binding_current = (
+        True if commit is None else (
+            isinstance(commit, dict)
+            and run_meta.get("atlas_source_binding") == "source_inventory_match"
+            and bool(commit.get("snapshot_id"))
+            and run_meta.get("atlas_snapshot_id") == commit.get("snapshot_id")
+            and commit.get("source_fingerprint") == source_fingerprint(atlas)
+        )
+    )
     atlas_nodes = _atlas_nodes(atlas)
     referenced_nodes: set[str] = set()
     for field in ("zustand_stores", "zustand_consumers", "tanstack_queries", "tanstack_mutations", "boundary_signals", "transitive_hook_consumers"):
@@ -161,6 +190,10 @@ def _state_flow_checks(
         _check("state_flow_project_scope_known", producer_scope.issubset(atlas_projects), {"unknown": sorted(producer_scope - atlas_projects)}),
         _check("state_flow_project_projection_complete", projected_projects == producer_scope, {"expected": sorted(producer_scope), "actual": sorted(projected_projects)}),
         _check("state_flow_project_proof_complete", proof_projects == producer_scope, {"expected": sorted(producer_scope), "actual": sorted(proof_projects)}),
+        _check("state_flow_analyzed_source_inventory_current", source_inventory_current,
+               {"scope": sorted(producer_scope), "stored_atlas_inventory_only": True}),
+        _check("state_flow_atlas_commit_source_bound", commit_binding_current,
+               {"snapshot_id": run_meta.get("atlas_snapshot_id"), "stored_atlas_inventory_only": True}),
         _check("state_flow_recomputes_from_current_atlas", not mismatches, {"mismatched_fields": mismatches}),
     ]
 
@@ -240,7 +273,13 @@ def _state_data_graph_checks(
     }
     expected_edge_pairs: set[tuple[str, str]] = set()
     for mutation, mutation_keys in (mutations or {}).items():
+        mutation_project, mutation_rel = _split_project_file(str(mutation))
+        if not mutation_project or mutation_project == "unknown" or not mutation_rel:
+            continue
         for query, query_keys in (queries or {}).items():
+            query_project, query_rel = _split_project_file(str(query))
+            if query_project != mutation_project or not query_rel:
+                continue
             related = False
             for mutation_key in mutation_keys or []:
                 for query_key in query_keys or []:
@@ -347,7 +386,8 @@ def run_validation() -> dict[str, Any]:
         for item in validate_atlas_commit(atlas, commit)
     )
     checks.extend(_blast_checks(atlas, circular, blast))
-    checks.extend(_state_flow_checks(atlas, state_flow))
+    checks.extend(_state_flow_checks(atlas, state_flow, commit=commit))
+    checks.extend(_state_flow_import_index_checks(atlas))
     checks.extend(_state_data_graph_checks(atlas, commit, state_flow, state_data_graph))
     failed = [check for check in checks if not check["passed"]]
     payload = {

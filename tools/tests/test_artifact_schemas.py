@@ -37,6 +37,15 @@ def test_nested_validation_errors_preserve_precise_paths(tmp_path):
     ]
 
 
+def test_array_max_items_is_an_executable_schema_guard(tmp_path):
+    schema_path = tmp_path / "max-items-schema.json"
+    schema_path.write_text(json.dumps({"type": "array", "maxItems": 2,
+                                       "items": {"type": "integer"}}), encoding="utf-8")
+    assert validate_against_schema(schema_path, "sample", [1, 2]) == []
+    assert validate_against_schema(schema_path, "sample", [1, 2, 3]) == [
+        "sample: expected at most 2 items, got 3"]
+
+
 def _minimal_audit_report(violation):
     return {
         "meta": {"kind": "audit_report", "version": "test"},

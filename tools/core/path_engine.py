@@ -57,9 +57,20 @@ def expand_module_candidates(path: str) -> list[str]:
     return candidates
 
 
-def expand_filesystem_candidates(path: str) -> list[str]:
+def expand_filesystem_candidates(path: str, *, language: str | None = None) -> list[str]:
     if not path:
         return []
+    # TypeScript ESM commonly writes the emitted extension in source imports.
+    # Preserve an existing exact file and refuse an ambiguous source spelling.
+    if language in {"typescript", "javascript"}:
+        base, suffix = os.path.splitext(path)
+        source_suffixes = {".js": (".ts", ".tsx", ".jsx"),
+                           ".jsx": (".tsx",),
+                           ".mjs": (".mts",), ".cjs": (".cts",)}.get(suffix.lower())
+        if source_suffixes is not None:
+            matches = [base + extension for extension in source_suffixes
+                       if os.path.isfile(base + extension)]
+            return [path, *matches] if len(matches) == 1 else [path]
     candidates = [path]
     for ext in sorted(language_extensions()):
         candidates.append(f"{path}{ext}")
@@ -420,7 +431,7 @@ def resolve_project_import(source: str, current_file_dir: str, workspace_root: s
         candidate_roots = _candidate_bases_for_alias(rel_target)
         for base_root in candidate_roots:
             resolved_base = os.path.join(base_root, source_tail.replace("/", os.sep))
-            for candidate in expand_filesystem_candidates(resolved_base):
+            for candidate in expand_filesystem_candidates(resolved_base, language=language):
                 if os.path.isfile(candidate):
                     return to_posix_path(os.path.relpath(candidate, project_root))
 
@@ -429,13 +440,13 @@ def resolve_project_import(source: str, current_file_dir: str, workspace_root: s
     for alias, rel_target, source_tail in matched_alias_entries:
         for base_root in _heuristic_alias_candidate_bases(alias, rel_target):
             resolved_base = os.path.join(base_root, source_tail.replace("/", os.sep))
-            for candidate in expand_filesystem_candidates(resolved_base):
+            for candidate in expand_filesystem_candidates(resolved_base, language=language):
                 if os.path.isfile(candidate):
                     return to_posix_path(os.path.relpath(candidate, project_root))
 
     if source.startswith("."):
         resolved_base = os.path.abspath(os.path.join(current_file_dir, source.replace("/", os.sep)))
-        for candidate in expand_filesystem_candidates(resolved_base):
+        for candidate in expand_filesystem_candidates(resolved_base, language=language):
             if os.path.isfile(candidate):
                 return to_posix_path(os.path.relpath(candidate, project_root))
     return source

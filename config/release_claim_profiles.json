@@ -4,7 +4,7 @@
     "version": "v1",
     "description": "Machine-readable release claim boundaries. Active profiles define what the current release may claim; roadmap profiles preserve future work without expanding V1 claims."
   },
-  "current_product_release": "1.1.1",
+  "current_product_release": "1.2.0",
   "active_profile_id": "v1_react_architecture_governance",
   "validation_contract": {
     "allowed_profile_statuses": [
@@ -130,11 +130,11 @@
     {
       "id": "v1_react_architecture_governance",
       "status": "active",
-      "target_release": "1.1.1",
+      "target_release": "1.2.0",
       "claim_origin_release": "1.0.0",
       "execution_mode": "release_deep",
       "allowed_claim": "evidence_backed_bounded_react_typescript_static_governance",
-      "claim_boundary": "Release candidate 1.1.1: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
+      "claim_boundary": "Release candidate 1.2.0: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
       "capability_ids": [
         "react_surgical_intelligence",
         "sqlite_artifact_store",
@@ -215,7 +215,7 @@
     {
       "id": "v1_1_proof_and_agent_surface_hardening",
       "status": "roadmap",
-      "target_release": "1.2.0",
+      "target_release": "1.3.0",
       "execution_mode": "release_deep",
       "allowed_claim": "target_repository_proof_and_agent_surface_hardening",
       "claim_boundary": "Roadmap profile for target repository proof envelopes, documentation-to-code freshness and local governance telemetry. Not active in V1.0.0 release claims.",
@@ -244,7 +244,7 @@
     {
       "id": "v1_2_cage_and_principle_calibration",
       "status": "roadmap",
-      "target_release": "1.2.0",
+      "target_release": "1.3.0",
       "execution_mode": "release_deep",
       "allowed_claim": "calibrated_cage_and_principle_governance",
       "claim_boundary": "Roadmap profile for privacy, performance, resilience and cognitive-load cage calibration plus advisory principle pack expansion. Not active in V1.0.0 release claims.",
@@ -268,7 +268,7 @@
     {
       "id": "v1_2_target_repository_memory",
       "status": "roadmap",
-      "target_release": "1.2.0",
+      "target_release": "1.3.0",
       "execution_mode": "release_deep",
       "allowed_claim": "target_repository_scoped_lesson_memory",
       "claim_boundary": "Roadmap profile for target-owned lesson projection and lifecycle calibration. It does not expose SAGE product lessons or convert recurrence into causal truth. Not active in V1.0.0 claims.",

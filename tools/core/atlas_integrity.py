@@ -48,7 +48,7 @@ def configuration_fingerprint() -> str:
 
 def generator_fingerprint() -> str:
     root = Path(__file__).resolve().parents[2]
-    return _sha256_files(
+    source_hash = _sha256_files(
         [
             root / "tools" / "engines" / "generate_atlas.py",
             root / "tools" / "engines" / "ast_sequencer.cjs",
@@ -57,12 +57,21 @@ def generator_fingerprint() -> str:
             root / "tools" / "engines" / "ast_sequencer_go.py",
             root / "tools" / "engines" / "ast_sequencer_cs.py",
             root / "tools" / "core" / "polyglot_imports.py",
+            root / "tools" / "core" / "path_engine.py",
             root / "tools" / "core" / "language_agnostic_symbols.py",
             root / "tools" / "core" / "package_contracts.py",
+            root / "tools" / "core" / "atlas_typescript_inputs.py",
+            root / "tools" / "core" / "repository_topology.py",
+            root / "tools" / "core" / "source_snapshot_integrity.py",
+            root / "config" / "source_snapshot_store_policy.json",
+            root / "config" / "analysis_snapshot_lineage_contract.json",
             root / "config" / "language_registry.json",
             root / "config" / "language_agnostic_symbols.json",
         ]
     )
+    # Hash owned policy bytes without calling downstream runtime consumers:
+    # atlas_typescript_inputs already depends on this identity module.
+    return payload_sha256({"sources": source_hash})
 
 def atlas_counts(atlas: dict[str, Any]) -> dict[str, int]:
     projects = 0

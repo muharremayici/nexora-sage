@@ -494,6 +494,7 @@
     }
   ],
   "completion_boundary": {
+    "release_gate_evidence_release": "1.1.1",
     "inventory_files_unclassified": 0,
     "semantic_family_clusters_undispositioned": 0,
     "implementation_ready_subgroups_certified_by_latest_map": 0,
@@ -506,7 +507,7 @@
       "release_train_predecessor_publication_arbitration_contract"
     ],
     "release_ready": true,
-    "release_readiness_claim": "All bounded v1.0.5 family candidates retain explicit outcomes and the three centrally registered v1.1.1 release blockers are technically ready_for_delivery. This does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize a broad Corpus replay, satisfy projected-public Linux evidence, or prove release shipment.",
-    "next_action": "Preserve the completed Corpus disposition evidence while the technically ready v1.1.1 work crosses its separately governed proof, seal, clean, public-projection and delivery boundaries. Native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this closure."
+    "release_readiness_claim": "Preserved Corpus disposition checkpoint for 1.1.1: bounded v1.0.5 family candidates retain explicit outcomes and the three central checkpoint owners are closed. This historical technical-completion field is not current product-release readiness. It does not adjudicate 166180 candidate rows, repair historical aggregate percentages, authorize broad Corpus replay, satisfy current projected-public Linux evidence, or prove a new release shipment.",
+    "next_action": "Preserve the completed Corpus evidence and its explicit checkpoint-release identity; current release preparation owns its own blockers. Native-linter execution, new cage/runtime capabilities and broad Corpus replay remain outside this historical closure."
   }
 }

@@ -17,6 +17,7 @@ from tools.core.config import CONFIG_DIR, DYNAMIC_CONFIG, RAW_DIR, REPORTS_DIR, 
 from tools.core.json_io import load_json_file, load_text_file
 from tools.core.persistence_limits import load_persistence_limits
 from tools.core.db import SQLiteManager
+from tools.core.source_snapshot_integrity import snapshot_hash_algorithms, source_text_hash
 from tools.core.audit_finding_generation import (
     AUDIT_FINDINGS_FACT_ARTIFACT,
     AUDIT_FINDINGS_FACT_KEY,
@@ -2110,6 +2111,7 @@ class ArtifactStore:
         """
 
         max_bytes = int(DYNAMIC_CONFIG.get("source_snapshot_max_bytes", 2_000_000) or 2_000_000)
+        identity_algorithms = snapshot_hash_algorithms()
         scope_label = "surgical" if snapshot_scope is not None else "full"
         _source_snapshot_log(f"START projection mode={scope_label}")
         total_snapshots = 0
@@ -2175,8 +2177,14 @@ class ArtifactStore:
                         size_bytes = int(source_path.stat().st_size)
                         source_mtime = float(source_path.stat().st_mtime)
                     else:
-                        content = source_path.read_text(encoding="utf-8", errors="replace")
-                        content_hash = atlas_hash or _payload_sha(content)
+                        with source_path.open("r", encoding="utf-8", errors="replace", newline="") as source_file:
+                            content = source_file.read()
+                        actual_hash = source_text_hash(content, atlas_hash, algorithms=identity_algorithms)
+                        content_hash = actual_hash or _payload_sha(content)
+                        if actual_hash is None:
+                            status, error = "identity_unavailable", "Atlas content identity is missing or unsupported"
+                        elif actual_hash != atlas_hash:
+                            status, error = "content_mismatch", "Source changed after Atlas ingestion"
                         size_bytes = len(content.encode("utf-8", errors="replace"))
                         source_mtime = float(source_path.stat().st_mtime)
                 except Exception as exc:
@@ -2199,9 +2207,6 @@ class ArtifactStore:
                         )
                     except Exception as telemetry_exc:
                         logger.error("[HONESTY] Source snapshot telemetry failed: %s", telemetry_exc)
-
-                if not content_hash:
-                    content_hash = atlas_hash
 
                 project_snapshots += 1
                 total_snapshots += 1

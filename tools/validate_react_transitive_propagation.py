@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import sys
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.state_flow import TRANSITIVE_HOOK_COVERAGE
 from tools.engines.state_flow_scanner import build_state_flow_results
 
 
@@ -20,6 +22,21 @@ def _utc_now() -> str:
 
 def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
+
+
+def _called_symbol(name: str, hook: str, source: str) -> dict[str, Any]:
+    return {
+        "name": name, "type": "Function", "exported": True, "line": 2, "end_line": 5,
+        "import_call_evidence": {
+            "status": "observed", "binding_scope": "single_file_lexical_import",
+            "runtime_execution": "not_established",
+            "calls": [{
+                "source": source, "importedName": hook, "localName": hook,
+                "kind": "named", "member": None, "optional": False,
+                "line": 3, "end_line": 3,
+            }],
+        },
+    }
 
 
 def _fixture_atlas() -> dict[str, Any]:
@@ -57,7 +74,7 @@ def _fixture_atlas() -> dict[str, Any]:
                         "technologies": [],
                     },
                     "symbols": [
-                        {"name": "AuthorPage", "type": "Function", "exported": True},
+                        _called_symbol("AuthorPage", "useAuthor", "../features/auth/useAuthorQuery"),
                     ],
                     "exports": ["AuthorPage"],
                     "import_records": [
@@ -66,6 +83,7 @@ def _fixture_atlas() -> dict[str, Any]:
                             "raw_source": "../features/auth/useAuthorQuery",
                             "name": "useAuthor",
                             "kind": "named",
+                            "scope": "top_level",
                         }
                     ],
                 },
@@ -100,7 +118,7 @@ def _fixture_atlas() -> dict[str, Any]:
                         "technologies": [],
                     },
                     "symbols": [
-                        {"name": "AuthorShell", "type": "Function", "exported": True},
+                        _called_symbol("AuthorShell", "useAuthorSession", "../features/auth/useAuthorSession"),
                     ],
                     "exports": ["AuthorShell"],
                     "import_records": [
@@ -109,12 +127,42 @@ def _fixture_atlas() -> dict[str, Any]:
                             "raw_source": "../features/auth/useAuthorSession",
                             "name": "useAuthorSession",
                             "kind": "named",
+                            "scope": "top_level",
                         }
                     ],
                 },
             }
         }
     }
+
+
+def _rejection_checks() -> list[dict[str, Any]]:
+    checks = []
+    for variant in ("import_only", "legacy_evidence", "wrong_call_source",
+                    "non_top_level", "unresolved_provider", "ambiguous_provider"):
+        atlas = copy.deepcopy(_fixture_atlas())
+        files = atlas["APP"]["files"]
+        consumer = files["pages/AuthorPage.tsx"]
+        symbol = consumer["symbols"][0]
+        record = consumer["import_records"][0]
+        if variant == "import_only":
+            symbol["import_call_evidence"]["calls"] = []
+        elif variant == "legacy_evidence":
+            symbol.pop("import_call_evidence")
+        elif variant == "wrong_call_source":
+            symbol["import_call_evidence"]["calls"][0]["source"] = "../other/useAuthorQuery"
+        elif variant == "non_top_level":
+            record["scope"] = "nested"
+        elif variant == "unresolved_provider":
+            record["source"] = "missing/useAuthorQuery.ts"
+        elif variant == "ambiguous_provider":
+            duplicate = copy.deepcopy(files["features/auth/useAuthorQuery.ts"])
+            duplicate["workspace_rel"] = "features/auth/useAuthorQuery.ts"
+            files["other/useAuthorQuery.ts"] = duplicate
+        results = build_state_flow_results(atlas, {})
+        hints = results.get("transitive_hook_consumers", {}).get("APP::pages/AuthorPage.tsx")
+        checks.append(_check(f"{variant}_does_not_create_hook_hint", not hints, hints))
+    return checks
 
 
 def run_validation() -> dict[str, Any]:
@@ -125,19 +173,22 @@ def run_validation() -> dict[str, Any]:
     zustand_provider = "APP::features/auth/useAuthorSession.ts"
     checks = [
         _check(
-            "consumer_inherits_query_key_from_custom_hook",
-            "queryKeys.author.details(id)" in (results.get("tanstack_queries", {}).get(consumer) or []),
-            results.get("tanstack_queries", {}),
+            "provider_query_is_not_consumer_owned",
+            not results.get("tanstack_queries", {}).get(consumer),
+            results.get("tanstack_queries", {}).get(consumer),
         ),
         _check(
-            "consumer_gets_boundary_signal",
-            consumer in (results.get("boundary_signals") or {}),
+            "provider_only_hint_does_not_create_consumer_boundary",
+            consumer not in (results.get("boundary_signals") or {}),
             results.get("boundary_signals", {}).get(consumer),
         ),
         _check(
-            "consumer_records_transitive_hook_source",
+            "positive_call_records_exact_provider_file_query_hint",
             any(
                 item.get("hook") == "useAuthor" and item.get("provider") == provider
+                and item.get("query_keys") == ["queryKeys.author.details(id)"]
+                and item.get("call_sites") == [{"symbol": "AuthorPage", "line": 3, "end_line": 3}]
+                and item.get("call_sites_omitted") == 0
                 for item in (results.get("transitive_hook_consumers", {}).get(consumer) or [])
             ),
             results.get("transitive_hook_consumers", {}).get(consumer),
@@ -148,14 +199,17 @@ def run_validation() -> dict[str, Any]:
             results.get("tanstack_queries", {}).get(provider),
         ),
         _check(
-            "consumer_inherits_zustand_consumer_from_custom_hook",
-            "useAuthorStore" in (results.get("zustand_consumers", {}).get(zustand_consumer) or []),
-            results.get("zustand_consumers", {}),
+            "provider_store_use_is_not_consumer_subscription",
+            not results.get("zustand_consumers", {}).get(zustand_consumer),
+            results.get("zustand_consumers", {}).get(zustand_consumer),
         ),
         _check(
-            "consumer_records_transitive_zustand_hook_source",
+            "positive_call_records_exact_provider_file_store_hint",
             any(
                 item.get("hook") == "useAuthorSession" and item.get("provider") == zustand_provider
+                and item.get("zustand_consumers") == ["useAuthorStore"]
+                and item.get("call_sites") == [{"symbol": "AuthorShell", "line": 3, "end_line": 3}]
+                and item.get("call_sites_omitted") == 0
                 for item in (results.get("transitive_hook_consumers", {}).get(zustand_consumer) or [])
             ),
             results.get("transitive_hook_consumers", {}).get(zustand_consumer),
@@ -165,12 +219,23 @@ def run_validation() -> dict[str, Any]:
             zustand_consumer not in (results.get("zustand_stores") or {}),
             results.get("zustand_stores", {}),
         ),
+        _check(
+            "provider_store_ownership_is_preserved",
+            zustand_provider in results.get("zustand_stores", {}),
+            results.get("zustand_stores", {}).get(zustand_provider),
+        ),
+        _check(
+            "coverage_declares_positive_calls_only_absence_unproven",
+            results.get("transitive_hook_coverage") == TRANSITIVE_HOOK_COVERAGE,
+            results.get("transitive_hook_coverage"),
+        ),
     ]
+    checks.extend(_rejection_checks())
     failed = [check for check in checks if not check["passed"]]
     payload = {
         "meta": {
             "kind": "react_transitive_propagation_validation",
-            "version": "v1",
+            "version": "v2",
             "generated_at": _utc_now(),
             "generator": "tools.validate_react_transitive_propagation",
         },

@@ -204,6 +204,13 @@ def write_lineage_receipt(
         raise ValueError(f"analysis snapshot lineage producer mismatch for {artifact_id}: {producer!r} != {expected_producer!r}")
 
     errors: list[str] = []
+    source_binding = artifact_contract.get("source_binding")
+    if source_binding == "typescript_checked_manifest_v1":
+        from tools.core.typescript_source_binding import checked_source_errors
+
+        errors.extend(checked_source_errors(artifact_payload, atlas))
+    elif source_binding is not None:
+        errors.append("unsupported_source_binding_contract")
     atlas_checks = validate_atlas_commit(atlas, atlas_commit) if isinstance(atlas, dict) and isinstance(atlas_commit, dict) else []
     atlas_valid = bool(atlas_checks) and all(bool(row.get("passed")) for row in atlas_checks)
     snapshot_id = str(atlas_commit.get("snapshot_id") or "") if atlas_valid else ""

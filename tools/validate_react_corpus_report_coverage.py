@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -92,6 +93,23 @@ def build_report_set_receipt(
     }
 
 
+def evidence_release_gate_work_items(registry: dict[str, Any], work_registry: dict[str, Any]) -> set[str]:
+    """Historical Corpus completion follows its checkpoint, not today's version."""
+    completion = registry.get("completion_boundary")
+    rows = work_registry.get("work_items")
+    if not isinstance(completion, dict) or not isinstance(rows, list):
+        return set()
+    release = completion.get("release_gate_evidence_release")
+    return {
+        str(row["id"])
+        for row in rows
+        if isinstance(row, dict) and row.get("id")
+        and row["id"] != "react_corpus_report_coverage_and_disposition_contract"
+        and row.get("target_release") == release
+        and row.get("release_blocking") is True
+    } if isinstance(release, str) and re.fullmatch(r"\d+\.\d+\.\d+", release) else set()
+
+
 def validate_registry_payload(
     registry: dict[str, Any],
     *,
@@ -163,7 +181,7 @@ def validate_registry_payload(
         completion.get("semantic_family_clusters_undispositioned") == 0
         and not bounded_candidates
         and bool(required_release_gates)
-        and all(status == "ready_for_delivery" for status in release_gate_states.values())
+        and all(status in {"ready_for_delivery", "closed"} for status in release_gate_states.values())
     )
     checks = [
         _check("registry_kind", registry.get("meta", {}).get("kind") == "nexora.react_corpus_report_coverage_registry", registry.get("meta", {}).get("kind")),
@@ -185,9 +203,17 @@ def validate_registry_payload(
         _check("bounded_candidates_owned_by_intake", not candidate_without_intake_owner, candidate_without_intake_owner),
         _check("no_undispositioned_cluster", completion.get("semantic_family_clusters_undispositioned") == 0, completion),
         _check(
-            "release_gate_matches_central_current_release_blockers",
+            "release_gate_evidence_release_is_explicit",
+            isinstance(completion.get("release_gate_evidence_release"), str)
+            and re.fullmatch(r"\d+\.\d+\.\d+", completion["release_gate_evidence_release"]) is not None,
+            completion.get("release_gate_evidence_release"),
+        ),
+        _check(
+            "release_gate_matches_central_evidence_release_blockers",
             declared_release_gates == required_release_gates,
-            {"declared": declared_release_gates, "required": required_release_gates},
+            {"declared": declared_release_gates, "required": required_release_gates,
+             "evidence_release": completion.get("release_gate_evidence_release"),
+             "scope": "historical_corpus_completion_not_current_product_release_readiness"},
         ),
         _check(
             "release_readiness_is_derived_from_dispositions_and_owner_state",
@@ -252,14 +278,7 @@ def run(evidence_root: Path | None = None) -> dict[str, Any]:
         for row in work_registry.get("work_items", [])
         if isinstance(row, dict) and row.get("id")
     }
-    required_release_gate_work_items = {
-        str(row.get("id"))
-        for row in work_registry.get("work_items", [])
-        if isinstance(row, dict)
-        and row.get("id") != "react_corpus_report_coverage_and_disposition_contract"
-        and row.get("target_release") == current_release_version()
-        and row.get("release_blocking") is True
-    }
+    required_release_gate_work_items = evidence_release_gate_work_items(registry, work_registry)
     active_profile_id = str(claim_profiles.get("active_profile_id") or "")
     profile = next(
         (

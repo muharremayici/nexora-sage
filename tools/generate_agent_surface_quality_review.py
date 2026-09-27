@@ -652,10 +652,13 @@ def _review_named_sample(sample: dict[str, Any], *, target_root: str = "") -> di
         review["checks"]["impact_radius_is_depth_limited_and_path_safe"] = (
             "radius_depth:" in body
             and "returned_scope_size:" in body
+            and "backend_transitive_rows_omitted:" in body
             and "target_grounding_status:" in body
             and "direct_dependents_omitted:" in body
             and "transitive_dependents_omitted:" in body
-            and "depth-limited bounded sample" in body
+            and 'scope_kind: "target_reachable_dependents"' in body
+            and "bounded target-reachability sample" in body
+            and 'full_graph: "not_available"' in body
             and "follow_up:" in body
             and "when_to_use:" in body
             and "depth=3" in body
@@ -664,7 +667,7 @@ def _review_named_sample(sample: dict[str, Any], *, target_root: str = "") -> di
                 "transitive_dependents_omitted: 0" in body
                 or (
                     "Use depth=3 first" in body
-                    and "depth=0 full graph only as a last resort" in body
+                    and "depth=0 remains a bounded target-reachability debug sample" in body
                 )
             )
             and "target_ref:" in body
@@ -982,7 +985,8 @@ def _review_named_sample(sample: dict[str, Any], *, target_root: str = "") -> di
             and "direct_dependents_omitted:" in body
             and "transitive_dependents_omitted:" in body
             and "deeper_scope:" in body
-            and "full_graph:" in body
+            and "bounded_debug_scope:" in body
+            and 'full_graph: "not_available"' in body
             and "Do not expand work to omitted dependents from this brief alone." in body
             and "target_abs" not in body
             and "resolved_node" not in body

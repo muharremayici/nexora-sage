@@ -279,9 +279,919 @@ function collectNodeDependencies(node, sourceFile, importBindings, selfName = ''
     };
 }
 
-function getMemberDetails(node, sourceFile, importBindings) {
+function createFileSymbolResolver(sourceFile) {
+    // One lazy, in-memory binding context per parsed file: no tsconfig, dependency
+    // reads, emit, diagnostics run or target execution. This is not type safety.
+    let checker;
+    return function symbolAt(node) {
+        if (!checker) {
+            const fileName = path.resolve(sourceFile.fileName);
+            const isSource = name => path.resolve(name) === fileName;
+            const host = {
+                getSourceFile: name => isSource(name) ? sourceFile : undefined,
+                getDefaultLibFileName: () => '', writeFile: () => {},
+                getCurrentDirectory: () => path.dirname(fileName),
+                getCanonicalFileName: name => name.replace(/\\/g, '/'),
+                useCaseSensitiveFileNames: () => true, getNewLine: () => '\n',
+                fileExists: isSource, readFile: () => undefined,
+                directoryExists: () => false, getDirectories: () => [],
+            };
+            checker = ts.createProgram([sourceFile.fileName], {
+                noLib: true, noResolve: true, noEmit: true, allowJs: true,
+                target: ts.ScriptTarget.Latest,
+            }, host).getTypeChecker();
+        }
+        return checker.getSymbolAtLocation(node);
+    };
+}
+
+function createImportCallCollector(sourceFile, importBindings, symbolAt) {
+    const cache = new WeakMap();
+    function unwrap(node) {
+        while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+            || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
+            || ts.isNonNullExpression(node))) node = node.expression;
+        return node;
+    }
+    return function collectImportCalls(node) {
+        const fn = unwrap(ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)
+            ? node.initializer : node);
+        const result = {status: 'not_applicable', calls: [], limitations: [],
+            binding_scope: 'single_file_lexical_import', runtime_execution: 'not_established'};
+        function propertyEventEvidence() {
+            if (!result.property_event_evidence) {
+                result.property_event_evidence = {status: 'not_applicable', calls: [], omitted: 0,
+                    limitations: ['imported_value_runtime_identity_unverified'],
+                    binding_scope: 'single_file_lexical_named_import_property',
+                    runtime_owner_binding: 'not_established', runtime_execution: 'not_established'};
+            }
+            return result.property_event_evidence;
+        }
+        if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        if (sourceFile.parseDiagnostics?.length) {
+            result.status = 'unavailable';
+            result.limitations = ['source_parse_diagnostics'];
+            return result;
+        }
+        const limitations = new Set(['body_only_no_parameter_initializers']);
+        const eventMethods = new Set(['emit', 'on', 'once', 'off', 'addListener', 'removeListener']);
+        function walk(inner, nestedDepth = 0) {
+            if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
+                if (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner)) {
+                    limitations.add('nested_callable_event_syntax_only');
+                    if (inner.body) walk(inner.body, nestedDepth + 1);
+                } else {
+                    limitations.add('nested_callable_excluded');
+                }
+                return;
+            }
+            if (ts.isCallExpression(inner)) {
+                const callee = unwrap(inner.expression);
+                const owner = ts.isPropertyAccessExpression(callee)
+                    ? unwrap(callee.expression) : null;
+                const importedRoot = owner && ts.isPropertyAccessExpression(owner)
+                    ? unwrap(owner.expression) : null;
+                const propertyBinding = importedRoot && ts.isIdentifier(importedRoot)
+                    ? importBindings.get(importedRoot.text) : null;
+                const firstEvent = inner.arguments[0];
+                if (propertyBinding?.kind === 'named' && ts.isPropertyAccessExpression(callee)
+                    && ts.isPropertyAccessExpression(owner) && ts.isIdentifier(importedRoot)
+                    && eventMethods.has(callee.name.text) && !inner.questionDotToken
+                    && !callee.questionDotToken && !owner.questionDotToken
+                    && firstEvent && (ts.isStringLiteral(firstEvent)
+                        || ts.isNoSubstitutionTemplateLiteral(firstEvent))) {
+                    const declarations = symbolAt(importedRoot)?.declarations || [];
+                    const specifier = declarations.length === 1 && ts.isImportSpecifier(declarations[0])
+                        ? declarations[0] : null;
+                    const clause = specifier?.parent?.parent;
+                    if (clause && ts.isImportClause(clause) && !clause.isTypeOnly
+                        && !specifier.isTypeOnly && ts.isImportDeclaration(clause.parent)
+                        && clause.parent.moduleSpecifier.text === propertyBinding.source
+                        && specifier.name.text === propertyBinding.localName
+                        && (specifier.propertyName?.text || specifier.name.text)
+                            === propertyBinding.importedName) {
+                        const propertyEvidence = propertyEventEvidence();
+                        if (nestedDepth > 8) {
+                            propertyEvidence.status = 'incomplete_scan';
+                            propertyEvidence.limitations.push('nested_callable_depth_exceeded');
+                        } else if (propertyEvidence.calls.length < 64) {
+                            const start = inner.getStart(sourceFile);
+                            propertyEvidence.calls.push({source: propertyBinding.source,
+                                localName: propertyBinding.localName,
+                                importedName: propertyBinding.importedName,
+                                owner_property: owner.name.text, method: callee.name.text,
+                                first_literal_argument: firstEvent.text,
+                                nested_callable_depth: nestedDepth,
+                                line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                                end_line: sourceFile.getLineAndCharacterOfPosition(
+                                    Math.max(start, inner.end - 1)).line + 1});
+                        } else propertyEvidence.omitted += 1;
+                    }
+                }
+                const root = ts.isIdentifier(callee) ? callee
+                    : ts.isPropertyAccessExpression(callee) ? unwrap(callee.expression) : null;
+                const binding = root && ts.isIdentifier(root) ? importBindings.get(root.text) : null;
+                const literalEventMember = binding && binding.kind === 'named'
+                    && ts.isPropertyAccessExpression(callee)
+                    && ['emit', 'on', 'once', 'off', 'addListener', 'removeListener'].includes(callee.name.text)
+                    && inner.arguments[0] && (ts.isStringLiteral(inner.arguments[0])
+                        || ts.isNoSubstitutionTemplateLiteral(inner.arguments[0]));
+                if (binding && (!nestedDepth || literalEventMember)
+                    && (ts.isIdentifier(callee) || binding.kind === 'namespace'
+                    || binding.kind === 'named' && ts.isPropertyAccessExpression(callee)
+                    && literalEventMember)) {
+                    const declarations = symbolAt(root)?.declarations || [];
+                    const declaration = declarations.length === 1 ? declarations[0] : null;
+                    const clause = declaration && (ts.isImportClause(declaration) ? declaration
+                        : ts.isImportSpecifier(declaration) ? declaration.parent.parent
+                        : ts.isNamespaceImport(declaration) ? declaration.parent : null);
+                    if (!clause || !ts.isImportClause(clause)) {
+                        limitations.add('non_import_or_shadowed_callee');
+                    } else if (clause.isTypeOnly || declaration.isTypeOnly) {
+                        limitations.add('type_only_import_not_runtime_callee');
+                    } else if (!ts.isImportDeclaration(clause.parent)
+                        || clause.parent.moduleSpecifier.text !== binding.source
+                        || declaration.name?.text !== binding.localName) {
+                        limitations.add('import_declaration_identity_mismatch');
+                    } else {
+                        const start = inner.getStart(sourceFile);
+                        const line = sourceFile.getLineAndCharacterOfPosition(start).line + 1;
+                        const endLine = sourceFile.getLineAndCharacterOfPosition(Math.max(start, inner.end - 1)).line + 1;
+                        const first = inner.arguments[0];
+                        result.calls.push({...binding, member: ts.isPropertyAccessExpression(callee) ? callee.name.text : null,
+                            ...(binding.kind === 'named' && ts.isPropertyAccessExpression(callee)
+                                ? {first_literal_argument: first.text,
+                                    nested_callable_depth: nestedDepth} : {}),
+                            line, end_line: endLine, optional: !!inner.questionDotToken || !!callee.questionDotToken});
+                    }
+                } else {
+                    limitations.add('unsupported_or_non_import_callee');
+                }
+            }
+            ts.forEachChild(inner, child => walk(child, nestedDepth));
+        }
+        try {
+            walk(fn.body);
+            result.status = 'observed';
+            if (result.property_event_evidence?.status === 'not_applicable') {
+                result.property_event_evidence.status = result.property_event_evidence.omitted
+                    ? 'incomplete_scan' : 'observed';
+            }
+        } catch (_err) {
+            // Binding failure must not erase the existing syntax evidence or emit
+            // a partially successful lexical claim.
+            result.status = 'unavailable';
+            result.calls = [];
+            limitations.add('single_file_binding_unavailable');
+            if (result.property_event_evidence) {
+                result.property_event_evidence.status = 'unavailable';
+                result.property_event_evidence.calls = [];
+                result.property_event_evidence.omitted = 0;
+                result.property_event_evidence.limitations.push('single_file_binding_unavailable');
+            }
+        }
+        result.limitations = [...limitations].sort();
+        return result;
+    };
+}
+
+function factorySourceEvidence(decl, sourceFile, importBindings, symbolAt) {
+    // Positive source syntax only. A wrapper may skip or replace its factory,
+    // and a package import is not resolved to a runtime export here.
+    if (!(decl.parent.flags & ts.NodeFlags.Const) || sourceFile.parseDiagnostics?.length) return null;
+    function unwrap(node) {
+        while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+            || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
+            || ts.isNonNullExpression(node))) node = node.expression;
+        return node;
+    }
+    const init = unwrap(decl.initializer);
+    if (!init || !ts.isCallExpression(init) || init.questionDotToken
+        || !ts.isIdentifier(unwrap(init.expression))) return null;
+    const callee = unwrap(init.expression);
+    function localFactory(identifier) {
+        if (!ts.isIdentifier(identifier)) return null;
+        const declarations = symbolAt(identifier)?.declarations || [];
+        const candidate = declarations.length === 1 ? declarations[0] : null;
+        return candidate && ts.isFunctionDeclaration(candidate)
+            && candidate.parent === sourceFile && candidate.body
+            && !candidate.asteriskToken
+            && !candidate.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword)
+            ? candidate : null;
+    }
+    let factory = localFactory(callee);
+    let initializerForm = 'direct_factory_call';
+    if (!factory) {
+        const argumentsWithFactory = init.arguments.map(arg => localFactory(unwrap(arg))).filter(Boolean);
+        if (argumentsWithFactory.length !== 1) return null;
+        factory = argumentsWithFactory[0];
+        initializerForm = 'factory_passed_as_argument';
+    }
+    const statements = factory.body.statements;
+    const finalReturn = statements[statements.length - 1];
+    if (!finalReturn || !ts.isReturnStatement(finalReturn)) return null;
+    function hasEarlierReturn(node) {
+        if (ts.isFunctionLike(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node)) return false;
+        if (ts.isReturnStatement(node)) return true;
+        let found = false;
+        ts.forEachChild(node, child => { if (!found) found = hasEarlierReturn(child); });
+        return found;
+    }
+    if (statements.slice(0, -1).some(hasEarlierReturn)) return null;
+    let constructed = unwrap(finalReturn.expression);
+    let returnForm = 'direct_new_return';
+    if (ts.isIdentifier(constructed)) {
+        const local = (symbolAt(constructed)?.declarations || []);
+        const candidate = local.length === 1 ? local[0] : null;
+        if (!candidate || !ts.isVariableDeclaration(candidate)
+            || !ts.isIdentifier(candidate.name)
+            || !ts.isVariableDeclarationList(candidate.parent)
+            || !(candidate.parent.flags & ts.NodeFlags.Const)
+            || !ts.isVariableStatement(candidate.parent.parent)
+            || candidate.parent.parent.parent !== factory.body) return null;
+        constructed = unwrap(candidate.initializer);
+        returnForm = 'direct_const_new_return';
+    }
+    if (!constructed || !ts.isNewExpression(constructed)
+        || !ts.isIdentifier(unwrap(constructed.expression))) return null;
+    const classIdentifier = unwrap(constructed.expression);
+    const binding = importBindings.get(classIdentifier.text);
+    if (!binding || binding.kind !== 'named') return null;
+    const declarations = symbolAt(classIdentifier)?.declarations || [];
+    const specifier = declarations.length === 1 && ts.isImportSpecifier(declarations[0])
+        ? declarations[0] : null;
+    const clause = specifier?.parent?.parent;
+    if (!clause || !ts.isImportClause(clause) || clause.isTypeOnly
+        || specifier.isTypeOnly || !ts.isImportDeclaration(clause.parent)
+        || clause.parent.moduleSpecifier.text !== binding.source
+        || specifier.name.text !== binding.localName
+        || (specifier.propertyName?.text || specifier.name.text) !== binding.importedName) return null;
+    const line = node => sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+    return {status: 'syntax_candidate', binding_scope: 'single_file_lexical_factory_and_named_constructor_import',
+        initializer_form: initializerForm, wrapper_name: initializerForm === 'factory_passed_as_argument'
+            ? callee.text : null,
+        factory: factory.name.text, factory_line: line(factory), return_line: line(finalReturn),
+        return_form: returnForm, constructed_imported_name: binding.importedName,
+        constructor_module_source: binding.source,
+        factory_execution: 'not_established', runtime_instance_identity: 'not_established',
+        package_condition_resolution: 'not_evaluated', public_field_mutation: 'not_checked'};
+}
+
+function eventEmitterSingletonEvidence(decl, sourceFile, importBindings, symbolAt) {
+    const result = {status: 'unavailable', binding_scope: 'single_file_lexical_constructor_import',
+        runtime_execution: 'not_established'};
+    if (!(decl.parent.flags & ts.NodeFlags.Const)) return null;
+    let init = decl.initializer;
+    while (init && (ts.isParenthesizedExpression(init) || ts.isAsExpression(init)
+        || ts.isSatisfiesExpression(init))) init = init.expression;
+    if (!init || !ts.isNewExpression(init) || !ts.isIdentifier(init.expression)) return null;
+    const ctor = init.expression;
+    const binding = importBindings.get(ctor.text);
+    if (!binding || binding.kind !== 'named' || binding.importedName !== 'EventEmitter'
+        || !['node:events', 'events'].includes(binding.source)) return null;
+    if (sourceFile.parseDiagnostics?.length) return result;
+    const declarations = symbolAt(ctor)?.declarations || [];
+    if (declarations.length !== 1 || !ts.isImportSpecifier(declarations[0])) return result;
+    const specifier = declarations[0];
+    const clause = specifier.parent.parent;
+    if (!ts.isImportClause(clause) || clause.isTypeOnly || specifier.isTypeOnly
+        || !ts.isImportDeclaration(clause.parent)
+        || clause.parent.moduleSpecifier.text !== binding.source
+        || specifier.name.text !== binding.localName) return result;
+    return {...result, status: 'observed', constructor: 'EventEmitter', module_source: binding.source};
+}
+
+function classInstanceEventCallEvidence(node, sourceFile, importBindings, symbolAt) {
+    const cap = 64;
+    const result = {status: 'observed', calls: [], omitted: 0, limitations: [],
+        binding_scope: 'single_file_lexical_readonly_class_field_named_import',
+        runtime_owner_binding: 'not_established', runtime_execution: 'not_established'};
+    if (sourceFile.parseDiagnostics?.length) {
+        result.status = 'unavailable';
+        result.limitations = ['source_parse_diagnostics'];
+        return result;
+    }
+    const limitations = new Set(['direct_readonly_field_initializer_and_method_body_only']);
+    const eventMethods = new Set(['emit', 'on', 'once', 'off', 'addListener', 'removeListener']);
+    function unwrap(inner) {
+        while (inner && (ts.isParenthesizedExpression(inner) || ts.isAsExpression(inner)
+            || ts.isTypeAssertionExpression(inner) || ts.isSatisfiesExpression(inner)
+            || ts.isNonNullExpression(inner))) inner = inner.expression;
+        return inner;
+    }
+    const nameCounts = new Map();
+    for (const member of node.members) {
+        if (member.name && ts.isIdentifier(member.name)) {
+            nameCounts.set(member.name.text, (nameCounts.get(member.name.text) || 0) + 1);
+        }
+    }
+    const fields = new Map();
+    for (const member of node.members) {
+        if (!ts.isPropertyDeclaration(member) || !member.name || !ts.isIdentifier(member.name)
+            || nameCounts.get(member.name.text) !== 1 || member.questionToken
+            || member.modifiers?.some(mod => [ts.SyntaxKind.StaticKeyword,
+                ts.SyntaxKind.DeclareKeyword, ts.SyntaxKind.AbstractKeyword].includes(mod.kind))
+            || !member.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ReadonlyKeyword)) continue;
+        const initializer = unwrap(member.initializer);
+        if (!initializer || !ts.isIdentifier(initializer)) continue;
+        const binding = importBindings.get(initializer.text);
+        if (!binding || binding.kind !== 'named') continue;
+        const declarations = symbolAt(initializer)?.declarations || [];
+        const declaration = declarations.length === 1 ? declarations[0] : null;
+        const clause = declaration && ts.isImportSpecifier(declaration)
+            ? declaration.parent?.parent : null;
+        if (!clause || !ts.isImportClause(clause) || clause.isTypeOnly
+            || declaration.isTypeOnly || !ts.isImportDeclaration(clause.parent)
+            || clause.parent.moduleSpecifier.text !== binding.source
+            || declaration.name.text !== binding.localName
+            || (declaration.propertyName?.text || declaration.name.text) !== binding.importedName) {
+            limitations.add('field_initializer_import_binding_unavailable');
+            continue;
+        }
+        fields.set(member.name.text, {binding, declaration: member});
+    }
+    if (!fields.size) {
+        result.limitations = [...limitations].sort();
+        return result;
+    }
+    const mutated = new Set();
+    function fieldName(inner) {
+        const access = unwrap(inner);
+        return access && ts.isPropertyAccessExpression(access)
+            && access.expression.kind === ts.SyntaxKind.ThisKeyword ? access.name.text : null;
+    }
+    function findMutation(inner) {
+        if (ts.isBinaryExpression(inner)
+            && inner.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+            && inner.operatorToken.kind <= ts.SyntaxKind.LastAssignment) {
+            const name = fieldName(inner.left);
+            if (name) mutated.add(name);
+        } else if (ts.isDeleteExpression(inner) || ts.isPrefixUnaryExpression(inner)
+            || ts.isPostfixUnaryExpression(inner)) {
+            const name = fieldName(inner.expression || inner.operand);
+            if (name) mutated.add(name);
+        }
+        ts.forEachChild(inner, findMutation);
+    }
+    try {
+        for (const member of node.members) ts.forEachChild(member, findMutation);
+        for (const member of node.members) {
+            if (!member.name || !ts.isIdentifier(member.name)
+                || member.modifiers?.some(mod => mod.kind === ts.SyntaxKind.StaticKeyword)) continue;
+            const fn = ts.isMethodDeclaration(member) ? member
+                : ts.isPropertyDeclaration(member) ? unwrap(member.initializer) : null;
+            if (!fn || !ts.isFunctionLike(fn) || !fn.body) continue;
+            const memberStart = member.getStart(sourceFile);
+            const memberLine = sourceFile.getLineAndCharacterOfPosition(memberStart).line + 1;
+            const memberEndLine = sourceFile.getLineAndCharacterOfPosition(
+                Math.max(memberStart, member.end - 1)).line + 1;
+            function walk(inner) {
+                if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner)
+                    || ts.isClassExpression(inner)) {
+                    limitations.add('nested_callable_excluded');
+                    return;
+                }
+                if (ts.isCallExpression(inner) && !inner.questionDotToken) {
+                    const callee = unwrap(inner.expression);
+                    const receiver = callee && ts.isPropertyAccessExpression(callee)
+                        ? unwrap(callee.expression) : null;
+                    const name = fieldName(receiver);
+                    const field = name && fields.get(name);
+                    const first = inner.arguments[0];
+                    if (field && !mutated.has(name) && !callee.questionDotToken
+                        && !receiver.questionDotToken && eventMethods.has(callee.name.text)
+                        && first && (ts.isStringLiteral(first)
+                            || ts.isNoSubstitutionTemplateLiteral(first))) {
+                        const declarations = symbolAt(receiver.name)?.declarations || [];
+                        if (declarations.length !== 1 || declarations[0] !== field.declaration) {
+                            limitations.add('instance_field_binding_unavailable');
+                        } else {
+                            const start = inner.getStart(sourceFile);
+                            const call = {...field.binding, owner_field: name,
+                                caller_member: member.name.text, member_line: memberLine,
+                                member_end_line: memberEndLine, member: callee.name.text,
+                                first_literal_argument: first.text,
+                                line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                                end_line: sourceFile.getLineAndCharacterOfPosition(
+                                    Math.max(start, inner.end - 1)).line + 1};
+                            if (result.calls.length < cap) result.calls.push(call);
+                            else result.omitted += 1;
+                        }
+                    } else if (field && mutated.has(name)) {
+                        limitations.add('class_field_reassignment_excluded');
+                    }
+                }
+                ts.forEachChild(inner, walk);
+            }
+            walk(fn.body);
+        }
+        if (result.omitted) result.status = 'incomplete_scan';
+    } catch (_err) {
+        result.status = 'unavailable';
+        result.calls = [];
+        result.omitted = 0;
+        limitations.add('single_file_instance_field_binding_unavailable');
+    }
+    result.limitations = [...limitations].sort();
+    return result;
+}
+
+function classDirectEventEmitterFieldEvidence(node, sourceFile, importBindings, symbolAt) {
+    // This records constructor and direct this.field call syntax only. Public
+    // property writes outside this file and runtime instance identity are unknown.
+    const fields = new Map();
+    if (!ts.isClassDeclaration(node)) return fields;
+    const cap = 64;
+    const eventMethods = new Set(['emit', 'on', 'once', 'off', 'addListener', 'removeListener']);
+    function unwrap(inner) {
+        while (inner && (ts.isParenthesizedExpression(inner) || ts.isAsExpression(inner)
+            || ts.isTypeAssertionExpression(inner) || ts.isSatisfiesExpression(inner)
+            || ts.isNonNullExpression(inner))) inner = inner.expression;
+        return inner;
+    }
+    const nameCounts = new Map();
+    for (const member of node.members) {
+        if (member.name && ts.isIdentifier(member.name)) {
+            nameCounts.set(member.name.text, (nameCounts.get(member.name.text) || 0) + 1);
+        }
+    }
+    for (const member of node.members) {
+        if (!ts.isPropertyDeclaration(member) || !member.name || !ts.isIdentifier(member.name)
+            || nameCounts.get(member.name.text) !== 1 || member.questionToken
+            || member.modifiers?.some(mod => [ts.SyntaxKind.StaticKeyword,
+                ts.SyntaxKind.DeclareKeyword, ts.SyntaxKind.AbstractKeyword].includes(mod.kind))) continue;
+        const init = unwrap(member.initializer);
+        if (!init || !ts.isNewExpression(init) || !ts.isIdentifier(init.expression)) continue;
+        const ctor = init.expression;
+        const binding = importBindings.get(ctor.text);
+        if (!binding || binding.kind !== 'named' || binding.importedName !== 'EventEmitter'
+            || !['node:events', 'events'].includes(binding.source)) continue;
+        const declarations = symbolAt(ctor)?.declarations || [];
+        const specifier = declarations.length === 1 && ts.isImportSpecifier(declarations[0])
+            ? declarations[0] : null;
+        const clause = specifier?.parent?.parent;
+        if (!clause || !ts.isImportClause(clause) || clause.isTypeOnly || specifier.isTypeOnly
+            || !ts.isImportDeclaration(clause.parent)
+            || clause.parent.moduleSpecifier.text !== binding.source
+            || specifier.name.text !== binding.localName
+            || (specifier.propertyName?.text || specifier.name.text) !== 'EventEmitter') continue;
+        fields.set(member.name.text, {
+            declaration: member,
+            evidence: {status: sourceFile.parseDiagnostics?.length ? 'unavailable' : 'observed',
+                constructor: 'EventEmitter', module_source: binding.source,
+                binding_scope: 'single_file_lexical_class_field_direct_constructor',
+                runtime_owner_binding: 'not_established', runtime_execution: 'not_established',
+                calls: [], omitted: 0,
+                limitations: ['direct_constructor_and_lexical_arrow_body_only',
+                    'external_property_writes_unverified']},
+        });
+    }
+    if (!fields.size || sourceFile.parseDiagnostics?.length) return fields;
+    function fieldName(inner) {
+        const access = unwrap(inner);
+        return access && ts.isPropertyAccessExpression(access)
+            && access.expression.kind === ts.SyntaxKind.ThisKeyword ? access.name.text : null;
+    }
+    const mutated = new Set();
+    function findMutation(inner) {
+        if (ts.isBinaryExpression(inner)
+            && inner.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+            && inner.operatorToken.kind <= ts.SyntaxKind.LastAssignment) {
+            const name = fieldName(inner.left);
+            if (name) mutated.add(name);
+        } else if (ts.isDeleteExpression(inner) || ts.isPrefixUnaryExpression(inner)
+            || ts.isPostfixUnaryExpression(inner)) {
+            const name = fieldName(inner.expression || inner.operand);
+            if (name) mutated.add(name);
+        }
+        ts.forEachChild(inner, findMutation);
+    }
+    try {
+        for (const member of node.members) ts.forEachChild(member, findMutation);
+        for (const member of node.members) {
+            if (!member.name || !ts.isIdentifier(member.name)
+                || member.modifiers?.some(mod => mod.kind === ts.SyntaxKind.StaticKeyword)) continue;
+            const fn = ts.isMethodDeclaration(member) ? member
+                : ts.isPropertyDeclaration(member) ? unwrap(member.initializer) : null;
+            if (!fn || !ts.isFunctionLike(fn) || !fn.body) continue;
+            const memberStart = member.getStart(sourceFile);
+            const memberLine = sourceFile.getLineAndCharacterOfPosition(memberStart).line + 1;
+            const memberEndLine = sourceFile.getLineAndCharacterOfPosition(
+                Math.max(memberStart, member.end - 1)).line + 1;
+            function walk(inner, nestedDepth) {
+                if (ts.isArrowFunction(inner)) {
+                    if (nestedDepth >= 8) {
+                        fieldDepthLimit();
+                        return;
+                    }
+                    walk(inner.body, nestedDepth + 1);
+                    return;
+                }
+                if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner)
+                    || ts.isClassExpression(inner)) return;
+                if (ts.isCallExpression(inner) && !inner.questionDotToken) {
+                    const callee = unwrap(inner.expression);
+                    const receiver = callee && ts.isPropertyAccessExpression(callee)
+                        ? unwrap(callee.expression) : null;
+                    const name = fieldName(receiver);
+                    const field = name && fields.get(name);
+                    const first = inner.arguments[0];
+                    if (field && !mutated.has(name) && !callee.questionDotToken
+                        && !receiver.questionDotToken && eventMethods.has(callee.name.text)
+                        && first && (ts.isStringLiteral(first)
+                            || ts.isNoSubstitutionTemplateLiteral(first))) {
+                        const declarations = symbolAt(receiver.name)?.declarations || [];
+                        if (declarations.length !== 1 || declarations[0] !== field.declaration) {
+                            field.evidence.status = 'unavailable';
+                            field.evidence.calls = [];
+                            field.evidence.limitations.push('instance_field_binding_unavailable');
+                        } else if (field.evidence.status === 'observed') {
+                            const start = inner.getStart(sourceFile);
+                            const call = {owner_field: name, caller_member: member.name.text,
+                                member_line: memberLine, member_end_line: memberEndLine,
+                                method: callee.name.text, first_literal_argument: first.text,
+                                nested_callable_depth: nestedDepth,
+                                line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                                end_line: sourceFile.getLineAndCharacterOfPosition(
+                                    Math.max(start, inner.end - 1)).line + 1};
+                            if (field.evidence.calls.length < cap) field.evidence.calls.push(call);
+                            else field.evidence.omitted += 1;
+                        }
+                    }
+                }
+                ts.forEachChild(inner, child => walk(child, nestedDepth));
+            }
+            function fieldDepthLimit() {
+                for (const field of fields.values()) {
+                    field.evidence.limitations.push('nested_arrow_depth_exceeded');
+                    if (field.evidence.status === 'observed') {
+                        field.evidence.status = 'incomplete_scan';
+                    }
+                }
+            }
+            walk(fn.body, 0);
+        }
+        for (const [name, field] of fields) {
+            if (mutated.has(name)) {
+                field.evidence.status = 'unavailable';
+                field.evidence.calls = [];
+                field.evidence.omitted = 0;
+                field.evidence.limitations.push('class_field_reassignment_excluded');
+            } else if (field.evidence.omitted) field.evidence.status = 'incomplete_scan';
+        }
+    } catch (_err) {
+        for (const field of fields.values()) {
+            field.evidence.status = 'unavailable';
+            field.evidence.calls = [];
+            field.evidence.omitted = 0;
+            field.evidence.limitations.push('single_file_instance_field_binding_unavailable');
+        }
+    }
+    return fields;
+}
+
+function createSameFileStoreActionCallCollector(sourceFile, importBindings, symbolAt) {
+    const cache = new WeakMap();
+    function unwrap(node) {
+        while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+            || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
+            || ts.isNonNullExpression(node))) node = node.expression;
+        return node;
+    }
+    return function collectSameFileStoreActionCalls(node) {
+        const fn = unwrap(ts.isVariableDeclaration(node) ? node.initializer : node);
+        const result = {status: 'not_applicable', calls: [], limitations: [],
+            binding_scope: 'single_file_lexical_store_or_named_import', runtime_execution: 'not_established'};
+        if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        if (sourceFile.parseDiagnostics?.length) {
+            result.status = 'unavailable';
+            result.limitations = ['source_parse_diagnostics'];
+            return result;
+        }
+        const limitations = new Set(['body_only_no_parameter_initializers',
+            'direct_or_const_destructured_store_getstate_action_only']);
+        function recordCall(store, actionName, call, callForm) {
+            const declarations = symbolAt(store)?.declarations || [];
+            const declaration = declarations.length === 1 ? declarations[0] : null;
+            const statement = declaration && ts.isVariableDeclaration(declaration)
+                ? declaration.parent?.parent : null;
+            const start = call.getStart(sourceFile);
+            const end = Math.max(start, call.end - 1);
+            const site = {store: store.text, action: actionName, call_form: callForm,
+                line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1};
+            if (statement && ts.isVariableStatement(statement)
+                && statement.parent === sourceFile
+                && statement.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword)
+                && ts.isIdentifier(declaration.name) && declaration.name.text === store.text) {
+                result.calls.push({...site, binding_kind: 'same_file_export'});
+            } else if (declaration && ts.isImportSpecifier(declaration)) {
+                const clause = declaration.parent?.parent;
+                const binding = importBindings.get(store.text);
+                if (clause && ts.isImportClause(clause) && !clause.isTypeOnly
+                    && !declaration.isTypeOnly && ts.isImportDeclaration(clause.parent)
+                    && binding?.kind === 'named' && binding.localName === store.text
+                    && binding.importedName === (declaration.propertyName?.text || declaration.name.text)
+                    && declaration.name.text === store.text
+                    && binding.source === clause.parent.moduleSpecifier.text) {
+                    result.calls.push({...site, binding_kind: 'named_import',
+                        module_source: binding.source, imported_store: binding.importedName});
+                } else {
+                    limitations.add('type_only_or_mismatched_import_excluded');
+                }
+            } else {
+                limitations.add('non_exported_or_shadowed_store_excluded');
+            }
+        }
+        function walk(inner) {
+            if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
+                limitations.add('nested_callable_excluded');
+                return;
+            }
+            if (ts.isCallExpression(inner)) {
+                const action = unwrap(inner.expression);
+                const getStateCall = action && ts.isPropertyAccessExpression(action)
+                    ? unwrap(action.expression) : null;
+                const getState = getStateCall && ts.isCallExpression(getStateCall)
+                    ? unwrap(getStateCall.expression) : null;
+                const store = getState && ts.isPropertyAccessExpression(getState)
+                    ? unwrap(getState.expression) : null;
+                if (store && ts.isIdentifier(store) && getState.name.text === 'getState'
+                    && getStateCall.arguments.length === 0 && !inner.questionDotToken
+                    && !action.questionDotToken && !getStateCall.questionDotToken
+                    && !getState.questionDotToken) {
+                    recordCall(store, action.name.text, inner, 'direct_getstate_action');
+                } else if (ts.isIdentifier(action) && !inner.questionDotToken) {
+                    const declarations = symbolAt(action)?.declarations || [];
+                    const binding = declarations.length === 1 && ts.isBindingElement(declarations[0])
+                        ? declarations[0] : null;
+                    const pattern = binding?.parent;
+                    const variable = pattern && ts.isObjectBindingPattern(pattern) ? pattern.parent : null;
+                    const list = variable && ts.isVariableDeclaration(variable) ? variable.parent : null;
+                    const init = variable && ts.isVariableDeclaration(variable)
+                        ? unwrap(variable.initializer) : null;
+                    const stateAccess = init && ts.isCallExpression(init) ? unwrap(init.expression) : null;
+                    const root = stateAccess && ts.isPropertyAccessExpression(stateAccess)
+                        ? unwrap(stateAccess.expression) : null;
+                    if (binding && ts.isIdentifier(binding.name) && binding.name.text === action.text
+                        && !binding.propertyName && !binding.dotDotDotToken && !binding.initializer
+                        && list && ts.isVariableDeclarationList(list) && (list.flags & ts.NodeFlags.Const)
+                        && root && ts.isIdentifier(root) && stateAccess.name.text === 'getState'
+                        && init.arguments.length === 0 && !init.questionDotToken
+                        && !stateAccess.questionDotToken) {
+                        recordCall(root, action.text, inner, 'const_destructured_getstate_action');
+                    }
+                }
+            }
+            ts.forEachChild(inner, walk);
+        }
+        try {
+            walk(fn.body);
+            result.status = 'observed';
+        } catch (_err) {
+            result.status = 'unavailable';
+            result.calls = [];
+            limitations.add('single_file_binding_unavailable');
+        }
+        result.limitations = [...limitations].sort();
+        return result;
+    };
+}
+
+function createSameFileDirectCallCollector(sourceFile, symbolAt) {
+    const cache = new WeakMap();
+    const cap = 64;
+    function unwrap(node) {
+        while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+            || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
+            || ts.isNonNullExpression(node))) node = node.expression;
+        return node;
+    }
+    const directNames = new Set();
+    for (const statement of sourceFile.statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name && statement.body) {
+            directNames.add(statement.name.text);
+        } else if (ts.isVariableStatement(statement)) {
+            for (const declaration of statement.declarationList.declarations) {
+                if (ts.isIdentifier(declaration.name) && declaration.initializer
+                    && ts.isFunctionLike(unwrap(declaration.initializer))) {
+                    directNames.add(declaration.name.text);
+                }
+            }
+        }
+    }
+    return function collectSameFileDirectCalls(node) {
+        const fn = unwrap(ts.isVariableDeclaration(node) ? node.initializer : node);
+        const result = {status: 'not_applicable', calls: [], omitted: 0, limitations: [],
+            binding_scope: 'single_file_lexical_direct_callable', runtime_execution: 'not_established'};
+        if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        if (sourceFile.parseDiagnostics?.length) {
+            result.status = 'unavailable';
+            result.limitations = ['source_parse_diagnostics'];
+            return result;
+        }
+        const limitations = new Set(['body_only_no_parameter_initializers']);
+        function walk(inner) {
+            if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
+                limitations.add('nested_callable_excluded');
+                return;
+            }
+            if (ts.isCallExpression(inner) && !inner.questionDotToken) {
+                const callee = unwrap(inner.expression);
+                if (callee && ts.isIdentifier(callee) && directNames.has(callee.text)) {
+                    const declarations = symbolAt(callee)?.declarations || [];
+                    const declaration = declarations.length === 1 ? declarations[0] : null;
+                    const directFunction = declaration && ts.isFunctionDeclaration(declaration)
+                        && declaration.parent === sourceFile && declaration.name?.text === callee.text
+                        && !declaration.modifiers?.some(mod => mod.kind === ts.SyntaxKind.DeclareKeyword);
+                    const statement = declaration && ts.isVariableDeclaration(declaration)
+                        ? declaration.parent?.parent : null;
+                    const directVariable = statement && ts.isVariableStatement(statement)
+                        && statement.parent === sourceFile && ts.isIdentifier(declaration.name)
+                        && declaration.name.text === callee.text
+                        && !!declaration.initializer
+                        && ts.isFunctionLike(unwrap(declaration.initializer))
+                        && !statement.modifiers?.some(mod => mod.kind === ts.SyntaxKind.DeclareKeyword);
+                    if (directFunction || directVariable) {
+                        const start = inner.getStart(sourceFile);
+                        const call = {target_symbol: callee.text,
+                            target_start: declaration.getStart(sourceFile),
+                            line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                            end_line: sourceFile.getLineAndCharacterOfPosition(Math.max(start, inner.end - 1)).line + 1};
+                        if (result.calls.length < cap) result.calls.push(call);
+                        else result.omitted += 1;
+                    } else {
+                        limitations.add('non_direct_or_shadowed_callee_excluded');
+                    }
+                }
+            }
+            ts.forEachChild(inner, walk);
+        }
+        try {
+            walk(fn.body);
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            result.status = 'unavailable';
+            result.calls = [];
+            result.omitted = 0;
+            limitations.add('single_file_binding_unavailable');
+        }
+        result.limitations = [...limitations].sort();
+        return result;
+    };
+}
+
+function createStoreHookSelectorCollector(sourceFile, importBindings, symbolAt) {
+    const cache = new WeakMap();
+    function unwrap(node) {
+        while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+            || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
+            || ts.isNonNullExpression(node))) node = node.expression;
+        return node;
+    }
+    return function collectStoreHookSelectors(node) {
+        const fn = unwrap(ts.isVariableDeclaration(node) ? node.initializer : node);
+        const result = {status: 'not_applicable', calls: [], limitations: [],
+            binding_scope: 'single_file_lexical_store_or_named_import',
+            runtime_execution: 'not_established', subscription: 'not_established'};
+        if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        if (sourceFile.parseDiagnostics?.length) {
+            result.status = 'unavailable';
+            result.limitations = ['source_parse_diagnostics'];
+            return result;
+        }
+        const limitations = new Set(['body_only_no_parameter_initializers',
+            'direct_arrow_property_selector_only',
+            'selected_result_direct_const_call_syntax_only',
+            'direct_hook_return_only_no_indirect_or_conditional_return']);
+        const selectedBindings = new Map();
+        function directReturnForm(call) {
+            if (fn.asteriskToken || fn.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword))
+                return null;
+            let outer = call;
+            while (outer.parent && (ts.isParenthesizedExpression(outer.parent)
+                || ts.isAsExpression(outer.parent) || ts.isTypeAssertionExpression(outer.parent)
+                || ts.isSatisfiesExpression(outer.parent) || ts.isNonNullExpression(outer.parent))
+                && outer.parent.expression === outer) outer = outer.parent;
+            if (ts.isReturnStatement(outer.parent) && outer.parent.expression === outer
+                && outer.parent.parent === fn.body)
+                return 'return_statement';
+            if (ts.isArrowFunction(fn) && fn.body === outer)
+                return 'arrow_expression';
+            return null;
+        }
+        function recordSelector(inner, site, binding) {
+            const call = {...site, ...binding};
+            const returnForm = directReturnForm(inner);
+            if (returnForm) call.direct_return_form = returnForm;
+            result.calls.push(call);
+            const declaration = inner.parent;
+            if (!ts.isVariableDeclaration(declaration) || declaration.initializer !== inner
+                || !ts.isIdentifier(declaration.name)
+                || !(declaration.parent?.flags & ts.NodeFlags.Const)) return;
+            const symbol = symbolAt(declaration.name);
+            if (symbol?.declarations?.length === 1 && symbol.declarations[0] === declaration) {
+                selectedBindings.set(symbol, {call, declaration});
+            }
+        }
+        function walk(inner) {
+            if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
+                limitations.add('nested_callable_excluded');
+                return;
+            }
+            if (ts.isCallExpression(inner)) {
+                const store = unwrap(inner.expression);
+                const selector = inner.arguments.length === 1 ? unwrap(inner.arguments[0]) : null;
+                const body = selector && ts.isArrowFunction(selector) ? unwrap(selector.body) : null;
+                const parameter = selector && ts.isArrowFunction(selector) && selector.parameters.length === 1
+                    ? selector.parameters[0] : null;
+                const selectorShape = store && ts.isIdentifier(store) && !inner.questionDotToken
+                    && parameter && ts.isIdentifier(parameter.name) && !parameter.dotDotDotToken
+                    && !parameter.initializer && body && ts.isPropertyAccessExpression(body)
+                    && !body.questionDotToken && ts.isIdentifier(body.expression);
+                const selectorSymbol = selectorShape ? symbolAt(parameter.name) : null;
+                if (selectorSymbol && symbolAt(body.expression) === selectorSymbol) {
+                    const declarations = symbolAt(store)?.declarations || [];
+                    const declaration = declarations.length === 1 ? declarations[0] : null;
+                    const statement = declaration && ts.isVariableDeclaration(declaration)
+                        ? declaration.parent?.parent : null;
+                    const start = inner.getStart(sourceFile);
+                    const end = Math.max(start, inner.end - 1);
+                    const site = {store: store.text, selected_member: body.name.text,
+                        selector_form: 'direct_arrow_property',
+                        line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                        end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1};
+                    if (statement && ts.isVariableStatement(statement)
+                        && statement.parent === sourceFile
+                        && statement.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword)
+                        && ts.isIdentifier(declaration.name) && declaration.name.text === store.text) {
+                        recordSelector(inner, site, {binding_kind: 'same_file_export'});
+                        return;
+                    }
+                    const clause = declaration && ts.isImportSpecifier(declaration)
+                        ? declaration.parent?.parent : null;
+                    const binding = importBindings.get(store.text);
+                    if (clause && ts.isImportClause(clause) && !clause.isTypeOnly
+                        && !declaration.isTypeOnly && ts.isImportDeclaration(clause.parent)
+                        && binding?.kind === 'named' && binding.localName === store.text
+                        && binding.importedName === (declaration.propertyName?.text || declaration.name.text)
+                        && binding.source === clause.parent.moduleSpecifier.text) {
+                        recordSelector(inner, site, {binding_kind: 'named_import',
+                            module_source: binding.source, imported_store: binding.importedName});
+                        return;
+                    }
+                    limitations.add('non_exported_shadowed_or_type_only_store_excluded');
+                }
+            }
+            ts.forEachChild(inner, walk);
+        }
+        function walkResultCalls(inner) {
+            if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) return;
+            if (ts.isCallExpression(inner) && !inner.questionDotToken
+                && ts.isIdentifier(inner.expression)) {
+                const selected = selectedBindings.get(symbolAt(inner.expression));
+                if (selected && inner.getStart(sourceFile) > selected.declaration.end) {
+                    const calls = selected.call.selected_result_direct_calls ||= [];
+                    if (calls.length < 8) {
+                        const start = inner.getStart(sourceFile);
+                        const end = Math.max(start, inner.end - 1);
+                        calls.push({line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                            end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1});
+                    } else {
+                        selected.call.selected_result_direct_calls_omitted =
+                            (selected.call.selected_result_direct_calls_omitted || 0) + 1;
+                    }
+                }
+            }
+            ts.forEachChild(inner, walkResultCalls);
+        }
+        try {
+            walk(fn.body);
+            if (selectedBindings.size) walkResultCalls(fn.body);
+            result.status = 'observed';
+        } catch (_err) {
+            result.status = 'unavailable';
+            result.calls = [];
+            limitations.add('single_file_binding_unavailable');
+        }
+        result.limitations = [...limitations].sort();
+        return result;
+    };
+}
+
+function getMemberDetails(node, sourceFile, importBindings, collectImportCalls, symbolAt) {
     if (!node.members) return [];
     const details = [];
+    const eventFields = classDirectEventEmitterFieldEvidence(
+        node, sourceFile, importBindings, symbolAt);
     for (const member of node.members) {
         if (!member.name || typeof member.name.getText !== 'function') continue;
         const name = member.name.getText(sourceFile);
@@ -290,6 +1200,8 @@ function getMemberDetails(node, sourceFile, importBindings) {
         details.push({
             name,
             kind: getMemberKind(member),
+            line: sourceFile.getLineAndCharacterOfPosition(member.getStart(sourceFile)).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(Math.max(member.getStart(sourceFile), member.end - 1)).line + 1,
             signature: extractSignature(member, sourceFile),
             optional: !!member.questionToken,
             readonly: !!member.modifiers?.some(m => m.kind === ts.SyntaxKind.ReadonlyKeyword),
@@ -302,9 +1214,315 @@ function getMemberDetails(node, sourceFile, importBindings) {
             sideEffectMarkers: usage.sideEffectMarkers,
             sideEffectImports: usage.sideEffectImports,
             sideEffectCalls: usage.sideEffectCalls,
+            import_call_evidence: collectImportCalls(member),
+            ...(eventFields.has(name)
+                ? {class_event_emitter_field_evidence: eventFields.get(name).evidence} : {}),
         });
     }
     return details;
+}
+
+function collectInitializerMemberEvidence(initializer, sourceFile, importBindings, collectImportCalls, symbolAt) {
+    // Syntax candidates are not class members or proven properties of a call result.
+    // Keep them separate so Genome/quality consumers cannot inherit that authority.
+    const members = [];
+    const limitations = new Set();
+    function unwrap(node) {
+        while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+            || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node))) {
+            node = node.expression;
+        }
+        return node;
+    }
+    function isNamedImportCall(call, source, importedName) {
+        if (!ts.isCallExpression(call) || call.questionDotToken) return false;
+        const callee = unwrap(call.expression);
+        if (!callee || !ts.isIdentifier(callee)) return false;
+        const binding = importBindings.get(callee.text);
+        if (!binding || binding.kind !== 'named'
+            || binding.source !== source || binding.importedName !== importedName) return false;
+        const declarations = symbolAt(callee)?.declarations || [];
+        const declaration = declarations.length === 1 ? declarations[0] : null;
+        const clause = declaration && ts.isImportSpecifier(declaration) ? declaration.parent.parent : null;
+        return !!(clause && ts.isImportClause(clause) && !clause.isTypeOnly && !declaration.isTypeOnly
+            && ts.isImportDeclaration(clause.parent)
+            && clause.parent.moduleSpecifier.text === binding.source
+            && declaration.name.text === binding.localName);
+    }
+    function directZustandSetter(call) {
+        if (sourceFile.parseDiagnostics?.length || call.arguments.length !== 1) return null;
+        const inner = unwrap(call.expression);
+        const curried = inner && ts.isCallExpression(inner);
+        const factory = curried ? inner : call;
+        if (curried && factory.arguments.length !== 0) return null;
+        const reactBoundHook = isNamedImportCall(factory, 'zustand', 'create');
+        if (!reactBoundHook && !isNamedImportCall(factory, 'zustand/vanilla', 'createStore')) return null;
+        let callback = unwrap(call.arguments[0]);
+        let middlewareForm = 'none';
+        let persistOptions = null;
+        if (callback && ts.isCallExpression(callback)) {
+            if (callback.arguments.length !== 2
+                || !isNamedImportCall(callback, 'zustand/middleware', 'persist')) return null;
+            middlewareForm = 'persist';
+            persistOptions = callback.arguments[1];
+            callback = unwrap(callback.arguments[0]);
+        }
+        if (!callback || !ts.isFunctionLike(callback) || !callback.body
+            || !callback.parameters?.[0] || !ts.isIdentifier(callback.parameters[0].name)) return null;
+        const parameter = callback.parameters[0].name;
+        const symbol = symbolAt(parameter);
+        let storageOptionEvidence = null;
+        let hydrationOptionEvidence = null;
+        if (symbol && persistOptions) {
+            storageOptionEvidence = collectPersistStorageOptionImport(persistOptions);
+            hydrationOptionEvidence = collectPersistHydrationOption(persistOptions);
+        }
+        return symbol ? {callback, parameter: parameter.text, symbol,
+            factory_form: curried ? 'curried' : 'direct', middleware_form: middlewareForm,
+            factory_api: reactBoundHook ? 'react_bound_hook' : 'vanilla_store',
+            ...(storageOptionEvidence
+                ? {persist_storage_option_import_evidence: storageOptionEvidence} : {}),
+            ...(hydrationOptionEvidence
+                ? {persist_hydration_option_evidence: hydrationOptionEvidence} : {})} : null;
+    }
+    function collectPersistStorageOptionImport(rawOptions) {
+        const unavailable = reason => ({status: 'unavailable', reason,
+            runtime_execution: 'not_established'});
+        const options = unwrap(rawOptions);
+        if (!options || !ts.isObjectLiteralExpression(options)) return unavailable('options_not_object_literal');
+        if (options.properties.some(property => ts.isSpreadAssignment(property)
+            || (property.name && ts.isComputedPropertyName(property.name)))) {
+            return unavailable('spread_or_computed_option_not_resolved');
+        }
+        const storage = options.properties.filter(property => property.name
+            && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+            && property.name.text === 'storage');
+        if (storage.length !== 1) return unavailable(storage.length ? 'duplicate_storage_option' : 'storage_option_absent');
+        const property = storage[0];
+        if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
+            return unavailable('storage_option_not_identifier');
+        }
+        const value = ts.isPropertyAssignment(property) ? unwrap(property.initializer) : property.name;
+        if (!value || !ts.isIdentifier(value)) return unavailable('storage_option_not_identifier');
+        const binding = importBindings.get(value.text);
+        if (!binding || binding.kind !== 'named') return unavailable('storage_identifier_not_named_import');
+        const declarations = symbolAt(value)?.declarations || [];
+        const declaration = declarations.length === 1 ? declarations[0] : null;
+        const clause = declaration && ts.isImportSpecifier(declaration) ? declaration.parent.parent : null;
+        if (!(clause && ts.isImportClause(clause) && !clause.isTypeOnly && !declaration.isTypeOnly
+            && ts.isImportDeclaration(clause.parent)
+            && clause.parent.moduleSpecifier.text === binding.source
+            && declaration.name.text === binding.localName)) {
+            return unavailable('storage_import_binding_unverified');
+        }
+        const start = property.getStart(sourceFile);
+        const end = Math.max(start, property.end - 1);
+        return {status: 'observed', relation: 'persist_storage_option_named_import_syntax',
+            reference: {source: binding.source, localName: binding.localName,
+                importedName: binding.importedName, kind: binding.kind},
+            line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1,
+            runtime_execution: 'not_established'};
+    }
+    function collectPersistHydrationOption(rawOptions) {
+        const unavailable = reason => ({status: 'unavailable', reason,
+            runtime_execution: 'not_established'});
+        const options = unwrap(rawOptions);
+        if (!options || !ts.isObjectLiteralExpression(options)) return unavailable('options_not_object_literal');
+        if (options.properties.some(property => ts.isSpreadAssignment(property)
+            || (property.name && ts.isComputedPropertyName(property.name)))) {
+            return unavailable('spread_or_computed_option_not_resolved');
+        }
+        const hydration = options.properties.filter(property => property.name
+            && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+            && property.name.text === 'skipHydration');
+        if (hydration.length !== 1) {
+            return unavailable(hydration.length ? 'duplicate_skip_hydration_option' : 'skip_hydration_option_absent');
+        }
+        const property = hydration[0];
+        if (!ts.isPropertyAssignment(property)) return unavailable('skip_hydration_value_not_literal');
+        const value = unwrap(property.initializer);
+        if (!value || (value.kind !== ts.SyntaxKind.TrueKeyword
+            && value.kind !== ts.SyntaxKind.FalseKeyword)) {
+            return unavailable('skip_hydration_value_not_literal');
+        }
+        const start = property.getStart(sourceFile);
+        const end = Math.max(start, property.end - 1);
+        return {status: 'observed', relation: 'persist_skip_hydration_literal_syntax',
+            skip_hydration: value.kind === ts.SyntaxKind.TrueKeyword,
+            line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1,
+            runtime_execution: 'not_established'};
+    }
+    function collectSetterCalls(property, setter) {
+        const result = {status: 'not_applicable', calls: [], limitations: [],
+            factory_form: setter.factory_form, middleware_form: setter.middleware_form,
+            factory_api: setter.factory_api,
+            binding_scope: 'single_file_lexical_store_factory_parameter', runtime_execution: 'not_established'};
+        const fn = ts.isMethodDeclaration(property) ? property
+            : ts.isPropertyAssignment(property) ? unwrap(property.initializer) : null;
+        if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
+        if (sourceFile.parseDiagnostics?.length) {
+            result.status = 'unavailable';
+            result.limitations = ['source_parse_diagnostics'];
+            return result;
+        }
+        const limitations = new Set(['body_only_no_parameter_initializers']);
+        function literalKeyEvidence(call) {
+            const unavailable = reason => ({status: 'unavailable', keys: [], reason});
+            if (!call.arguments.length || ts.isSpreadElement(call.arguments[0])) {
+                return unavailable('missing_or_spread_argument');
+            }
+            const argument = unwrap(call.arguments[0]);
+            if (argument && ts.isFunctionLike(argument)) return unavailable('updater_callback_not_resolved');
+            if (!argument || !ts.isObjectLiteralExpression(argument)) {
+                return unavailable('argument_not_object_literal');
+            }
+            const keys = [];
+            for (const member of argument.properties) {
+                if (ts.isSpreadAssignment(member) || member.name && ts.isComputedPropertyName(member.name)) {
+                    return unavailable('spread_or_computed_key_not_resolved');
+                }
+                if (!ts.isPropertyAssignment(member) || !member.name
+                    || !(ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) {
+                    return unavailable('unsupported_object_member_not_resolved');
+                }
+                if (member.name.text === '__proto__') return unavailable('special_object_key_not_resolved');
+                const start = member.name.getStart(sourceFile);
+                const end = Math.max(start, member.name.end - 1);
+                keys.push({name: member.name.text,
+                    line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                    end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1});
+            }
+            return {status: 'observed', keys};
+        }
+        function walk(node) {
+            if (ts.isFunctionLike(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+                limitations.add('nested_callable_excluded');
+                return;
+            }
+            if (ts.isCallExpression(node)) {
+                const callee = unwrap(node.expression);
+                if (callee && ts.isIdentifier(callee) && callee.text === setter.parameter) {
+                    if (symbolAt(callee) === setter.symbol) {
+                        const start = node.getStart(sourceFile);
+                        const end = Math.max(start, node.end - 1);
+                        result.calls.push({parameter: setter.parameter,
+                            line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                            end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1,
+                            optional: !!node.questionDotToken,
+                            literal_key_evidence: literalKeyEvidence(node)});
+                    } else {
+                        limitations.add('shadowed_setter_call_excluded');
+                    }
+                } else if (callee && ts.isPropertyAccessExpression(callee)
+                    && ts.isIdentifier(callee.expression) && callee.expression.text === setter.parameter) {
+                    limitations.add('indirect_setter_call_unresolved');
+                }
+            }
+            ts.forEachChild(node, walk);
+        }
+        try {
+            walk(fn.body);
+            result.status = 'observed';
+        } catch (_err) {
+            result.status = 'unavailable';
+            result.calls = [];
+            limitations.add('single_file_binding_unavailable');
+        }
+        result.limitations = [...limitations].sort();
+        return result;
+    }
+    function collectObject(node, attribution, setter = null) {
+        for (const property of node.properties) {
+            const nameNode = property.name;
+            if (!nameNode || !(ts.isIdentifier(nameNode) || ts.isStringLiteral(nameNode))) {
+                limitations.add('spread_or_computed_member_not_resolved');
+                continue;
+            }
+            const name = nameNode.text;
+            const start = property.getStart(sourceFile);
+            const line = sourceFile.getLineAndCharacterOfPosition(start).line + 1;
+            const endLine = sourceFile.getLineAndCharacterOfPosition(Math.max(start, property.end - 1)).line + 1;
+            const usage = collectNodeDependencies(property, sourceFile, importBindings, name);
+            members.push({
+                name, kind: getMemberKind(property), attribution,
+                line, end_line: endLine, source_lines: `L${line}-L${endLine}`,
+                dependencies: usage.dependencies, dependencyImports: usage.dependencyImports,
+                import_call_evidence: collectImportCalls(property),
+                ...(setter ? {zustand_setter_call_evidence: collectSetterCalls(property, setter)} : {}),
+                ...(setter?.persist_storage_option_import_evidence
+                    ? {persist_storage_option_import_evidence: setter.persist_storage_option_import_evidence} : {}),
+                ...(setter?.persist_hydration_option_evidence
+                    ? {persist_hydration_option_evidence: setter.persist_hydration_option_evidence} : {}),
+            });
+        }
+    }
+    function collectReturns(fn, setter = null) {
+        const body = unwrap(fn.body);
+        if (!body) return;
+        if (ts.isObjectLiteralExpression(body)) {
+            collectObject(body, 'returned_object_candidate', setter);
+            return;
+        }
+        if (!ts.isBlock(body)) {
+            limitations.add('return_value_not_object_literal');
+            return;
+        }
+        function visitReturn(node) {
+            if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)
+                || ts.isArrowFunction(node) || ts.isMethodDeclaration(node)
+                || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)
+                || ts.isClassDeclaration(node) || ts.isClassExpression(node)) return;
+            if (ts.isReturnStatement(node)) {
+                const value = unwrap(node.expression);
+                if (value && ts.isObjectLiteralExpression(value)) collectObject(value, 'returned_object_candidate', setter);
+                else limitations.add('return_value_not_object_literal');
+                return;
+            }
+            ts.forEachChild(node, visitReturn);
+        }
+        ts.forEachChild(body, visitReturn);
+    }
+    function visitInitializer(raw, direct = false) {
+        const node = unwrap(raw);
+        if (!node) return;
+        if (direct && ts.isObjectLiteralExpression(node)) {
+            collectObject(node, 'direct_object_initializer');
+        } else if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+            limitations.add('return_to_owner_identity_unverified');
+            collectReturns(node);
+        } else if (ts.isCallExpression(node)) {
+            limitations.add('call_result_identity_unverified');
+            let setter = null;
+            try {
+                setter = directZustandSetter(node);
+            } catch (_err) {
+                limitations.add('single_file_binding_unavailable');
+            }
+            if (setter) {
+                collectReturns(setter.callback, setter);
+                return;
+            }
+            // Follow only call wrappers and callback arguments, never option objects,
+            // nested action bodies, arbitrary identifiers or executed code.
+            const callee = unwrap(node.expression);
+            if (callee && ts.isCallExpression(callee)) visitInitializer(callee);
+            for (const argument of node.arguments) {
+                const value = unwrap(argument);
+                if (value && (ts.isCallExpression(value) || ts.isArrowFunction(value) || ts.isFunctionExpression(value))) {
+                    visitInitializer(value);
+                } else {
+                    limitations.add('non_callback_argument_not_resolved');
+                }
+            }
+        } else {
+            limitations.add('initializer_shape_not_resolved');
+        }
+    }
+    visitInitializer(initializer, true);
+    return {status: 'syntax_observed', members, limitations: [...limitations].sort(),
+        runtime_owner_binding: 'not_established', lexical_binding: 'unverified'};
 }
 
 function collectImportBindings(sourceFile) {
@@ -2076,8 +3294,16 @@ function analyzeFile(targetFile) {
     const parseDiagnostics = Array.isArray(sourceFile.parseDiagnostics) ? sourceFile.parseDiagnostics : [];
     const parserStatus = parseDiagnostics.length ? 'degraded' : 'observed';
     const importBindings = collectImportBindings(sourceFile);
+    const symbolAt = createFileSymbolResolver(sourceFile);
+    const collectImportCalls = createImportCallCollector(sourceFile, importBindings, symbolAt);
+    const collectSameFileStoreActionCalls = createSameFileStoreActionCallCollector(sourceFile, importBindings, symbolAt);
+    const collectSameFileDirectCalls = createSameFileDirectCallCollector(sourceFile, symbolAt);
+    const collectStoreHookSelectors = createStoreHookSelectorCollector(sourceFile, importBindings, symbolAt);
     const symbols = [];
     const fileFeatures = new Set();
+    if (parserStatus === 'observed') {
+        fileFeatures.add('ParserEvidence:ImportedPropertyEventCallsV1');
+    }
     let gemScoreTotal = 0;
 
     // 1. Semantic Scoring (Fast Scan)
@@ -2137,12 +3363,19 @@ function analyzeFile(targetFile) {
                             : 'Arrow';
                 }
                 if (isExported || type === 'Hook' || type === 'Component') {
+                    const emitterEvidence = type === 'Variable'
+                        ? eventEmitterSingletonEvidence(decl, sourceFile, importBindings, symbolAt) : null;
+                    const factoryEvidence = type === 'Variable' && isExported
+                        ? factorySourceEvidence(decl, sourceFile, importBindings, symbolAt) : null;
                     addSymbolEntry(varName, type, decl, node, {
                         spanStartNode: decl,
                         spanEndNode,
                         exported: isExported,
                         exportKind: isDefault ? 'default' : 'named',
                         modifiers: getModifierNames(node),
+                        initializerMemberEvidence: collectInitializerMemberEvidence(decl.initializer, sourceFile, importBindings, collectImportCalls, symbolAt),
+                        ...(emitterEvidence ? {event_emitter_singleton_evidence: emitterEvidence} : {}),
+                        ...(factoryEvidence ? {factory_source_evidence: factoryEvidence} : {}),
                     });
                 }
             });
@@ -2155,7 +3388,9 @@ function analyzeFile(targetFile) {
                 extends: getHeritageTypes(node, ts.SyntaxKind.ExtendsKeyword, sourceFile),
                 implements: getHeritageTypes(node, ts.SyntaxKind.ImplementsKeyword, sourceFile),
                 members: getMemberNames(node, sourceFile),
-                memberDetails: getMemberDetails(node, sourceFile, importBindings),
+                memberDetails: getMemberDetails(node, sourceFile, importBindings, collectImportCalls, symbolAt),
+                class_instance_event_call_evidence: classInstanceEventCallEvidence(
+                    node, sourceFile, importBindings, symbolAt),
             });
         } else if (ts.isFunctionDeclaration(node) && node.name) {
             const modifiers = getModifierNames(node);
@@ -2184,7 +3419,7 @@ function analyzeFile(targetFile) {
                     modifiers,
                     extends: getHeritageTypes(node, ts.SyntaxKind.ExtendsKeyword, sourceFile),
                     members: getMemberNames(node, sourceFile),
-                    memberDetails: getMemberDetails(node, sourceFile, importBindings),
+                    memberDetails: getMemberDetails(node, sourceFile, importBindings, collectImportCalls, symbolAt),
                 });
             }
         } else if (ts.isTypeAliasDeclaration(node)) {
@@ -2299,6 +3534,11 @@ function analyzeFile(targetFile) {
             architecturalMarkers: [],
             runtimeContract: false,
             contractKind: '',
+            import_call_evidence: collectImportCalls(node),
+            ...((type === 'Function' || type === 'Arrow' || type === 'Hook' || type === 'Component')
+                ? {same_file_store_action_call_evidence: collectSameFileStoreActionCalls(node),
+                    same_file_direct_call_evidence: collectSameFileDirectCalls(node),
+                    store_hook_selector_evidence: collectStoreHookSelectors(node)} : {}),
             ...symbolExtra,
         };
 

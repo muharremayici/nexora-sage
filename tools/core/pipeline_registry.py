@@ -159,15 +159,15 @@ ARTIFACT_OWNERSHIP: dict[str, dict[str, list[str]]] = {
     },
     "React Compiler Readiness": {"reads": ["react_runtime_intelligence", "react_ecosystem_analysis"], "writes": ["react_compiler_readiness"]},
     "React Frontier Intelligence": {
-        "reads": ["atlas", "source_snapshot_store", "ts_diagnostics"],
-        "writes": ["react_frontier_intelligence", "react_frontier_evidence_readiness"],
+        "reads": ["atlas", "atlas_commit", "source_snapshot_store", "ts_diagnostics"],
+        "writes": ["react_frontier_intelligence", "react_frontier_evidence_readiness", "ts_diagnostics_analysis_snapshot_lineage"],
     },
     "Merge Dependency Packager": {
         "reads": ["atlas", "atlas_commit", "ui_runtime_contracts", "ui_runtime_contracts_analysis_snapshot_lineage"],
         "writes": ["merge_dependency_packages", "merge_dependency_packages_analysis_snapshot_lineage"],
     },
     "Merge Simulation Engine": {
-        "reads": ["atlas", "atlas_commit", "merge_dependency_packages", "merge_dependency_packages_analysis_snapshot_lineage", "ui_smoke_execution", "ui_smoke_execution_analysis_snapshot_lineage", "ts_diagnostics"],
+        "reads": ["atlas", "atlas_commit", "merge_dependency_packages", "merge_dependency_packages_analysis_snapshot_lineage", "ui_smoke_execution", "ui_smoke_execution_analysis_snapshot_lineage", "ts_diagnostics", "ts_diagnostics_analysis_snapshot_lineage"],
         "writes": ["merge_simulation", "merge_simulation_analysis_snapshot_lineage"],
     },
     "Merge Decision Cockpit": {

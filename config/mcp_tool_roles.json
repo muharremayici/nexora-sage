@@ -196,7 +196,7 @@
     "get_state_flow": {
       "role": "supporting_context",
       "audience": "target_repo_agent",
-      "default_use": "read bounded state-flow summary",
+      "default_use": "read bounded state-flow summary or exact file/symbol orientation",
       "mutates": false,
       "heavy": false
     },

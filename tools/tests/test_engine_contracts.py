@@ -8549,8 +8549,9 @@ class ReactFrontierIntelligenceTests(unittest.TestCase):
 
     def test_typescript_runtime_output_is_ingested_into_managed_truth(self):
         result = type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-        payload = {"meta": {"kind": "ts_diagnostics"}, "summary": {"total_diagnostics": 0}}
+        payload = {"meta": {"kind": "ts_diagnostics", "collector_run_id": "fixture-run"}, "summary": {"total_diagnostics": 0}}
         with (
+            patch.object(react_frontier_engine, "uuid4", return_value="fixture-run"),
             patch.object(react_frontier_engine, "TS_COLLECTOR", Path(__file__)),
             patch.object(react_frontier_engine, "run_observed_subprocess", return_value=(result, 0.1)),
             patch.object(react_frontier_engine, "load_json_file", return_value=payload) as load_payload,

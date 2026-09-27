@@ -122,6 +122,7 @@
     "tools/engines/react_ecosystem_analyzer.py": "React ecosystem surgical contract engine with calibrated render/lifecycle/UI-state analyzers",
     "tools/engines/react_frontier_intelligence.py": "React frontier evidence engine with bundle/profiler/type diagnostics correlation and policy-backed artifact discovery",
     "tools/engines/react_runtime_intelligence.py": "react runtime intelligence engine with telemetry/smoke correlation details",
+    "tools/engines/state_flow_scanner.py": "cohesive file-level State Flow producer owning bounded parser-bound hook-call attribution, same-project provider identity and source-bound incremental cache semantics; guarded by real parser, unused-import, legacy-cache, deletion-parity and independent integrity controls; split only when evidence ownership can remain single-source",
     "tools/engines/validation_oracle.py": "classification oracle table and heuristics",
     "tools/external_target_preflight.py": "bounded external-target scope, topology, language and declared-policy preflight coordinator; detailed policy parsing remains in shared core helpers",
     "tools/generate_agent_surface_quality_review.py": "central source-grounded agent-facing surface review harness with token budget checks",
@@ -130,6 +131,8 @@
     "tools/core/pipeline_registry.py": "canonical pipeline DAG, execution-profile and claim-owned proof-plan projection surface; guarded by pipeline execution validation and focused dependency-closure regressions",
     "tools/core/release_evidence_cadence.py": "central release-evidence cadence selector with fail-closed trigger, baseline and lifecycle-phase semantics; guarded by dedicated cadence contract tests and validator",
     "tools/core/release_proof_resume.py": "cohesive exact-interruption and completed-semantic receipt identity boundary; guarded by focused resume, dependency-closure and tamper regressions and split only when identity authority can remain single-owner",
+    "tools/core/state_flow.py": "one-owner bounded State Flow focus projection with shared scan and omission budgets; guarded by real parser-to-Atlas-to-MCP positive, negative, ambiguity and freshness controls; the compact importer prefilter is separately produced from final Atlas files, while this query retains target identity and budget authority",
+    "tools/core/typescript_source_binding.py": "single-owner TypeScript syntax and semantic input correspondence, source-snapshot lineage and fail-closed compiler-context boundary; guarded by real Node collector, Atlas hash, BOM, budget and downstream Merge tests; split only when independent evidence ownership is established",
     "tools/inspect_target.py": "target inspection and agent-facing source-grounding projection surface; guarded by agent-surface/context validators",
     "tools/mcp/server.py": "MCP tool registration and composition root with guarded ContextOS and HITL endpoints; public decorators, signatures and tool discovery remain composition-owned",
     "tools/mcp/capability_tools.py": "bounded capability, pipeline-contract and provenance handler slice behind the MCP composition root",
@@ -148,6 +151,7 @@
     "tools/tests/test_engine_contracts.py": "large regression suite by design",
     "tools/tests/test_init_execution_contract.py": "cohesive init, installation-proof and immutable Preflight receipt lifecycle regression suite; split only when an execution-contract owner boundary can preserve the shared setup and reuse semantics",
     "tools/tests/test_pipeline_registry.py": "central pipeline registry, release DAG, freshness and execution-policy regression suite; split only with preserved cross-contract ownership evidence",
+    "tools/tests/test_typescript_source_binding.py": "cohesive real Node TypeScript collector, source identity, producer-lineage and Merge fail-closed regression suite; split only when a separate semantic evidence owner can retain the cross-consumer proof",
     "tools/tests/test_release_proof_dispatch_cadence.py": "cohesive dispatch, append-only history, source-stability and external-blocker propagation regression suite; split only along an independently owned contract boundary",
     "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist"
   }

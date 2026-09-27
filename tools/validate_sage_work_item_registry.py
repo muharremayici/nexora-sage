@@ -175,6 +175,55 @@ def delivery_release_issues(
     return issues
 
 
+def publication_reconciliation_issues(
+    work_items: list[dict[str, Any]],
+    reconciliations: Any,
+    *,
+    roadmap_releases: set[str],
+) -> list[dict[str, str]]:
+    """Check reviewed delivery receipts, not live GitHub state or release authority."""
+    if not isinstance(reconciliations, list):
+        return [{"issue": "publication_reconciliations_must_be_a_list"}]
+    items = {str(row.get("id") or ""): row for row in work_items}
+    issues: list[dict[str, str]] = []
+    seen_releases: set[str] = set()
+    seen_items: set[str] = set()
+    for receipt in reconciliations:
+        if not isinstance(receipt, dict):
+            issues.append({"issue": "invalid_publication_reconciliation"})
+            continue
+        release = str(receipt.get("release") or "")
+        ids = receipt.get("reconciled_work_item_ids")
+        if (
+            release not in roadmap_releases
+            or release in seen_releases
+            or receipt.get("status") != "published"
+            or not isinstance(ids, list)
+            or not ids
+            or any(not isinstance(item_id, str) or not item_id for item_id in ids)
+            or any(
+                not isinstance(receipt.get(field), str) or not receipt[field].strip()
+                for field in (
+                    "canonical_source_commit", "clean_delivery_commit", "public_commit",
+                    "source_registry_git_blob", "published_at", "release_url", "evidence",
+                )
+            )
+        ):
+            issues.append({"release": release, "issue": "invalid_publication_reconciliation"})
+            continue
+        seen_releases.add(release)
+        for item_id in ids:
+            row = items.get(item_id)
+            if item_id in seen_items:
+                issues.append({"id": item_id, "issue": "duplicate_first_delivery"})
+            seen_items.add(item_id)
+            if row is None:
+                issues.append({"id": item_id, "issue": "publication_references_unknown_work"})
+            elif row.get("status") != "closed" or row.get("delivered_release") != release:
+                issues.append({"id": item_id, "issue": "published_work_not_reconciled"})
+    return issues
+
+
 def run_validation() -> dict[str, Any]:
     registry = load_json_object_strict(REGISTRY_PATH, label="SAGE work item registry")
     wave_registry = load_json_object_strict(WAVE_REGISTRY_PATH, label="SAGE execution wave registry")
@@ -257,6 +306,11 @@ def run_validation() -> dict[str, Any]:
     invalid_delivery_timing_items = []
     invalid_delivery_release_items = delivery_release_issues(
         [row for row in all_items if isinstance(row, dict)],
+        roadmap_releases=roadmap_releases,
+    )
+    invalid_publication_reconciliations = publication_reconciliation_issues(
+        [row for row in all_items if isinstance(row, dict)],
+        registry.get("publication_reconciliations", []),
         roadmap_releases=roadmap_releases,
     )
     ready_release_impact_issues = []
@@ -534,6 +588,14 @@ def run_validation() -> dict[str, Any]:
         and release_train.get("later_release_activation_allowed") is False
         and isinstance(release_train.get("active_scope_conflict"), bool)
         and isinstance(release_train.get("action_required"), bool)
+    ) or (
+        release_train_status == "PENDING_MAINTENANCE_DELIVERY"
+        and bool(str(release_train.get("gated_release") or ""))
+        and bool(release_train_blocker_ids)
+        and release_train.get("planning_only_maintenance_continuation") is True
+        and release_train.get("later_release_activation_allowed") is True
+        and release_train.get("active_scope_conflict") is False
+        and release_train.get("action_required") is False
     )
     release_train_shape_ok = (
         release_train_shape_ok
@@ -556,6 +618,7 @@ def run_validation() -> dict[str, Any]:
         and release_train.get("action_required") is False
         and (
             not release_train.get("gated_release")
+            or release_train_status == "PENDING_MAINTENANCE_DELIVERY"
             or (
                 successor_status == "SELECTED"
                 and selected_seed_scope.get("roadmap_phase")
@@ -644,6 +707,12 @@ def run_validation() -> dict[str, Any]:
             "delivery_release_is_explicit_and_lifecycle_bound",
             not invalid_delivery_release_items,
             {"invalid_delivery_release_items": invalid_delivery_release_items},
+        ),
+        _check(
+            "reviewed_publication_deliveries_remain_reconciled",
+            not invalid_publication_reconciliations,
+            {"issues": invalid_publication_reconciliations,
+             "boundary": "Local reviewed receipt consistency only; no live publication verification or authority."},
         ),
         _check(
             "p0_p0_5_items_are_release_blocking",

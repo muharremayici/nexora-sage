@@ -255,6 +255,7 @@ def project_successor_selection(
     roadmap_registry: dict[str, Any],
     wave_registry: dict[str, Any],
     excluded_work_item_ids: set[str] | None = None,
+    technical_ready_work_item_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Rank one dependency-correct successor or expose a bounded human-choice edge."""
     policy = (
@@ -445,6 +446,9 @@ def project_successor_selection(
         phases=phases,
         phase_order=phase_order,
         active_phase=active_phase,
+        active_scope=active_scope,
+        technical_ready_work_item_ids=technical_ready_work_item_ids,
+        roadmap_registry=roadmap_registry,
     )
     input_issues = [
         f"duplicate_wave_assignment:{item_id}"
@@ -494,6 +498,7 @@ def project_successor_selection(
         )
 
     gated_release = str(release_train.get("gated_release") or "")
+    restrict_to_predecessor = bool(gated_release) and not release_train["later_release_activation_allowed"]
     same_release_candidate_ids = set(
         release_train.get("same_release_candidate_work_item_ids", [])
     )
@@ -503,7 +508,7 @@ def project_successor_selection(
             for row in candidates
             if row["work_item_id"] in same_release_candidate_ids
         ]
-        if gated_release
+        if restrict_to_predecessor
         else candidates
     )
     dependency_ready = [
@@ -587,8 +592,10 @@ def project_successor_selection(
             status = "HUMAN_CHOICE_REQUIRED"
             reason_codes.append("equal_rank_requires_human_choice")
 
-    if gated_release:
+    if restrict_to_predecessor:
         reason_codes.insert(0, "release_train_predecessor_scope")
+    elif release_train.get("planning_only_maintenance_continuation"):
+        reason_codes.insert(0, "pending_maintenance_does_not_force_publication")
 
     if human_choice_present:
         chosen_id = str(human_choice.get("work_item_id") or "")
@@ -822,6 +829,7 @@ def project_execution_waves(
         roadmap_registry=roadmap,
         wave_registry=registry,
         excluded_work_item_ids=excluded_successor_ids,
+        technical_ready_work_item_ids=technically_ready,
     )
     return {
         "meta": {"kind": "sage_execution_wave_projection", "version": "v4"},

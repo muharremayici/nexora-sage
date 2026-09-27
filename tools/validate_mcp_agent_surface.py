@@ -430,8 +430,12 @@ def build_validation() -> dict[str, Any]:
     state_flow_policy_complete = (
         int(state_flow_policy.get("sample_keys_limit") or 0) > 0
         and int(state_flow_policy.get("sample_targets_limit") or 0) > 0
+        and int(state_flow_policy.get("focus_max_items") or 0) > 0
+        and int(state_flow_policy.get("focus_scan_limit") or 0) > 0
         and str(state_flow_policy.get("max_items_semantics") or "").strip()
         and str(state_flow_policy.get("agent_rule") or "").strip()
+        and str(state_flow_policy.get("overview_max_items_semantics") or "").strip()
+        and str(state_flow_policy.get("overview_agent_rule") or "").strip()
     )
     supporting_context_policy = _supporting_context_brief_policy()
     supporting_context_titles = (
@@ -629,7 +633,9 @@ def build_validation() -> dict[str, Any]:
         {
             "name": "primary_agent_analysis_tools_support_target_root_and_briefs",
             "passed": "def get_impact_radius(target_node: str, target_root: str = \"\", format: str = \"brief\", depth: int = 2)" in server_text
-            and "depth-limited bounded sample" in server_text
+            and '"scope_kind": "target_reachable_dependents"' in server_text
+            and '"scope_completeness": "bounded"' in server_text
+            and 'full_graph: "not_available"' in server_text
             and "def get_test_impact(target_file: str, target_root: str = \"\", format: str = \"brief\")" in server_text
             and "def get_confidence_score(target_file: str, target_root: str = \"\", format: str = \"brief\")" in server_text
             and "def trace_upstream_cause(target_node: str, target_root: str = \"\", format: str = \"brief\")" in server_text
@@ -661,7 +667,7 @@ def build_validation() -> dict[str, Any]:
         },
         {
             "name": "large_graph_tools_default_to_bounded_agent_summaries",
-            "passed": "def get_state_flow(project: str = \"MAIN\", max_items: int = 20, full: bool = False, target_root: str = \"\", format: str = \"brief\")" in server_text
+            "passed": "def get_state_flow(project: str = \"MAIN\", max_items: int = 20, full: bool = False, target_root: str = \"\", format: str = \"brief\", file: str = \"\", symbol: str = \"\")" in server_text
             and "def get_ui_architecture(component: str = \"\", max_items: int = 30, full: bool = False, target_root: str = \"\", format: str = \"brief\")" in server_text
             and "bounded_summary" in server_text
             and "full_data_hint" in server_text,

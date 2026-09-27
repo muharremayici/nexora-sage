@@ -30,12 +30,14 @@ from tools.core.language_agnostic_symbols import canonical_symbol_type, normaliz
 from tools.core.projects_registry import resolve_runtime_projects
 from tools.core.repository_topology import (
     is_project_owned_path,
-    project_ownership_exclusions,
+    project_owned_path_identity,
+    configured_project_ownership_exclusions,
     prune_owned_walk_dirs,
 )
 from tools.core.logger import logger
 from tools.core.state_flow import summarize_state_flow_features
-from tools.core.atlas_integrity import build_atlas_commit, validate_atlas_commit
+from tools.core.state_flow_import_index import build_resolved_module_importer_index
+from tools.core.atlas_integrity import build_atlas_commit, payload_sha256, validate_atlas_commit
 from tools.core.analysis_snapshot_lineage import load_atlas_commit
 from tools.core.workload_profile import (
     ast_batch_strategy,
@@ -43,6 +45,8 @@ from tools.core.workload_profile import (
     build_workload_profile,
 )
 from tools.core.package_contracts import build_package_public_contracts
+from tools.core.atlas_typescript_inputs import ResolutionInputCapture, auxiliary_context_identity, auxiliary_input_policy, capture_auxiliary_inputs
+from tools.core.source_snapshot_integrity import source_text_hash
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.operational_limits import atlas_batch_sequencer_timeout_seconds
 from tools.core.subprocess_telemetry import run_observed_subprocess
@@ -158,6 +162,9 @@ def atlas_staging_producer_contract() -> str:
         CODE_MAPS_DIR / "tools" / "core" / "state_flow.py",
         CODE_MAPS_DIR / "tools" / "core" / "repository_topology.py",
         CODE_MAPS_DIR / "tools" / "core" / "projects_registry.py",
+        CODE_MAPS_DIR / "tools" / "core" / "atlas_typescript_inputs.py",
+        CODE_MAPS_DIR / "tools" / "core" / "source_snapshot_integrity.py",
+        CODE_MAPS_DIR / "config" / "source_snapshot_store_policy.json",
         Path(CONFIG_FILE),
         Path(CONFIG_FILE).parent / "architecture_doctrine.json",
         Path(CONFIG_FILE).parent / "language_registry.json",
@@ -170,6 +177,7 @@ def atlas_staging_producer_contract() -> str:
             digest.update(resolved.read_bytes())
         else:
             digest.update(b"<missing>")
+    digest.update(payload_sha256(auxiliary_input_policy()).encode("ascii"))
     return f"atlas-staging-v1:{digest.hexdigest()}"
 
 
@@ -201,13 +209,6 @@ def _strip_comments_for_scan(content: str) -> str:
     without_blocks = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
     without_lines = re.sub(r"//.*?$", "", without_blocks, flags=re.MULTILINE)
     return without_lines
-
-def _mtime_close(prev_value, current_value, epsilon: float = 0.01) -> bool:
-    try:
-        return abs(float(prev_value) - float(current_value)) <= epsilon
-    except (TypeError, ValueError):
-        return False
-
 
 def _sanitize_named_export_token(raw_token: str) -> str:
     token = str(raw_token or "").strip().rstrip(";")
@@ -713,6 +714,20 @@ def _normalize_polyglot_symbol(
         "implements": raw_symbol.get("implements", []) if isinstance(raw_symbol.get("implements", []), list) else [],
         "members": raw_symbol.get("members", []) if isinstance(raw_symbol.get("members", []), list) else [],
         "member_details": raw_symbol.get("memberDetails", raw_symbol.get("member_details", [])),
+        "initializer_member_evidence": raw_symbol.get("initializerMemberEvidence", raw_symbol.get("initializer_member_evidence")),
+        "import_call_evidence": raw_symbol.get("import_call_evidence"),
+        **({"event_emitter_singleton_evidence": raw_symbol["event_emitter_singleton_evidence"]}
+           if isinstance(raw_symbol.get("event_emitter_singleton_evidence"), dict) else {}),
+        **({"factory_source_evidence": raw_symbol["factory_source_evidence"]}
+           if isinstance(raw_symbol.get("factory_source_evidence"), dict) else {}),
+        **({"class_instance_event_call_evidence": raw_symbol["class_instance_event_call_evidence"]}
+           if isinstance(raw_symbol.get("class_instance_event_call_evidence"), dict) else {}),
+        **({"same_file_store_action_call_evidence": raw_symbol["same_file_store_action_call_evidence"]}
+           if isinstance(raw_symbol.get("same_file_store_action_call_evidence"), dict) else {}),
+        **({"same_file_direct_call_evidence": raw_symbol["same_file_direct_call_evidence"]}
+           if isinstance(raw_symbol.get("same_file_direct_call_evidence"), dict) else {}),
+        **({"store_hook_selector_evidence": raw_symbol["store_hook_selector_evidence"]}
+           if isinstance(raw_symbol.get("store_hook_selector_evidence"), dict) else {}),
         "module_specifier": raw_symbol.get("moduleSpecifier", raw_symbol.get("module_specifier", "")),
         "exported_names": raw_symbol.get("exportedNames", raw_symbol.get("exported_names", [])),
         "dependency_imports": raw_symbol.get("dependencyImports", raw_symbol.get("dependency_imports", [])),
@@ -819,11 +834,12 @@ def _atlas_text_hash(content: str) -> str:
     return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
-def _live_atlas_text_hash(path: str) -> str:
+def _live_atlas_text_hash(path: str, reference: str = "") -> str | None:
     """Hash live source with the same decoding contract used by Atlas enrichment."""
 
     with open(path, "r", encoding="utf-8", errors="ignore", newline="") as source_file:
-        return _atlas_text_hash(source_file.read())
+        content = source_file.read()
+    return source_text_hash(content, reference) if reference else _atlas_text_hash(content)
 
 
 def _parser_strategy_for_language(language: str) -> str:
@@ -1036,23 +1052,9 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
     # [PHASE 9] Architecture constants
     discovery = {}
     projects = resolve_runtime_projects(ROOT)
-    ownership_exclusions = project_ownership_exclusions(projects)
-    declared_topology = (
-        DYNAMIC_CONFIG.get("_target_root_override")
-        if isinstance(DYNAMIC_CONFIG.get("_target_root_override"), dict)
-        else DYNAMIC_CONFIG.get("_repository_topology")
-        if isinstance(DYNAMIC_CONFIG.get("_repository_topology"), dict)
-        else {}
+    ownership_exclusions = configured_project_ownership_exclusions(
+        projects, root=ROOT, dynamic_config=DYNAMIC_CONFIG,
     )
-    for project_key, relative_paths in (
-        declared_topology.get("project_ownership_exclusions", {}) or {}
-    ).items():
-        if project_key not in projects or not isinstance(relative_paths, list):
-            continue
-        ownership_exclusions[project_key] = sorted({
-            (ROOT / str(relative_path)).resolve()
-            for relative_path in relative_paths
-        })
     for project_key, relative_paths in surgical_files_by_project.items():
         project_root = projects.get(project_key)
         if project_root is None:
@@ -1238,8 +1240,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             path_exists_cache[path] = os.path.exists(path)
         return path_exists_cache[path]
 
-    def staged_source_identity_matches(staged, full_path, current_mtime, current_size, *, allow_fingerprint=True):
-        """Accept provisional work only for the same bounded source identity."""
+    def staged_source_identity_matches(staged, full_path, current_size):
+        """Accept provisional or cached work only for exact full-text identity."""
         if not isinstance(staged, dict) or current_size < 0 or staged.get("size") is None:
             return False
         try:
@@ -1250,15 +1252,17 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             return False
         if staged.get("hash"):
             try:
-                return _live_atlas_text_hash(full_path) == str(staged.get("hash"))
-            except OSError:
+                return _live_atlas_text_hash(full_path, str(staged["hash"])) == staged["hash"]
+            except OSError as exc:
+                record_honesty_event(
+                    component="generate_atlas", category="caught_error",
+                    operation="verify_cached_source_identity", subject=str(full_path),
+                    reason="Cached source identity could not be read",
+                    fallback="full_file_sequence", claim_impact="cached_source_unavailable",
+                    exception=exc,
+                )
                 return False
-        if _mtime_close(staged.get("mtime"), current_mtime):
-            return True
-        if not allow_fingerprint or not staged.get("fingerprint"):
-            return False
-        current_fingerprint = compute_file_fingerprint(full_path, int(current_size))
-        return bool(current_fingerprint and current_fingerprint == staged.get("fingerprint"))
+        return False
 
     def ensure_structure_path(structure: Dict, rel_path: str):
         parts = [part for part in str(rel_path or "").split("/") if part]
@@ -2029,9 +2033,6 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 f"{project_language}-v1" if project_language in {"python", "java", "csharp", "go"} else AST_CONTRACT_VERSION
             )
         
-        use_md5_lift_fallback = os.getenv("CODEMAPS_ATLAS_MD5_LIFT", "1").strip().lower() in {"1", "true", "yes", "on"}
-        use_fingerprint_lift = os.getenv("CODEMAPS_ATLAS_FINGERPRINT_LIFT", "1").strip().lower() in {"1", "true", "yes", "on"}
-
         if surgical_mode:
             atlas = copy.deepcopy(prev_atlas.get(pkey, {}))
             if not isinstance(atlas, dict):
@@ -2235,6 +2236,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         lifted_by_hash = 0
         walk_start = perf_counter()
 
+        resolution_capture = ResolutionInputCapture(project_root, surgical=surgical_mode)
+        source_file_canonicality = {}
         if surgical_mode:
             walk_items = []
             for rel_path in sorted(surgical_rel_paths):
@@ -2242,20 +2245,31 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 walk_items.append((full_path, os.path.basename(full_path), rel_path))
         else:
             walk_items = []
-            for root, dirs, files in os.walk(str(project_root)):
+            for root, dirs, files in os.walk(str(project_root), onerror=resolution_capture.record_walk_error):
+                resolution_capture.observe_directory(root, dirs, files)
+                dirs.sort()
                 prune_walk_dirs(root, dirs, excluded_project_roots)
                 for file in sorted(files):
                     full_path = os.path.join(root, file)
                     rel_path = normalize_path(os.path.relpath(full_path, str(project_root)))
-                    if not is_project_owned_path(
+                    owned, canonical_file_path = project_owned_path_identity(
                         project_root,
                         rel_path,
                         excluded_roots=excluded_project_roots,
-                    ):
+                    )
+                    if not owned:
                         continue
+                    if (is_analysis_source_file(rel_path)
+                            and language_for_extension(Path(file).suffix.lower()) in {"typescript", "javascript"}):
+                        source_file_canonicality[rel_path] = canonical_file_path
                     walk_items.append((full_path, file, rel_path))
 
+        atlas["typescript_resolution_inputs"] = resolution_capture.payload
         package_manifest_paths = [Path(full_path) for full_path, file, _ in walk_items if file == "package.json"]
+        atlas["typescript_auxiliary_inputs"] = capture_auxiliary_inputs(
+            project_root, walk_items, surgical=surgical_mode,
+        )
+        auxiliary_identity = auxiliary_context_identity(atlas["typescript_auxiliary_inputs"])
         package_contract_changed = any(file == "package.json" for _, file, _ in walk_items)
         if surgical_mode and package_contract_changed:
             package_manifest_paths = []
@@ -2306,17 +2320,19 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     f_size = -1
 
                 staged = staged_file_cache.get((pkey, rel_path))
-                if staged and file_contract_is_current(staged) and not surgical_mode:
+                if (staged and file_contract_is_current(staged) and not surgical_mode
+                        and auxiliary_identity
+                        and staged.get("auxiliary_input_identity") == auxiliary_identity):
                     if staged_source_identity_matches(
                         staged,
                         full_path,
-                        f_mtime,
                         f_size,
-                        allow_fingerprint=use_fingerprint_lift,
                     ):
                         lifted_staged = dict(staged)
                         lifted_staged["mtime"] = f_mtime
                         lifted_staged["size"] = f_size
+                        if rel_path in source_file_canonicality:
+                            lifted_staged["canonical_file_path"] = source_file_canonicality[rel_path]
                         atlas["files"][rel_path] = lifted_staged
                         atlas["dependencies"][rel_path] = lifted_staged.get("internal_deps", [])
                         project_changed_files.append(scoped_change_ref(pkey, rel_path))
@@ -2328,66 +2344,18 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                         continue
 
                 cached = file_cache.get((pkey, rel_path))
-                if cached and file_contract_is_current(cached) and not surgical_mode:
-                    prev_mtime = cached.get("mtime")
-                    prev_size = cached.get("size")
-                    should_lift = False
-
-                    if _mtime_close(prev_mtime, f_mtime):
-                        should_lift = True
-                        lifted_by_mtime += 1
-                    elif (
-                        use_fingerprint_lift
-                        and f_size >= 0
-                        and prev_size is not None
-                        and int(prev_size) == int(f_size)
-                        and cached.get("fingerprint")
-                    ):
-                        current_fingerprint = compute_file_fingerprint(full_path, f_size)
-                        if current_fingerprint and current_fingerprint == cached.get("fingerprint"):
-                            lifted_cached = dict(cached)
-                            lifted_cached["mtime"] = f_mtime
-                            lifted_cached["size"] = f_size
-                            lifted_cached["fingerprint"] = current_fingerprint
-                            atlas["files"][rel_path] = lifted_cached
-                            atlas["dependencies"][rel_path] = lifted_cached.get("internal_deps", [])
-                            lifted_by_fingerprint += 1
-                            continue
-                    elif (
-                        use_md5_lift_fallback
-                        and f_size >= 0
-                        and prev_size is not None
-                        and int(prev_size) == int(f_size)
-                        and cached.get("hash")
-                    ):
-                        try:
-                            with open(full_path, "rb") as f_bin:
-                                current_hash = hashlib.md5(f_bin.read()).hexdigest()
-                        except Exception as exc:
-                            record_honesty_event(
-                                component="generate_atlas",
-                                category="caught_error",
-                                operation="md5_lift_fallback",
-                                subject=str(full_path),
-                                reason="MD5 lift fallback could not read source bytes",
-                                fallback="full_file_sequence",
-                                claim_impact="performance_only",
-                                exception=exc,
-                            )
-                            current_hash = None
-                        if current_hash and current_hash == cached.get("hash"):
-                            lifted_cached = dict(cached)
-                            lifted_cached["mtime"] = f_mtime
-                            lifted_cached["size"] = f_size
-                            atlas["files"][rel_path] = lifted_cached
-                            atlas["dependencies"][rel_path] = lifted_cached.get("internal_deps", [])
-                            lifted_by_hash += 1
-                            continue
-
-                    if should_lift:
-                        atlas["files"][rel_path] = cached
-                        atlas["dependencies"][rel_path] = cached.get("internal_deps", [])
-                        continue
+                if (cached and file_contract_is_current(cached) and not surgical_mode
+                        and auxiliary_identity
+                        and cached.get("auxiliary_input_identity") == auxiliary_identity
+                        and staged_source_identity_matches(cached, full_path, f_size)):
+                    lifted_cached = dict(cached)
+                    lifted_cached.update(mtime=f_mtime, size=f_size)
+                    if rel_path in source_file_canonicality:
+                        lifted_cached["canonical_file_path"] = source_file_canonicality[rel_path]
+                    atlas["files"][rel_path] = lifted_cached
+                    atlas["dependencies"][rel_path] = lifted_cached.get("internal_deps", [])
+                    lifted_by_hash += 1
+                    continue
 
                 pending_entries.append({
                     "full_path": full_path,
@@ -2418,7 +2386,6 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             source_matches = staged_source_identity_matches(
                 staged_result,
                 entry["full_path"],
-                entry.get("mtime", -1),
                 entry.get("size", -1),
             )
             staged_symbols = staged_result.get("results")
@@ -2893,6 +2860,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "mtime": f_mtime,
                 "size": f_size,
                 "hash": f_hash,
+                "auxiliary_input_identity": auxiliary_identity,
                 "fingerprint": f_fingerprint,
                 "test_link": test_link,
                 "themes": file_themes
@@ -2903,6 +2871,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             if f_data["dna"] != prev_dna:
                 project_dna_changed_files.append(scoped_change_ref(pkey, rel_path))
 
+            if rel_path in source_file_canonicality:
+                f_data["canonical_file_path"] = source_file_canonicality[rel_path]
             atlas["dependencies"][rel_path] = internal_deps
             atlas["files"][rel_path] = f_data
             project_changed_files.append(scoped_change_ref(pkey, rel_path))
@@ -2918,6 +2888,13 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         atlas["features"] = {}
         atlas["clusters"] = {}
         atlas["symbols"] = _build_project_symbol_occurrences(atlas["files"])
+        # Rebuild from the final file set, including lifted and surgical files.
+        # Never carry an old snapshot's importer index into a new Atlas commit.
+        importer_index = build_resolved_module_importer_index(atlas["files"])
+        if importer_index is None:
+            atlas.pop("resolved_module_importer_index", None)
+        else:
+            atlas["resolved_module_importer_index"] = importer_index
         index_elapsed = perf_counter() - index_start
 
         cluster_start = perf_counter()

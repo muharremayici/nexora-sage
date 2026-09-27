@@ -5,6 +5,7 @@ from typing import Any
 
 from tools.core.config import RAW_DIR, ROOT
 from tools.core.db import SQLiteManager
+from tools.core.source_snapshot_integrity import snapshot_content_status
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.logger import logger
 from tools.core.projects_registry import resolve_runtime_projects
@@ -101,18 +102,20 @@ def load_source_text(
             with manager.get_connection() as conn:
                 row = conn.execute(
                     """
-                    SELECT content, content_hash, status, error
-                    FROM source_snapshots
-                    WHERE project_key = ? AND rel_path = ?
+                    SELECT ss.content, ss.content_hash, ss.status, ss.error, f.hash AS atlas_hash
+                    FROM source_snapshots AS ss
+                    LEFT JOIN files AS f ON f.file_id = ss.file_id
+                      AND f.project_key = ss.project_key AND f.rel_path = ss.rel_path
+                    WHERE ss.project_key = ? AND ss.rel_path = ?
                     LIMIT 1;
                     """,
                     (project, rel),
                 ).fetchone()
             if row:
-                status = str(row["status"] or "")
                 content = row["content"]
                 content_hash = str(row["content_hash"] or "")
-                if status == "ok" and isinstance(content, str) and content and content_hash:
+                status = snapshot_content_status(content, content_hash, row["atlas_hash"], status=str(row["status"] or ""))
+                if status == "ok":
                     return content
                 _record_snapshot_fallback(
                     component=component,
