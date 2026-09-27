@@ -9,7 +9,7 @@ License boundary: `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Tria
 
 Explicit human publication authority is retained outside this public
 distribution. Its private receipt is bound here by SHA-256:
-`83f45afb8c63947a20496c16b6421a4e584293fd0c17051028402cd6f5710ff6`.
+`cd346da3fbf9f9d76c9bafb3a16ee85cbc6b6d4c52fa7575aa665040c77b3b7b`.
 
 This release offers no commercial license, Small Business grant, CLA or
 external copyrighted-contribution intake, or Countdown/AGPL transition.

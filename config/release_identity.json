@@ -19,7 +19,7 @@
     "private_ownership_evidence": "RETAINED_OUTSIDE_PUBLIC_DISTRIBUTION",
     "qualified_legal_review": "NOT_COMPLETED_AND_NOT_A_V1_PUBLICATION_GATE",
     "human_publication_authority": "RECORDED_OUTSIDE_PUBLIC_DISTRIBUTION",
-    "publication_authority_receipt_sha256": "83f45afb8c63947a20496c16b6421a4e584293fd0c17051028402cd6f5710ff6"
+    "publication_authority_receipt_sha256": "cd346da3fbf9f9d76c9bafb3a16ee85cbc6b6d4c52fa7575aa665040c77b3b7b"
   },
   "license": {
     "expression": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",

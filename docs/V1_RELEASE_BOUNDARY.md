@@ -8,7 +8,7 @@ Nexora SAGE v1 is an AI-era architectural governance release with a React/TypeSc
 - ContextOS gives AI agents a watchdog-first live focus window, first-ring halo, breadcrumbs and reverse trace.
 - MCP/HITL surfaces let agents inspect, validate patches and request human approval before risky actions.
 - Atlas/Genome preserve raw DNA and logic-first DNA for TypeScript/React symbols.
-- State/data evidence propagates through imported custom hooks so consumer components inherit Zustand/TanStack boundary signals from hook providers.
+- State Flow records positive parser-bound calls to imported custom hooks with uniquely resolved same-project providers. Provider-file Zustand/TanStack hints remain separate advisory evidence, not consumer-owned state, runtime subscriptions or proof of absence.
 - Test Gap Report v1 gives agents a prioritized test-selection and coverage-risk surface.
 - React fixture evidence is required and currently covers current workspace, Vite, Next/App Router and router-oriented fixture artifacts.
 

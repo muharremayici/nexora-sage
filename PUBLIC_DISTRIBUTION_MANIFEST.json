@@ -13,17 +13,17 @@
   "source": {
     "role": "clean_install_delivery_repository",
     "lineage_contract": "development_to_clean_install_to_public_candidate",
-    "canonical_source_git_commit": "d4faf4486b406fc5741cf880f28718fba3474c25",
+    "canonical_source_git_commit": "ec9d8895893995d6a17b0db165edb1c7eb142361",
     "clean_delivery_identity": {
       "authority": "generated_by_clean_distribution_sync",
-      "canonical_source_git_commit": "d4faf4486b406fc5741cf880f28718fba3474c25",
+      "canonical_source_git_commit": "ec9d8895893995d6a17b0db165edb1c7eb142361",
       "projection_files": 1089,
-      "projection_sha256": "dd7cf821a665b37abf76bb59f5c3e947247bfe305fc3f40ff93d856d7ff8582f"
+      "projection_sha256": "6e85d83cbb015b2ad4d93ff2d8d24ba810f600c110936e421e4411ea0fc094c1"
     },
     "source_files_considered": 887,
     "projection_input_files": 887,
-    "projection_input_sha256": "2109c8733f4daafe4b1f34e63d21d1dd67c013c8ee23f952bd01844115be94f4",
-    "git_commit": "f1e6631c4f02e3cab607d611222ef7522675279f",
+    "projection_input_sha256": "65c531894a42eaa2407365df41ba981b3fac79433145ef7e5b2dd515e45fb7a3",
+    "git_commit": "84878071b01da68a68acfb8906bfecadc8a117ef",
     "git_dirty": false
   },
   "projection": {
@@ -760,7 +760,7 @@
       "bytes": 30853
     },
     "config/release_identity.json": {
-      "sha256": "334eb0468871e85bdd1a390fa64e7c81c4ae71ea624c9298c7fd4bf3eef7dcfb",
+      "sha256": "cdcdc52c2eca7512ed3dc24473d1dcb8af25255c9d0a9ec0da3ab55550adc15d",
       "bytes": 2616
     },
     "config/release_validation_dependency_contract.json": {
@@ -1420,8 +1420,8 @@
       "bytes": 4411
     },
     "docs/V1_RELEASE_BOUNDARY.md": {
-      "sha256": "95160440b12e2e1d521060ae76475ffabfd4bd7249606042ae6f220e37dde792",
-      "bytes": 3060
+      "sha256": "ba114948091c12bf32b3d6c98ad5cf58eb2581f08b3a62b532de20fc6f5c3647",
+      "bytes": 3172
     },
     "docs/VALIDATION_MATRIX.md": {
       "sha256": "391e25852c976454116f1219080849d599c088dc5474a684fcbee7e0cbe5e2bd",
@@ -1452,7 +1452,7 @@
       "bytes": 2310
     },
     "PUBLICATION_STATUS.md": {
-      "sha256": "1ba4171b186e46a1694b08f1e8f034f5e67fa35e9248014a57165e8cfcc7816d",
+      "sha256": "2d2daad7ab6150d42a5fffdb7b6fc53f988eaad79d35ffa35cad23300df27dc0",
       "bytes": 577
     },
     "pyproject.toml": {
@@ -2920,8 +2920,8 @@
       "bytes": 9620
     },
     "tools/tests/test_doctor_validator_scope.py": {
-      "sha256": "e1ddb70b5ec1640d6abe7c89bff2b2e43f94f43ec72cc4e2123633ec636770d8",
-      "bytes": 3136
+      "sha256": "47f9fd3728616769167a52dc1912e976c29ff2704a3f90249af9d8bed916a618",
+      "bytes": 6455
     },
     "tools/tests/test_engine_contracts.py": {
       "sha256": "a50f64ab21ef039b5065c178caa3fe22ee69cbaf7cb4835beac94ceaded94592",
@@ -3684,8 +3684,8 @@
       "bytes": 48745
     },
     "tools/validate_react_transitive_propagation.py": {
-      "sha256": "cf5ddfa1d40807d066c25d01ef0fd68a13cd6a7ac5b06ed98b3243af91b557cc",
-      "bytes": 8919
+      "sha256": "8170144aba36785116e91ed18528d6b99001bf27ebe64fa23db41771d1afab33",
+      "bytes": 12107
     },
     "tools/validate_react_universal_readiness.py": {
       "sha256": "ccfb9077ed36ec0869a9fc6d88b28dc394d116c4c4ddf81ed082509bd31ff9bc",
@@ -3861,8 +3861,8 @@
     "previous_version": "1.1.1",
     "release_date": "2026-09-27",
     "scope": "nexora-sage:v1.2.0:minor-release",
-    "request_sha256": "8b4a3fbdeff9dcddf256a0263ae17bfed29c11229faa7fad5030ca2326d29f3d",
-    "authority_receipt_sha256": "83f45afb8c63947a20496c16b6421a4e584293fd0c17051028402cd6f5710ff6",
+    "request_sha256": "ebe7ccb34f1643acd20fb20fb09501d300b2f66ee9e96da4e97b232cba4adff0",
+    "authority_receipt_sha256": "cd346da3fbf9f9d76c9bafb3a16ee85cbc6b6d4c52fa7575aa665040c77b3b7b",
     "public_notice_identity": "Nexora SAGE Project",
     "license_boundary": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
     "public_git_release_authorized": true,

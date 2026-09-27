@@ -7,6 +7,72 @@ from tools.core.validate_execution_profiles import (
 )
 from tools.validate_entrypoints_and_failures import discovery_entrypoint_environment
 from codemaps import _doctor_capability_release_blocks
+from tools import validate_react_transitive_propagation as transitive_validator
+
+
+def _validator_outputs(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(transitive_validator, "RAW_DIR", tmp_path / "raw")
+    monkeypatch.setattr(transitive_validator, "REPORTS_DIR", tmp_path / "reports")
+
+
+def test_repository_doctor_selected_transitive_validator_runs_current_contract(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    selected = _paths_for_scope("SAGE_ON_REPOSITORY")
+    assert str(Path(transitive_validator.__file__).resolve()).replace("\\", "/") in selected
+    _validator_outputs(monkeypatch, tmp_path)
+
+    assert transitive_validator.main() == 0
+    payload = json.loads((tmp_path / "raw/react_transitive_propagation_validation.json").read_text())
+    assert payload["summary"]["status"] == "PASS"
+    checks = {row["name"]: row for row in payload["checks"]}
+    assert checks["positive_call_records_exact_provider_file_query_hint"]["passed"]
+    assert checks["positive_call_records_exact_provider_file_store_hint"]["passed"]
+    assert checks["provider_query_is_not_consumer_owned"]["passed"]
+    assert checks["provider_store_use_is_not_consumer_subscription"]["passed"]
+    for variant in ("import_only", "legacy_evidence", "wrong_call_source",
+                    "non_top_level", "unresolved_provider", "ambiguous_provider"):
+        assert checks[f"{variant}_does_not_create_hook_hint"]["passed"]
+
+
+def test_transitive_validator_fails_when_positive_hints_disappear(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    _validator_outputs(monkeypatch, tmp_path)
+    real_build = transitive_validator.build_state_flow_results
+
+    def missing_hints(*args, **kwargs):
+        result = real_build(*args, **kwargs)
+        result["transitive_hook_consumers"] = {}
+        return result
+
+    monkeypatch.setattr(transitive_validator, "build_state_flow_results", missing_hints)
+    assert transitive_validator.main() == 1
+    payload = json.loads((tmp_path / "raw/react_transitive_propagation_validation.json").read_text())
+    failed = {row["name"] for row in payload["checks"] if not row["passed"]}
+    assert failed == {"positive_call_records_exact_provider_file_query_hint",
+                      "positive_call_records_exact_provider_file_store_hint"}
+
+
+def test_transitive_validator_rejects_old_provider_ownership_promotion(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    _validator_outputs(monkeypatch, tmp_path)
+    real_build = transitive_validator.build_state_flow_results
+
+    def promoted_signals(*args, **kwargs):
+        result = real_build(*args, **kwargs)
+        result["tanstack_queries"]["APP::pages/AuthorPage.tsx"] = ["queryKeys.author.details(id)"]
+        result["zustand_consumers"]["APP::pages/AuthorShell.tsx"] = ["useAuthorStore"]
+        result["zustand_stores"]["APP::pages/AuthorShell.tsx"] = ["zustand_store"]
+        return result
+
+    monkeypatch.setattr(transitive_validator, "build_state_flow_results", promoted_signals)
+    payload = transitive_validator.run_validation()
+    assert payload["summary"]["status"] == "FAIL"
+    failed = {row["name"] for row in payload["checks"] if not row["passed"]}
+    assert {"provider_query_is_not_consumer_owned", "provider_store_use_is_not_consumer_subscription",
+            "consumer_does_not_inherit_store_ownership"} <= failed
 
 
 def _paths_for_scope(scope: str) -> set[str]:
