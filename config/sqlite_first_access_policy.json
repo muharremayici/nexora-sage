@@ -15,6 +15,7 @@
       "sqlite_first_source_marker": "STORE.load_raw(\"atlas\"",
       "hot_consumers": [
         "tools/core/atlas_io.py",
+        "tools/core/cache_manager.py",
         "tools/core/contextos_mcp.py",
         "tools/engines/a11y_i18n_contract_analyzer.py",
         "tools/engines/architecture_oracle.py",
@@ -93,6 +94,7 @@
         "tools/tests/test_polyglot_atlas.py": "polyglot test fixture artifact lookup",
         "tools/tests/test_artifact_registry.py": "artifact registry tests assert the canonical Atlas shadow path without consuming runtime payloads",
         "tools/tests/test_mcp_json_cache.py": "MCP cache tests synthesize isolated Atlas SQLite and JSON-shadow fixtures",
+        "tools/tests/test_mcp_impact_radius.py": "Bounded impact tests synthesize an isolated Atlas shadow to verify SQLite-only graph refusal, never read production shadow truth",
         "tools/tests/test_scoped_atlas_persistence.py": "scoped persistence tests synthesize isolated Atlas shadows and exercise the canonical proxy-aware loader",
         "tools/tests/test_typescript_import_evidence.py": "TypeScript import evidence tests locate isolated external-target Atlas fixtures without consuming production runtime truth",
         "tools/tests/test_engine_contracts.py": "test fixture and contract assertions",
@@ -485,6 +487,7 @@
     "tools/tests/test_engine_contracts.py": "unit tests synthesize artifact fixtures and expected contract names",
     "tools/tests/test_external_raw_sqlite_first_guard.py": "SQLite-first guard tests synthesize artifact path references to prove proxy and shadow-read classification",
     "tools/tests/test_agent_semantic_contract_smoke.py": "semantic smoke tests synthesize isolated circular dependency fixtures without consuming production runtime shadows",
+    "tools/tests/test_agent_artifact_query_contract.py": "Focused State Flow negative control names the legacy artifact to forbid reading it; no production shadow payload is consumed",
     "tools/tests/test_surgical_packet_inputs.py": "unit test synthesizes proxy-aware managed-artifact fixture mappings without consuming production runtime shadows",
     "tools/tests/test_watchdog_runtime_contract.py": "watchdog regression tests reference managed artifact names as fixture and negative-contract evidence without consuming production runtime payloads",
     "tools/tests/test_mcp_json_cache.py": "MCP cache tests synthesize isolated managed-artifact SQLite and JSON-shadow fixtures",

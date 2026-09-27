@@ -1764,6 +1764,7 @@ def main(args=None, changed_files_override=None):
 
     refresh_requested = bool(getattr(args, "refresh", False))
     invalidation_reason = "force" if args.force else "refresh" if refresh_requested else ""
+    cache_execution_context = cache_manager.cache_execution_context()
     stale_projects = cache_manager.get_stale_projects(
         args.force or refresh_requested,
         invalidation_reason=invalidation_reason,
@@ -1855,6 +1856,7 @@ def main(args=None, changed_files_override=None):
             logger.info("[PIPELINE] Force mode active; downstream engines will run in full mode.")
             changed_files = None
 
+    atlas_completion = cache_manager.completed_atlas_identity() if isinstance(atlas_data, dict) else None
     scope_atlas = atlas_data if isinstance(atlas_data, dict) else load_atlas_data()
     analysis_scope_authority = runtime_scope_authority(
         dynamic_config=DYNAMIC_CONFIG,
@@ -2138,7 +2140,12 @@ def main(args=None, changed_files_override=None):
     except Exception as e:
         logger.error(f"Failed to generate pipeline_metrics.json: {e}")
 
-    cache_manager.update_cache(changed_files=changed_files)
+    cache_manager.update_cache(
+        changed_files=changed_files,
+        atlas_completion=atlas_completion,
+        execution_context=cache_execution_context,
+        failed_steps=failed_steps,
+    )
     logger.info("\n" + "=" * 80)
     logger.info(f"PIPELINE ANALYSIS COMPLETED in {total_time:.2f}s".center(80))
     quality_gate_payload = (

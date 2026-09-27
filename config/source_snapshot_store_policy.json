@@ -7,6 +7,14 @@
     "schema_truth": "The source_snapshots SQLite table is the source-content SSOT for downstream analyzers after live ingestion.",
     "fail_closed": "Source snapshot validation must fail when the expected schema contract is missing or incomplete."
   },
+  "content_identity": {
+    "hash_basis": "utf8_source_text_without_newline_normalization",
+    "digest_algorithms": {
+      "32": "md5",
+      "64": "sha256"
+    },
+    "rule": "Compute the identity of the text actually stored and require equality with its Atlas file. Readers must recheck content and current file identity, including legacy rows. Empty text is valid when its digest matches; missing or unknown identity is unavailable. Size and mtime are not content proof. MD5 is retained only for existing Atlas compatibility, not a cryptographic security claim."
+  },
   "validation_contract": {
     "required_columns": [
       "file_id",

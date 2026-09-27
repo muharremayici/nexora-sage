@@ -68,6 +68,7 @@ def _run_source_snapshot_sqlite_probe() -> dict[str, Any]:
         str(row.get("project_key") or ""),
         str(row.get("rel_path") or ""),
         component="watchdog_snapshot_freshness_validation",
+        allow_live_fallback=False,
     )
     return _check(
         "source_snapshot_reader_uses_sqlite_snapshot",
@@ -188,7 +189,7 @@ def _run_atlas_bound_stale_probe() -> list[dict[str, Any]]:
     probe_dir.mkdir(parents=True, exist_ok=True)
     probe_file = probe_dir / "sample.ts"
     original = "export const value = 1;\n"
-    probe_file.write_text(original, encoding="utf-8")
+    probe_file.write_text(original, encoding="utf-8", newline="")
     stat = probe_file.stat()
     atlas_entry = {
         "size": stat.st_size,
@@ -203,7 +204,7 @@ def _run_atlas_bound_stale_probe() -> list[dict[str, Any]]:
         atlas_entry=atlas_entry,
         reason="freshness validator fresh source probe",
     )
-    probe_file.write_text(original + "export const changed = true;\n", encoding="utf-8")
+    probe_file.write_text(original + "export const changed = true;\n", encoding="utf-8", newline="")
     stale_read = read_atlas_bound_source(
         component="watchdog_snapshot_freshness_validation",
         project="PROBE",

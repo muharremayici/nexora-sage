@@ -39,6 +39,8 @@ from tools.core.mcp_v1_compat import (
 )
 import tools.mcp.capability_tools as capability_tool_handlers
 from tools.core.import_classifier import import_specifier_from_audit_detail
+from tools.core.atlas_integrity import ATLAS_COMMIT_KIND, ATLAS_COMMIT_VERSION
+from tools.core.state_flow import TRANSITIVE_HOOK_COVERAGE
 from tools.core.external_target_generation import external_target_output_slug, resolve_external_target_artifact_dir
 from tools.core.unmanaged_atomic_io import native_filesystem_path
 
@@ -473,8 +475,12 @@ def _state_flow_brief_policy() -> dict[str, Any]:
     return {
         "sample_keys_limit": max(1, int(policy.get("sample_keys_limit") or 1)),
         "sample_targets_limit": max(1, int(policy.get("sample_targets_limit") or 1)),
+        "focus_max_items": max(1, int(policy.get("focus_max_items") or 1)),
+        "focus_scan_limit": max(1, int(policy.get("focus_scan_limit") or 1)),
         "max_items_semantics": str(policy.get("max_items_semantics") or "State-flow projection policy is missing from config/agent_surface_contract.json."),
         "agent_rule": str(policy.get("agent_rule") or "State-flow projection policy is missing from config/agent_surface_contract.json."),
+        "overview_max_items_semantics": str(policy.get("overview_max_items_semantics") or "State-flow overview policy is missing from config/agent_surface_contract.json."),
+        "overview_agent_rule": str(policy.get("overview_agent_rule") or "State-flow overview policy is missing from config/agent_surface_contract.json."),
     }
 
 
@@ -2543,6 +2549,7 @@ def _bounded_source_snippets(
 
 
 def _source_snapshot_content_for_ref(raw_dir: Path, target_ref: str) -> str:
+    from tools.core.source_snapshot_integrity import snapshot_content_status
     project_key, rel_path = _split_target_ref(target_ref)
     try:
         _resolved_node, context = _sqlite_file_context_from_raw(raw_dir, target_ref)
@@ -2559,14 +2566,16 @@ def _source_snapshot_content_for_ref(raw_dir: Path, target_ref: str) -> str:
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             row = conn.execute(
                 """
-                SELECT content
-                FROM source_snapshots
-                WHERE project_key = ? AND rel_path = ? AND status = 'ok'
+                SELECT ss.content, ss.content_hash, f.hash
+                FROM source_snapshots AS ss
+                LEFT JOIN files AS f ON f.file_id = ss.file_id
+                  AND f.project_key = ss.project_key AND f.rel_path = ss.rel_path
+                WHERE ss.project_key = ? AND ss.rel_path = ? AND ss.status = 'ok'
                 LIMIT 1;
                 """,
                 (project_key, rel_path.replace("\\", "/").strip("/")),
             ).fetchone()
-        return str(row[0] or "") if row else ""
+        return row[0] if row and snapshot_content_status(row[0], row[1], row[2]) == "ok" else ""
     except Exception as exc:
         try:
             from tools.core.honesty_telemetry import record_honesty_event
@@ -2948,6 +2957,7 @@ def _source_grounding_status(
     *,
     preferred_symbols: set[str] | None = None,
 ) -> dict[str, Any]:
+    from tools.core.source_snapshot_integrity import snapshot_content_status, source_text_hash
     db_path = raw_dir / "codemaps.db"
     file_id = int((context or {}).get("file_id") or 0)
     project_key = str((context or {}).get("atlas_node") or "").split("::", 1)[0]
@@ -2973,9 +2983,11 @@ def _source_grounding_status(
             conn.row_factory = sqlite3.Row
             snapshot = conn.execute(
                 """
-                SELECT content, content_hash, status, source_mtime
-                FROM source_snapshots
-                WHERE project_key = ? AND rel_path = ?
+                SELECT ss.content, ss.content_hash, ss.status, ss.source_mtime, f.hash AS atlas_hash
+                FROM source_snapshots AS ss
+                LEFT JOIN files AS f ON f.file_id = ss.file_id
+                  AND f.project_key = ss.project_key AND f.rel_path = ss.rel_path
+                WHERE ss.project_key = ? AND ss.rel_path = ?
                 LIMIT 1;
                 """,
                 (project_key, rel_path),
@@ -2984,6 +2996,9 @@ def _source_grounding_status(
                 snapshot_content = str(snapshot["content"] or "")
                 snapshot_status = str(snapshot["status"] or "unknown")
                 snapshot_hash = str(snapshot["content_hash"] or "")
+                snapshot_status = snapshot_content_status(
+                    snapshot_content, snapshot_hash, snapshot["atlas_hash"], status=snapshot_status,
+                )
                 snapshot_mtime = float(snapshot["source_mtime"] or 0.0)
             symbol_names = sorted(str(item) for item in (preferred_symbols or set()) if str(item).strip())
             if symbol_names:
@@ -3052,23 +3067,16 @@ def _source_grounding_status(
     drift_status = "not_available"
     current_hash = ""
     try:
-        if target_abs.exists() and target_abs.is_file() and target_abs.stat().st_size <= 2_000_000:
+        if snapshot_status != "ok":
+            drift_status = "not_available"
+        elif target_abs.exists() and target_abs.is_file() and target_abs.stat().st_size <= 2_000_000:
             current_bytes = target_abs.read_bytes()
-            current_content = target_abs.read_text(encoding="utf-8", errors="replace")
+            current_content = current_bytes.decode("utf-8", errors="replace")
             if snapshot_hash:
-                current_hash_candidates = {
-                    hashlib.sha256(current_bytes).hexdigest(),
-                    hashlib.sha256(current_content.encode("utf-8")).hexdigest(),
-                    hashlib.sha1(current_bytes).hexdigest(),
-                    hashlib.sha1(current_content.encode("utf-8")).hexdigest(),
-                    hashlib.md5(current_bytes).hexdigest(),
-                    hashlib.md5(current_content.encode("utf-8")).hexdigest(),
-                }
-                if snapshot_hash in current_hash_candidates:
-                    current_hash = snapshot_hash
+                current_hash = source_text_hash(current_content, snapshot_hash) or ""
+                if snapshot_hash == current_hash:
                     drift_status = "match"
-                elif len(snapshot_hash) in {32, 40, 64}:
-                    current_hash = sorted(current_hash_candidates, key=lambda item: (len(item) != len(snapshot_hash), item))[0]
+                elif current_hash:
                     drift_status = "mismatch"
                 else:
                     drift_status = "not_comparable_unknown_hash_algorithm"
@@ -3896,7 +3904,11 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
         else "Do not request deeper impact scope until this target is grounded in disk and Atlas."
     )
     deeper_scope = f"get_impact_radius(target_node={target_ref!r}, depth=3)" if target_grounded else "Refresh SAGE analysis for this exact target repository, then rerun get_impact_radius."
-    full_graph = f"get_impact_radius(target_node={target_ref!r}, depth=0)" if target_grounded else "not_available_until_target_grounded"
+    bounded_debug_scope = f"get_impact_radius(target_node={target_ref!r}, depth=0)" if target_grounded else "not_available_until_target_grounded"
+    direct_shown = min(len(direct), 12)
+    direct_total = max(int(payload.get("direct_dependents_count") or 0), len(direct) + int(payload.get("direct_dependents_omitted") or 0))
+    additional_total = max(0, int(payload.get("blast_radius_size") or 0) - direct_total)
+    transitive_shown = min(len(transitive_sample_pairs), 20)
     inspect_first: list[str] = []
     for candidate in [payload.get("target_file") or payload.get("target") or "", *direct[:3]]:
         normalized = str(candidate or "").strip()
@@ -3911,18 +3923,22 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
         f"  target_file: {json.dumps(payload.get('target_file') or payload.get('target') or '', ensure_ascii=False)}",
         f"  target_ref: {json.dumps(target_ref, ensure_ascii=False)}",
         f"  radius_depth: {int(payload.get('radius_depth') or 0)}",
+        f"  scope_kind: {json.dumps(payload.get('scope_kind') or 'target_reachable_dependents', ensure_ascii=False)}",
+        f"  scope_completeness: {json.dumps(payload.get('scope_completeness') or 'unknown', ensure_ascii=False)}",
+        f"  scope_limits: {json.dumps(payload.get('scope_limits') or {}, ensure_ascii=False)}",
         "  evidence_basis: \"static dependency graph\"",
         f"  target_exists: {str(target_exists).lower()}",
         f"  target_indexed: {str(target_indexed).lower()}",
         f"  target_grounding_status: {json.dumps('grounded' if target_grounded else 'missing_or_unindexed', ensure_ascii=False)}",
         *_source_grounding_yaml_lines(target_status, max_spans=1),
         f"  blast_radius_size: {int(payload.get('blast_radius_size') or 0)}",
-        f"  returned_scope_size: {int(payload.get('returned_scope_size') or payload.get('blast_radius_size') or 0)}",
+        f"  returned_scope_size: {int(payload['returned_scope_size']) if isinstance(payload.get('returned_scope_size'), int) else len(transitive)}",
+        f"  backend_transitive_rows_omitted: {int(payload.get('transitive_dependents_omitted') or 0)}",
         f"  direct_dependents_count: {int(payload.get('direct_dependents_count') or 0)}",
-        f"  direct_dependents_shown: {min(len(direct), 12)}",
-        f"  direct_dependents_omitted: {int(payload.get('direct_dependents_omitted') or max(0, len(direct) - 12))}",
-        f"  transitive_dependents_shown: {min(len(transitive_sample_pairs), 20)}",
-        f"  transitive_dependents_omitted: {int(payload.get('transitive_dependents_omitted') or max(0, len(transitive_sample_pairs) - 20))}",
+        f"  direct_dependents_shown: {direct_shown}",
+        f"  direct_dependents_omitted: {max(0, direct_total - direct_shown)}",
+        f"  transitive_dependents_shown: {transitive_shown}",
+        f"  transitive_dependents_omitted: {max(0, additional_total - transitive_shown)}",
         f"  next_depth_hint: {json.dumps(payload.get('next_depth_hint') or '', ensure_ascii=False)}",
         "path_contract:",
         "  open_files_with: \"analysis_root + target_file or listed file\"",
@@ -3935,7 +3951,8 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
         "follow_up:",
         f"  when_to_use: {json.dumps(follow_up_when, ensure_ascii=False)}",
         f"  deeper_scope: {json.dumps(deeper_scope, ensure_ascii=False)}",
-        f"  full_graph: {json.dumps(full_graph, ensure_ascii=False)}",
+        f"  bounded_debug_scope: {json.dumps(bounded_debug_scope, ensure_ascii=False)}",
+        '  full_graph: "not_available"',
         "direct_dependents:",
     ]
     if payload.get("dependency_graph_source"):
@@ -3968,7 +3985,11 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
             "  - If target_grounding_status is not grounded, refresh analysis for the exact repository before trusting impact radius.",
             "  - Inspect direct dependents before changing public behavior or exported contracts.",
             "  - Keep the patch smallest when blast_radius_size is nonzero.",
-            "  - Treat transitive_dependents_sample as a depth-limited bounded sample; request a deeper graph only when direct evidence requires it.",
+            (
+                "  - Treat transitive_dependents_sample as a bounded target-reachability sample; depth=0 is not a complete repository graph."
+                if target_grounded
+                else "  - Treat transitive_dependents_sample as unavailable until this target is grounded."
+            ),
             "do_not:",
             "  - Do not refactor transitive dependents unless a direct validation failure proves it is required.",
             "  - Do not expand work to omitted dependents from this brief alone.",
@@ -4191,7 +4212,9 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
     if not Path(native_filesystem_path(db_path)).exists():
         return None
     radius_depth = max(0, int(depth or 0))
-    sql_depth = 128 if radius_depth == 0 else radius_depth
+    count_depth_limit = 128
+    returned_transitive_limit = 200
+    sql_depth = count_depth_limit if radius_depth == 0 else min(radius_depth, count_depth_limit)
     try:
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
@@ -4225,9 +4248,9 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
                 LEFT JOIN projects p ON p.project_key = f.project_key
                 GROUP BY f.file_id, f.project_key, f.rel_path, p.path
                 ORDER BY depth, f.project_key, f.rel_path
-                LIMIT 200;
+                LIMIT ?;
                 """,
-                (file_id, sql_depth),
+                (file_id, sql_depth, returned_transitive_limit),
             ).fetchall()
             transitive_count = int(
                 conn.execute(
@@ -4245,7 +4268,7 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
                     )
                     SELECT COUNT(DISTINCT file_id) FROM reach;
                     """,
-                    (file_id, 128),
+                    (file_id, count_depth_limit),
                 ).fetchone()[0]
             )
     except Exception:
@@ -4270,8 +4293,17 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
         "target_file": target_file,
         "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
         "radius_depth": radius_depth,
+        "scope_kind": "target_reachable_dependents",
+        "scope_completeness": "bounded",
+        "scope_limits": {
+            "traversal_depth_limit": sql_depth,
+            "count_depth_limit": count_depth_limit,
+            "returned_transitive_limit": returned_transitive_limit,
+        },
         "dependency_graph_source": "sqlite_dependencies",
-        "evidence_limits": [],
+        "evidence_limits": [
+            "SQLite dependent counts stop at 128 hops and the returned transitive list stops at 200 rows; depth=0 does not export the complete repository graph."
+        ],
         "duration_ms": duration_ms,
         "slow_warning": "impact_radius_resolution_exceeded_2s" if duration_ms > 2000 else "",
         "status": "ok",
@@ -4280,7 +4312,13 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
         "direct_dependents_count": len(direct_paths),
         "direct_dependents_omitted": 0,
         "transitive_dependents_omitted": max(0, transitive_count - len(transitive_paths)),
-        "next_depth_hint": "Use depth=3 first when the returned scope is insufficient; use depth=0 full graph only as a last resort." if radius_depth > 0 and transitive_count > len(transitive_paths) else "",
+        "next_depth_hint": (
+            "Depth=0 is still a bounded debug sample; omitted dependents are not returned by this call."
+            if radius_depth == 0 and transitive_count > len(transitive_paths)
+            else "Use depth=3 first when needed; depth=0 remains a bounded target-reachability debug sample."
+            if radius_depth > 0 and transitive_count > len(transitive_paths)
+            else ""
+        ),
         "direct_dependents": direct_paths,
         "direct_dependent_refs": [ref_for(row) for row in direct_rows],
         "transitive_dependents": transitive_paths,
@@ -4473,6 +4511,9 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
             "target_file": target_file,
             "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
             "radius_depth": radius_depth,
+            "scope_kind": "target_reachable_dependents",
+            "scope_completeness": "unavailable",
+            "scope_limits": {},
             "dependency_graph_source": graph_source,
             "evidence_limits": [
                 "Atlas import fallback was used; cycle classification may require circular_deps.json."
@@ -4493,8 +4534,8 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
     direct_nodes = sorted(reverse.get(resolved_node, []))
     transitive_nodes = _reachable_dependents_limited(resolved_node, reverse, radius_depth)
     precomputed_counts = _precomputed_blast_counts(raw_dir, resolved_node)
-    total_transitive_count = int(precomputed_counts.get("transitive") or len(transitive_nodes))
-    total_direct_count = int(precomputed_counts.get("direct") or len(direct_nodes))
+    total_transitive_count = len(transitive_nodes) if radius_depth == 0 else int(precomputed_counts.get("transitive") or len(transitive_nodes))
+    total_direct_count = len(direct_nodes) if radius_depth == 0 else int(precomputed_counts.get("direct") or len(direct_nodes))
     duration_ms = round((time.perf_counter() - started) * 1000, 2)
     graph_source = _dependency_graph_source(raw_dir)
     return {
@@ -4505,6 +4546,9 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
         "target_file": target_file,
         "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
         "radius_depth": radius_depth,
+        "scope_kind": "target_reachable_dependents",
+        "scope_completeness": "complete_within_loaded_graph" if radius_depth == 0 else "bounded",
+        "scope_limits": {} if radius_depth == 0 else {"traversal_depth_limit": radius_depth},
         "dependency_graph_source": graph_source,
         "evidence_limits": [
             "Atlas import fallback was used; cycle classification may require circular_deps.json."
@@ -4517,7 +4561,7 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
         "direct_dependents_count": total_direct_count,
         "direct_dependents_omitted": max(0, total_direct_count - len(direct_nodes)),
         "transitive_dependents_omitted": max(0, total_transitive_count - len(transitive_nodes)),
-        "next_depth_hint": "Use depth=3 first when the returned scope is insufficient; use depth=0 full graph only as a last resort." if radius_depth > 0 and total_transitive_count > len(transitive_nodes) else "",
+        "next_depth_hint": "Use depth=3 first when needed; depth=0 reaches only dependents in the loaded graph, not the whole repository graph." if radius_depth > 0 and total_transitive_count > len(transitive_nodes) else "",
         "direct_dependents": [repo_rel_for_node(node) for node in direct_nodes],
         "direct_dependent_refs": [target_ref_for_node(node) for node in direct_nodes],
         "transitive_dependents": [repo_rel_for_node(node) for node in transitive_nodes],
@@ -5418,13 +5462,19 @@ def _render_supporting_context_brief(title: str, payload: dict[str, Any]) -> str
         )
     if surface == "state_flow":
         state_flow_policy = _state_flow_brief_policy()
+        focused = payload.get("mode") == "focused_orientation"
+        policy_prefix = "" if focused else "overview_"
         yaml_lines.extend(
             [
                 "state_flow_policy:",
-                "  max_items_semantics: " + json.dumps(state_flow_policy["max_items_semantics"], ensure_ascii=False),
-                "  agent_rule: " + json.dumps(state_flow_policy["agent_rule"], ensure_ascii=False),
+                "  policy_source: \"config/agent_surface_contract.json:state_flow_brief_policy\"",
+                "  policy_scope: " + json.dumps("focused" if focused else "overview"),
+                "  max_items_semantics: " + json.dumps(state_flow_policy[policy_prefix + "max_items_semantics"], ensure_ascii=False),
+                "  agent_rule: " + json.dumps(state_flow_policy[policy_prefix + "agent_rule"], ensure_ascii=False),
             ]
         )
+        if isinstance(payload.get("artifact_binding"), dict):
+            yaml_lines.append("  artifact_binding: " + json.dumps(payload["artifact_binding"], ensure_ascii=False))
     yaml_lines.append("items:")
     if rows:
         for row in rows[:20]:
@@ -8857,24 +8907,290 @@ def _default_agent_scope_allows(value: Any, *, target_root: str = "", explicit_f
     return not _is_variation_workspace_text(text)
 
 
+def _state_flow_endpoint_binding(raw_dir: Path, target: dict, target_root: str,
+                                 preferred_symbol: str = "") -> dict:
+    """File content identity only; never promotes a lexical/call relationship."""
+    status = _target_path_status(
+        raw_dir, target["atlas_ref"], target_root=target_root,
+        preferred_symbols={preferred_symbol} if preferred_symbol else None,
+    )
+    exact_identity = (
+        status.get("resolved_node") == target["atlas_ref"]
+        and status.get("target_file") == target["target_file"]
+        and bool(status.get("inside_root"))
+    )
+    snapshot_matches = (
+        exact_identity and status.get("source_snapshot_status") == "ok"
+        and bool(target["source_hash"])
+        and status.get("source_snapshot_hash") == target["source_hash"]
+    )
+    return {
+        "source_binding": (
+            "snapshot_and_live_match" if snapshot_matches and status.get("drift_check_status") == "match"
+            else "snapshot_match_live_unverified" if snapshot_matches else "unavailable"
+        ),
+        "source_grounding": (
+            _bounded_source_grounding_for_agent(status, max_spans=1)
+            if exact_identity else {"status": "identity_or_path_mismatch"}
+        ),
+    }
+
+
+def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
+                        max_items: int, target_root: str) -> dict[str, Any]:
+    from tools.core.state_flow import project_state_flow_focus
+
+    policy = _state_flow_brief_policy()
+    limit = min(max(1, int(max_items)), policy["focus_max_items"])
+    focus_args = {"project": project, "file": file, "symbol": symbol,
+                  "max_items": limit, "scan_limit": policy["focus_scan_limit"]}
+    # The query owns selector validation. Reuse it before materializing the
+    # potentially large Atlas; an invalid selector cannot need stored evidence.
+    selector_probe = project_state_flow_focus({}, **focus_args)
+    result = (selector_probe if selector_probe["status"] == "invalid_selector"
+              else project_state_flow_focus(_atlas(raw_dir=raw_dir), **focus_args))
+    result["analysis_root"] = _analysis_root_display(target_root)
+    result["repository_content_trust"] = "untrusted_repository_data_not_instruction"
+    result["source_binding_scope"] = "file_content_identity_not_edge_or_runtime_validation"
+    if result["status"] == "selected":
+        target = result["target"]
+        result.update(_state_flow_endpoint_binding(
+            raw_dir, target, target_root, target.get("declaring_symbol") or symbol))
+        if target.get("selection_kind") in {"member", "initializer_member_candidate"}:
+            result["source_grounding_scope"] = "declaring_symbol_not_member_span"
+        class_field_events = result.get("class_field_event_calls")
+        if isinstance(class_field_events, dict):
+            class_field_events["source_binding"] = result["source_binding"]
+        factory_candidate = result.get("factory_source_candidate")
+        if isinstance(factory_candidate, dict):
+            factory_candidate["source_binding"] = result["source_binding"]
+        call_evidence = result.get("symbol_context", {}).get("import_calls")
+        if isinstance(call_evidence, dict):
+            call_evidence["source_binding"] = result["source_binding"]
+        setter_evidence = result.get("symbol_context", {}).get("setter_calls")
+        if isinstance(setter_evidence, dict):
+            setter_evidence["source_binding"] = result["source_binding"]
+            for call in setter_evidence.get("items", []):
+                if isinstance(call, dict) and isinstance(call.get("literal_state_keys"), dict):
+                    call["literal_state_keys"]["source_binding"] = result["source_binding"]
+        upstream = result.get("upstream_action_calls")
+        if isinstance(upstream, dict):
+            upstream["source_binding"] = result["source_binding"]
+            for candidate in upstream.get("items", []):
+                candidate["source_binding"] = result["source_binding"]
+                candidate["endpoint_content_binding"] = (
+                    "same_file_snapshot_and_live_match"
+                    if result["source_binding"] == "snapshot_and_live_match"
+                    else "not_currently_bound"
+                )
+        # Reuse checks for repeated targets; neither endpoint proves a call edge.
+        checked = {target["atlas_ref"]: result["source_binding"]}
+        for lane_name in ("cross_file_action_calls", "hook_selector_candidates",
+                          "event_bus_calls", "imported_property_event_calls",
+                          "upstream_direct_import_calls",
+                          "same_file_direct_calls"):
+            candidate_lane = result.get(lane_name)
+            if not isinstance(candidate_lane, dict):
+                continue
+            candidate_lane["source_binding"] = result["source_binding"]
+            for candidate in candidate_lane.get("items", []):
+                endpoint = candidate["caller"]
+                ref = endpoint["atlas_ref"]
+                if ref not in checked:
+                    checked[ref] = _state_flow_endpoint_binding(
+                        raw_dir, endpoint, target_root, candidate.get("caller_symbol", ""))["source_binding"]
+                candidate["source_binding"] = checked[ref]
+                candidate["endpoint_content_binding"] = (
+                    "both_snapshot_and_live_match"
+                    if checked[ref] == result["source_binding"] == "snapshot_and_live_match"
+                    else "not_currently_bound"
+                )
+        for candidate in result.get("import_candidates", {}).get("items", []):
+            if candidate["status"] != "target_candidate":
+                continue
+            endpoint = candidate["target"]
+            ref = endpoint["atlas_ref"]
+            if ref not in checked:
+                checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+            candidate["source_binding"] = checked[ref]
+            candidate["endpoint_content_binding"] = (
+                "both_snapshot_and_live_match"
+                if checked[ref] == result["source_binding"] == "snapshot_and_live_match"
+                else "not_currently_bound"
+            )
+        storage = result.get("persist_storage_candidate")
+        if isinstance(storage, dict):
+            storage["source_binding"] = result["source_binding"]
+            if storage.get("status") == "target_candidate":
+                endpoint = storage["target"]
+                ref = endpoint["atlas_ref"]
+                if ref not in checked:
+                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                storage["target_source_binding"] = checked[ref]
+                storage["endpoint_content_binding"] = (
+                    "both_snapshot_and_live_match"
+                    if checked[ref] == result["source_binding"] == "snapshot_and_live_match"
+                    else "not_currently_bound"
+                )
+                export = storage.get("export_candidate")
+                if isinstance(export, dict):
+                    export["source_binding"] = checked[ref]
+                    export["endpoint_content_binding"] = storage["endpoint_content_binding"]
+        hydration = result.get("persist_hydration_candidate")
+        if isinstance(hydration, dict):
+            hydration["source_binding"] = result["source_binding"]
+            if hydration.get("status") == "source_candidate" and result["source_binding"] != "snapshot_and_live_match":
+                hydration.update(status="unavailable", reason="selected_source_not_currently_bound")
+                hydration.pop("skip_hydration", None)
+        callees = result.get("direct_callees")
+        if isinstance(callees, dict):
+            callees["source_binding"] = result["source_binding"]
+            for candidate in callees.get("items", []):
+                if candidate.get("status") != "target_candidate":
+                    continue
+                endpoint = candidate["target"]
+                ref = endpoint["atlas_ref"]
+                if ref not in checked:
+                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                candidate["source_binding"] = checked[ref]
+                candidate["endpoint_content_binding"] = (
+                    "both_snapshot_and_live_match"
+                    if checked[ref] == result["source_binding"] == "snapshot_and_live_match"
+                    else "not_currently_bound"
+                )
+            for context in callees.get("target_symbol_contexts", []):
+                endpoint = context["target"]
+                ref = endpoint["atlas_ref"]
+                if ref not in checked:
+                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                context["source_binding"] = checked[ref]
+                context["endpoint_content_binding"] = (
+                    "both_snapshot_and_live_match"
+                    if checked[ref] == result["source_binding"] == "snapshot_and_live_match"
+                    else "not_currently_bound"
+                )
+                context["import_calls"]["source_binding"] = checked[ref]
+                outbound = context.get("outbound_calls")
+                if isinstance(outbound, dict):
+                    outbound["source_binding"] = checked[ref]
+                    for candidate in outbound.get("items", []):
+                        if candidate.get("status") != "target_candidate":
+                            continue
+                        next_target = candidate["target"]
+                        next_ref = next_target["atlas_ref"]
+                        if next_ref not in checked:
+                            checked[next_ref] = _state_flow_endpoint_binding(
+                                raw_dir, next_target, target_root)["source_binding"]
+                        candidate["source_binding"] = checked[next_ref]
+                        candidate["endpoint_content_binding"] = (
+                            "all_three_snapshot_and_live_match"
+                            if result["source_binding"] == checked[ref] == checked[next_ref]
+                            == "snapshot_and_live_match" else "not_currently_bound"
+                        )
+        result["next_action"] = (
+            "Inspect bounded direct-export and optional second-hop export candidates; neither syntax hop proves execution or persistence."
+            if result["source_binding"] == "snapshot_and_live_match"
+            else "Refresh or verify the selected source before relying on this stored orientation."
+        )
+    else:
+        result["next_action"] = "Choose an exact project/file/symbol or refresh missing evidence; do not infer absence."
+    return result
+
+
+def _state_flow_artifact_consumer_binding(data: Any, commit: Any,
+                                          requested_project: str = "") -> dict[str, Any]:
+    """Check stored Atlas identity without loading a large Atlas or claiming live bytes."""
+    run_meta = data.get("run_meta") if isinstance(data, dict) else None
+    scope = run_meta.get("execution_scope") if isinstance(run_meta, dict) else None
+    commit_meta = commit.get("meta") if isinstance(commit, dict) else None
+    snapshot = commit.get("snapshot_id") if isinstance(commit, dict) else None
+    analyzed = scope.get("analyzed_projects") if isinstance(scope, dict) else None
+    projects = commit.get("projects") if isinstance(commit, dict) else None
+    analyzed_source = run_meta.get("analyzed_source_fingerprint") if isinstance(run_meta, dict) else None
+    valid_snapshot = (isinstance(snapshot, str) and len(snapshot) == 64
+                      and all(char in "0123456789abcdef" for char in snapshot))
+    valid_source = (isinstance(analyzed_source, str) and len(analyzed_source) == 64
+                    and all(char in "0123456789abcdef" for char in analyzed_source))
+    valid_scope = (isinstance(analyzed, list) and bool(analyzed)
+                   and all(isinstance(key, str) and key for key in analyzed)
+                   and isinstance(projects, list)
+                   and all(isinstance(key, str) and key for key in projects))
+    snapshot_bound = (
+        isinstance(run_meta, dict) and isinstance(commit_meta, dict)
+        and commit_meta.get("kind") == ATLAS_COMMIT_KIND
+        and commit_meta.get("version") == ATLAS_COMMIT_VERSION
+        and commit.get("state") == "complete" and valid_snapshot
+        and run_meta.get("atlas_source_binding") == "source_inventory_match"
+        and run_meta.get("atlas_snapshot_id") == snapshot
+        and valid_source and valid_scope and set(analyzed).issubset(projects)
+        and isinstance(data.get("by_project"), dict)
+        and set(data["by_project"]) == set(analyzed)
+    )
+    project_in_scope = valid_scope and (not requested_project or requested_project in analyzed)
+    hook_coverage_current = isinstance(data, dict) and data.get("transitive_hook_coverage") == TRANSITIVE_HOOK_COVERAGE
+    bound = snapshot_bound and project_in_scope and hook_coverage_current
+    reason = (None if bound else "missing_or_stale_snapshot_binding" if not snapshot_bound
+              else "requested_project_not_analyzed" if not project_in_scope
+              else "legacy_hook_consumer_coverage")
+    return {
+        "status": "stored_atlas_snapshot_match" if bound else "unavailable",
+        "atlas_snapshot_id": snapshot if bound else None,
+        "basis": "stored_atlas_commit_and_producer_metadata_only",
+        "live_source_status": "not_checked",
+        "transitive_hook_evidence": "positive_lexical_call" if hook_coverage_current else "legacy_unavailable",
+        "requested_project": requested_project or None,
+        "requested_project_analyzed": project_in_scope if valid_scope else None,
+        "analyzed_project_count": len(analyzed) if valid_scope else None,
+        "reason": reason,
+        "next_action": (
+            "Use as bounded stored file-level orientation; verify exact source before acting."
+            if bound else "Run State Flow for the requested project before inferring absence."
+            if reason == "requested_project_not_analyzed"
+            else "Refresh State Flow before relying on old import-only hook consumer links."
+            if reason == "legacy_hook_consumer_coverage"
+            else "Refresh State Flow and Atlas together before relying on this artifact."
+        ),
+    }
+
+
 @mcp.tool()
-def get_state_flow(project: str = "MAIN", max_items: int = 20, full: bool = False, target_root: str = "", format: str = "brief") -> str:
+def get_state_flow(project: str = "MAIN", max_items: int = 20, full: bool = False, target_root: str = "", format: str = "brief", file: str = "", symbol: str = "") -> str:
     """
     Return bounded state/query flow context for a project, MAIN by default.
     Use full=True or format=json only for explicit machine/debug review, not default coding context.
+    Optional exact file/symbol selectors return Atlas-time orientation, not a runtime flow proof.
+    Focused mode stays bounded even with full=True; missing edges remain explicit.
+    Broad mode checks the stored State Flow/Atlas snapshot pair and requested project scope, not live source bytes.
     """
     try:
         raw_dir = _raw_dir_for_target(target_root)
     except ValueError as exc:
         return _invalid_external_target_brief("get_state_flow", target_root)
+    if file or symbol:
+        focused = _focused_state_flow(
+            raw_dir, project=project, file=file, symbol=symbol,
+            max_items=max_items, target_root=target_root,
+        )
+        if full or str(format or "brief").lower() in {"json", "machine"}:
+            return json.dumps(focused, indent=2, ensure_ascii=False)
+        return _render_supporting_context_brief(
+            "State Flow Brief",
+            {"analysis_root": focused["analysis_root"], "surface": "state_flow",
+             "mode": "focused_orientation",
+             "filter": f"{project}::{file}::{symbol}", "status": focused["status"], "items": [focused]},
+        )
     path = raw_dir / "state_flow.json"
     data = _load_json(path)
     if data is None:
         return _missing_target_artifact_brief("get_state_flow", project, target_root, ["state_flow.json"])
-    if full or str(format or "brief").lower() in {"json", "machine"}:
-        return _read_json_artifact(path, "State flow data not found.")
-    data = data or {}
     project_filter = "" if str(project or "").strip() in {"*", "all", "ALL"} else str(project or "").strip()
+    binding = _state_flow_artifact_consumer_binding(
+        data, _load_json(raw_dir / "atlas_commit.json"), project_filter)
+    if full or str(format or "brief").lower() in {"json", "machine"}:
+        payload = dict(data) if isinstance(data, dict) else {"artifact": data}
+        payload["mcp_consumer_binding"] = binding
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    data = data or {}
     section_limit = max(1, int(max_items or 20))
     brief_policy = _state_flow_brief_policy()
     sample_keys_limit = int(brief_policy["sample_keys_limit"])
@@ -8924,7 +9240,8 @@ def get_state_flow(project: str = "MAIN", max_items: int = 20, full: bool = Fals
             "analysis_root": _analysis_root_display(target_root),
             "surface": "state_flow",
             "filter": project_filter,
-            "status": "ok",
+            "status": "ok" if binding["status"] == "stored_atlas_snapshot_match" else "unavailable",
+            "artifact_binding": binding,
             "items": items[:section_limit],
         },
     )
@@ -9918,7 +10235,11 @@ def get_impact_radius(target_node: str, target_root: str = "", format: str = "br
     Standardized impact radius mapping for a specific file or symbol.
     Target format: PROJECT::path/to/file.ts (e.g. MAIN::src/main.tsx)
     Returns dependency counts plus a depth-limited direct/transitive sample for agent-facing review.
-    depth=2 is the default agent scope. Use depth=0 for full reachable graph materialization.
+    depth=2 is the default agent scope. depth=0 is target-reachability debug:
+    SQLite returns at most 200 transitive rows within 128 hops (direct
+    dependents are separate); Atlas fallback
+    returns reachable dependents in its loaded graph. Neither is a full
+    repository graph export.
     """
     started = time.perf_counter()
 
@@ -9946,9 +10267,13 @@ def get_impact_radius(target_node: str, target_root: str = "", format: str = "br
         if payload is not None:
             response = json.dumps(payload, indent=2, ensure_ascii=False) if requested_format in {"json", "machine"} else _render_impact_brief(payload)
             return _done(response)
-        engine_path = TOOLS_DIR / "engines" / "blast_radius_engine.py"
-        result = _run_python_script(engine_path, "--simulate", target_node)
-        return _done(result)
+        return _done(
+            _missing_target_artifact_brief(
+                "get_impact_radius", target_node, target_root, ["atlas.json", "circular_deps.json"]
+            ),
+            status="fail_closed",
+            fail_closed_reason="missing_target_artifact",
+        )
     except Exception as exc:
         return _done(f"Impact analysis failed: {exc}", status="error", fail_closed_reason="impact_analysis_exception")
 

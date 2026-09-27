@@ -52,7 +52,7 @@
       "must_have_runtime_proof_status": "needs_runtime_proof",
       "must_remain_policy_backed": true,
       "promotion_note": "Should stay candidate-level until batching wrappers, data clients and intentional bounded concurrency are calibrated on the corpus.",
-      "target_release": "1.2.0",
+      "target_release": "1.3.0",
       "current_release_role": "advisory_candidate_signal",
       "release_blocking": false
     },
@@ -71,7 +71,7 @@
       "must_have_runtime_proof_status": "needs_runtime_proof",
       "must_remain_policy_backed": true,
       "promotion_note": "Should stay candidate-level until project-specific HTTP clients, retry wrappers and framework loaders are calibrated on the corpus.",
-      "target_release": "1.2.0",
+      "target_release": "1.3.0",
       "current_release_role": "advisory_candidate_signal",
       "release_blocking": false
     }

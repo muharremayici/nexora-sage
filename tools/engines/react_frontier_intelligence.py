@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+from uuid import uuid4
 
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -17,8 +18,10 @@ from tools.core.logger import logger
 from tools.core.react_evidence import atlas_evidence_kinds, attach_react_evidence_contract, first_pattern_line
 from tools.core.report_surface_limits import report_surface_limit
 from tools.core.source_snapshot_reader import load_source_text
+from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage
 from tools.core.subprocess_telemetry import run_observed_subprocess
 from tools.core.runtime_project_scope import project_runtime_atlas
+from tools.core.typescript_source_binding import capture_compiler_library_inputs, reconcile_compiler_library_inputs
 
 
 REACT_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx")
@@ -523,9 +526,11 @@ def _hot_profiler_entries(payload: Any) -> list[str]:
     return [f"{name}={duration:.1f}ms" for name, duration in sorted(rows, key=lambda item: -item[1])[:12]]
 
 
-def _collect_ts_diagnostics(timeout_seconds: int = 90, projects: list[str] | None = None) -> dict[str, Any]:
+def _collect_ts_diagnostics(timeout_seconds: int = 90, projects: list[str] | None = None, *, semantic: bool = False) -> dict[str, Any]:
     if not TS_COLLECTOR.exists():
         return {"status": "COLLECTOR_MISSING", "path": str(TS_COLLECTOR), "summary": {"total_diagnostics": 0, "projects": 0}}
+    run_id = str(uuid4())
+    compiler_inputs = capture_compiler_library_inputs(CODE_MAPS_DIR, run_id) if semantic else None
     cmd = [
         "node",
         str(TS_COLLECTOR),
@@ -538,7 +543,9 @@ def _collect_ts_diagnostics(timeout_seconds: int = 90, projects: list[str] | Non
         "--maxFiles",
         "260",
         "--semantic",
-        "false",
+        "true" if semantic else "false",
+        "--requestId",
+        run_id,
     ]
     if projects:
         cmd.extend(["--projects", ",".join(projects)])
@@ -572,8 +579,16 @@ def _collect_ts_diagnostics(timeout_seconds: int = 90, projects: list[str] | Non
             "stderr": result.stderr[-500:],
             "summary": {"total_diagnostics": 0, "projects": 0},
         }
+    collector_meta = payload.get("meta")
+    if not isinstance(collector_meta, dict) or collector_meta.get("collector_run_id") != run_id:
+        return {"status": "STALE_OUTPUT", "summary": {"total_diagnostics": 0, "projects": 0}}
     payload["collector_status"] = "OK" if result.returncode == 0 else "NONZERO_EXIT"
     payload["collector_exit_code"] = result.returncode
+    # Overwrite any child-provided assertion; only the invoking owner holds the
+    # independently captured pre-launch inventory. This subproof is not lineage.
+    payload.pop("compiler_library_input_binding", None)
+    if compiler_inputs is not None:
+        payload["compiler_library_input_binding"] = reconcile_compiler_library_inputs(payload, compiler_inputs)
     save_json_atomic(TS_DIAGNOSTICS_PATH, payload)
     return payload
 
@@ -830,12 +845,20 @@ def run_react_frontier_intelligence() -> dict[str, Any]:
     bundle_evidence, bundle_findings = _bundle_evidence(projects)
     profiler_evidence, profiler_findings = _profiler_evidence(projects)
     ts_diagnostics = _collect_ts_diagnostics(projects=projects)
+    ts_lineage = write_current_atlas_lineage(
+        artifact_id="ts_diagnostics",
+        producer="tools.engines.react_frontier_intelligence",
+        artifact_payload=ts_diagnostics,
+        atlas=canonical_atlas,
+        raw_dir=RAW_DIR,
+    )
+    bound_ts = ts_diagnostics if ts_lineage["status"] == "COMPLETE" else {}
     evidence_finished = time.perf_counter()
-    ts_findings = _ts_diagnostic_findings(ts_diagnostics)
+    ts_findings = _ts_diagnostic_findings(bound_ts)
     findings.extend(bundle_findings)
     findings.extend(profiler_findings)
     findings.extend(ts_findings)
-    findings, ts_correlated_findings = _enrich_findings_with_ts_diagnostics(findings, ts_diagnostics)
+    findings, ts_correlated_findings = _enrich_findings_with_ts_diagnostics(findings, bound_ts)
 
     dimension_counts = Counter(str(item.get("dimension")) for item in findings)
     confidence_counts = Counter(str(item.get("confidence")) for item in findings)
@@ -876,6 +899,9 @@ def run_react_frontier_intelligence() -> dict[str, Any]:
                 "status": ts_diagnostics.get("collector_status") or ts_diagnostics.get("status") or "UNKNOWN",
                 "summary": ts_diagnostics.get("summary", {}),
                 "artifact": str(TS_DIAGNOSTICS_PATH),
+                "snapshot_binding": ts_lineage["status"],
+                "binding_errors": ts_lineage["errors"],
+                "claim_scope": "checked_syntax_files_only_not_project_type_safety",
             },
             "bundle_stats_expected_names": artifact_policy["bundle_stats_names"],
             "react_profiler_expected_names": artifact_policy["react_profiler_names"],
@@ -900,6 +926,7 @@ def run_react_frontier_intelligence() -> dict[str, Any]:
         "findings": sorted_findings,
     }
     readiness = _evidence_readiness(projects, bundle_evidence, profiler_evidence, ts_diagnostics)
+    readiness["summary"]["typescript_snapshot_binding"] = ts_lineage["status"]
     save_json_atomic(RAW_DIR / "react_frontier_intelligence.json", payload)
     save_json_atomic(RAW_DIR / "react_frontier_intelligence_full.json", full_payload)
     save_json_atomic(RAW_DIR / "react_frontier_evidence_readiness.json", readiness)
@@ -933,6 +960,7 @@ def _render_evidence_readiness_markdown(payload: dict[str, Any]) -> str:
         f"- Bundle evidence files: `{summary.get('bundle_evidence_files', 0)}`",
         f"- React profiler evidence files: `{summary.get('profiler_evidence_files', 0)}`",
         f"- TypeScript collector: `{summary.get('typescript_collector_status', 'UNKNOWN')}`",
+        f"- TypeScript source binding: `{summary.get('typescript_snapshot_binding', 'UNAVAILABLE')}` (checked syntax only)",
         "",
         "## Expected Artifact Names",
         "",
@@ -984,7 +1012,9 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     ts_evidence = (payload.get("evidence_imports", {}) or {}).get("typescript_diagnostics", {})
     lines.append(
         f"- TypeScript diagnostics collector: `{ts_evidence.get('status', 'UNKNOWN')}` "
-        f"total=`{(ts_evidence.get('summary', {}) or {}).get('total_diagnostics', 0)}`"
+        f"total=`{(ts_evidence.get('summary', {}) or {}).get('total_diagnostics', 0)}` "
+        f"snapshot_binding=`{ts_evidence.get('snapshot_binding', 'UNAVAILABLE')}`. "
+        "Checked syntax observations are not project-wide type-safety proof."
     )
     lines.extend(["", "## Top Findings", "", "| Project | File | Tier | Confidence | Dimension | Risk | Evidence | Action |", "|---|---|---|---|---|---|---|---|"])
     for item in payload.get("findings", [])[:100]:

@@ -91,8 +91,14 @@ def _build_possible_invalidation_edges(
 ) -> list[dict[str, Any]]:
     edges: list[dict[str, Any]] = []
     for mutation, mutation_keys in (mutations or {}).items():
+        mutation_project, mutation_rel = _split_project_file(str(mutation))
+        if not mutation_project or mutation_project == "unknown" or not mutation_rel:
+            continue
         actions = list((boundary_signals.get(str(mutation)) or {}).get("client_actions") or [])
         for query, query_keys in (queries or {}).items():
+            query_project, query_rel = _split_project_file(str(query))
+            if query_project != mutation_project or not query_rel:
+                continue
             matched_key_pairs = []
             shared_tokens: set[str] = set()
             relation_basis: set[str] = set()

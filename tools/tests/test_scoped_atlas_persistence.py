@@ -410,7 +410,7 @@ def test_interrupted_real_atlas_generation_rejects_changed_source_then_reuses_la
             patch.object(generate_atlas_module, "ROOT", repository_root),
             patch.object(generate_atlas_module, "RAW_DIR", raw_dir),
             patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
-            patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
+            patch.object(generate_atlas_module, "configured_project_ownership_exclusions", return_value={"MAIN": []}),
             patch.object(generate_atlas_module, "load_previous_atlas", return_value={}),
             patch.object(generate_atlas_module, "ensure_output_dir", side_effect=lambda: raw_dir.mkdir(parents=True, exist_ok=True)),
             patch.object(generate_atlas_module, "run_observed_subprocess", side_effect=observed_node_batch),

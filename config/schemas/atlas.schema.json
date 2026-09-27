@@ -3,6 +3,1045 @@
   "title": "Nexora SAGE Atlas Artifact",
   "description": "JSON Schema contract for the Atlas artifact produced by AST Sequencers and Orchestrators.",
   "type": "object",
+  "$defs": {
+    "store_hook_selector_evidence": {
+      "description": "Direct store((state) => state.member) syntax in an indexed callable, lexically bound to a same-file exported variable or exact named import. Optional direct_return_form records only a direct return statement or concise arrow expression; optional selected_result_direct_calls record direct calls of a const-bound selector result. Neither subscription nor execution is established.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "type": "object",
+        "required": [
+          "status",
+          "calls",
+          "limitations",
+          "binding_scope",
+          "runtime_execution",
+          "subscription"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "observed",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "binding_scope": {
+            "const": "single_file_lexical_store_or_named_import"
+          },
+          "runtime_execution": {
+            "const": "not_established"
+          },
+          "subscription": {
+            "const": "not_established"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "store",
+                "selected_member",
+                "selector_form",
+                "binding_kind",
+                "line",
+                "end_line"
+              ],
+              "if": {
+                "type": "object",
+                "required": [
+                  "binding_kind"
+                ],
+                "properties": {
+                  "binding_kind": {
+                    "const": "named_import"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "required": [
+                  "module_source",
+                  "imported_store"
+                ]
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "required": [
+                      "selected_result_direct_calls_omitted"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "selected_result_direct_calls"
+                    ]
+                  }
+                }
+              ],
+              "properties": {
+                "store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "selected_member": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "direct_return_form": {
+                  "enum": [
+                    "return_statement",
+                    "arrow_expression"
+                  ]
+                },
+                "selector_form": {
+                  "const": "direct_arrow_property"
+                },
+                "binding_kind": {
+                  "enum": [
+                    "same_file_export",
+                    "named_import"
+                  ]
+                },
+                "module_source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imported_store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "selected_result_direct_calls": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "line",
+                      "end_line"
+                    ],
+                    "properties": {
+                      "line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                },
+                "selected_result_direct_calls_omitted": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "same_file_store_action_call_evidence": {
+      "description": "Direct store.getState().action() or const { action } = store.getState(); action() syntax in an indexed callable, lexically bound to a same-file exported variable or exact named import. No module resolution, execution or runtime state-flow claim.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "type": "object",
+        "required": [
+          "status",
+          "calls",
+          "limitations",
+          "binding_scope",
+          "runtime_execution"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "observed",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "binding_scope": {
+            "enum": [
+              "single_file_lexical_exported_store",
+              "single_file_lexical_store_or_named_import"
+            ]
+          },
+          "runtime_execution": {
+            "const": "not_established"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "store",
+                "action",
+                "line",
+                "end_line"
+              ],
+              "if": {
+                "type": "object",
+                "required": [
+                  "binding_kind"
+                ],
+                "properties": {
+                  "binding_kind": {
+                    "const": "named_import"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "required": [
+                  "module_source",
+                  "imported_store"
+                ]
+              },
+              "properties": {
+                "store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "action": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "call_form": {
+                  "enum": [
+                    "direct_getstate_action",
+                    "const_destructured_getstate_action"
+                  ]
+                },
+                "binding_kind": {
+                  "enum": [
+                    "same_file_export",
+                    "named_import"
+                  ]
+                },
+                "module_source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imported_store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "import_call_evidence": {
+      "description": "Single-file lexical import binding of call syntax. No module resolution, type safety or execution claim.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "type": "object",
+        "required": [
+          "status",
+          "calls",
+          "limitations",
+          "binding_scope",
+          "runtime_execution"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "observed",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "binding_scope": {
+            "const": "single_file_lexical_import"
+          },
+          "runtime_execution": {
+            "const": "not_established"
+          },
+          "property_event_evidence": {
+            "$ref": "#/$defs/imported_property_event_call_evidence"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "source",
+                "localName",
+                "importedName",
+                "kind",
+                "member",
+                "line",
+                "end_line",
+                "optional"
+              ],
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "localName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "importedName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "enum": [
+                    "named",
+                    "default",
+                    "namespace"
+                  ]
+                },
+                "member": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "first_literal_argument": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nested_callable_depth": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "optional": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "imported_property_event_call_evidence": {
+      "description": "Checker-bound named-import value.property.emit/on/once/off/addListener/removeListener literal call syntax in one indexed callable. The imported value's runtime owner and event delivery remain unknown.",
+      "type": "object",
+      "required": [
+        "status",
+        "calls",
+        "omitted",
+        "limitations",
+        "binding_scope",
+        "runtime_owner_binding",
+        "runtime_execution"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "incomplete_scan",
+            "unavailable",
+            "not_applicable"
+          ]
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_named_import_property"
+        },
+        "runtime_owner_binding": {
+          "const": "not_established"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "localName",
+              "importedName",
+              "owner_property",
+              "method",
+              "first_literal_argument",
+              "nested_callable_depth",
+              "line",
+              "end_line"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "localName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "importedName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner_property": {
+                "type": "string",
+                "minLength": 1
+              },
+              "method": {
+                "enum": [
+                  "emit",
+                  "on",
+                  "once",
+                  "off",
+                  "addListener",
+                  "removeListener"
+                ]
+              },
+              "first_literal_argument": {
+                "type": "string"
+              },
+              "nested_callable_depth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "factory_source_evidence": {
+      "description": "Positive single-file source syntax: an exported const directly calls a local factory or passes it to a wrapper, and that factory has one direct named-import constructor return. No callback execution, package condition, instance identity or field immutability claim.",
+      "type": "object",
+      "required": [
+        "status",
+        "binding_scope",
+        "initializer_form",
+        "wrapper_name",
+        "factory",
+        "factory_line",
+        "return_line",
+        "return_form",
+        "constructed_imported_name",
+        "constructor_module_source",
+        "factory_execution",
+        "runtime_instance_identity",
+        "package_condition_resolution",
+        "public_field_mutation"
+      ],
+      "properties": {
+        "status": {
+          "const": "syntax_candidate"
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_factory_and_named_constructor_import"
+        },
+        "initializer_form": {
+          "enum": [
+            "direct_factory_call",
+            "factory_passed_as_argument"
+          ]
+        },
+        "wrapper_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "factory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "factory_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "return_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "return_form": {
+          "enum": [
+            "direct_new_return",
+            "direct_const_new_return"
+          ]
+        },
+        "constructed_imported_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "constructor_module_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "factory_execution": {
+          "const": "not_established"
+        },
+        "runtime_instance_identity": {
+          "const": "not_established"
+        },
+        "package_condition_resolution": {
+          "const": "not_evaluated"
+        },
+        "public_field_mutation": {
+          "const": "not_checked"
+        }
+      }
+    },
+    "same_file_direct_call_evidence": {
+      "description": "Bounded direct identifier call syntax linked by the TypeScript checker to one top-level same-file callable declaration. No alias, nested call, type or runtime claim.",
+      "type": "object",
+      "required": [
+        "status",
+        "calls",
+        "omitted",
+        "limitations",
+        "binding_scope",
+        "runtime_execution"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "incomplete_scan",
+            "unavailable",
+            "not_applicable"
+          ]
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_direct_callable"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "target_symbol",
+              "target_start",
+              "line",
+              "end_line"
+            ],
+            "properties": {
+              "target_symbol": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "class_instance_event_call_evidence": {
+      "description": "Literal event-call syntax through a readonly class field directly initialized from one named import. Runtime instance ownership, delivery and callback execution are not established.",
+      "type": "object",
+      "required": [
+        "status",
+        "calls",
+        "omitted",
+        "limitations",
+        "binding_scope",
+        "runtime_owner_binding",
+        "runtime_execution"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "incomplete_scan",
+            "unavailable"
+          ]
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_readonly_class_field_named_import"
+        },
+        "runtime_owner_binding": {
+          "const": "not_established"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "localName",
+              "importedName",
+              "kind",
+              "owner_field",
+              "caller_member",
+              "member_line",
+              "member_end_line",
+              "member",
+              "first_literal_argument",
+              "line",
+              "end_line"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "localName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "importedName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "const": "named"
+              },
+              "owner_field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "caller_member": {
+                "type": "string",
+                "minLength": 1
+              },
+              "member_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "member_end_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "member": {
+                "enum": [
+                  "emit",
+                  "on",
+                  "once",
+                  "off",
+                  "addListener",
+                  "removeListener"
+                ]
+              },
+              "first_literal_argument": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "class_event_emitter_field_evidence": {
+      "description": "Direct node:events EventEmitter class-field constructor and literal this.field call syntax in direct methods or lexical arrow callbacks. Public field writes, runtime instance identity, listener delivery and external property callers are not established.",
+      "type": "object",
+      "required": [
+        "status",
+        "constructor",
+        "module_source",
+        "binding_scope",
+        "runtime_owner_binding",
+        "runtime_execution",
+        "calls",
+        "omitted",
+        "limitations"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "incomplete_scan",
+            "unavailable"
+          ]
+        },
+        "constructor": {
+          "const": "EventEmitter"
+        },
+        "module_source": {
+          "enum": [
+            "node:events",
+            "events"
+          ]
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_class_field_direct_constructor"
+        },
+        "runtime_owner_binding": {
+          "const": "not_established"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "owner_field",
+              "caller_member",
+              "member_line",
+              "member_end_line",
+              "method",
+              "first_literal_argument",
+              "nested_callable_depth",
+              "line",
+              "end_line"
+            ],
+            "properties": {
+              "owner_field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "caller_member": {
+                "type": "string",
+                "minLength": 1
+              },
+              "member_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "member_end_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "method": {
+                "enum": [
+                  "emit",
+                  "on",
+                  "once",
+                  "off",
+                  "addListener",
+                  "removeListener"
+                ]
+              },
+              "first_literal_argument": {
+                "type": "string"
+              },
+              "nested_callable_depth": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "event_emitter_singleton_evidence": {
+      "description": "Direct exported variable initialized with a lexically bound node:events EventEmitter constructor; no runtime identity or event delivery claim.",
+      "type": "object",
+      "required": [
+        "status",
+        "binding_scope",
+        "runtime_execution"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "constructor",
+              "module_source"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "unavailable"
+          ]
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_constructor_import"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "constructor": {
+          "const": "EventEmitter"
+        },
+        "module_source": {
+          "enum": [
+            "node:events",
+            "events"
+          ]
+        }
+      }
+    },
+    "zustand_setter_call_evidence": {
+      "description": "A supported direct or curried Zustand factory callback parameter is lexically called inside one indexed action body, optionally through an exact persist import. Syntax only; no runtime transition or call-result ownership claim.",
+      "type": "object",
+      "required": [
+        "status",
+        "calls",
+        "limitations",
+        "binding_scope",
+        "runtime_execution"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "unavailable",
+            "not_applicable"
+          ]
+        },
+        "factory_form": {
+          "enum": [
+            "direct",
+            "curried"
+          ]
+        },
+        "factory_api": {
+          "enum": [
+            "react_bound_hook",
+            "vanilla_store"
+          ]
+        },
+        "middleware_form": {
+          "enum": [
+            "none",
+            "persist"
+          ]
+        },
+        "binding_scope": {
+          "const": "single_file_lexical_store_factory_parameter"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "parameter",
+              "line",
+              "end_line",
+              "optional"
+            ],
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "minLength": 1
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "literal_key_evidence": {
+                "description": "Only top-level identifier or string-literal keys of the direct object first argument. Unavailable is not absence of a state write.",
+                "type": "object",
+                "required": [
+                  "status",
+                  "keys"
+                ],
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "observed",
+                      "unavailable"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "keys": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "line",
+                        "end_line"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "additionalProperties": {
     "type": "object",
     "required": [
@@ -107,6 +1146,9 @@
             },
             "hash": {
               "type": "string"
+            },
+            "canonical_file_path": {
+              "type": "boolean"
             },
             "ast_contract_version": {
               "type": "string"
@@ -277,6 +1319,217 @@
                   "memberDetails": {
                     "type": "array"
                   },
+                  "member_details": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "import_call_evidence": {
+                          "$ref": "#/$defs/import_call_evidence"
+                        },
+                        "class_event_emitter_field_evidence": {
+                          "$ref": "#/$defs/class_event_emitter_field_evidence"
+                        }
+                      }
+                    }
+                  },
+                  "import_call_evidence": {
+                    "$ref": "#/$defs/import_call_evidence"
+                  },
+                  "event_emitter_singleton_evidence": {
+                    "$ref": "#/$defs/event_emitter_singleton_evidence"
+                  },
+                  "factory_source_evidence": {
+                    "$ref": "#/$defs/factory_source_evidence"
+                  },
+                  "class_instance_event_call_evidence": {
+                    "$ref": "#/$defs/class_instance_event_call_evidence"
+                  },
+                  "same_file_store_action_call_evidence": {
+                    "$ref": "#/$defs/same_file_store_action_call_evidence"
+                  },
+                  "same_file_direct_call_evidence": {
+                    "$ref": "#/$defs/same_file_direct_call_evidence"
+                  },
+                  "store_hook_selector_evidence": {
+                    "$ref": "#/$defs/store_hook_selector_evidence"
+                  },
+                  "initializer_member_evidence": {
+                    "description": "Parser-owned variable-initializer syntax candidates, not class members or proven call-result properties. Never implies runtime or lexical binding.",
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "if": {
+                      "type": "object"
+                    },
+                    "then": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "const": "syntax_observed"
+                        },
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "kind",
+                              "attribution",
+                              "line",
+                              "end_line",
+                              "source_lines",
+                              "dependencies",
+                              "dependencyImports"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "import_call_evidence": {
+                                "$ref": "#/$defs/import_call_evidence"
+                              },
+                              "zustand_setter_call_evidence": {
+                                "$ref": "#/$defs/zustand_setter_call_evidence"
+                              },
+                              "persist_storage_option_import_evidence": {
+                                "type": "object",
+                                "required": [
+                                  "status",
+                                  "runtime_execution"
+                                ],
+                                "properties": {
+                                  "status": {
+                                    "enum": [
+                                      "observed",
+                                      "unavailable"
+                                    ]
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  },
+                                  "relation": {
+                                    "const": "persist_storage_option_named_import_syntax"
+                                  },
+                                  "reference": {
+                                    "type": "object",
+                                    "required": [
+                                      "source",
+                                      "localName",
+                                      "importedName",
+                                      "kind"
+                                    ],
+                                    "properties": {
+                                      "source": {
+                                        "type": "string"
+                                      },
+                                      "localName": {
+                                        "type": "string"
+                                      },
+                                      "importedName": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "const": "named"
+                                      }
+                                    }
+                                  },
+                                  "line": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "end_line": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "runtime_execution": {
+                                    "const": "not_established"
+                                  }
+                                }
+                              },
+                              "persist_hydration_option_evidence": {
+                                "type": "object",
+                                "required": [
+                                  "status",
+                                  "runtime_execution"
+                                ],
+                                "properties": {
+                                  "status": {
+                                    "enum": [
+                                      "observed",
+                                      "unavailable"
+                                    ]
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  },
+                                  "relation": {
+                                    "const": "persist_skip_hydration_literal_syntax"
+                                  },
+                                  "skip_hydration": {
+                                    "type": "boolean"
+                                  },
+                                  "line": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "end_line": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "runtime_execution": {
+                                    "const": "not_established"
+                                  }
+                                }
+                              },
+                              "attribution": {
+                                "enum": [
+                                  "direct_object_initializer",
+                                  "returned_object_candidate"
+                                ]
+                              },
+                              "line": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "end_line": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            }
+                          }
+                        },
+                        "limitations": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "runtime_owner_binding": {
+                          "const": "not_established"
+                        },
+                        "lexical_binding": {
+                          "const": "unverified"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "members",
+                        "limitations",
+                        "runtime_owner_binding",
+                        "lexical_binding"
+                      ]
+                    }
+                  },
                   "moduleSpecifier": {
                     "type": "string"
                   },
@@ -326,6 +1579,53 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        }
+      },
+      "resolved_module_importer_index": {
+        "type": "object",
+        "description": "Optional snapshot-local lookup acceleration; callers still validate import records, parser evidence and both source endpoints.",
+        "required": [
+          "kind",
+          "version",
+          "status",
+          "scope",
+          "indexed_file_count",
+          "file_identity_sha256",
+          "by_source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "nexora.atlas.resolved_module_importers"
+          },
+          "version": {
+            "const": "v1"
+          },
+          "status": {
+            "const": "complete"
+          },
+          "scope": {
+            "const": "same_project_recorded_resolved_import_sources_only"
+          },
+          "indexed_file_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "file_identity_sha256": {
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "by_source": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           }
         }
       },

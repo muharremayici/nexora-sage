@@ -83,6 +83,9 @@ def _ts_diagnostics_by_project(payload: dict) -> dict[str, int]:
     if not isinstance(projects, dict):
         return totals
     for project, data in projects.items():
+        # A syntax-only collector (even source-bound) cannot prove type safety.
+        if not isinstance(data, dict) or data.get("mode") != "semantic" or data.get("status") != "OK":
+            continue
         summary = data.get("summary", {}) if isinstance(data, dict) else {}
         totals[str(project)] = int(summary.get("total", 0) or 0)
     return totals
@@ -185,7 +188,7 @@ def simulate_dependency_package(
     }
     decision = _decision_for(package, signals)
     smoke = (smoke_runs or {}).get((source, str(package.get("candidate") or "")))
-    ts_total = None if ts_totals is None else int(ts_totals.get(source, 0) or 0)
+    ts_total = None if ts_totals is None or source not in ts_totals else int(ts_totals[source])
     confidence = _confidence_components(package, signals, smoke, ts_total)
     required_actions = ["run_static_gate"]
     if package.get("recommended_gate") == "browser_smoke_required":

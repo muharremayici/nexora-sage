@@ -9,13 +9,14 @@ import time
 from collections import defaultdict
 
 from tools.core.atlas_io import resolve_atlas_data
+from tools.core.atlas_integrity import ATLAS_COMMIT_KIND, ATLAS_COMMIT_VERSION, payload_sha256, source_fingerprint
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.genome_io import load_genome_data
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.projects_registry import project_display_name
 from tools.core.runtime_project_scope import project_runtime_atlas
-from tools.core.state_flow import summarize_state_flow_features
+from tools.core.state_flow import TRANSITIVE_HOOK_COVERAGE, summarize_state_flow_features
 
 
 TRANSITION_FEATURE_EXACT = {
@@ -47,29 +48,6 @@ STRICT_PROPERTY_DRIVER_MARKERS = {
 }
 
 
-def _normalize_module_ref(value: str) -> str:
-    text = str(value or "").replace("\\", "/").strip().strip("/")
-    if text.startswith("./"):
-        text = text[2:]
-    while text.startswith("../"):
-        text = text[3:]
-    for suffix in (".tsx", ".ts", ".jsx", ".js"):
-        if text.endswith(suffix):
-            text = text[: -len(suffix)]
-            break
-    if text.endswith("/index"):
-        text = text[: -len("/index")]
-    return text.lower()
-
-
-def _module_ref_matches(source: str, provider_rel: str) -> bool:
-    src = _normalize_module_ref(source)
-    target = _normalize_module_ref(provider_rel)
-    if not src or not target:
-        return False
-    return src == target or target.endswith(f"/{src}") or src.endswith(f"/{target}")
-
-
 def _state_flow_has_signal(state_flow: dict) -> bool:
     return bool(
         state_flow.get("has_zustand_store")
@@ -94,8 +72,7 @@ def _exported_hook_names(file_data: dict) -> set[str]:
         if not isinstance(symbol, dict):
             continue
         name = str(symbol.get("name") or "")
-        symbol_type = str(symbol.get("type") or symbol.get("canonicalSymbolType") or "")
-        if name.startswith("use") and (symbol.get("exported") or symbol_type.lower() == "hook"):
+        if name.startswith("use") and symbol.get("exported") is True:
             hooks.add(name)
     for export in file_data.get("exports", []) or []:
         name = str(export or "")
@@ -104,27 +81,43 @@ def _exported_hook_names(file_data: dict) -> set[str]:
     return hooks
 
 
-def _merge_state_flow(target: dict, source: dict) -> dict:
-    merged = dict(target or {})
-    # Store ownership is not transitive. A component importing a custom hook from a
-    # store/provider module consumes state, but it does not become a store module.
-    merged["has_zustand_store"] = bool(merged.get("has_zustand_store"))
-    for key in (
-        "query_keys",
-        "query_key_refs",
-        "query_key_dynamic",
-        "mutation_keys",
-        "mutation_key_refs",
-        "mutation_key_dynamic",
-        "client_actions",
-        "zustand_consumers",
-        "zustand_no_selector_calls",
-        "zustand_broad_selector_calls",
-        "react_external_store_consumers",
-        "technologies",
-    ):
-        merged[key] = sorted(set(merged.get(key) or []) | set(source.get(key) or []))
-    return merged
+def _bound_hook_import_calls(file_data: dict) -> dict[tuple[str, str], tuple[list[dict], int]]:
+    """Index positive lexical top-level call sites once per file; no execution claim."""
+    symbols = file_data.get("symbols")
+    if not isinstance(symbols, list):
+        return {}
+    sites: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    omitted: dict[tuple[str, str], int] = defaultdict(int)
+    for symbol in symbols:
+        if not isinstance(symbol, dict) or symbol.get("type") not in {"Function", "Arrow", "Hook", "Component"}:
+            continue
+        name, start, end = symbol.get("name"), symbol.get("line"), symbol.get("end_line")
+        evidence = symbol.get("import_call_evidence")
+        if (not isinstance(name, str) or not name or type(start) is not int or type(end) is not int
+                or not 0 < start <= end or not isinstance(evidence, dict)
+                or evidence.get("status") != "observed"
+                or evidence.get("binding_scope") != "single_file_lexical_import"
+                or not isinstance(evidence.get("calls"), list)):
+            continue
+        for call in evidence["calls"]:
+            if not isinstance(call, dict):
+                continue
+            line, end_line = call.get("line"), call.get("end_line")
+            source, imported_name = call.get("source"), call.get("importedName")
+            if (not isinstance(source, str) or not source
+                    or not isinstance(imported_name, str) or not imported_name.startswith("use")
+                    or call.get("kind") != "named" or call.get("member") is not None
+                    or call.get("optional") is not False
+                    or not isinstance(call.get("localName"), str) or not call["localName"]
+                    or type(line) is not int or type(end_line) is not int
+                    or not start <= line <= end_line <= end):
+                continue
+            key = (source, imported_name)
+            if len(sites[key]) < 8:
+                sites[key].append({"symbol": name, "line": line, "end_line": end_line})
+            else:
+                omitted[key] += 1
+    return {key: (value, omitted[key]) for key, value in sites.items()}
 
 
 def _transition_subject_file_set(
@@ -217,8 +210,9 @@ def _scope_matches_file_key(changed_scope: set[str] | None, *keys: str) -> bool:
     return bool(candidates & changed_scope)
 
 
-def _build_genome_file_index(changed_scope: set[str] | None = None):
-    genome = load_genome_data()
+def _build_genome_file_index(atlas: dict, changed_scope: set[str] | None = None,
+                             *, genome: dict | None = None):
+    genome = load_genome_data() if genome is None else genome
     index = defaultdict(
         lambda: {
             "imported_contracts": set(),
@@ -231,25 +225,32 @@ def _build_genome_file_index(changed_scope: set[str] | None = None):
         return index
 
     for occs in genome.values():
-        for occ in occs:
-            workspace_rel = str(occ.get("workspace_rel") or "").replace("\\", "/").strip("/")
-            file_rel = str(occ.get("file") or "").replace("\\", "/").strip("/")
-            project = str(occ.get("project") or occ.get("project_key") or "").strip()
-            qualified_workspace = f"{project}::{workspace_rel}" if project and workspace_rel else ""
-            qualified_file = f"{project}::{file_rel}" if project and file_rel else ""
-            if not _scope_matches_file_key(changed_scope, workspace_rel, file_rel, qualified_workspace, qualified_file):
+        for occ in occs if isinstance(occs, list) else []:
+            if not isinstance(occ, dict):
                 continue
-            keys = {key for key in {workspace_rel, file_rel} if key}
-            if workspace_rel.startswith("src/"):
-                keys.add(workspace_rel[4:])
-            if file_rel and not file_rel.startswith("src/"):
-                keys.add(f"src/{file_rel}")
-            for key in keys:
-                bucket = index[key]
-                bucket["imported_contracts"].update(occ.get("imported_contracts") or [])
-                bucket["ui_dependencies"].update(occ.get("ui_dependencies") or [])
-                bucket["architectural_markers"].update(occ.get("architectural_markers") or [])
-                bucket["dynamic_imports"].update(occ.get("dynamic_imports") or [])
+            project, file_rel = occ.get("project"), occ.get("file")
+            project_data = atlas.get(project) if isinstance(project, str) else None
+            files = project_data.get("files") if isinstance(project_data, dict) else None
+            file_data = files.get(file_rel) if isinstance(files, dict) and isinstance(file_rel, str) else None
+            if not isinstance(file_data, dict):
+                continue
+            workspace_rel = file_data.get("workspace_rel") or file_rel
+            qualified_file = f"{project}::{file_rel}"
+            qualified_workspace = f"{project}::{workspace_rel}"
+            if (not isinstance(workspace_rel, str) or not workspace_rel
+                    or occ.get("scoped_file") != qualified_file
+                    or occ.get("workspace_rel") != workspace_rel
+                    or occ.get("scoped_workspace_rel") != qualified_workspace
+                    or not isinstance(file_data.get("hash"), str) or not file_data["hash"]
+                    or occ.get("file_hash") != file_data["hash"]
+                    or not _scope_matches_file_key(changed_scope, workspace_rel, file_rel,
+                                                    qualified_workspace, qualified_file)):
+                continue
+            bucket = index[qualified_file]
+            bucket["imported_contracts"].update(occ.get("imported_contracts") or [])
+            bucket["ui_dependencies"].update(occ.get("ui_dependencies") or [])
+            bucket["architectural_markers"].update(occ.get("architectural_markers") or [])
+            bucket["dynamic_imports"].update(occ.get("dynamic_imports") or [])
     return index
 
 
@@ -265,9 +266,89 @@ def _changed_scope(changed_files: list[str] | None) -> set[str] | None:
     return scope
 
 
-def _state_flow_provider_changed(atlas: dict, changed_scope: set[str] | None) -> bool:
+def _atlas_source_commit_binding(atlas: dict, commit: dict) -> dict:
+    """Bind the loaded Atlas source inventory to its canonical commit, not live bytes."""
+    try:
+        observed_source = source_fingerprint(atlas)
+    except (TypeError, ValueError):
+        observed_source = None
+    meta = commit.get("meta") if isinstance(commit, dict) else None
+    snapshot_id = commit.get("snapshot_id") if isinstance(commit, dict) else None
+    projects = sorted(key for key, value in atlas.items()
+                      if key != "symbols" and isinstance(value, dict))
+    matched = (
+        isinstance(meta, dict) and meta.get("kind") == ATLAS_COMMIT_KIND
+        and meta.get("version") == ATLAS_COMMIT_VERSION
+        and commit.get("state") == "complete"
+        and isinstance(snapshot_id, str) and len(snapshot_id) == 64
+        and all(char in "0123456789abcdef" for char in snapshot_id)
+        and bool(observed_source) and commit.get("source_fingerprint") == observed_source
+        and commit.get("projects") == projects
+    )
+    return {"status": "source_inventory_match" if matched else "unavailable",
+            "snapshot_id": snapshot_id if matched else None,
+            "source_fingerprint": observed_source}
+
+
+def _incremental_cache_matches_transition(previous: dict, commit: dict,
+                                          changed_scope: set[str] | None,
+                                          analyzed_projects: list[str], binding: dict) -> bool:
+    """Reuse old file results only across one declared scoped Atlas transition."""
+    if (not isinstance(previous, dict) or not isinstance(commit, dict)
+            or not isinstance(changed_scope, set) or not changed_scope
+            or previous.get("transitive_hook_coverage") != TRANSITIVE_HOOK_COVERAGE
+            or binding.get("status") != "source_inventory_match"
+            or commit.get("generation_mode") != "surgical"):
+        return False
+    prior = previous.get("run_meta")
+    transition = commit.get("generation_transition")
+    if not isinstance(prior, dict) or not isinstance(transition, dict):
+        return False
+    prior_scope = prior.get("execution_scope")
+    refs = transition.get("changed_files")
+    deleted = transition.get("deleted_files")
+    parent_snapshot_id = transition.get("parent_snapshot_id")
+    if (prior.get("atlas_source_binding") != "source_inventory_match"
+            or not isinstance(prior.get("analyzed_source_fingerprint"), str)
+            or not prior["analyzed_source_fingerprint"]
+            or not isinstance(prior_scope, dict)
+            or prior_scope.get("analyzed_projects") != analyzed_projects
+            or not isinstance(parent_snapshot_id, str) or len(parent_snapshot_id) != 64
+            or any(char not in "0123456789abcdef" for char in parent_snapshot_id)
+            or prior.get("atlas_snapshot_id") != parent_snapshot_id
+            or transition.get("kind") != "scoped_delta"
+            or not isinstance(refs, list) or not refs or not isinstance(deleted, list)
+            or any(not isinstance(ref, str) or "::" not in ref for ref in refs)
+            or refs != sorted(set(refs))
+            or transition.get("changed_files_sha256") != payload_sha256(refs)
+            or not set(deleted).issubset(refs)
+            or transition.get("deleted_files_sha256") != payload_sha256(deleted)):
+        return False
+    changed_refs = set(refs)
+    return (
+        all(ref in changed_scope or ref.partition("::")[2] in changed_scope
+            for ref in changed_refs)
+        and all(scope in changed_refs or any(ref.partition("::")[2] == scope
+                                             for ref in changed_refs)
+                for scope in changed_scope)
+    )
+
+
+def _state_flow_provider_changed(atlas: dict, changed_scope: set[str] | None,
+                                 previous_results: dict | None = None) -> bool:
     if not changed_scope:
         return False
+    # A provider removed by this edit no longer has a current hook/signal.
+    # Its previous consumers still need a full recomputation.
+    inherited = previous_results.get("transitive_hook_consumers", {}) if isinstance(previous_results, dict) else {}
+    if isinstance(inherited, dict):
+        for sources in inherited.values():
+            for source in sources if isinstance(sources, list) else []:
+                provider = source.get("provider") if isinstance(source, dict) else None
+                if isinstance(provider, str) and (
+                    provider in changed_scope or provider.partition("::")[2] in changed_scope
+                ):
+                    return True
     for pkey, pdata in atlas.items():
         if pkey == "symbols" or not isinstance(pdata, dict):
             continue
@@ -292,8 +373,8 @@ def _state_flow_provider_changed(atlas: dict, changed_scope: set[str] | None) ->
     return False
 
 
-def _load_previous_incremental_results(changed_scope: set[str] | None, provider_changed: bool) -> dict | None:
-    if not changed_scope or provider_changed:
+def _load_previous_incremental_results(changed_scope: set[str] | None) -> dict | None:
+    if not changed_scope:
         return None
     previous = load_json_file(RAW_DIR / "state_flow.json", {})
     if not isinstance(previous, dict) or not isinstance(previous.get("boundary_signals"), dict):
@@ -316,8 +397,12 @@ def build_state_flow_results(
     boundary_signals = {}
     transitive_hook_consumers = {}
     hook_providers: dict[str, list[dict]] = defaultdict(list)
+    file_aliases: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     changed_scope = _changed_scope(changed_files)
-    incremental_mode = changed_scope is not None and previous_results is not None
+    incremental_mode = (
+        changed_scope is not None and isinstance(previous_results, dict)
+        and previous_results.get("transitive_hook_coverage") == TRANSITIVE_HOOK_COVERAGE
+    )
 
     if incremental_mode:
         for key, target in (
@@ -348,6 +433,12 @@ def build_state_flow_results(
         if pkey == "symbols":
             continue
         for rel, f_data in (pdata.get("files", {}) or {}).items():
+            if not isinstance(f_data, dict):
+                continue
+            file_aliases[pkey][rel].add(rel)
+            workspace_rel = f_data.get("workspace_rel")
+            if isinstance(workspace_rel, str) and workspace_rel:
+                file_aliases[pkey][workspace_rel].add(rel)
             features = f_data.get("features", [])
             state_flow = f_data.get("state_flow") or summarize_state_flow_features(features)
             if not _state_flow_has_signal(state_flow):
@@ -375,27 +466,49 @@ def build_state_flow_results(
             features = list(f_data.get("features", []) or [])
             state_flow = f_data.get("state_flow") or summarize_state_flow_features(features)
             inherited_from = []
+            import_rows = f_data.get("import_records", []) or []
+            has_named_hook_import = any(
+                isinstance(row, dict) and row.get("kind") == "named"
+                and str(row.get("name") or row.get("importedName") or "").startswith("use")
+                for row in import_rows
+            )
+            hook_calls = _bound_hook_import_calls(f_data) if has_named_hook_import else {}
 
-            for record in f_data.get("import_records", []) or []:
+            for record in import_rows:
                 if not isinstance(record, dict):
                     continue
+                if record.get("kind") != "named" or record.get("scope") != "top_level":
+                    continue
                 imported_name = str(record.get("name") or record.get("importedName") or "").strip()
-                source = str(record.get("source") or record.get("raw_source") or "").strip()
+                source = record.get("source")
                 if not imported_name.startswith("use"):
                     continue
+                raw_source = record.get("raw_source")
+                if not isinstance(raw_source, str) or not raw_source:
+                    continue
+                call_sites, call_sites_omitted = hook_calls.get(
+                    (raw_source, imported_name), ([], 0))
+                if not call_sites:
+                    continue
+                # The Atlas resolver owns module identity. A suffix or basename
+                # match can silently merge a different hook provider into this file.
+                provider_files = file_aliases[pkey].get(source, set()) if isinstance(source, str) else set()
+                if len(provider_files) != 1:
+                    continue
+                provider_rel = next(iter(provider_files))
                 for provider in hook_providers.get(pkey, []):
                     if provider["qualified_rel"] == qualified_rel:
                         continue
+                    if provider["rel"] != provider_rel:
+                        continue
                     if provider["hook_name"] != imported_name:
                         continue
-                    if not _module_ref_matches(source, provider["rel"]):
-                        continue
-                    state_flow = _merge_state_flow(state_flow, provider["state_flow"])
-                    features = sorted(set(features) | {f"TransitiveHook:{imported_name}", "TransitiveStateFlow"})
                     inherited_from.append(
                         {
                             "hook": imported_name,
                             "provider": provider["qualified_rel"],
+                            "call_sites": call_sites,
+                            "call_sites_omitted": call_sites_omitted,
                             "query_keys": provider["state_flow"].get("query_keys") or [],
                             "query_key_refs": provider["state_flow"].get("query_key_refs") or [],
                             "query_key_dynamic": provider["state_flow"].get("query_key_dynamic") or [],
@@ -411,7 +524,13 @@ def build_state_flow_results(
                         }
                     )
 
-            file_boundary = genome_index.get(rel) or genome_index.get(f_data.get("workspace_rel", "")) or {
+            if inherited_from:
+                # Keep provider-file hints separate. A called hook does not make
+                # every query or mutation in its module belong to this file.
+                transitive_hook_consumers[qualified_rel] = inherited_from
+
+            genome_boundary = genome_index.get(qualified_rel)
+            file_boundary = genome_boundary or {
                 "imported_contracts": set(),
                 "ui_dependencies": set(),
                 "architectural_markers": set(),
@@ -452,6 +571,9 @@ def build_state_flow_results(
                 transition_markers = _extract_transition_markers(features, imported_contracts)
                 property_markers = _extract_property_markers(features, imported_contracts)
                 boundary_signals[qualified_rel] = {
+                    "genome_boundary_source_binding": (
+                        "matched_project_file_hash" if genome_boundary else "unavailable"
+                    ),
                     "imported_contracts": imported_contracts,
                     "ui_dependencies": sorted(file_boundary["ui_dependencies"]),
                     "architectural_markers": sorted(file_boundary["architectural_markers"]),
@@ -468,7 +590,6 @@ def build_state_flow_results(
                 }
                 if inherited_from:
                     boundary_signals[qualified_rel]["transitive_hook_sources"] = inherited_from
-                    transitive_hook_consumers[qualified_rel] = inherited_from
 
     results = {
         "zustand_stores": {k: sorted(v) for k, v in stores.items()},
@@ -477,6 +598,7 @@ def build_state_flow_results(
         "tanstack_mutations": {k: sorted(v) for k, v in mutations.items()},
         "boundary_signals": boundary_signals,
         "transitive_hook_consumers": transitive_hook_consumers,
+        "transitive_hook_coverage": TRANSITIVE_HOOK_COVERAGE,
     }
 
     by_project = defaultdict(lambda: {
@@ -592,18 +714,29 @@ def run_state_flow_scanner(changed_files=None, atlas=None):
 
     profile_start = time.perf_counter()
     atlas, atlas_input_source = resolve_atlas_data(atlas)
-    atlas, _execution_scope = project_runtime_atlas(atlas if isinstance(atlas, dict) else {})
+    atlas = atlas if isinstance(atlas, dict) else {}
+    atlas_commit = load_json_file(RAW_DIR / "atlas_commit.json", {})
+    atlas_source_binding = _atlas_source_commit_binding(atlas, atlas_commit)
+    atlas, _execution_scope = project_runtime_atlas(atlas)
     atlas_loaded_at = time.perf_counter()
     if not atlas:
         logger.error("Atlas payload not found. Run Atlas engine first.")
         return False
 
     changed_scope = _changed_scope(changed_files)
-    provider_changed = _state_flow_provider_changed(atlas, changed_scope)
+    previous_results = _load_previous_incremental_results(changed_scope)
+    incremental_cache_bound = _incremental_cache_matches_transition(
+        previous_results, atlas_commit, changed_scope,
+        _execution_scope["analyzed_projects"], atlas_source_binding)
+    if not incremental_cache_bound:
+        previous_results = None
+    provider_changed = _state_flow_provider_changed(atlas, changed_scope, previous_results)
     provider_checked_at = time.perf_counter()
-    previous_results = _load_previous_incremental_results(changed_scope, provider_changed)
+    if provider_changed:
+        previous_results = None
     mode = "incremental_consumer_update" if previous_results is not None else "full"
-    genome_index = _build_genome_file_index(changed_scope if previous_results is not None else None)
+    genome_index = _build_genome_file_index(
+        atlas, changed_scope if previous_results is not None else None)
     genome_indexed_at = time.perf_counter()
     if changed_scope:
         logger.info(
@@ -616,7 +749,7 @@ def run_state_flow_scanner(changed_files=None, atlas=None):
         atlas,
         genome_index,
         changed_files=changed_files,
-            previous_results=previous_results,
+        previous_results=previous_results,
     )
     results_built_at = time.perf_counter()
     profile_timings = {
@@ -630,6 +763,14 @@ def run_state_flow_scanner(changed_files=None, atlas=None):
         "changed_files_count": len(changed_scope or []),
         "provider_changed": bool(provider_changed),
         "atlas_input_source": atlas_input_source,
+        "atlas_snapshot_id": atlas_source_binding["snapshot_id"],
+        "atlas_source_binding": atlas_source_binding["status"],
+        "analyzed_source_fingerprint": source_fingerprint(atlas),
+        "genome_boundary_binding": "per_occurrence_project_file_hash_or_unavailable",
+        "incremental_cache_binding": (
+            "validated_parent_scoped_delta" if previous_results is not None
+            else "not_reused"
+        ),
         "execution_scope": _execution_scope,
         "profile_timings": profile_timings,
     }

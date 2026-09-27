@@ -455,6 +455,24 @@ def project_ownership_exclusions(
     return exclusions
 
 
+def configured_project_ownership_exclusions(
+    projects: dict[str, str | Path], *, root: Path, dynamic_config: dict,
+) -> dict[str, list[Path]]:
+    """Share the Atlas traversal boundary with its cache consumer."""
+    exclusions = project_ownership_exclusions(projects)
+    topology = (
+        dynamic_config.get("_target_root_override")
+        if isinstance(dynamic_config.get("_target_root_override"), dict)
+        else dynamic_config.get("_repository_topology")
+        if isinstance(dynamic_config.get("_repository_topology"), dict)
+        else {}
+    )
+    for key, paths in (topology.get("project_ownership_exclusions", {}) or {}).items():
+        if key in projects and isinstance(paths, list):
+            exclusions[key] = sorted({(root / str(path)).resolve() for path in paths})
+    return exclusions
+
+
 def attach_declared_exclusions_to_nearest_owner(
     projects: dict[str, str | Path],
     exclusions: dict[str, list[Path]],
@@ -511,6 +529,30 @@ def prune_owned_walk_dirs(
     ]
 
 
+def project_owned_path_identity(
+    project_root: str | Path,
+    relative_path: str | Path,
+    *,
+    excluded_roots: Iterable[Path],
+) -> tuple[bool, bool]:
+    """Return ownership and exact lexical-to-physical path agreement in one resolution."""
+
+    root = Path(project_root).resolve()
+    literal = root / Path(relative_path)
+    candidate = literal.resolve()
+    if candidate != root and not candidate.is_relative_to(root):
+        return False, False
+    owned = not any(
+        candidate == excluded_root
+        or candidate.is_relative_to(excluded_root)
+        for excluded_root in {
+            Path(path).resolve()
+            for path in excluded_roots
+        }
+    )
+    return owned, owned and candidate == literal.absolute()
+
+
 def is_project_owned_path(
     project_root: str | Path,
     relative_path: str | Path,
@@ -519,18 +561,9 @@ def is_project_owned_path(
 ) -> bool:
     """Return whether a relative file identity belongs to the declared project."""
 
-    root = Path(project_root).resolve()
-    candidate = (root / Path(relative_path)).resolve()
-    if candidate != root and not candidate.is_relative_to(root):
-        return False
-    return not any(
-        candidate == excluded_root
-        or candidate.is_relative_to(excluded_root)
-        for excluded_root in {
-            Path(path).resolve()
-            for path in excluded_roots
-        }
-    )
+    return project_owned_path_identity(
+        project_root, relative_path, excluded_roots=excluded_roots,
+    )[0]
 
 
 def classify_project_roles(

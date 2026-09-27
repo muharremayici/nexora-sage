@@ -11,7 +11,12 @@ Nexora is the assistant to the AI agent. The AI agent is the assistant to the hu
    Use the default `get_impact_radius(..., depth=2)` as the normal agent
    context window. Request `depth=3` only when direct dependents and listed
    validation cannot explain the failure or the human asks for broader impact.
-   Request `depth=0` only for full-graph/debug review, not ordinary code edits.
+   Request `depth=0` only for broader target-reachability debugging, not
+   ordinary code edits. SQLite counts at most 128 hops and returns at most
+   200 transitive rows (the direct list is separate); Atlas fallback traverses
+   only its loaded dependency graph.
+   Neither path exports the whole repository graph. Check shown, omitted
+   and scope-limit fields before treating a dependent list as complete.
    When packets include validation command contracts, use them to distinguish
    focused validators from broad/release-style proof envelopes before deciding
    how long to wait or whether a command is appropriate for the current edit.

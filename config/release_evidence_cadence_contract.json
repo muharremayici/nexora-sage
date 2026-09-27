@@ -1,7 +1,7 @@
 {
   "meta": {
     "kind": "nexora.release_evidence_cadence_contract",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "status": "normative",
     "purpose": "Select the minimum dependency-correct release evidence cadence without weakening exact-byte, human-authority, fail-closed or final-candidate boundaries."
   },
@@ -261,6 +261,18 @@
     ]
   },
   "installation_trigger_derivation": {
+    "analysis_delta_review_mode": "exact_git_bound_manual_review_with_conservative_ast_and_current_clean_venv",
+    "evidence_governance_paths": [
+      "config/release_evidence_cadence_contract.json",
+      "config/source_layer_classification_policy.json",
+      "config/source_layer_taxonomy.json",
+      "tools/core/installation_semantic_delta.py",
+      "tools/core/release_evidence_cadence.py",
+      "tools/core/release_validation_dependencies.py",
+      "tools/core/source_layer_classification_policy.py",
+      "tools/core/source_layer_classifier.py",
+      "tools/derive_release_evidence_cadence.py"
+    ],
     "schema": "v1_content_bound_semantic_ownership",
     "authority": "central_source_cli_installation_and_runtime_owners",
     "source_role_contract": "config/source_role_obligation_contract.json",
@@ -277,6 +289,26 @@
       }
     ],
     "exact_authority_paths": [
+      {
+        "path": "tools/core/installation_semantic_delta.py",
+        "trigger": "release_proof_dependency_changed"
+      },
+      {
+        "path": "tools/core/installation_authority.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/installation_preflight.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/installation_identity.py",
+        "trigger": "installer_semantics_changed"
+      },
+      {
+        "path": "tools/core/python_runtime_env.py",
+        "trigger": "runtime_support_changed"
+      },
       {
         "path": "config/release_evidence_cadence_contract.json",
         "trigger": "installer_semantics_changed"
@@ -586,7 +618,7 @@
         "scope",
         "artifact"
       ],
-      "rule": "A version-only release uses an accepted independent baseline plus current isolated delta. A protected installation semantic change, OS/runtime expansion or environment-specific failure requires a fresh independent environment."
+      "rule": "An accepted independent baseline plus current separate-package clean-venv smoke may cover version-only or exact-Git-bound manually reviewed analysis deltas admitted by the conservative AST boundary. Evidence-governance changes require current evidence revalidation, not a physical machine by themselves. Direct setup/bootstrap changes, unknown or unreviewed transitive deltas, OS/runtime expansion and environment-specific failure still require a fresh independent environment. The selector does not accept baseline, smoke or publication authority."
     },
     {
       "id": "isolated_installation_smoke",
@@ -605,7 +637,7 @@
         "environment",
         "artifact"
       ],
-      "rule": "Compatibility id retained for the frozen-candidate fresh boundary. The current producer is a same-checkout doctor/MCP/validator smoke, not a temporary-package or isolated-venv installation, and must not be claimed as independent isolation. A future producer upgrade requires its own verified receipt semantics; this row never replaces conditional physical-machine proof."
+      "rule": "Always require current installation evidence. The source proof's same-checkout smoke remains a smoke only. The existing private controller's separate-package clean-venv producer must verify fresh dependencies, exact release-step membership, interpreter isolation and candidate bytes before baseline-plus-delta acceptance. Same-host venv evidence is never a new independent-machine test and never replaces a triggered physical-machine requirement."
     },
     {
       "id": "ci_pull_request_fast",

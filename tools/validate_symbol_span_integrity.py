@@ -12,6 +12,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.source_snapshot_integrity import snapshot_content_status, snapshot_hash_algorithms
 
 
 DB_PATH = RAW_DIR / "codemaps.db"
@@ -67,14 +68,14 @@ def validate_symbol_span_integrity() -> dict[str, Any]:
         rows = conn.execute(
             """
             SELECT
-              f.project_key,
+              f.file_id, f.project_key,
               f.rel_path,
               s.name,
               s.type,
               s.line,
               s.end_line,
               s.source_lines,
-              ss.content
+              ss.content, ss.content_hash, ss.status AS snapshot_status, f.hash AS atlas_hash
             FROM symbols AS s
             JOIN files AS f
               ON f.file_id = s.file_id
@@ -87,18 +88,28 @@ def validate_symbol_span_integrity() -> dict[str, Any]:
         ).fetchall()
 
     total_symbols = len(rows)
+    identity_algorithms = snapshot_hash_algorithms()
+    checked_files: dict[int, tuple[bool, int]] = {}
     _log(f"SCAN symbols={total_symbols}")
     for row in rows:
         content = row["content"]
         line = int(row["line"] or 0)
         end_line = int(row["end_line"] or line or 0)
         source_lines = str(row["source_lines"] or "")
-        line_count = _line_count(str(content)) if isinstance(content, str) else 0
+        file_id = int(row["file_id"])
+        if file_id not in checked_files:
+            checked_files[file_id] = (
+                isinstance(content, str) and bool(content) and snapshot_content_status(
+                    content, row["content_hash"], row["atlas_hash"],
+                    status=row["snapshot_status"], algorithms=identity_algorithms) == "ok",
+                _line_count(content) if isinstance(content, str) else 0,
+            )
+        source_valid, line_count = checked_files[file_id]
         issue: str | None = None
 
-        if not isinstance(content, str) or not content:
+        if not source_valid:
             missing_snapshot_count += 1
-            issue = "missing_source_snapshot"
+            issue = "missing_or_unbound_source_snapshot"
         elif end_line < line:
             invalid_order_count += 1
             issue = "end_line_before_start_line"

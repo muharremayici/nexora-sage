@@ -1,8 +1,8 @@
 {
   "_meta": {
     "kind": "nexora.capability_registry",
-    "version": "1.1.1",
-    "product_release": "1.1.1",
+    "version": "1.2.0",
+    "product_release": "1.2.0",
     "description": "Machine-readable capability/plugin foundation for Nexora SAGE engines, adapters, artifacts and claim boundaries. Product release and capability introduction use SemVer; internal artifact contracts version independently.",
     "validation_contract": {
       "roadmap_decision_matrix": {
@@ -482,7 +482,7 @@
       "roadmap_scope": "Detect policy-declared credentials and sensitive objects across browser-storage, logging, serialization/export, outbound-network, migration-cleanup and server/client/API boundaries. Required fixtures follow root and nested credential aliases from every sibling ingress through parser/schema, store action, migration, repository write, returned state and telemetry; they must detect when only one converging ingress has a dominating sanitizer, distinguish new-ingress sanitization from historical at-rest cleanup, and model migration writes as receipts whose proven success must dominate destructive cleanup of prior sources. Exercise quota, SecurityError, unavailable browser API and serialization failures; distinguish privacy minimization from durability/recoverability and shorter-lived session storage from encryption. Session fixtures must distinguish plaintext credentials, password hashes, access tokens, refresh tokens and safe public profile fields; trace repository entities spread into DTOs through direct and middleware storage sinks, include legacy-record migration, recommend a credential-free session DTO and never delete repository verification fields without source-to-sink authority. Logging fixtures must cover privateKey/private_key/private-key and passphrase aliases, generic/RSA/EC/OpenSSH private-key boundaries, Error message/stack, nested objects, arrays, retained logs, console or telemetry and user notifications; use synthetic sentinels, preserve safe neighboring metadata and include circular-object controls. Separately model third-party telemetry bootstrap, PII-enabling options, consent or opt-in evidence, high-fidelity replay consent, masking/blocking controls, bounded sample rates and build-time source-map credentials. A client DSN is configuration identity rather than a secret by default. Avoid emitting secret values, preserve safe neighboring metadata and retain UNKNOWN for residual alias, wrapper behavior, consent state, write-commit outcome or source-to-sink uncertainty. Ingest target-native privacy regressions as separately identified evidence before enforcement.",
       "rationale": "High enterprise value and strong fit with AI-agent safety. Pass 13 demonstrates that a sanitizer on one ingress can create false end-to-end confidence when a sibling legacy path reaches the same sink, so policy aliases, ingress enumeration and malformed/runtime fixtures are required to control false positives and false negatives.",
       "claim_boundary": "Roadmap capability slot for credential-flow and sensitive-object leakage analysis; not active in V1 release claims. A disabled activation state or clean architecture audit is not evidence that a target repository has no privacy defect.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "performance_n_plus_one_cage",
@@ -511,7 +511,7 @@
       "roadmap_scope": "Detect N+1-shaped async database/network calls inside loops and known iterator callbacks.",
       "rationale": "High practical value for AI-generated code quality and relatively deterministic AST evidence.",
       "claim_boundary": "Roadmap capability slot with a policy-backed MVP for loop-contained async database/network call detection; not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "resilience_error_handling_cage",
@@ -540,7 +540,7 @@
       "roadmap_scope": "Detect external calls without explicit error handling, timeout, retry or fallback contracts.",
       "rationale": "Useful AI-agent guardrail with strong enterprise relevance, but must be configurable by framework and client library.",
       "claim_boundary": "Roadmap capability slot with a policy-backed MVP for naked network call, timeout and fallback analysis; not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "immutability_purity_cage",
@@ -589,7 +589,7 @@
       "roadmap_scope": "Detect complex conditionals, deep nesting, shallow abstraction chains, over-layering, premature service boundaries and DRY-abuse patterns with configurable, evidence-ranked heuristics.",
       "rationale": "High fit for AI-generated code governance because agents often create over-abstracted or mentally expensive code while trying to look professional.",
       "claim_boundary": "Roadmap capability slot for cognitive-load analysis; principle hints may guide directives, but this is not active as a V1 release claim or enforced violation.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "config_hygiene_cage",
@@ -611,7 +611,7 @@
       "roadmap_scope": "Detect hardcoded secrets, machine-local paths, environment-specific literals, magic thresholds, policy constants, duplicated config decisions and framework-specific hardcoded behavior in target repositories with doctrine/policy-backed severity calibration.",
       "rationale": "The same failure family found in SAGE can affect customer repositories, but target-project enforcement must be configurable because literals can be legitimate domain values, tests or local implementation constants.",
       "claim_boundary": "Roadmap capability slot for target-repository config hygiene and magic literal analysis; not active in V1 release claims and not blocking unless a project doctrine or cage policy explicitly promotes it.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "provider_topology_engine",
@@ -1072,7 +1072,7 @@
       "roadmap_scope": "Check README/API docs/ADR freshness and map documented claims back to code evidence.",
       "rationale": "Low implementation risk and helps product trust, but less core than architecture/runtime analysis.",
       "claim_boundary": "Roadmap capability slot for README/API docs/ADR freshness and code-to-documentation alignment; not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "distributed_service_governance",
@@ -1167,7 +1167,7 @@
       "roadmap_scope": "Expose the projection through the bounded target actor surfaces and calibrate action priority and freshness against external target workflows before activating a 1.2.0 product claim.",
       "rationale": "Lets humans and target-repository actors route existing actions without reconstructing three domain queues or polluting SAGE product debt.",
       "claim_boundary": "Implemented roadmap projection only. It is not a second action ledger, does not authorize mutation, does not prove currentness from timestamps alone and is not active in V1.0.0 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "target_repository_proof_bundle",
@@ -1202,7 +1202,7 @@
       "roadmap_scope": "Calibrate positive target proof on external mutation workflows, deliver the separate merge evidence snapshot lineage chain, then activate the 1.2.0 claim profile only after independent target evidence and human authority pass.",
       "rationale": "Gives customers and agents a single honest proof envelope for the analyzed repository without confusing it with SAGE's own release proof. It should aggregate existing evidence first, not create new claims.",
       "claim_boundary": "Implemented roadmap envelope for bounded target repository proof; snapshot coherence is proven for baseline and change evidence producers, but a positive target verdict still depends on each source verdict and independent calibration. Merge proof lineage remains transitional. This capability is not active in V1 release claims, not a production-runtime certificate and not a replacement for SAGE release_proof_bundle.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "target_repository_lesson_memory",
@@ -1228,7 +1228,7 @@
       "roadmap_scope": "Calibrate target lesson admission, lifecycle and bounded actor presentation against external repository workflows before activating a product claim.",
       "rationale": "Preserves reusable target experience across sessions without mixing customer memory with SAGE product memory or declaring every repeated finding a proven lesson.",
       "claim_boundary": "Implemented roadmap projection only. It does not prove causal correctness, enforce a rule, promote cross-repository knowledge or expose SAGE-internal lessons, and it is not active in V1.0.0 claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "scoped_governance_reality_projections",
@@ -1276,7 +1276,7 @@
       "roadmap_scope": "Add an opt-in local SQLite governance event ledger with trace_id, principal, task and context fingerprints, tool calls, policy decision/version, state changes, retries, cost, latency, outcome, attributed failure layer, correction_loop_count, packet_first_pass_rate, average_loops_to_pass, same_violation_recurrence_rate and watchdog_resolution_time exports.",
       "rationale": "Turns agent governance from anecdotal success into local-first measurable eval infrastructure while preserving repository privacy.",
       "claim_boundary": "Roadmap capability slot for local governance metrics and private eval loops; not active in V1 release claims and not remote telemetry.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "principle_pack_expansion",
@@ -1298,7 +1298,7 @@
       "roadmap_scope": "Add curated advisory packs for testing discipline, error handling, review AI code, security hygiene, SRE-style operational readiness, YAGNI/KISS and organization-specific engineering standards while preserving the doctrine/principle boundary.",
       "rationale": "Captures software engineering wisdom as advisory context without turning doctrine into a giant rule book; high leverage for agent directives and contributor ecosystem growth.",
       "claim_boundary": "Roadmap capability slot for advisory engineering wisdom packs; principle packs explain and guide but do not create binding doctrine, quality gates or V1 release claims unless separately promoted through governance. Not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "third_party_plugin_runtime",
@@ -1342,7 +1342,7 @@
       "roadmap_scope": "Detect policy-declared dynamic values entering XML and comparable structured-output sinks, recognize trusted builders or typed serializers, distinguish correctness and injection risk from credential privacy, and require format-native parse/round-trip fixtures including attributes, CDATA, namespaces and double-encoding counterexamples.",
       "rationale": "An external target evaluation proved malformed XML with a format-native parser round-trip while SAGE reported no finding. The failure mode is generalizable but does not justify a V1 claim without broader sink, serializer and false-positive calibration.",
       "claim_boundary": "Roadmap capability slot for structured export serialization integrity. SAGE V1 does not claim XML correctness, structured-output injection detection or serializer round-trip proof. Not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "native_build_diagnostic_ingestion",
@@ -1363,7 +1363,7 @@
       "roadmap_scope": "Ingest provenance-bound target-native build stdout and stderr, normalize and deduplicate diagnostics, preserve warning severity and tool identity, distinguish syntax/integrity warnings from informational output, and correlate generated CSS or comparable output diagnostics to likely source literals without claiming certainty when source maps are absent.",
       "rationale": "An external target evaluation showed valid TypeScript and green lint/type checks producing invalid generated CSS that only the native build warning stream exposed. Native build evidence remains authoritative until an explicit ingestion contract is delivered.",
       "claim_boundary": "Roadmap capability slot for target-native build diagnostic ingestion and source attribution. V1 does not claim runtime/build-output observability or complete warning ingestion. Not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "target_runtime_schema_and_mutation_invariants",
@@ -1383,7 +1383,7 @@
       "roadmap_scope": "Add advisory, fixture-calibrated source-to-guard-to-sink probes for immutable property presence, finite-number constraints, schema stripping followed by broader casts, narrow storage versus broad domain returns, read/write/patch semantic asymmetry, base-validator bypass by direct/collection/filtered/bulk overrides and unknown/any network, AI-provider, plugin or IPC results reaching state or persistence sinks without a dominating repository-native parser. Recognize validating subclass overrides and require branch-complete provenance plus target-native compiler and malformed-row/batch/response runtime tests before enforcement.",
       "rationale": "External target evaluations found deterministic persistence-integrity, external-response-to-state and repository-override defects in files that SAGE helped locate but did not semantically cover. The patterns are potentially generalizable, but upstream branding, intentional opaque storage, hidden or injected validation, generic wrappers and native runtime authority require independent fixtures before a product claim.",
       "claim_boundary": "Roadmap capability slot for TypeScript runtime schema, external-response and mutation invariant candidates. V1 does not claim complete Zod, provider-payload, repository, persistence or runtime data-integrity validation. Not active in V1 release claims.",
-      "target_release": "1.2.0"
+      "target_release": "1.3.0"
     },
     {
       "id": "release_proof",

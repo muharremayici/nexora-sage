@@ -153,6 +153,9 @@ def _validate(
         min_items = schema.get("minItems")
         if min_items is not None and len(value) < int(min_items):
             _validation_error(errors, path, f"expected at least {min_items} items, got {len(value)}")
+        max_items = schema.get("maxItems")
+        if max_items is not None and len(value) > int(max_items):
+            _validation_error(errors, path, f"expected at most {max_items} items, got {len(value)}")
         if schema.get("uniqueItems") is True:
             for idx, item in enumerate(value):
                 if any(item == previous for previous in value[:idx]):

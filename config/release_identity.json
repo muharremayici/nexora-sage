@@ -1,15 +1,15 @@
 {
   "_meta": {
     "kind": "nexora_sage_public_release_identity",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "authority": "human_authorized_public_release_identity"
   },
   "product": {
     "name": "Nexora SAGE",
     "package_name": "nexora-sage",
-    "public_version": "1.1.1",
+    "public_version": "1.2.0",
     "release_status": "public_release",
-    "public_release_date": "2026-09-21",
+    "public_release_date": "2026-09-27",
     "primary_entrypoint": "python sage.py",
     "internal_compatibility_module": "codemaps.py"
   },
@@ -19,7 +19,7 @@
     "private_ownership_evidence": "RETAINED_OUTSIDE_PUBLIC_DISTRIBUTION",
     "qualified_legal_review": "NOT_COMPLETED_AND_NOT_A_V1_PUBLICATION_GATE",
     "human_publication_authority": "RECORDED_OUTSIDE_PUBLIC_DISTRIBUTION",
-    "publication_authority_receipt_sha256": "42b58b2d83f410c3b397cf3d6c056ec5e64cc35e25ebd8b5d103f1e844b7e228"
+    "publication_authority_receipt_sha256": "83f45afb8c63947a20496c16b6421a4e584293fd0c17051028402cd6f5710ff6"
   },
   "license": {
     "expression": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
@@ -39,12 +39,16 @@
     "target_root_flag": "--target-root"
   },
   "claim_boundary": {
-    "allowed": "evidence_backed_react_typescript_static_governance_on_a_polyglot_substrate",
+    "active_profile_id": "v1_react_architecture_governance",
+    "allowed": "evidence_backed_bounded_react_typescript_static_governance",
+    "public_sentence": "A living architecture atlas, governance engine, and AI-agent safety layer for React/TypeScript systems, built on a modular polyglot substrate.",
+    "profile_boundary": "Release candidate 1.2.0: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
     "not_claimed": [
-      "full runtime determinism",
-      "equal-depth analysis for every language",
-      "full SAST replacement",
-      "automatic safe mutation of arbitrary repositories"
+      "full runtime React determinism",
+      "equal-depth nanometric analysis for every language",
+      "full SAST or AppSec replacement",
+      "hosted CI or IDE extension product",
+      "third-party executable plugin runtime"
     ]
   }
 }

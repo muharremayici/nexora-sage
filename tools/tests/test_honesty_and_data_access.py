@@ -47,7 +47,7 @@ class SourceEvidenceTests(unittest.TestCase):
                     project="MAIN",
                     project_root=root,
                     rel_path="src/missing.ts",
-                    atlas_entry={"hash": "a" * 64},
+                    atlas_entry={"hash": hashlib.sha256(b"snapshot truth").hexdigest()},
                     reason="fixture",
                 )
 

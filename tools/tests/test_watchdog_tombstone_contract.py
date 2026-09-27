@@ -56,7 +56,7 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
                 with (
                     patch.object(generate_atlas_module, "ROOT", repository_root),
                     patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
-                    patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
+                    patch.object(generate_atlas_module, "configured_project_ownership_exclusions", return_value={"MAIN": []}),
                     patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
                     patch.object(
                         generate_atlas_module,
@@ -100,7 +100,7 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
             with (
                 patch.object(generate_atlas_module, "ROOT", repository_root),
                 patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
-                patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
+                patch.object(generate_atlas_module, "configured_project_ownership_exclusions", return_value={"MAIN": []}),
                 patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
                 patch.object(
                     generate_atlas_module,
@@ -142,7 +142,7 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
                 with (
                     patch.object(generate_atlas_module, "ROOT", repository_root),
                     patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
-                    patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
+                    patch.object(generate_atlas_module, "configured_project_ownership_exclusions", return_value={"MAIN": []}),
                     patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
                     patch.object(
                         generate_atlas_module,
@@ -220,7 +220,7 @@ class WatchdogTombstoneContractTests(unittest.TestCase):
             with (
                 patch.object(generate_atlas_module, "ROOT", repository_root),
                 patch.object(generate_atlas_module, "resolve_runtime_projects", return_value={"MAIN": project_root}),
-                patch.object(generate_atlas_module, "project_ownership_exclusions", return_value={"MAIN": []}),
+                patch.object(generate_atlas_module, "configured_project_ownership_exclusions", return_value={"MAIN": []}),
                 patch.object(generate_atlas_module, "load_previous_atlas", return_value=previous),
                 patch.object(
                     generate_atlas_module,

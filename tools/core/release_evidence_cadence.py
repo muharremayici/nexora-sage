@@ -15,6 +15,7 @@ from tools.core.release_validation_dependencies import (
     resolve_local_python_import_closure,
 )
 from tools.core.source_layer_classifier import classify_source_layer
+from tools.core.installation_semantic_delta import validate_analysis_delta_review
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -73,12 +74,17 @@ INSTALLATION_DERIVATION_REQUIRED_AUTHORITY_PATHS = frozenset(
         "config/source_role_obligation_contract.json",
         "config/release_proof_steps_contract.json",
         "tools/core/release_evidence_cadence.py",
+        "tools/core/installation_semantic_delta.py",
         "tools/derive_release_evidence_cadence.py",
         "tools/core/release_validation_dependencies.py",
         "tools/core/source_layer_classifier.py",
         "tools/core/source_layer_classification_policy.py",
         "config/source_layer_classification_policy.json",
         "config/source_layer_taxonomy.json",
+        "tools/core/installation_authority.py",
+        "tools/core/installation_preflight.py",
+        "tools/core/installation_identity.py",
+        "tools/core/python_runtime_env.py",
     }
 )
 CADENCE_RECEIPT_KIND = "nexora.release_evidence_cadence_receipt"
@@ -87,6 +93,23 @@ INSTALLATION_DERIVATION_REQUIRED_LAYER_TRIGGERS = {
     "installation_onboarding": "bootstrap_semantics_changed",
     "package_runtime": "dependency_semantics_changed",
 }
+INSTALLATION_EVIDENCE_GOVERNANCE_PATHS = frozenset({
+    "config/release_evidence_cadence_contract.json",
+    "tools/core/release_evidence_cadence.py",
+    "tools/core/installation_semantic_delta.py",
+    "tools/derive_release_evidence_cadence.py",
+    "tools/core/release_validation_dependencies.py",
+    "tools/core/source_layer_classifier.py",
+    "tools/core/source_layer_classification_policy.py",
+    "config/source_layer_classification_policy.json",
+    "config/source_layer_taxonomy.json",
+})
+INSTALLATION_DIRECT_RUNTIME_PATHS = frozenset({
+    "tools/core/installation_authority.py",
+    "tools/core/installation_preflight.py",
+    "tools/core/installation_identity.py",
+    "tools/core/python_runtime_env.py",
+})
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -539,6 +562,8 @@ def _installation_trigger_closure(
     derivation = contract.get("installation_trigger_derivation")
     reasons: list[str] = []
     path_triggers: dict[str, set[str]] = {}
+    direct_paths: set[str] = set()
+    proof_seeds: set[str] = set()
 
     def add_path(raw_path: Any, trigger: Any, owner: str) -> None:
         relative = _normalized_repository_relative_path(raw_path)
@@ -569,6 +594,7 @@ def _installation_trigger_closure(
             reasons.append("invalid_exact_installation_authority_row")
             continue
         add_path(row.get("path"), row.get("trigger"), "exact_authority")
+        direct_paths.add(str(row.get("path") or ""))
 
     try:
         role_contract = _load_contract_at(
@@ -609,6 +635,7 @@ def _installation_trigger_closure(
             else:
                 entrypoint = entrypoints[0]
                 add_path(entrypoint, "bootstrap_semantics_changed", "install_proof_cli")
+                direct_paths.add(entrypoint)
                 entry_path = root / entrypoint
                 try:
                     tree = ast.parse(entry_path.read_text(encoding="utf-8"))
@@ -631,6 +658,7 @@ def _installation_trigger_closure(
                                 "bootstrap_semantics_changed",
                                 "install_proof_entrypoint_direct_import",
                             )
+                            direct_paths.add(candidate.relative_to(root).as_posix())
     except ValueError as exc:
         reasons.append(f"installation_entrypoint_authority_invalid:{exc}")
 
@@ -665,6 +693,8 @@ def _installation_trigger_closure(
             if not seeds:
                 reasons.append(f"installation_proof_step_has_no_python_owner:{step_id}")
                 continue
+            direct_paths.update(seeds)
+            proof_seeds.update(seeds)
             closure = resolve_local_python_import_closure(seeds, root=root)
             if closure.get("status") != "COMPLETE":
                 reasons.extend(
@@ -690,6 +720,8 @@ def _installation_trigger_closure(
         )
     return {
         "status": "BLOCKED" if reasons else "COMPLETE",
+        "direct_paths": sorted(direct_paths | INSTALLATION_DIRECT_RUNTIME_PATHS),
+        "proof_seeds": sorted(proof_seeds),
         "path_triggers": {
             path: sorted(values) for path, values in sorted(path_triggers.items())
         },
@@ -703,6 +735,7 @@ def derive_installation_semantic_triggers(
     changed_paths: list[str] | tuple[str, ...] | set[str],
     *,
     semantic_metadata_documents: Mapping[str, Mapping[str, Any]] | None = None,
+    analysis_delta_review: Mapping[str, Any] | None = None,
     contract: Mapping[str, Any] | None = None,
     root: Path = ROOT,
 ) -> dict[str, Any]:
@@ -737,6 +770,19 @@ def derive_installation_semantic_triggers(
     unaffected_paths: list[str] = []
     protected_paths = closure.get("path_triggers") or {}
     layer_triggers = derivation.get("source_layer_triggers") or {}
+    governance_paths = set(derivation["evidence_governance_paths"])
+    reviewed_paths = {}
+    if analysis_delta_review is not None:
+        eligible = {p for p in normalized_paths if p in protected_paths
+                    and p.endswith(".py") and p not in closure["direct_paths"]
+                    and p not in governance_paths}
+        try:
+            reviewed_paths = validate_analysis_delta_review(
+                analysis_delta_review, root=root, changed_paths=normalized_paths,
+                eligible_paths=eligible, proof_seeds=closure["proof_seeds"],
+            )
+        except (ValueError, OSError, UnicodeError, SyntaxError) as exc:
+            blocking_reasons.append(f"analysis_delta_review_invalid:{exc}")
 
     for relative in normalized_paths:
         row: dict[str, Any] = {"path": relative}
@@ -777,6 +823,16 @@ def derive_installation_semantic_triggers(
                 row["metadata_evidence_sha256"] = _canonical_sha256(
                     {"before": before, "after": after}
                 )
+        elif relative in governance_paths:
+            derived_triggers.add("release_proof_dependency_changed")
+            row.update({"disposition": "evidence_governance_change",
+                        "reason": "evidence_policy_requires_revalidation_not_physical_install",
+                        "triggers": ["release_proof_dependency_changed"]})
+        elif relative in reviewed_paths:
+            unaffected_paths.append(relative)
+            row.update({"disposition": "reviewed_analysis_delta",
+                        "reason": "source_bound_review_and_conservative_ast_boundary",
+                        "source_delta": reviewed_paths[relative], "triggers": []})
         elif relative in protected_paths:
             triggers = sorted(set(protected_paths[relative]))
             derived_triggers.update(triggers)
@@ -847,6 +903,13 @@ def derive_installation_semantic_triggers(
         "baseline_accepted": False,
         "publication_authority": False,
     }
+    if analysis_delta_review is not None:
+        receipt["analysis_delta_review_sha256"] = _canonical_sha256(analysis_delta_review)
+        receipt["reviewed_analysis_paths"] = sorted(reviewed_paths)
+        receipt["required_current_delta_evidence"] = [
+            "exact_candidate_separate_package_clean_venv_smoke",
+            "current_source_proof", "runtime_packaging_delta_review",
+        ]
     receipt["receipt_sha256"] = _canonical_sha256(receipt)
     return receipt
 
@@ -856,6 +919,7 @@ def build_release_evidence_cadence_receipt(
     *,
     changed_paths: list[str] | tuple[str, ...] | set[str],
     semantic_metadata_documents: Mapping[str, Mapping[str, Any]] | None = None,
+    analysis_delta_review: Mapping[str, Any] | None = None,
     contract: Mapping[str, Any] | None = None,
     root: Path = ROOT,
 ) -> dict[str, Any]:
@@ -876,6 +940,7 @@ def build_release_evidence_cadence_receipt(
     derivation = derive_installation_semantic_triggers(
         changed_paths,
         semantic_metadata_documents=semantic_metadata_documents,
+        analysis_delta_review=analysis_delta_review,
         contract=selected,
         root=root,
     )
@@ -1140,6 +1205,9 @@ def validate_release_evidence_cadence_contract(
     installation_derivation = contract.get("installation_trigger_derivation")
     if not isinstance(installation_derivation, Mapping):
         raise ValueError("installation_trigger_derivation must be an object")
+    if (installation_derivation.get("evidence_governance_paths") != sorted(INSTALLATION_EVIDENCE_GOVERNANCE_PATHS)
+            or installation_derivation.get("analysis_delta_review_mode") != "exact_git_bound_manual_review_with_conservative_ast_and_current_clean_venv"):
+        raise ValueError("Installation delta/governance boundary must preserve its hard floor")
     if (
         installation_derivation.get("schema")
         != "v1_content_bound_semantic_ownership"
@@ -1182,7 +1250,9 @@ def validate_release_evidence_cadence_contract(
                 if relative is None or not (root / relative).is_file():
                     raise ValueError(f"Installation authority source is unsafe or missing: {identity}")
             seen.add(identity)
-            derivation_triggers.add(trigger)
+            if not (collection_name == "exact_authority_paths"
+                    and identity in INSTALLATION_EVIDENCE_GOVERNANCE_PATHS):
+                derivation_triggers.add(trigger)
         observed_derivation_identities[collection_name] = seen
     if observed_derivation_identities.get("proof_steps") != set(
         INSTALLATION_DERIVATION_REQUIRED_PROOF_STEPS

@@ -15,6 +15,7 @@ from tools.core.atlas_io import load_atlas_data
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
 from tools.core.runtime_project_scope import project_runtime_atlas, set_runtime_project_filter
+from tools.core.source_snapshot_integrity import snapshot_content_status, snapshot_hash_algorithms
 
 
 DB_PATH = RAW_DIR / "codemaps.db"
@@ -40,6 +41,10 @@ def _load_validation_contract() -> tuple[dict[str, Any], list[str]]:
         errors.append("missing_required_columns")
     if not _string_set(contract.get("required_tables")):
         errors.append("missing_required_tables")
+    try:
+        snapshot_hash_algorithms()
+    except (OSError, ValueError, TypeError, AttributeError):
+        errors.append("invalid_content_identity_contract")
     return contract, errors
 
 
@@ -131,7 +136,7 @@ def validate_source_snapshot_store(projects: list[str] | None = None) -> dict[st
                         SELECT COUNT(*)
                         FROM source_snapshots
                         WHERE status = 'ok'
-                          AND (content_hash IS NULL OR content_hash = '' OR content = '')
+                          AND (content_hash IS NULL OR content_hash = '' OR content IS NULL)
                         """ + scope_clause + ";",
                         scope_params,
                     ).fetchone()[0]
@@ -169,6 +174,19 @@ def validate_source_snapshot_store(projects: list[str] | None = None) -> dict[st
                 if "source_snapshots" in tables and "files" in tables
                 else 0
             )
+            content_mismatch_rows = 0
+            if not contract_errors and {"source_snapshots", "files"} <= tables:
+                algorithms = snapshot_hash_algorithms()
+                # Stream rows from SQLite; never rescan live sources or accumulate all text.
+                for row in conn.execute(
+                    "SELECT ss.content, ss.content_hash, f.hash AS atlas_hash FROM source_snapshots AS ss "
+                    "LEFT JOIN files AS f ON f.file_id = ss.file_id AND f.project_key = ss.project_key "
+                    "AND f.rel_path = ss.rel_path WHERE ss.status = 'ok'"
+                    + _scope_sql(selected_projects, "ss.project_key")[0] + ";",
+                    scope_params,
+                ):
+                    if snapshot_content_status(row["content"], row["content_hash"], row["atlas_hash"], algorithms=algorithms) != "ok":
+                        content_mismatch_rows += 1
     else:
         tables = set()
         columns = set()
@@ -178,6 +196,7 @@ def validate_source_snapshot_store(projects: list[str] | None = None) -> dict[st
         stale_hash_rows = 0
         orphan_rows = 0
         hash_mismatch_rows = 0
+        content_mismatch_rows = 0
 
     checks.extend(
         [
@@ -211,6 +230,11 @@ def validate_source_snapshot_store(projects: list[str] | None = None) -> dict[st
                 "source_snapshot_hashes_match_atlas_files",
                 hash_mismatch_rows == 0,
                 {"hash_mismatch_rows": hash_mismatch_rows},
+            ),
+            _check(
+                "stored_text_matches_content_identity",
+                not contract_errors and content_mismatch_rows == 0,
+                {"content_mismatch_rows": content_mismatch_rows},
             ),
         ]
     )

@@ -160,6 +160,12 @@
     ]
   },
   "tool_review_obligations": {
+    "get_state_flow": [
+      "source_grounding_or_explicit_missing_status",
+      "bounded_depth_or_omission_notice",
+      "file_signals_are_not_symbol_flow",
+      "focused_full_json_preserves_selectors"
+    ],
     "inspect_file": [
       "source_grounding_or_explicit_missing_status"
     ],

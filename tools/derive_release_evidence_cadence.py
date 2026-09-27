@@ -38,16 +38,20 @@ def main() -> int:
     context = request.get("context")
     changed_paths = request.get("changed_paths")
     metadata = request.get("semantic_metadata_documents")
+    analysis_review = request.get("analysis_delta_review")
     if not isinstance(context, dict):
         raise ValueError("context must be a JSON object")
     if not isinstance(changed_paths, list):
         raise ValueError("changed_paths must be a JSON array")
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError("semantic_metadata_documents must be a JSON object")
+    if analysis_review is not None and not isinstance(analysis_review, dict):
+        raise ValueError("analysis_delta_review must be a JSON object")
     receipt = build_release_evidence_cadence_receipt(
         context,
         changed_paths=changed_paths,
         semantic_metadata_documents=metadata,
+        analysis_delta_review=analysis_review,
         root=ROOT,
     )
     print(json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")))

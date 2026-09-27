@@ -314,6 +314,8 @@
     "installationTriggerDerivation": {
       "type": "object",
       "required": [
+        "analysis_delta_review_mode",
+        "evidence_governance_paths",
         "schema",
         "authority",
         "source_role_contract",
@@ -330,6 +332,12 @@
         "receipt_authority"
       ],
       "properties": {
+        "analysis_delta_review_mode": {
+          "const": "exact_git_bound_manual_review_with_conservative_ast_and_current_clean_venv"
+        },
+        "evidence_governance_paths": {
+          "$ref": "#/definitions/nonEmptyUniqueStrings"
+        },
         "schema": {
           "const": "v1_content_bound_semantic_ownership"
         },

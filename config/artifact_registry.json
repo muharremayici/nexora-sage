@@ -2045,6 +2045,13 @@
       "storage_class": "managed_runtime_artifact"
     },
     {
+      "id": "ts_diagnostics_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/ts_diagnostics_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
       "id": "merge_decision_cockpit_analysis_snapshot_lineage",
       "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
       "path": "output/.raw/merge_decision_cockpit_analysis_snapshot_lineage.json",

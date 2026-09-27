@@ -59,6 +59,10 @@
     "config/sage_execution_wave_registry.json"
   ],
   "historical_release_identity_reference_paths": {
+    "config/react_corpus_report_coverage_registry.json": [
+      "completion_boundary.release_gate_evidence_release",
+      "completion_boundary.release_readiness_claim"
+    ],
     "config/external_repository_evaluation_registry.json": [
       "factorial_evaluation_plans.*.sage_snapshot.release_identity",
       "subjects.*.result.sage_release_identity"

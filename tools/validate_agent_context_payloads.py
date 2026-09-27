@@ -1277,7 +1277,9 @@ def validate_agent_context_payloads() -> dict[str, Any]:
             and 'evidence_basis: "static dependency graph"' in impact_brief
             and "direct_dependents_omitted:" in impact_brief
             and "transitive_dependents_omitted:" in impact_brief
-            and "depth-limited bounded sample" in impact_brief
+            and 'scope_kind: "target_reachable_dependents"' in impact_brief
+            and "bounded target-reachability sample" in impact_brief
+            and 'full_graph: "not_available"' in impact_brief
             and "directive:" in impact_brief
             and "next_action:" in impact_brief
             and '  inspect_first:\n    - "src/App.tsx"\n    - "src/main.tsx"' in impact_brief

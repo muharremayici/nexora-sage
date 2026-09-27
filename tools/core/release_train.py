@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from tools.core.roadmap_phase_registry import release_impact_issues
+
 
 def release_train_policy_issues(policy: dict[str, Any]) -> list[str]:
     guard = (
@@ -40,6 +42,19 @@ def release_train_policy_issues(policy: dict[str, Any]) -> list[str]:
         != "requires_explicit_future_contract_not_implicit_fallthrough"
     ):
         issues.append("unsafe_release_train_parallel_development_rule")
+    continuation = guard.get("planning_only_maintenance_continuation")
+    if continuation is not None and (
+        not isinstance(continuation, dict)
+        or continuation.get("enabled") is not True
+        or continuation.get("required_scope_mode") != "roadmap_delivery"
+        or continuation.get("required_impact_level") != "patch"
+        or any(continuation.get(field) is not True for field in (
+            "require_unselected_concrete_release", "require_verified_technical_readiness",
+            "require_no_same_release_correction", "preserve_pending_delivery",
+        ))
+        or continuation.get("publication_authority") is not False
+    ):
+        issues.append("unsafe_planning_only_maintenance_continuation")
     return issues
 
 
@@ -157,6 +172,9 @@ def project_release_train(
     phases: dict[str, dict[str, Any]],
     phase_order: list[str],
     active_phase: str,
+    active_scope: dict[str, Any] | None = None,
+    technical_ready_work_item_ids: set[str] | None = None,
+    roadmap_registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     guard = policy["release_train_guard"]
     blocking_statuses = {
@@ -199,22 +217,45 @@ def project_release_train(
     dependency_ready_same_release = [
         row for row in same_release if row["dependency_ready"]
     ]
+    continuation = guard.get("planning_only_maintenance_continuation") or {}
+    scope = active_scope or {}
+    # A version plan is not a selected/frozen release. This explicit exception
+    # retains delivery truth and still uses the normal dependency/tie selector.
+    ready_items = [row for row in work_items_by_id.values()
+                   if row.get("status") in blocking_statuses and not row.get("delivered_release")]
+    maintenance_continuation = bool(
+        continuation.get("enabled") is True
+        and gated_release and not same_release
+        and scope.get("mode") == continuation.get("required_scope_mode")
+        and "concrete_release" in scope and scope["concrete_release"] is None
+        and scope.get("does_not_expand_current_release_claims") is True
+        and roadmap_registry is not None and ready_items
+        and all(
+            row["id"] in (technical_ready_work_item_ids or set())
+            and isinstance(row.get("release_impact"), dict)
+            and (row.get("release_impact") or {}).get("level") == continuation.get("required_impact_level")
+            and not release_impact_issues(row, roadmap_registry)
+            for row in ready_items
+        )
+    )
     active_scope_conflict = bool(
         gated_release
         and active_phase in release_rank
         and release_rank[active_phase] > release_rank[gated_release]
+        and not maintenance_continuation
     )
     action_reason = (
         "active_package_is_ahead_of_predecessor_release"
         if active_scope_conflict
         else (
             "no_dependency_ready_same_release_successor"
-            if gated_release and not dependency_ready_same_release
+            if gated_release and not dependency_ready_same_release and not maintenance_continuation
             else None
         )
     )
     return {
-        "status": "PREDECESSOR_DELIVERY_REQUIRED" if gated_release else "CLEAR",
+        "status": ("PENDING_MAINTENANCE_DELIVERY" if maintenance_continuation else
+                   "PREDECESSOR_DELIVERY_REQUIRED" if gated_release else "CLEAR"),
         "gated_release": gated_release or None,
         "blocking_ready_work_item_ids": gated_blocker_ids,
         "all_blocking_ready_work_item_ids": [
@@ -226,7 +267,8 @@ def project_release_train(
         "dependency_ready_same_release_candidate_work_item_ids": [
             row["work_item_id"] for row in dependency_ready_same_release
         ],
-        "later_release_activation_allowed": not bool(gated_release),
+        "later_release_activation_allowed": not bool(gated_release) or maintenance_continuation,
+        "planning_only_maintenance_continuation": maintenance_continuation,
         "active_scope_conflict": active_scope_conflict,
         "action_required": bool(action_reason),
         "action_reason": action_reason,
