@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import tempfile
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ if str(CODE_MAPS_DIR) not in sys.path:
     sys.path.insert(0, str(CODE_MAPS_DIR))
 
 from tools.core.json_io import load_json_strict, load_text_file
-from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
 from tools.core.config import (
     CONFIG_DIR,
     CONFIG_FILE,
@@ -138,11 +139,11 @@ def _content_hashes(paths: dict[str, Path]) -> dict[str, str]:
 def _canonical_state_fingerprints() -> dict[str, dict[str, Any] | str]:
     database_path = RAW_DIR / "codemaps.db"
     names = ("atlas", "health_score", "quality_gate")
-    if not database_path.exists():
+    if not Path(native_filesystem_path(database_path)).is_file():
         return {name: "missing_database" for name in names}
     fingerprints: dict[str, dict[str, Any] | str] = {}
-    uri = f"{database_path.resolve().as_uri()}?mode=ro"
-    with sqlite3.connect(uri, uri=True) as connection:
+    uri = sqlite_read_only_uri(database_path)
+    with closing(sqlite3.connect(uri, uri=True)) as connection:
         connection.row_factory = sqlite3.Row
         for name in names:
             row = connection.execute(

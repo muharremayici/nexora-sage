@@ -1,0 +1,127 @@
+{
+  "meta": {
+    "kind": "target_runtime_validator_advisory_fixtures",
+    "status": "synthetic_syntax_ast_calibration",
+    "claim_ceiling": "review_only_needs_target_native_runtime_proof",
+    "source_boundary": "Generic synthetic TypeScript controls only; not target-repository runtime evidence."
+  },
+  "cases": [
+    {
+      "id": "truthy_guard_direct_spread",
+      "expected": "advisory",
+      "source": "type Doc = { id: string; title: string };\nfunction update(current: Doc, patch: Partial<Doc>): Doc {\n  if (patch.id && patch.id !== current.id) throw new Error('immutable id');\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "truthy_guard_reversed_comparison",
+      "expected": "advisory",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id && current.id !== patch.id) { throw new Error('immutable'); }\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "presence_guard",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (Object.hasOwn(patch, 'id') && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "undefined_guard",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id !== undefined && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "safe_spread_order",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  return { ...patch, ...current };\n}"
+    },
+    {
+      "id": "restored_key_after_spread",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...patch, id: current.id };\n}"
+    },
+    {
+      "id": "no_rejection",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id && patch.id !== current.id) console.warn('changed');\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "unrelated_patch_sink",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }, other: { id?: string }) {\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...other };\n}"
+    },
+    {
+      "id": "prior_parser_use",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  schema.parse(patch);\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "parsed_patch_binding",
+      "expected": "none",
+      "source": "function update(current: { id: string }, raw: unknown) {\n  const patch = schema.parse(raw);\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "intervening_normalization",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  patch = normalize(patch);\n  return { ...current, ...patch };\n}"
+    },
+    {
+      "id": "degraded_parser",
+      "expected": "none",
+      "source": "function update(current: { id: string }, patch: { id?: string }) {\n  if (patch.id && patch.id !== current.id) throw new Error('immutable');\n  return { ...current, ...patch };\n"
+    }
+  ],
+  "finite_number_cases": [
+    {
+      "id": "reject_non_number_or_nan_then_return",
+      "expected": "advisory",
+      "source": "function parse(value: unknown) {\n  if (typeof value !== 'number' || Number.isNaN(value)) throw new Error('number');\n  return value;\n}"
+    },
+    {
+      "id": "reversed_or_with_braced_throw",
+      "expected": "advisory",
+      "source": "function parse(value: unknown) {\n  if (Number.isNaN(value) || 'number' !== typeof value) { throw new Error('number'); }\n  return value;\n}"
+    },
+    {
+      "id": "finite_guard_is_safe",
+      "expected": "none",
+      "source": "function parse(value: unknown) {\n  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('finite');\n  return value;\n}"
+    },
+    {
+      "id": "prior_finite_rejection",
+      "expected": "none",
+      "source": "function parse(value: unknown) {\n  if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('finite');\n  if (typeof value !== 'number' || Number.isNaN(value)) throw new Error('number');\n  return value;\n}"
+    },
+    {
+      "id": "enclosing_finite_acceptance",
+      "expected": "none",
+      "source": "function parse(value: unknown) {\n  if (typeof value === 'number' && Number.isFinite(value)) {\n    if (typeof value !== 'number' || Number.isNaN(value)) throw new Error('number');\n    return value;\n  }\n  throw new Error('finite');\n}"
+    },
+    {
+      "id": "nan_only_without_numeric_type_guard",
+      "expected": "none",
+      "source": "function parse(value: number) {\n  if (Number.isNaN(value)) throw new Error('nan');\n  return value;\n}"
+    },
+    {
+      "id": "return_different_value",
+      "expected": "none",
+      "source": "function parse(value: unknown, normalized: number) {\n  if (typeof value !== 'number' || Number.isNaN(value)) throw new Error('number');\n  return normalized;\n}"
+    },
+    {
+      "id": "nonthrowing_guard",
+      "expected": "none",
+      "source": "function parse(value: unknown) {\n  if (typeof value !== 'number' || Number.isNaN(value)) console.warn('number');\n  return value;\n}"
+    },
+    {
+      "id": "shadowed_Number",
+      "expected": "none",
+      "source": "function parse(value: unknown, Number: { isNaN(v: unknown): boolean }) {\n  if (typeof value !== 'number' || Number.isNaN(value)) throw new Error('number');\n  return value;\n}"
+    },
+    {
+      "id": "coercive_global_isNaN",
+      "expected": "none",
+      "source": "function parse(value: unknown) {\n  if (typeof value !== 'number' || isNaN(value as number)) throw new Error('number');\n  return value;\n}"
+    },
+    {
+      "id": "degraded_parser",
+      "expected": "none",
+      "source": "function parse(value: unknown) {\n  if (typeof value !== 'number' || Number.isNaN(value)) throw new Error('number');\n  return value;\n"
+    }
+  ]
+}

@@ -190,6 +190,37 @@ def _json_findings(policy: dict[str, Any]) -> tuple[list[Finding], list[Finding]
     return release_literal_violations, release_literal_inventory, numeric_policy_inventory
 
 
+def _valid_historical_path_policy(policy: dict[str, Any]) -> bool:
+    rules = policy.get("historical_machine_path_collections", {})
+    return isinstance(rules, dict) and all(
+        isinstance(rel, str) and rel.startswith("config/") and rel.endswith(".json")
+        and isinstance(rule, dict)
+        and set(rule) == {"collection", "status_field", "status_value"}
+        and isinstance(rule["collection"], str) and bool(rule["collection"])
+        and isinstance(rule["status_field"], str) and bool(rule["status_field"])
+        and rule["status_value"] == "closed"
+        for rel, rule in rules.items()
+    )
+
+
+def _is_closed_history_value(
+    rel: str, key_path: tuple[str, ...], payload: Any, policy: dict[str, Any],
+) -> bool:
+    if not _valid_historical_path_policy(policy) or not isinstance(payload, dict):
+        return False
+    rule = policy.get("historical_machine_path_collections", {}).get(rel)
+    if not isinstance(rule, dict) or len(key_path) < 3 or key_path[0] != rule["collection"]:
+        return False
+    rows = payload.get(rule["collection"])
+    if not isinstance(rows, list) or not key_path[1].isdigit():
+        return False
+    index = int(key_path[1])
+    if index >= len(rows) or not isinstance(rows[index], dict):
+        return False
+    row = rows[index]
+    return bool(row.get("id")) and row.get(rule["status_field"]) == rule["status_value"]
+
+
 def _path_findings(policy: dict[str, Any]) -> tuple[list[Finding], list[Finding]]:
     current_doc_violations: list[Finding] = []
     archive_inventory: list[Finding] = []
@@ -202,12 +233,40 @@ def _path_findings(policy: dict[str, Any]) -> tuple[list[Finding], list[Finding]
         if rel in regex_definition_files:
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        for match in machine_absolute_path_re.finditer(text):
-            finding = Finding(rel, _line_for_text(text.splitlines(), match.group(0)), "<text>", match.group(0), "machine_absolute_path")
-            if any(marker in rel for marker in archive_markers) or any(rel.startswith(prefix) for prefix in archive_prefixes):
-                archive_inventory.append(finding)
-            else:
-                current_doc_violations.append(finding)
+        payload = None
+        if path.suffix == ".json":
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                # The release-decision scan separately fails malformed JSON;
+                # retain its paths as current violations, never archived state.
+                payload = None
+        if payload is None:
+            values = [((), text)]
+        else:
+            values = []
+            for key_path, value in _walk_json(payload):
+                if isinstance(value, str):
+                    # Preserve the existing source-syntax regex boundary;
+                    # JSON decoding must not silently widen this repair into
+                    # a new escaped-path or generated-metadata policy sweep.
+                    values.append((key_path, json.dumps(value, ensure_ascii=False)))
+                if key_path:
+                    # Raw JSON scanning also covered object keys. Keep that
+                    # boundary after separating history from active values.
+                    values.append((key_path, json.dumps(key_path[-1], ensure_ascii=False)))
+        for key_path, value in values:
+            for match in machine_absolute_path_re.finditer(value):
+                finding = Finding(
+                    rel, _line_for_text(text.splitlines(), match.group(0)),
+                    ".".join(key_path) or "<text>", match.group(0), "machine_absolute_path",
+                )
+                archived = (
+                    any(marker in rel for marker in archive_markers)
+                    or any(rel.startswith(prefix) for prefix in archive_prefixes)
+                    or _is_closed_history_value(rel, key_path, payload, policy)
+                )
+                (archive_inventory if archived else current_doc_violations).append(finding)
     return current_doc_violations, archive_inventory
 
 
@@ -233,6 +292,7 @@ def build_validation() -> dict[str, Any]:
     path_violations, archive_path_inventory = _path_findings(policy)
     markdown_release_inventory = _markdown_release_inventory(policy)
     checks = [
+        _check("historical_machine_path_inventory_policy_is_valid", _valid_historical_path_policy(policy), {}),
         _check(
             "non_python_decision_inventory_policy_is_valid",
             policy.get("_meta", {}).get("kind") == "non_python_decision_inventory_policy"

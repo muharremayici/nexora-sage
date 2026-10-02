@@ -15,7 +15,7 @@ from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, RAW_DIR
 from tools.core.distribution_policy import is_clean_install_root
 from tools.core.governance_trace import UNKNOWN_VALUE, fingerprint, record_trace_event
 from tools.core.json_io import load_json_object_strict
-from tools.core.sage_active_work_package import active_work_package
+from tools.core.work_package_state import active_work_package, inherited_dirty_file_identity
 from tools.core.source_layer_classifier import classify_source_layer
 
 
@@ -73,6 +73,11 @@ def work_package_source_identity(package: dict[str, Any] | None = None) -> str:
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else "missing",
             }
         )
+    if "inherited_dirty_baseline" in current:
+        rows.append({
+            "path": "<inherited_dirty_baseline>",
+            "sha256": fingerprint(current["inherited_dirty_baseline"]),
+        })
     return fingerprint(rows)
 
 
@@ -272,6 +277,7 @@ def build_work_package_closeout_proposal(
     receipt_projection: dict[str, Any],
     closure_validation: dict[str, Any],
     changed_files: list[str],
+    package_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     receipt_contract = _receipt_contract()
     closeout_policy = (
@@ -282,6 +288,11 @@ def build_work_package_closeout_proposal(
     scope_policy = (
         closeout_policy.get("changed_file_scope")
         if isinstance(closeout_policy.get("changed_file_scope"), dict)
+        else {}
+    )
+    baseline_policy = (
+        closeout_policy.get("inherited_dirty_baseline")
+        if isinstance(closeout_policy.get("inherited_dirty_baseline"), dict)
         else {}
     )
     declared = {
@@ -302,7 +313,10 @@ def build_work_package_closeout_proposal(
     }
     root = CODE_MAPS_DIR.resolve()
     for raw_path in sorted({str(item) for item in changed_files if str(item)}):
-        normalized = raw_path.replace("\\", "/")
+        if "\\" in raw_path:
+            invalid.append({"path": raw_path, "reason": "noncanonical_git_relative_path"})
+            continue
+        normalized = raw_path
         pure = PurePosixPath(normalized)
         unsafe = (
             pure.is_absolute()
@@ -329,6 +343,105 @@ def build_work_package_closeout_proposal(
             governed.append(row)
     changed = sorted(set(changed))
     undeclared = sorted(row["path"] for row in governed if row["path"] not in declared)
+    baseline = package.get("inherited_dirty_baseline")
+    baseline_files = baseline.get("files") if isinstance(baseline, dict) else None
+    baseline_valid = (
+        isinstance(baseline, dict)
+        and baseline.get("version") == baseline_policy.get("version")
+        and baseline.get("status") == baseline_policy.get("captured_status")
+        and bool(baseline_policy.get("version"))
+        and isinstance(baseline_files, dict)
+        and all(
+            isinstance(path, str)
+            and path == path.replace("\\", "/")
+            and not PurePosixPath(path).is_absolute()
+            and bool(PurePosixPath(path).parts)
+            and not any(part in {"", ".", ".."} for part in PurePosixPath(path).parts)
+            and ":" not in PurePosixPath(path).parts[0]
+            and isinstance(digest, str)
+            and (
+                digest == baseline_policy.get("missing_identity")
+                or (len(digest) == 64 and all(character in "0123456789abcdef" for character in digest))
+            )
+            for path, digest in baseline_files.items()
+        )
+    )
+    baseline_legacy = (
+        isinstance(baseline, dict)
+        and baseline.get("version") == baseline_policy.get("version")
+        and baseline.get("status") == baseline_policy.get("legacy_unknown_status")
+        and baseline_files == {}
+        and bool(str(baseline.get("reason") or "").strip())
+    )
+    inherited_unchanged: list[str] = []
+    inherited_unverified: list[dict[str, str]] = []
+    if baseline_valid:
+        for relative in undeclared:
+            recorded = baseline_files.get(relative)
+            if not recorded:
+                inherited_unverified.append({"path": relative, "reason": "not_in_activation_baseline"})
+                continue
+            try:
+                current_digest = inherited_dirty_file_identity(relative, root=root)
+            except (OSError, ValueError):
+                inherited_unverified.append({"path": relative, "reason": "missing_or_unsafe_since_activation"})
+                continue
+            if current_digest == recorded:
+                inherited_unchanged.append(relative)
+            elif current_digest == baseline_policy.get("missing_identity"):
+                inherited_unverified.append({"path": relative, "reason": "missing_since_activation"})
+            else:
+                inherited_unverified.append({"path": relative, "reason": "bytes_changed_since_activation"})
+    else:
+        reason = (
+            "legacy_without_activation_baseline"
+            if baseline is None or baseline_legacy else "invalid_activation_baseline"
+        )
+        inherited_unverified = [{"path": relative, "reason": reason} for relative in undeclared]
+    legacy_exception = closeout_policy.get("one_time_legacy_exception")
+    accepted_unknown: list[str] = []
+    exception_errors: list[str] = []
+    if (
+        baseline_legacy
+        and isinstance(legacy_exception, dict)
+        and legacy_exception.get("package_id") == package.get("id")
+    ):
+        authority = legacy_exception.get("authority")
+        identities = legacy_exception.get("current_file_sha256")
+        prior = package_history[-1] if package_history else None
+        if legacy_exception.get("status") != "human_approved_unknown_provenance":
+            exception_errors.append("legacy_exception_not_approved")
+        if not isinstance(authority, dict) or not all(
+            isinstance(authority.get(key), str) and authority[key].strip()
+            for key in ("principal", "source", "scope")
+        ) or authority.get("public_release_authority") is not False:
+            exception_errors.append("legacy_exception_authority_invalid")
+        if not isinstance(identities, dict) or set(identities) != set(undeclared):
+            exception_errors.append("legacy_exception_file_set_mismatch")
+        if (
+            not isinstance(prior, dict)
+            or prior.get("id") != legacy_exception.get("prior_package_id")
+            or prior.get("status") != "closed"
+            or not set(undeclared).issubset(set(prior.get("affected_contracts", [])))
+        ):
+            exception_errors.append("legacy_exception_prior_owner_unverified")
+        if not exception_errors:
+            for relative in undeclared:
+                expected = identities[relative]
+                if not isinstance(expected, str) or len(expected) != 64 or any(
+                    character not in "0123456789abcdef" for character in expected
+                ):
+                    exception_errors.append(f"legacy_exception_invalid_sha256:{relative}")
+                    continue
+                try:
+                    current = inherited_dirty_file_identity(relative, root=root)
+                except (OSError, ValueError):
+                    current = None
+                if current != expected:
+                    exception_errors.append(f"legacy_exception_byte_drift:{relative}")
+        if not exception_errors:
+            accepted_unknown = list(undeclared)
+    undeclared = [row["path"] for row in inherited_unverified if row["path"] not in accepted_unknown]
     proposals = (
         receipt_projection.get("proposals", {})
         if isinstance(receipt_projection.get("proposals"), dict)
@@ -397,6 +510,7 @@ def build_work_package_closeout_proposal(
     machine_ready = (
         closure_validation.get("status") == "PASS"
         and not undeclared
+        and (baseline is None or baseline_valid or baseline_legacy)
         and not unknown
         and not invalid
         and not applicability_errors
@@ -412,7 +526,10 @@ def build_work_package_closeout_proposal(
     )
     return {
         "meta": {"kind": "sage_work_package_closeout_proposal", "version": "v1"},
-        "status": "EVIDENCE_READY_HUMAN_ACTION_REQUIRED" if machine_ready else "BLOCKED",
+        "status": (
+            str(closeout_policy.get("accepted_risk_transition_status") or "BLOCKED")
+            if accepted_unknown else str(closeout_policy.get("transition_required_status") or "BLOCKED")
+        ) if machine_ready else "BLOCKED",
         "package": {
             "id": package.get("id"),
             "status": package.get("status"),
@@ -427,6 +544,15 @@ def build_work_package_closeout_proposal(
             "invalid_changed_files": invalid,
             "declared_affected_contracts": sorted(declared),
             "undeclared_changed_files": undeclared,
+            "inherited_unchanged_changed_files": inherited_unchanged,
+            "inherited_dirty_baseline_status": (
+                "VALID" if baseline_valid else "LEGACY_UNAVAILABLE" if baseline_legacy
+                else "INVALID" if baseline is not None else "LEGACY_MISSING"
+            ),
+            "inherited_dirty_unverified_files": inherited_unverified,
+            "legacy_accepted_unknown_changed_files": accepted_unknown,
+            "legacy_exception_id": legacy_exception.get("id") if accepted_unknown else None,
+            "legacy_exception_errors": exception_errors,
         },
         "machine_evidence": {
             "required_groups": required_machine_groups,
@@ -456,7 +582,7 @@ def build_work_package_closeout_proposal(
             "may_grant_approval_or_human_seal": False,
             "next_action": "Review proposed machine evidence, complete manual evidence records, then update closure and transition ledgers as an authorized actor.",
         },
-        "claim_boundary": "This command composes current evidence into a closeout proposal. It does not edit ledgers, close a package, activate another package, push Git state, approve a mutation or issue a human seal.",
+        "claim_boundary": "This command composes current evidence into a closeout proposal. A scoped accepted-risk legacy exception does not reconstruct activation-time bytes or prove unchanged history. This command does not edit ledgers, close a package, activate another package, push Git state, approve a mutation or issue a human seal.",
     }
 
 
@@ -477,6 +603,10 @@ def render_work_package_closeout_proposal(payload: dict[str, Any]) -> str:
         f"- unknown_source_files: `{len(live_diff.get('unknown_source_files', []))}`",
         f"- invalid_changed_files: `{len(live_diff.get('invalid_changed_files', []))}`",
         f"- undeclared_changed_files: `{len(live_diff.get('undeclared_changed_files', []))}`",
+        f"- inherited_dirty_baseline: `{live_diff.get('inherited_dirty_baseline_status')}`",
+        f"- inherited_unchanged_changed_files: `{len(live_diff.get('inherited_unchanged_changed_files', []))}`",
+        f"- legacy_accepted_unknown_changed_files: `{len(live_diff.get('legacy_accepted_unknown_changed_files', []))}`",
+        f"- legacy_exception_errors: `{', '.join(live_diff.get('legacy_exception_errors', [])) or 'none'}`",
         f"- missing_machine_groups: `{', '.join(machine.get('missing_groups', [])) or 'none'}`",
         f"- incomplete_machine_groups: `{', '.join(machine.get('incomplete_groups', [])) or 'none'}`",
         f"- stale_or_mismatched_receipts: `{machine.get('stale_or_mismatched_receipts')}`",
@@ -490,7 +620,10 @@ def render_work_package_closeout_proposal(payload: dict[str, Any]) -> str:
         "## Undeclared Changed Files",
         "",
     ]
-    lines.extend(f"- `{path}`" for path in live_diff.get("undeclared_changed_files", []))
+    lines.extend(
+        f"- `{row.get('path')}`: {row.get('reason')}"
+        for row in live_diff.get("inherited_dirty_unverified_files", [])
+    )
     if not live_diff.get("undeclared_changed_files"):
         lines.append("- none")
     lines.extend(["", "## Human Authority", "", str(authority.get("next_action") or ""), ""])

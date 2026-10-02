@@ -513,13 +513,42 @@ function collectForProject(project, projectRoot, workspaceRoot, rootConfigFile, 
   const emittedSources = new Set(diagnostics.slice(0, maxDiagnostics)
     .map((diag) => diag.file?.fileName).filter(Boolean));
   const selectedRoots = new Set(rootNames);
+  // Keep project-local Program dependencies ahead of compiler libraries when
+  // the bounded manifest cannot hold every SourceFile. This is lexical scope
+  // classification only; it does not add physical/link authority or I/O.
+  const projectProgramSources = sourceFiles.filter((file) =>
+    !file.isDeclarationFile && isPathWithin(projectRoot, file.fileName));
+  const projectProgramNames = new Set(projectProgramSources.map((file) => file.fileName));
+  const projectProgramDeclarations = sourceFiles.filter((file) =>
+    file.isDeclarationFile && isPathWithin(projectRoot, file.fileName));
+  const projectDeclarationNames = new Set(projectProgramDeclarations.map((file) => file.fileName));
+  const workspaceExternalSources = sourceFiles.filter((file) =>
+    isPathWithin(workspaceRoot, file.fileName) && !isPathWithin(projectRoot, file.fileName));
+  const workspaceExternalNames = new Set(workspaceExternalSources.map((file) => file.fileName));
+  const outsideWorkspaceSources = sourceFiles.filter((file) =>
+    !isPathWithin(workspaceRoot, file.fileName));
   const prioritized = sourceFiles.filter((file) => emittedSources.has(file.fileName));
   const rootsWithoutDiagnostics = sourceFiles.filter((file) =>
     !emittedSources.has(file.fileName) && selectedRoots.has(file.fileName));
-  const remaining = sourceFiles.filter((file) =>
+  const projectDependencies = projectProgramSources.filter((file) =>
     !emittedSources.has(file.fileName) && !selectedRoots.has(file.fileName));
-  const orderedManifestFiles = [...prioritized, ...rootsWithoutDiagnostics, ...remaining];
+  const projectDeclarations = projectProgramDeclarations.filter((file) =>
+    !emittedSources.has(file.fileName) && !selectedRoots.has(file.fileName));
+  const workspaceExternals = workspaceExternalSources.filter((file) =>
+    !emittedSources.has(file.fileName) && !selectedRoots.has(file.fileName));
+  const outsideWorkspace = outsideWorkspaceSources.filter((file) =>
+    !emittedSources.has(file.fileName) && !selectedRoots.has(file.fileName));
+  const orderedManifestFiles = [...prioritized, ...rootsWithoutDiagnostics,
+    ...projectDependencies, ...projectDeclarations, ...workspaceExternals, ...outsideWorkspace];
   const manifestFiles = maxFiles > 0 ? orderedManifestFiles.slice(0, maxFiles) : orderedManifestFiles;
+  const manifestProjectSources = manifestFiles.filter((file) => projectProgramNames.has(file.fileName));
+  const manifestProjectDeclarations = manifestFiles.filter((file) =>
+    projectDeclarationNames.has(file.fileName));
+  const manifestWorkspaceExternals = manifestFiles.filter((file) =>
+    workspaceExternalNames.has(file.fileName));
+  const outsideWorkspaceNames = new Set(outsideWorkspaceSources.map((file) => file.fileName));
+  const manifestOutsideWorkspace = manifestFiles.filter((file) =>
+    outsideWorkspaceNames.has(file.fileName));
   const byCode = {};
   const byCategory = {};
   for (const row of diagnostics.map((diag) => diagnosticPayload(diag, projectRoot))) {
@@ -562,6 +591,20 @@ function collectForProject(project, projectRoot, workspaceRoot, rootConfigFile, 
       complete: false,
       files: manifestFiles.map((file) => checkedSource(file.fileName, file.text, projectRoot)),
       selected_root_files: rootNames.map((fileName) => normalizePath(path.relative(projectRoot, fileName))),
+      program_project_source_files: manifestProjectSources.map((file) =>
+        normalizePath(path.relative(projectRoot, file.fileName))),
+      program_project_source_files_total: projectProgramSources.length,
+      program_project_declaration_files: manifestProjectDeclarations.map((file) =>
+        normalizePath(path.relative(projectRoot, file.fileName))),
+      program_project_declaration_files_total: projectProgramDeclarations.length,
+      program_workspace_external_files: manifestWorkspaceExternals.map((file) => ({
+        file: normalizePath(path.resolve(file.fileName)), declaration: Boolean(file.isDeclarationFile),
+      })),
+      program_workspace_external_files_total: workspaceExternalSources.length,
+      program_outside_workspace_files: manifestOutsideWorkspace.map((file) => ({
+        file: normalizePath(path.resolve(file.fileName)), declaration: Boolean(file.isDeclarationFile),
+      })),
+      program_outside_workspace_files_total: outsideWorkspaceSources.length,
       source_files_total: sourceFiles.length,
       omitted_files: sourceFiles.length - manifestFiles.length,
     },

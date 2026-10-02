@@ -80,6 +80,13 @@
   "archive_path_prefixes": [
     "docs/archive/"
   ],
+  "historical_machine_path_collections": {
+    "config/sage_active_work_package.json": {
+      "collection": "package_history",
+      "status_field": "status",
+      "status_value": "closed"
+    }
+  },
   "machine_path_regex_definition_files": [
     "config/non_python_decision_inventory_policy.json"
   ],

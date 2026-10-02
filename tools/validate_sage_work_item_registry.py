@@ -531,10 +531,12 @@ def run_validation() -> dict[str, Any]:
         if isinstance(selected_seed.get("release_scope"), dict)
         else {}
     )
+    successor_reason_codes = successor_selection.get("reason_codes", [])
+    carryover_selected = "attributable_human_published_carryover_scope" in successor_reason_codes
     selected_seed_matches = (
         selected_seed.get("work_item_ids") == [selected_successor_id]
         and bool(str(selected_seed.get("execution_wave") or ""))
-        and selected_seed_scope.get("mode") == "roadmap_delivery"
+        and selected_seed_scope.get("mode") == ("published_carryover_development" if carryover_selected else "roadmap_delivery")
         and bool(str(selected_seed_scope.get("roadmap_phase") or ""))
         and selected_seed_scope.get("concrete_release") is None
         and selected_seed_scope.get("does_not_expand_current_release_claims") is True
@@ -552,11 +554,11 @@ def run_validation() -> dict[str, Any]:
         and successor_human_choice.get("applied") is True
         and successor_status == "SELECTED"
         and successor_human_choice.get("work_item_id") == selected_successor_id
-        and successor_human_choice.get("authority") == "tie_resolution_only"
+        and successor_human_choice.get("authority") == "successor_selection_only"
         and bool(str(successor_human_choice.get("decided_by") or ""))
         and bool(str(successor_human_choice.get("reason") or ""))
-        and "attributable_human_tie_resolution"
-        in successor_selection.get("reason_codes", [])
+        and ((carryover_selected and successor_human_choice.get("roadmap_phase") == selected_seed_scope.get("roadmap_phase"))
+             or (not carryover_selected and "attributable_human_tie_resolution" in successor_reason_codes))
     )
     release_train = (
         successor_selection.get("release_train")

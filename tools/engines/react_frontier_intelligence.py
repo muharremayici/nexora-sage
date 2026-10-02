@@ -18,6 +18,7 @@ from tools.core.logger import logger
 from tools.core.react_evidence import atlas_evidence_kinds, attach_react_evidence_contract, first_pattern_line
 from tools.core.report_surface_limits import report_surface_limit
 from tools.core.source_snapshot_reader import load_source_text
+from tools.core.source_snapshot_integrity import source_text_hash
 from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage
 from tools.core.subprocess_telemetry import run_observed_subprocess
 from tools.core.runtime_project_scope import project_runtime_atlas
@@ -221,6 +222,69 @@ def analyze_frontier_file(project: str, rel_path: str, content: str, atlas_file:
     prop_confidence = "confirmed" if atlas_prop_contracts else "probable"
 
     file_evidence_kinds = atlas_evidence_kinds(atlas_file)
+    structured = atlas_file.get("structured_output_evidence") if isinstance(atlas_file, dict) else None
+    atlas_hash = atlas_file.get("hash") if isinstance(atlas_file, dict) else None
+    structured_source_current = False
+    if isinstance(structured, dict) and structured.get("candidates") and isinstance(atlas_hash, str):
+        structured_source_current = source_text_hash(content, atlas_hash) == atlas_hash
+    if (structured_source_current and isinstance(structured, dict)
+            and structured.get("status") in {"observed", "partial_budget"}):
+        for candidate in structured.get("candidates", []):
+            if (not isinstance(candidate, dict)
+                    or candidate.get("kind") != "xml_template_interpolation_candidate"
+                    or candidate.get("sink") not in {
+                        "xml_http_response", "xml_file_write", "xml_mime_helper_call_unverified",
+                    }
+                    or candidate.get("proof_status") != "needs_format_native_round_trip"
+                    or candidate.get("evidence_scope") not in {
+                        "direct_template_to_literal_xml_sink",
+                        "same_file_const_template_to_literal_xml_sink",
+                        "direct_template_to_xml_mime_helper_call",
+                        "same_file_const_template_to_xml_mime_helper_call",
+                    }
+                    or ((candidate.get("sink") == "xml_mime_helper_call_unverified")
+                        != (candidate.get("evidence_scope") in {
+                            "direct_template_to_xml_mime_helper_call",
+                            "same_file_const_template_to_xml_mime_helper_call",
+                        }))
+                    or type(candidate.get("line")) is not int or candidate["line"] < 1):
+                continue
+            contexts = candidate.get("interpolation_contexts")
+            if (not isinstance(contexts, list) or not contexts
+                    or any(context not in {"element_text", "attribute_value", "cdata"}
+                           for context in contexts)):
+                continue
+            helper = candidate["sink"] == "xml_mime_helper_call_unverified"
+            same_file_const = candidate["evidence_scope"] in {
+                "same_file_const_template_to_literal_xml_sink",
+                "same_file_const_template_to_xml_mime_helper_call",
+            }
+            evidence_text = (
+                f"{'same-file const' if same_file_const else 'direct'} imported helper call "
+                f"with literal XML MIME and extension; output effect and serializer ownership unverified; "
+                f"template interpolation in {', '.join(contexts)}"
+                if helper else
+                f"{'same-file const' if same_file_const else 'direct'} {candidate['sink']} "
+                f"template interpolation in {', '.join(contexts)}; serializer correctness unproven"
+            )
+            findings.append(_finding(
+                project,
+                normalized,
+                "structured_output_integrity",
+                "xml_template_interpolation_candidate",
+                evidence_text
+                + (f"; scan partial: {structured['omitted']} candidates omitted"
+                   if structured.get("status") == "partial_budget" else ""),
+                3,
+                ("Verify the imported helper's output effect and serializer ownership; capture actual target-produced XML and check XML 1.0 characters with a parser round-trip checking selected structure and original values using python -m tools.validate_xml_format_output --xml-file OUTPUT --expectations-file EXPECTATIONS before treating this as a defect. This command does not bind output to source."
+                 if helper else
+                 "Review source-to-sink escaping; capture actual target-produced XML and check XML 1.0 characters with a parser round-trip checking selected structure and original values using python -m tools.validate_xml_format_output --xml-file OUTPUT --expectations-file EXPECTATIONS before treating this as a defect. This command does not bind output to source."),
+                {"ast_span", "needs_runtime_proof"},
+                line=candidate["line"],
+                evidence_scope=("xml_mime_helper_call_advisory_only" if helper else
+                                "same_file_const_xml_template_sink_advisory_only"
+                                if same_file_const else "direct_xml_template_sink_advisory_only"),
+            ))
 
     any_count = len(TYPE_ANY_RE.findall(content))
     ts_escape_count = len(TS_IGNORE_RE.findall(content))
@@ -594,13 +658,14 @@ def _collect_ts_diagnostics(timeout_seconds: int = 90, projects: list[str] | Non
 
 
 def _ts_diagnostic_findings(ts_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project syntax observations; the caller must enforce snapshot lineage."""
     findings: list[dict[str, Any]] = []
     projects = ts_payload.get("projects", {}) if isinstance(ts_payload, dict) else {}
     if not isinstance(projects, dict):
         return findings
-    critical_codes = {"TS2322", "TS2339", "TS2345", "TS2769", "TS2786", "TS2741", "TS2740", "TS7006", "TS7031"}
     for project, pdata in projects.items():
-        if not isinstance(pdata, dict):
+        if (not isinstance(pdata, dict) or pdata.get("mode") != "syntax"
+                or pdata.get("status") != "OK_SYNTAX_ONLY"):
             continue
         diagnostics = pdata.get("diagnostics", []) if isinstance(pdata.get("diagnostics"), list) else []
         by_file: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -609,8 +674,7 @@ def _ts_diagnostic_findings(ts_payload: dict[str, Any]) -> list[dict[str, Any]]:
                 by_file[str(diag["file"])].append(diag)
         for rel_path, rows in by_file.items():
             codes = Counter(str(row.get("code")) for row in rows)
-            critical = sum(count for code, count in codes.items() if code in critical_codes)
-            score = min(10, 3 + len(rows) + critical * 2)
+            score = min(10, 3 + len(rows))
             first_line = min(
                 int(row.get("line") or 1)
                 for row in rows
@@ -620,84 +684,41 @@ def _ts_diagnostic_findings(ts_payload: dict[str, Any]) -> list[dict[str, Any]]:
                 _finding(
                     str(project),
                     rel_path,
-                    "typescript_compiler_diagnostics",
-                    "compiler_reported_type_contract_failure",
+                    "typescript_syntax_diagnostics",
+                    "compiler_reported_syntax_failure",
                     ", ".join(f"{code}={count}" for code, count in codes.most_common(6)),
                     score,
-                    "Use compiler diagnostics as primary evidence; repair type contracts before relying on static heuristic confidence.",
+                    "Repair the reported syntax error in the checked file, then run the repository's typecheck for semantic evidence.",
                     {"typescript_compiler"},
                     line=first_line,
+                    evidence_scope="checked_syntax_files_only",
                 )
             )
     return findings
-
-
-def _ts_diagnostics_by_file(ts_payload: dict[str, Any]) -> dict[tuple[str, str], list[dict[str, Any]]]:
-    projects = ts_payload.get("projects", {}) if isinstance(ts_payload, dict) else {}
-    index: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
-    if not isinstance(projects, dict):
-        return index
-    for project, pdata in projects.items():
-        if not isinstance(pdata, dict):
-            continue
-        diagnostics = pdata.get("diagnostics", []) if isinstance(pdata.get("diagnostics"), list) else []
-        for diag in diagnostics:
-            if isinstance(diag, dict) and diag.get("file"):
-                index[(str(project), str(diag["file"]).replace("\\", "/"))].append(diag)
-    return index
 
 
 def _enrich_findings_with_ts_diagnostics(
     findings: list[dict[str, Any]],
     ts_payload: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], int]:
-    index = _ts_diagnostics_by_file(ts_payload)
-    enriched: list[dict[str, Any]] = []
-    enriched_count = 0
-    dimensions = {
-        "typescript_type_aware",
-        "rsc_serialization_contract",
-        "react_security",
-        "hydration_determinism",
-    }
-    for item in findings:
-        key = (str(item.get("project") or ""), str(item.get("file") or "").replace("\\", "/"))
-        rows = index.get(key, [])
-        if not rows or str(item.get("dimension") or "") not in dimensions:
-            enriched.append(item)
-            continue
-        next_item = dict(item)
-        diagnostic_rows = [
-            {
-                "code": row.get("code"),
-                "line": row.get("line"),
-                "character": row.get("character"),
-                "message": row.get("message"),
-            }
-            for row in rows[:6]
-        ]
-        kinds = set(next_item.get("evidence_kinds") or [])
-        kinds.add("typescript_compiler")
-        next_item["typescript_diagnostics"] = diagnostic_rows
-        next_item["typescript_diagnostic_codes"] = sorted({str(row.get("code")) for row in rows if row.get("code")})
-        next_item["evidence"] = (
-            f"{next_item.get('evidence', '')}; TypeScript diagnostics: "
-            + ", ".join(next_item["typescript_diagnostic_codes"][:6])
-        ).strip("; ")
-        next_item["score"] = min(10, int(next_item.get("score", 0) or 0) + min(3, len(rows)))
-        next_item = attach_react_evidence_contract(
-            next_item,
-            evidence_kinds=kinds,
-            current_confidence=str(next_item.get("confidence") or ""),
-        )
-        enriched.append(next_item)
-        enriched_count += 1
-    return enriched, enriched_count
+    # File co-location is not corroboration. A checked syntax error cannot
+    # raise a type, RSC, security or hydration finding; semantic input is
+    # still unbound. Risk-specific, span-level correlation is separate work.
+    return findings, 0
 
 
 def _refactor_plan(findings: list[dict[str, Any]]) -> dict[str, Any]:
     gate_policy = _load_frontier_policy()["evidence_gates"]
-    priority = sorted(findings, key=lambda item: (-int(item.get("score", 0)), item.get("project", ""), item.get("file", "")))[:40]
+    # A serializer candidate is not a proved defect or an authorized edit.
+    actionable = [
+        item for item in findings
+        if item.get("evidence_scope") not in {
+            "direct_xml_template_sink_advisory_only",
+            "same_file_const_xml_template_sink_advisory_only",
+            "xml_mime_helper_call_advisory_only",
+        }
+    ]
+    priority = sorted(actionable, key=lambda item: (-int(item.get("score", 0)), item.get("project", ""), item.get("file", "")))[:40]
     tasks = []
     for item in priority:
         dimension = item.get("dimension")
@@ -722,6 +743,7 @@ def _refactor_plan(findings: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _patch_strategy(dimension: str) -> str:
     return {
+        "typescript_syntax_diagnostics": "repair checked-file syntax errors, then run the repository typecheck",
         "typescript_type_aware": "replace type escapes with explicit exported contracts and compiler-checked generics",
         "typescript_compiler_diagnostics": "repair compiler-reported type contract failures before heuristic refactors",
         "react_security": "move trust boundary to server, sanitize HTML, remove client secret persistence",

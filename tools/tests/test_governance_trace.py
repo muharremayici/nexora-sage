@@ -190,6 +190,31 @@ class GovernanceTraceTests(unittest.TestCase):
             self.assertEqual(event["details"]["blocked_dependency_count"], 0)
             self.assertEqual(event["details"]["advisory_dependency_failure_count"], 1)
 
+    def test_release_proof_trace_does_not_call_budget_limited_step_completed(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from unittest.mock import patch
+
+            result = {
+                "id": "test_shard",
+                "started_at": "2026-01-01T00:00:00Z",
+                "duration_seconds": 0,
+                "passed": False,
+                "required": True,
+                "timed_out": False,
+                "timeout_basis": "not_started_failure_budget",
+                "execution_status": "NOT_EXECUTED_FAILURE_BUDGET",
+                "failure_collection_trigger_step_ids": ["cage"],
+                "command": "must not be retained",
+            }
+            with patch("tools.core.governance_trace.RAW_DIR", Path(temp_dir)):
+                event = record_release_proof_step_trace(result)
+            self.assertEqual(
+                event["state_change"],
+                "release_proof_step_not_executed_failure_budget",
+            )
+            self.assertEqual(event["details"]["execution_status"], "NOT_EXECUTED_FAILURE_BUDGET")
+            self.assertNotIn("command", event["details"])
+
     def test_agent_handoff_trace_keeps_packet_metadata_without_source_content(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             packet = {

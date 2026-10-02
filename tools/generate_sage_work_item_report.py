@@ -173,6 +173,12 @@ def build_report() -> dict[str, Any]:
             "publication_target_status": release_planning.get("publication_target_status"),
             "semver_candidate_status": semver_candidate.get("status"),
             "recommended_concrete_release": semver_candidate.get("recommended_release"),
+            "roadmap_claim_alignment_status": semver_candidate.get("roadmap_alignment", {}).get("status"),
+            "historical_target_work_items": len(
+                semver_candidate.get("historical_planning", {}).get(
+                    "undelivered_work_item_ids_with_past_targets", []
+                )
+            ),
             "semver_candidate_work_items": semver_candidate.get("candidate_scope", {}).get("work_items", 0),
             "bounded_package_work_items": len(bounded_package.get("work_item_ids", [])),
         },
@@ -185,7 +191,7 @@ def build_report() -> dict[str, Any]:
         "agent_surface_followup_ids": sorted(agent_surface_ids),
         "untracked_agent_surface_followups": untracked_agent_surface_followups,
         "execution_plan": execution_plan,
-        "rule": "Open work is grouped by planned roadmap phase; a bounded package may omit concrete_release until publication planning. Every ready_for_delivery item carries an explicit SemVer impact disposition, so the highest impact across all eligible undelivered work recommends the next release without selecting or publishing it. Closed work is grouped by actual delivered_release.",
+        "rule": "Open work is grouped by planned roadmap phase; a bounded package may omit concrete_release until publication planning. Every ready_for_delivery item carries an explicit SemVer impact disposition, so the highest impact across all eligible undelivered work recommends the next release without selecting or publishing it. A registered version does not prove or activate its planned claim profile; roadmap_claim_alignment_status must be reviewed separately. Closed work is grouped by actual delivered_release.",
     }
     return payload
 
@@ -225,6 +231,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- publication_target_status: `{summary.get('publication_target_status')}`",
         f"- semver_candidate_status: `{summary.get('semver_candidate_status')}`",
         f"- recommended_concrete_release: `{summary.get('recommended_concrete_release') or 'not_available'}`",
+        f"- roadmap_claim_alignment_status: `{summary.get('roadmap_claim_alignment_status') or 'not_available'}`",
+        f"- historical_target_work_items: `{summary.get('historical_target_work_items')}`",
         f"- semver_candidate_work_items: `{summary.get('semver_candidate_work_items')}`",
         f"- bounded_package_work_items: `{summary.get('bounded_package_work_items')}`",
         "",

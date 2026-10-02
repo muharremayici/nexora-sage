@@ -102,6 +102,41 @@ Default target-repository coding scope is `MAIN`. `search_symbols` and
 normal edit targets. Use `project="all"` or a concrete variation project only
 for merge, variation, or explicit cross-project review.
 
+Symbol search distinguishes indexed candidate collection from bounded display:
+`candidate_count` names collected declaration/file/derived-syntax rows, not distinct files or
+the source tree; it is a lower bound when `search_truncated` is true. `shown`,
+`omitted` and `display_truncated` disclose display omissions only, while further
+source-cap omissions remain unknown. Narrow project/path/query before following
+an omitted candidate. Machine output preserves its list shape with per-row count
+metadata; neither format grants edit authority.
+
+ClassMethod candidates come from a separate search-only SQLite projection of
+recorded identifier-named Class methods. Declaring class, member span and static
+syntax survive collisions and overloads; dependency/declaration consumers do not
+inherit these rows. Check class_method_search coverage and inspect_file before
+editing. Available means within recorded evidence, never complete source-tree
+coverage or live source proof. Legacy/unprojected and malformed evidence remains
+unavailable/partial; a search does not migrate or rescan the repository.
+
+StoreActionCandidate rows use a separate search-only SQLite projection of
+recorded direct setter-call function members in recognized Zustand create/createStore
+initializers. The declaring variable, member span and factory API survive
+project/file collisions; declaration and dependency consumers do not inherit
+these rows. Check store_action_search coverage and inspect_file before editing.
+These are syntax candidates, not proven call-result ownership or runtime
+execution. Available describes recorded evidence only; legacy, unprojected and
+malformed evidence remains partial/unavailable. Unknown factories, arbitrary
+objects, function members without recorded setter calls, import bindings and
+qualified calls are outside this slice.
+
+ImportBindingCandidate rows are separate search-only SQLite syntax for top-level
+TypeScript/JavaScript ES import bindings. Local alias, imported name, module
+specifier, type-only marker and span are recorded; no symbol or dependency edge
+is created. Check import_binding_search coverage and inspect_file before editing.
+These rows do not prove use, module resolution or execution. Legacy, degraded
+or malformed evidence is partial/unavailable, not evidence of absence; require,
+dynamic import, reexport and qualified calls remain outside scope.
+
 The `target_repository_followup` profile adds bounded supporting and HITL tools
 after a concrete need exists, including:
 

@@ -7,6 +7,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 
 def native_filesystem_path(path: str | Path) -> str:
@@ -18,6 +19,12 @@ def native_filesystem_path(path: str | Path) -> str:
     if absolute.startswith("\\\\"):
         return "\\\\?\\UNC\\" + absolute[2:]
     return "\\\\?\\" + absolute
+
+
+def sqlite_read_only_uri(path: str | Path) -> str:
+    """SQLite URI for an OS-native absolute path, including Windows extended paths."""
+
+    return "file:" + quote(native_filesystem_path(path), safe="/:") + "?mode=ro"
 
 
 def save_unmanaged_json_atomic(

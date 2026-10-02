@@ -107,6 +107,189 @@ function semanticTokenMatches(sourceCode, token) {
     return pattern.test(sourceCode);
 }
 
+function literalPropertyName(property) {
+    const name = property?.name;
+    return name && (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) ? name.text : '';
+}
+
+function xmlResponseMime(options) {
+    if (!options || !ts.isObjectLiteralExpression(options)) return false;
+    const headers = options.properties.find(property =>
+        ts.isPropertyAssignment(property) && literalPropertyName(property).toLowerCase() === 'headers');
+    if (!headers || !ts.isObjectLiteralExpression(headers.initializer)) return false;
+    const contentType = headers.initializer.properties.find(property =>
+        ts.isPropertyAssignment(property) && literalPropertyName(property).toLowerCase() === 'content-type');
+    return !!contentType && ts.isStringLiteralLike(contentType.initializer)
+        && /^(?:application|text)\/xml(?:\s*;|$)/i.test(contentType.initializer.text);
+}
+
+function xmlInterpolationContext(prefix) {
+    if (prefix.lastIndexOf('<![CDATA[') > prefix.lastIndexOf(']]>')) return 'cdata';
+    const open = prefix.lastIndexOf('<');
+    const close = prefix.lastIndexOf('>');
+    if (open > close) {
+        const tag = prefix.slice(open + 1);
+        const doubleQuotes = (tag.match(/"/g) || []).length;
+        const singleQuotes = (tag.match(/'/g) || []).length;
+        return /=\s*["'][^"']*$/.test(tag) && (doubleQuotes % 2 || singleQuotes % 2)
+            ? 'attribute_value' : '';
+    }
+    if (close > open) {
+        const tag = prefix.slice(0, close + 1).match(/<\/?[A-Za-z_][\w:.-]*(?:\s[^<>]*)?>$/);
+        return tag && !tag[0].startsWith('</') ? 'element_text' : '';
+    }
+    return '';
+}
+
+function isUnshadowedResponse(identifier, symbolAt) {
+    const declarations = symbolAt(identifier)?.declarations || [];
+    // The single-file checker has no DOM library. An unresolved Response is
+    // only a global-constructor candidate, never proof of runtime ownership.
+    return !declarations.some(declaration => declaration.getSourceFile() === identifier.getSourceFile());
+}
+
+function isNodeFsWriter(call, importBindings, symbolAt) {
+    const owner = call.expression.expression;
+    if (!ts.isIdentifier(owner)) return false;
+    const method = call.expression.name.text;
+    const allowedSources = method === 'writeFileSync'
+        ? ['fs', 'node:fs'] : ['fs', 'node:fs', 'fs/promises', 'node:fs/promises'];
+    const declarations = symbolAt(owner)?.declarations || [];
+    if (declarations.length !== 1) return false;
+    const declaration = declarations[0];
+    const binding = importBindings.get(owner.text);
+    if (binding && ['namespace', 'default'].includes(binding.kind)
+        && allowedSources.includes(binding.source)) {
+        const clause = ts.isImportClause(declaration) ? declaration
+            : ts.isNamespaceImport(declaration) ? declaration.parent : null;
+        const importDecl = clause?.parent;
+        return !!clause && !clause.isTypeOnly && ts.isImportDeclaration(importDecl)
+            && importDecl.moduleSpecifier.text === binding.source
+            && declaration.name?.text === owner.text;
+    }
+    if (!ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name)
+        || declaration.name.text !== owner.text
+        || !ts.isVariableDeclarationList(declaration.parent)
+        || !(declaration.parent.flags & ts.NodeFlags.Const)
+        || declaration.getStart() >= call.getStart()) return false;
+    const initializer = declaration.initializer;
+    return !!initializer && ts.isCallExpression(initializer)
+        && ts.isIdentifier(initializer.expression) && initializer.expression.text === 'require'
+        && !symbolAt(initializer.expression)
+        && initializer.arguments.length === 1
+        && ts.isStringLiteralLike(initializer.arguments[0])
+        && allowedSources.includes(initializer.arguments[0].text);
+}
+
+function isImportedXmlMimeHelper(call, importBindings, symbolAt) {
+    if (!ts.isIdentifier(call.expression) || call.arguments.length < 3) return false;
+    const binding = importBindings.get(call.expression.text);
+    if (!binding || !['named', 'default'].includes(binding.kind)) return false;
+    const declarations = symbolAt(call.expression)?.declarations || [];
+    if (declarations.length !== 1) return false;
+    const declaration = declarations[0];
+    let clause = null;
+    if (ts.isImportSpecifier(declaration) && !declaration.isTypeOnly) {
+        clause = ts.isNamedImports(declaration.parent) ? declaration.parent.parent : null;
+    } else if (ts.isImportClause(declaration)) {
+        clause = declaration;
+    }
+    const importDecl = clause?.parent;
+    if (!clause || clause.isTypeOnly || !ts.isImportDeclaration(importDecl)
+        || !ts.isStringLiteralLike(importDecl.moduleSpecifier)
+        || importDecl.moduleSpecifier.text !== binding.source
+        || declaration.name?.text !== call.expression.text) return false;
+    const literals = call.arguments.filter(ts.isStringLiteralLike).map(arg => arg.text);
+    return literals.some(value => /^(?:application|text)\/xml(?:\s*;|$)/i.test(value))
+        && literals.some(value => /^(?:\.?xml|[^\\/]+\.xml)$/i.test(value));
+}
+
+function xmlTemplateContexts(template) {
+    if (!ts.isTemplateExpression(template)) return [];
+    const contexts = [];
+    let prefix = template.head.text;
+    for (const span of template.templateSpans) {
+        const context = xmlInterpolationContext(prefix);
+        if (context) contexts.push(context);
+        prefix += span.literal.text;
+    }
+    return contexts;
+}
+
+function structuredXmlTemplateCandidate(template, node, sourceFile, symbolAt, sink) {
+    if (!template) return null;
+    const helper = sink === 'xml_mime_helper_call_unverified';
+    let evidenceScope = helper
+        ? 'direct_template_to_xml_mime_helper_call'
+        : 'direct_template_to_literal_xml_sink';
+    if (ts.isIdentifier(template)) {
+        const declarations = symbolAt(template)?.declarations || [];
+        if (declarations.length !== 1 || !ts.isVariableDeclaration(declarations[0])) return null;
+        const declaration = declarations[0];
+        if (declaration.getSourceFile() !== sourceFile
+            || !ts.isIdentifier(declaration.name)
+            || !ts.isVariableDeclarationList(declaration.parent)
+            || !(declaration.parent.flags & ts.NodeFlags.Const)
+            || !ts.isTemplateExpression(declaration.initializer)
+            || declaration.getStart(sourceFile) >= node.getStart(sourceFile)) return null;
+        template = declaration.initializer;
+        evidenceScope = helper
+            ? 'same_file_const_template_to_xml_mime_helper_call'
+            : 'same_file_const_template_to_literal_xml_sink';
+    }
+    const contexts = xmlTemplateContexts(template);
+    if (!contexts.length) return null;
+    return {
+        kind: 'xml_template_interpolation_candidate',
+        sink,
+        interpolation_contexts: [...new Set(contexts)].sort(),
+        interpolation_count: contexts.length,
+        line: sourceFile.getLineAndCharacterOfPosition(template.getStart(sourceFile)).line + 1,
+        evidence_scope: evidenceScope,
+        proof_status: 'needs_format_native_round_trip',
+    };
+}
+
+function structuredXmlSinkCandidate(node, sourceFile, importBindings, symbolAt) {
+    let template = null;
+    let sink = '';
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)
+        && node.expression.text === 'Response' && isUnshadowedResponse(node.expression, symbolAt)
+        && xmlResponseMime(node.arguments?.[1])) {
+        template = node.arguments?.[0];
+        sink = 'xml_http_response';
+    } else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+        && ['writeFile', 'writeFileSync'].includes(node.expression.name.text)
+        && ts.isStringLiteralLike(node.arguments[0])
+        && /\.xml$/i.test(node.arguments[0].text)
+        && isNodeFsWriter(node, importBindings, symbolAt)) {
+        template = node.arguments[1];
+        sink = 'xml_file_write';
+    } else if (ts.isCallExpression(node)
+        && isImportedXmlMimeHelper(node, importBindings, symbolAt)) {
+        // Literal format intent and an imported binding are not proof that the
+        // helper writes a file or serializes safely. Keep this advisory only.
+        sink = 'xml_mime_helper_call_unverified';
+        const mimePositions = node.arguments.flatMap((arg, index) =>
+            ts.isStringLiteralLike(arg) && /^(?:application|text)\/xml(?:\s*;|$)/i.test(arg.text)
+                ? [index] : []);
+        const candidates = node.arguments.flatMap((arg, index) => {
+            if (!mimePositions.some(mimeIndex => mimeIndex > index)) return [];
+            const candidate = structuredXmlTemplateCandidate(
+                arg, node, sourceFile, symbolAt, sink);
+            return candidate ? [{index, candidate}] : [];
+        });
+        if (candidates.length !== 1) return null;
+        const {index, candidate} = candidates[0];
+        const followsLiteralFormat = mimePositions.some(mimeIndex =>
+            mimeIndex > index && node.arguments.slice(index + 1, mimeIndex).every(next =>
+                ts.isStringLiteralLike(next)
+                || (ts.isTemplateExpression(next) && !xmlTemplateContexts(next).length)));
+        return followsLiteralFormat ? candidate : null;
+    }
+    return structuredXmlTemplateCandidate(template, node, sourceFile, symbolAt, sink);
+}
+
 function getModifierNames(node) {
     return (node.modifiers || []).map(m => ts.tokenToString(m.kind)).filter(Boolean);
 }
@@ -313,11 +496,17 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
             || ts.isNonNullExpression(node))) node = node.expression;
         return node;
     }
-    return function collectImportCalls(node) {
-        const fn = unwrap(ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)
-            ? node.initializer : node);
+    return function collectImportCalls(node, scope = 'callable') {
+        const moduleRoot = scope === 'module_root' && node === sourceFile;
+        const fn = moduleRoot ? sourceFile
+            : unwrap(ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)
+                ? node.initializer : node);
         const result = {status: 'not_applicable', calls: [], limitations: [],
             binding_scope: 'single_file_lexical_import', runtime_execution: 'not_established'};
+        if (moduleRoot) {
+            result.callsite_scope = 'module_root';
+            result.omitted = 0;
+        }
         function propertyEventEvidence() {
             if (!result.property_event_evidence) {
                 result.property_event_evidence = {status: 'not_applicable', calls: [], omitted: 0,
@@ -327,7 +516,7 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
             }
             return result.property_event_evidence;
         }
-        if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
+        if (!fn || (!moduleRoot && (!ts.isFunctionLike(fn) || !fn.body))) return result;
         if (cache.has(fn)) return cache.get(fn);
         cache.set(fn, result);
         if (sourceFile.parseDiagnostics?.length) {
@@ -335,7 +524,9 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
             result.limitations = ['source_parse_diagnostics'];
             return result;
         }
-        const limitations = new Set(['body_only_no_parameter_initializers']);
+        const limitations = new Set([moduleRoot
+            ? 'module_root_outside_nested_callable_and_class'
+            : 'body_only_no_parameter_initializers']);
         const eventMethods = new Set(['emit', 'on', 'once', 'off', 'addListener', 'removeListener']);
         function walk(inner, nestedDepth = 0) {
             if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
@@ -349,6 +540,12 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
             }
             if (ts.isCallExpression(inner)) {
                 const callee = unwrap(inner.expression);
+                const staticMember = ts.isPropertyAccessExpression(callee)
+                    ? callee.name.text
+                    : ts.isElementAccessExpression(callee)
+                        && ts.isStringLiteral(callee.argumentExpression)
+                        && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(callee.argumentExpression.text)
+                            ? callee.argumentExpression.text : null;
                 const owner = ts.isPropertyAccessExpression(callee)
                     ? unwrap(callee.expression) : null;
                 const importedRoot = owner && ts.isPropertyAccessExpression(owner)
@@ -356,7 +553,7 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                 const propertyBinding = importedRoot && ts.isIdentifier(importedRoot)
                     ? importBindings.get(importedRoot.text) : null;
                 const firstEvent = inner.arguments[0];
-                if (propertyBinding?.kind === 'named' && ts.isPropertyAccessExpression(callee)
+                if (!moduleRoot && propertyBinding?.kind === 'named' && ts.isPropertyAccessExpression(callee)
                     && ts.isPropertyAccessExpression(owner) && ts.isIdentifier(importedRoot)
                     && eventMethods.has(callee.name.text) && !inner.questionDotToken
                     && !callee.questionDotToken && !owner.questionDotToken
@@ -391,7 +588,7 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                     }
                 }
                 const root = ts.isIdentifier(callee) ? callee
-                    : ts.isPropertyAccessExpression(callee) ? unwrap(callee.expression) : null;
+                    : staticMember !== null ? unwrap(callee.expression) : null;
                 const binding = root && ts.isIdentifier(root) ? importBindings.get(root.text) : null;
                 const literalEventMember = binding && binding.kind === 'named'
                     && ts.isPropertyAccessExpression(callee)
@@ -415,16 +612,25 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                         || clause.parent.moduleSpecifier.text !== binding.source
                         || declaration.name?.text !== binding.localName) {
                         limitations.add('import_declaration_identity_mismatch');
+                    } else if (moduleRoot && (binding.kind !== 'namespace'
+                        || staticMember === null
+                        || inner.questionDotToken || callee.questionDotToken)) {
+                        limitations.add('unsupported_module_root_call_form');
                     } else {
                         const start = inner.getStart(sourceFile);
                         const line = sourceFile.getLineAndCharacterOfPosition(start).line + 1;
                         const endLine = sourceFile.getLineAndCharacterOfPosition(Math.max(start, inner.end - 1)).line + 1;
                         const first = inner.arguments[0];
-                        result.calls.push({...binding, member: ts.isPropertyAccessExpression(callee) ? callee.name.text : null,
-                            ...(binding.kind === 'named' && ts.isPropertyAccessExpression(callee)
-                                ? {first_literal_argument: first.text,
-                                    nested_callable_depth: nestedDepth} : {}),
-                            line, end_line: endLine, optional: !!inner.questionDotToken || !!callee.questionDotToken});
+                        if (moduleRoot && result.calls.length >= 64) {
+                            result.omitted += 1;
+                            limitations.add('module_root_call_cap_exceeded');
+                        } else {
+                            result.calls.push({...binding, member: staticMember,
+                                ...(binding.kind === 'named' && ts.isPropertyAccessExpression(callee)
+                                    ? {first_literal_argument: first.text,
+                                        nested_callable_depth: nestedDepth} : {}),
+                                line, end_line: endLine, optional: !!inner.questionDotToken || !!callee.questionDotToken});
+                        }
                     }
                 } else {
                     limitations.add('unsupported_or_non_import_callee');
@@ -433,7 +639,7 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
             ts.forEachChild(inner, child => walk(child, nestedDepth));
         }
         try {
-            walk(fn.body);
+            walk(moduleRoot ? sourceFile : fn.body);
             result.status = 'observed';
             if (result.property_event_evidence?.status === 'not_applicable') {
                 result.property_event_evidence.status = result.property_event_evidence.omitted
@@ -854,6 +1060,7 @@ function classDirectEventEmitterFieldEvidence(node, sourceFile, importBindings, 
 
 function createSameFileStoreActionCallCollector(sourceFile, importBindings, symbolAt) {
     const cache = new WeakMap();
+    const rehydrateCap = 64;
     function unwrap(node) {
         while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
             || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
@@ -862,7 +1069,9 @@ function createSameFileStoreActionCallCollector(sourceFile, importBindings, symb
     }
     return function collectSameFileStoreActionCalls(node) {
         const fn = unwrap(ts.isVariableDeclaration(node) ? node.initializer : node);
-        const result = {status: 'not_applicable', calls: [], limitations: [],
+        const result = {status: 'not_applicable', calls: [], rehydrate_calls: [],
+            rehydrate_omitted: 0, imported_rehydrate_calls: [],
+            imported_rehydrate_omitted: 0, limitations: [],
             binding_scope: 'single_file_lexical_store_or_named_import', runtime_execution: 'not_established'};
         if (!fn || !ts.isFunctionLike(fn) || !fn.body) return result;
         if (cache.has(fn)) return cache.get(fn);
@@ -907,25 +1116,115 @@ function createSameFileStoreActionCallCollector(sourceFile, importBindings, symb
                 limitations.add('non_exported_or_shadowed_store_excluded');
             }
         }
-        function walk(inner) {
+        function recordRehydrate(store, call, aliasName = null, callContext = null) {
+            const declarations = symbolAt(store)?.declarations || [];
+            const declaration = declarations.length === 1 ? declarations[0] : null;
+            const statement = declaration && ts.isVariableDeclaration(declaration)
+                ? declaration.parent?.parent : null;
+            const start = call.getStart(sourceFile);
+            const end = Math.max(start, call.end - 1);
+            const site = {store: store.text,
+                line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+                end_line: sourceFile.getLineAndCharacterOfPosition(end).line + 1};
+            if (callContext) site.call_context = callContext;
+            if (aliasName) {
+                site.call_form = 'const_local_alias';
+                site.alias_name = aliasName;
+            }
+            if (statement && ts.isVariableStatement(statement)
+                && statement.parent === sourceFile
+                && statement.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword)
+                && ts.isIdentifier(declaration.name) && declaration.name.text === store.text) {
+                const sameFileSite = {...site, store_start: declaration.getStart(sourceFile)};
+                if (result.rehydrate_calls.length < rehydrateCap) result.rehydrate_calls.push(sameFileSite);
+                else result.rehydrate_omitted += 1;
+                return;
+            }
+            if (declaration && ts.isImportSpecifier(declaration)) {
+                const clause = declaration.parent?.parent;
+                const binding = importBindings.get(store.text);
+                if (clause && ts.isImportClause(clause) && !clause.isTypeOnly
+                    && !declaration.isTypeOnly && ts.isImportDeclaration(clause.parent)
+                    && binding?.kind === 'named' && binding.localName === store.text
+                    && binding.importedName === (declaration.propertyName?.text || declaration.name.text)
+                    && declaration.name.text === store.text
+                    && binding.source === clause.parent.moduleSpecifier.text) {
+                    const importedSite = {...site, module_source: binding.source,
+                        imported_store: binding.importedName};
+                    if (result.imported_rehydrate_calls.length < rehydrateCap)
+                        result.imported_rehydrate_calls.push(importedSite);
+                    else result.imported_rehydrate_omitted += 1;
+                    return;
+                }
+            }
+            limitations.add('non_exported_or_shadowed_rehydrate_store_excluded');
+        }
+        function walk(inner, callContext = null) {
             if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
-                limitations.add('nested_callable_excluded');
+                if (!callContext && (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner))
+                    && ts.isCallExpression(inner.parent)
+                    && inner.parent.arguments.some(argument => argument === inner) && inner.body) {
+                    walk(inner.body, 'inline_callback');
+                } else {
+                    limitations.add('non_inline_or_deeper_nested_callable_excluded');
+                }
                 return;
             }
             if (ts.isCallExpression(inner)) {
                 const action = unwrap(inner.expression);
+                const persist = action && ts.isPropertyAccessExpression(action)
+                    ? unwrap(action.expression) : null;
+                const rehydrateStore = persist && ts.isPropertyAccessExpression(persist)
+                    ? unwrap(persist.expression) : null;
+                if (action && ts.isPropertyAccessExpression(action)
+                    && action.name.text === 'rehydrate'
+                    && persist && ts.isPropertyAccessExpression(persist)
+                    && persist.name.text === 'persist'
+                    && rehydrateStore && ts.isIdentifier(rehydrateStore)
+                    && inner.arguments.length === 0 && !inner.questionDotToken
+                    && !action.questionDotToken && !persist.questionDotToken) {
+                    recordRehydrate(rehydrateStore, inner, null, callContext);
+                }
+                if (!callContext && action && ts.isIdentifier(action) && inner.arguments.length === 0
+                    && !inner.questionDotToken) {
+                    const aliasDeclarations = symbolAt(action)?.declarations || [];
+                    const alias = aliasDeclarations.length === 1
+                        && ts.isVariableDeclaration(aliasDeclarations[0])
+                        ? aliasDeclarations[0] : null;
+                    const aliasList = alias?.parent;
+                    const aliasStatement = aliasList?.parent;
+                    const aliasValue = alias && unwrap(alias.initializer);
+                    const aliasPersist = aliasValue && ts.isPropertyAccessExpression(aliasValue)
+                        ? unwrap(aliasValue.expression) : null;
+                    const aliasStore = aliasPersist && ts.isPropertyAccessExpression(aliasPersist)
+                        ? unwrap(aliasPersist.expression) : null;
+                    if (alias && ts.isIdentifier(alias.name)
+                        && alias.name.text === action.text
+                        && aliasList && ts.isVariableDeclarationList(aliasList)
+                        && (aliasList.flags & ts.NodeFlags.Const)
+                        && aliasStatement && ts.isVariableStatement(aliasStatement)
+                        && aliasStatement.parent === fn.body
+                        && alias.getStart(sourceFile) < inner.getStart(sourceFile)
+                        && aliasValue && ts.isPropertyAccessExpression(aliasValue)
+                        && aliasValue.name.text === 'rehydrate' && !aliasValue.questionDotToken
+                        && aliasPersist && ts.isPropertyAccessExpression(aliasPersist)
+                        && aliasPersist.name.text === 'persist' && !aliasPersist.questionDotToken
+                        && aliasStore && ts.isIdentifier(aliasStore)) {
+                        recordRehydrate(aliasStore, inner, action.text);
+                    }
+                }
                 const getStateCall = action && ts.isPropertyAccessExpression(action)
                     ? unwrap(action.expression) : null;
                 const getState = getStateCall && ts.isCallExpression(getStateCall)
                     ? unwrap(getStateCall.expression) : null;
                 const store = getState && ts.isPropertyAccessExpression(getState)
                     ? unwrap(getState.expression) : null;
-                if (store && ts.isIdentifier(store) && getState.name.text === 'getState'
+                if (!callContext && store && ts.isIdentifier(store) && getState.name.text === 'getState'
                     && getStateCall.arguments.length === 0 && !inner.questionDotToken
                     && !action.questionDotToken && !getStateCall.questionDotToken
                     && !getState.questionDotToken) {
                     recordCall(store, action.name.text, inner, 'direct_getstate_action');
-                } else if (ts.isIdentifier(action) && !inner.questionDotToken) {
+                } else if (!callContext && ts.isIdentifier(action) && !inner.questionDotToken) {
                     const declarations = symbolAt(action)?.declarations || [];
                     const binding = declarations.length === 1 && ts.isBindingElement(declarations[0])
                         ? declarations[0] : null;
@@ -947,7 +1246,7 @@ function createSameFileStoreActionCallCollector(sourceFile, importBindings, symb
                     }
                 }
             }
-            ts.forEachChild(inner, walk);
+            ts.forEachChild(inner, child => walk(child, callContext));
         }
         try {
             walk(fn.body);
@@ -955,6 +1254,10 @@ function createSameFileStoreActionCallCollector(sourceFile, importBindings, symb
         } catch (_err) {
             result.status = 'unavailable';
             result.calls = [];
+            result.rehydrate_calls = [];
+            result.rehydrate_omitted = 0;
+            result.imported_rehydrate_calls = [];
+            result.imported_rehydrate_omitted = 0;
             limitations.add('single_file_binding_unavailable');
         }
         result.limitations = [...limitations].sort();
@@ -1234,20 +1537,29 @@ function collectInitializerMemberEvidence(initializer, sourceFile, importBinding
         }
         return node;
     }
-    function isNamedImportCall(call, source, importedName) {
+    function isBoundImportCall(call, source, importedName) {
         if (!ts.isCallExpression(call) || call.questionDotToken) return false;
         const callee = unwrap(call.expression);
-        if (!callee || !ts.isIdentifier(callee)) return false;
-        const binding = importBindings.get(callee.text);
-        if (!binding || binding.kind !== 'named'
-            || binding.source !== source || binding.importedName !== importedName) return false;
-        const declarations = symbolAt(callee)?.declarations || [];
+        const qualified = callee && ts.isPropertyAccessExpression(callee)
+            && !callee.questionDotToken && ts.isIdentifier(callee.expression)
+            && callee.name.text === importedName;
+        const local = callee && ts.isIdentifier(callee) ? callee
+            : qualified ? callee.expression : null;
+        if (!local) return false;
+        const binding = importBindings.get(local.text);
+        if (!binding || binding.source !== source
+            || (qualified ? binding.kind !== 'namespace'
+                : binding.kind !== 'named' || binding.importedName !== importedName)) return false;
+        const declarations = symbolAt(local)?.declarations || [];
         const declaration = declarations.length === 1 ? declarations[0] : null;
-        const clause = declaration && ts.isImportSpecifier(declaration) ? declaration.parent.parent : null;
+        const clause = declaration && ts.isImportSpecifier(declaration)
+            ? declaration.parent.parent
+            : declaration && ts.isNamespaceImport(declaration) ? declaration.parent : null;
         return !!(clause && ts.isImportClause(clause) && !clause.isTypeOnly && !declaration.isTypeOnly
             && ts.isImportDeclaration(clause.parent)
             && clause.parent.moduleSpecifier.text === binding.source
-            && declaration.name.text === binding.localName);
+            && declaration.name.text === binding.localName
+            && (qualified ? ts.isNamespaceImport(declaration) : ts.isImportSpecifier(declaration)));
     }
     function directZustandSetter(call) {
         if (sourceFile.parseDiagnostics?.length || call.arguments.length !== 1) return null;
@@ -1255,14 +1567,14 @@ function collectInitializerMemberEvidence(initializer, sourceFile, importBinding
         const curried = inner && ts.isCallExpression(inner);
         const factory = curried ? inner : call;
         if (curried && factory.arguments.length !== 0) return null;
-        const reactBoundHook = isNamedImportCall(factory, 'zustand', 'create');
-        if (!reactBoundHook && !isNamedImportCall(factory, 'zustand/vanilla', 'createStore')) return null;
+        const reactBoundHook = isBoundImportCall(factory, 'zustand', 'create');
+        if (!reactBoundHook && !isBoundImportCall(factory, 'zustand/vanilla', 'createStore')) return null;
         let callback = unwrap(call.arguments[0]);
         let middlewareForm = 'none';
         let persistOptions = null;
         if (callback && ts.isCallExpression(callback)) {
             if (callback.arguments.length !== 2
-                || !isNamedImportCall(callback, 'zustand/middleware', 'persist')) return null;
+                || !isBoundImportCall(callback, 'zustand/middleware', 'persist')) return null;
             middlewareForm = 'persist';
             persistOptions = callback.arguments[1];
             callback = unwrap(callback.arguments[0]);
@@ -1564,6 +1876,41 @@ function collectImportBindings(sourceFile) {
     }
 
     return bindings;
+}
+
+function collectDirectImportBindingEvidence(sourceFile) {
+    // Search orientation only: syntax does not prove use, resolution or execution.
+    const records = [];
+    function add(node, source, localName, importedName, kind, typeOnly) {
+        if (!node || !source || !localName) return;
+        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        const endLine = sourceFile.getLineAndCharacterOfPosition(
+            Math.max(node.getStart(sourceFile), node.getEnd() - 1)
+        ).line + 1;
+        records.push({
+            source, localName, importedName, kind, typeOnly,
+            line, endLine, bindingScope: 'file_top_level_import_declaration'
+        });
+    }
+    for (const stmt of sourceFile.statements) {
+        if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteralLike(stmt.moduleSpecifier)) continue;
+        const source = stmt.moduleSpecifier.text;
+        const clause = stmt.importClause;
+        if (!clause) continue;
+        if (clause.name) {
+            add(clause.name, source, clause.name.text, 'default', 'default', Boolean(clause.isTypeOnly));
+        }
+        const bindings = clause.namedBindings;
+        if (bindings && ts.isNamespaceImport(bindings)) {
+            add(bindings.name, source, bindings.name.text, '*', 'namespace', Boolean(clause.isTypeOnly));
+        } else if (bindings && ts.isNamedImports(bindings)) {
+            for (const element of bindings.elements) {
+                add(element, source, element.name.text, element.propertyName?.text || element.name.text,
+                    'named', Boolean(clause.isTypeOnly || element.isTypeOnly));
+            }
+        }
+    }
+    return records;
 }
 
 function getExpressionName(expr, sourceFile) {
@@ -2182,12 +2529,33 @@ function collectReactRuntimeFeatures(sourceFile, importBindings) {
     return fileFeatures;
 }
 
-function collectReactHookFlowFeatures(sourceFile, importBindings) {
+function collectReactHookFlowFeatures(sourceFile, importBindings, symbolAt) {
     const fileFeatures = new Set();
-    const importedFrom = new Map();
+    if (sourceFile.parseDiagnostics?.length) return fileFeatures;
+    const hookNames = new Set(['useEffect', 'useLayoutEffect', 'useMemo', 'useCallback']);
 
-    for (const [localName, binding] of importBindings.entries()) {
-        importedFrom.set(localName, binding.source);
+    function boundReactHookName(call) {
+        if (call.questionDotToken) return null;
+        const callee = call.expression;
+        const qualified = ts.isPropertyAccessExpression(callee)
+            && !callee.questionDotToken && ts.isIdentifier(callee.expression);
+        const local = ts.isIdentifier(callee) ? callee : qualified ? callee.expression : null;
+        if (!local) return null;
+        const binding = importBindings.get(local.text);
+        const hook = qualified ? callee.name.text : binding?.importedName;
+        if (binding?.source !== 'react' || !hookNames.has(hook)
+            || (qualified ? !['namespace', 'default'].includes(binding.kind) : binding.kind !== 'named')) return null;
+        const declarations = symbolAt(local)?.declarations || [];
+        const declaration = declarations.length === 1 ? declarations[0] : null;
+        const clause = declaration && ts.isImportSpecifier(declaration)
+            ? declaration.parent.parent
+            : declaration && ts.isNamespaceImport(declaration) ? declaration.parent
+                : declaration && ts.isImportClause(declaration) ? declaration : null;
+        if (!clause || !ts.isImportClause(clause) || clause.isTypeOnly
+            || declaration.isTypeOnly || !ts.isImportDeclaration(clause.parent)
+            || clause.parent.moduleSpecifier.text !== 'react'
+            || declaration.name.text !== binding.localName) return null;
+        return hook;
     }
 
     function bindingNames(nameNode, target) {
@@ -2229,12 +2597,11 @@ function collectReactHookFlowFeatures(sourceFile, importBindings) {
 
     function visit(node) {
         if (ts.isCallExpression(node)) {
-            const callName = getExpressionName(node.expression, sourceFile);
-            const source = importedFrom.get(callName) || '';
-            
-            if (['useEffect', 'useLayoutEffect', 'useMemo', 'useCallback'].includes(callName)) {
+            const callName = boundReactHookName(node);
+            if (callName) {
+                const callLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
                 if (node.arguments.length < 2) {
-                    fileFeatures.add(`Hook:MissingDeps:${callName}`);
+                    fileFeatures.add(`Hook:MissingDeps:${callName}:${callLine}`);
                 } else {
                     const depsArg = node.arguments[1];
                     if (ts.isArrayLiteralExpression(depsArg)) {
@@ -2252,7 +2619,7 @@ function collectReactHookFlowFeatures(sourceFile, importBindings) {
                             fileFeatures.add(`Hook:HasDeps:${callName}`);
                         }
                     } else {
-                        fileFeatures.add(`Hook:DynamicDeps:${callName}`);
+                        fileFeatures.add(`Hook:DynamicDeps:${callName}:${callLine}`);
                     }
                 }
             }
@@ -3027,6 +3394,1087 @@ function collectReactMutationContextFeatures(sourceFile) {
     return fileFeatures;
 }
 
+function collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt) {
+    const features = new Set();
+    if (sourceFile.parseDiagnostics?.length
+        || !sourceCode.includes('useState')
+        || !sourceCode.includes('fetch')
+        || !/\.json\s*\(/.test(sourceCode)) return features;
+
+    const stateSetters = new Set();
+    const fetchResponses = new Map();
+    const jsonValues = new Map();
+
+    function blockOf(node) {
+        for (let cursor = node.parent; cursor; cursor = cursor.parent) {
+            if (ts.isBlock(cursor) || ts.isSourceFile(cursor)) return cursor;
+        }
+        return null;
+    }
+
+    function isConstDeclaration(node) {
+        return ts.isVariableDeclarationList(node.parent)
+            && Boolean(node.parent.flags & ts.NodeFlags.Const);
+    }
+
+    function isReactUseState(call) {
+        if (!call || !ts.isCallExpression(call)) return false;
+        const callee = call.expression;
+        if (ts.isIdentifier(callee)) {
+            const binding = importBindings.get(callee.text);
+            return binding?.source === 'react' && binding.importedName === 'useState';
+        }
+        if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'useState'
+            && ts.isIdentifier(callee.expression)) {
+            const binding = importBindings.get(callee.expression.text);
+            return binding?.source === 'react' && binding.kind === 'namespace';
+        }
+        return false;
+    }
+
+    function visit(node, callback) {
+        callback(node);
+        ts.forEachChild(node, child => visit(child, callback));
+    }
+
+    visit(sourceFile, node => {
+        if (!ts.isVariableDeclaration(node) || !isConstDeclaration(node)) return;
+        const init = unwrapExpression(node.initializer);
+        if (ts.isArrayBindingPattern(node.name) && isReactUseState(init)
+            && init.typeArguments?.length === 1) {
+            const declaredType = init.typeArguments[0].getText(sourceFile);
+            const setter = node.name.elements[1]?.name;
+            if (setter && ts.isIdentifier(setter) && !/\b(?:any|unknown)\b/.test(declaredType)) {
+                const binding = symbolAt(setter);
+                if (binding) stateSetters.add(binding);
+            }
+        }
+        if (!ts.isIdentifier(node.name) || !init || !ts.isAwaitExpression(init)) return;
+        const call = unwrapExpression(init.expression);
+        if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)
+            || call.expression.text !== 'fetch' || symbolAt(call.expression)) return;
+        const binding = symbolAt(node.name);
+        if (binding) fetchResponses.set(binding, {node, block: blockOf(node)});
+    });
+
+    function responseForJsonAwait(expression, block) {
+        const awaited = unwrapExpression(expression);
+        if (!awaited || !ts.isAwaitExpression(awaited)) return null;
+        const call = unwrapExpression(awaited.expression);
+        if (!ts.isCallExpression(call) || call.arguments.length
+            || !ts.isPropertyAccessExpression(call.expression)
+            || call.expression.name.text !== 'json'
+            || !ts.isIdentifier(call.expression.expression)) return null;
+        const response = fetchResponses.get(symbolAt(call.expression.expression));
+        return response?.block === block
+            && response.node.getStart(sourceFile) < awaited.getStart(sourceFile)
+            ? response : null;
+    }
+
+    visit(sourceFile, node => {
+        if (!ts.isVariableDeclaration(node) || !isConstDeclaration(node)
+            || !ts.isIdentifier(node.name)) return;
+        if (!responseForJsonAwait(node.initializer, blockOf(node))) return;
+        const binding = symbolAt(node.name);
+        let initializer = node.initializer;
+        while (initializer && ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+        const initializerCast = initializer && (ts.isAsExpression(initializer)
+            || ts.isTypeAssertionExpression(initializer));
+        if (binding) jsonValues.set(binding, {
+            node,
+            block: blockOf(node),
+            explicitAny: node.type?.kind === ts.SyntaxKind.AnyKeyword,
+            unannotated: !node.type && !initializerCast,
+        });
+    });
+
+    function hasPriorParserUse(raw, sink) {
+        if (!ts.isBlock(raw.block)) return false;
+        return raw.block.statements.some(statement => {
+            if (statement.getStart(sourceFile) <= raw.node.getStart(sourceFile)
+                || statement.getStart(sourceFile) >= sink.getStart(sourceFile)) return false;
+            // A prior parser use may validate this value, even when its result is
+            // assigned or checked in an if condition. Prefer a missed advisory
+            // over claiming the local path had no validation evidence.
+            const candidate = ts.isExpressionStatement(statement)
+                ? statement.expression
+                : ts.isVariableStatement(statement)
+                ? statement.declarationList
+                : ts.isIfStatement(statement)
+                ? statement.expression
+                : null;
+            if (!candidate) return false;
+            let found = false;
+            function visitParser(node) {
+                if (found) return;
+                if (ts.isCallExpression(node)
+                    && ts.isPropertyAccessExpression(node.expression)
+                    && ['parse', 'safeParse'].includes(node.expression.name.text)
+                    && node.arguments.some(arg => {
+                        const value = unwrapExpression(arg);
+                        return ts.isIdentifier(value) && symbolAt(value) === symbolAt(raw.node.name);
+                    })) {
+                    found = true;
+                    return;
+                }
+                ts.forEachChild(node, visitParser);
+            }
+            visitParser(candidate);
+            return found;
+        });
+    }
+
+    visit(sourceFile, node => {
+        if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)
+            || node.arguments.length !== 1 || !stateSetters.has(symbolAt(node.expression))) return;
+        let argument = node.arguments[0];
+        while (ts.isParenthesizedExpression(argument)) argument = argument.expression;
+        const explicitCast = ts.isAsExpression(argument) || ts.isTypeAssertionExpression(argument);
+        const value = unwrapExpression(explicitCast ? argument.expression : argument);
+        const sinkLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        const directResponse = !explicitCast ? responseForJsonAwait(value, blockOf(node)) : null;
+        if (directResponse) {
+            const producerLine = sourceFile.getLineAndCharacterOfPosition(
+                directResponse.node.getStart(sourceFile)
+            ).line + 1;
+            features.add(`React:ExternalResponseDirectState:${sinkLine}:${producerLine}`);
+            return;
+        }
+        if (!ts.isIdentifier(value)) return;
+        const raw = jsonValues.get(symbolAt(value));
+        if (!raw || (!explicitCast && !raw.explicitAny && !raw.unannotated)
+            || raw.block !== blockOf(node) || hasPriorParserUse(raw, node)) return;
+        const producerLine = sourceFile.getLineAndCharacterOfPosition(raw.node.getStart(sourceFile)).line + 1;
+        if (producerLine < sinkLine) {
+            const kind = explicitCast ? 'StateCast' : raw.explicitAny ? 'AnyState' : 'DirectState';
+            features.add(`React:ExternalResponse${kind}:${sinkLine}:${producerLine}`);
+        }
+    });
+    return features;
+}
+
+function createZodObjectBroaderCastCollector(sourceFile, targetFile, importBindings, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    const schemas = new Map();
+    const types = new Map();
+    const simpleName = node => ts.isIdentifier(node)
+        && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(node.text);
+
+    function zodOwner(owner) {
+        if (!simpleName(owner)) return false;
+        const binding = importBindings.get(owner.text);
+        if (!binding || binding.source !== 'zod'
+            || !((binding.kind === 'named' && binding.importedName === 'z')
+                || binding.kind === 'namespace')) return false;
+        const declarations = symbolAt(owner)?.declarations || [];
+        if (declarations.length !== 1) return false;
+        const declaration = declarations[0];
+        const clause = binding.kind === 'named' && ts.isImportSpecifier(declaration)
+            ? declaration.parent.parent
+            : binding.kind === 'namespace' && ts.isNamespaceImport(declaration)
+                ? declaration.parent : null;
+        return !!clause && ts.isImportClause(clause)
+            && !clause.isTypeOnly && !declaration.isTypeOnly
+            && ts.isImportDeclaration(clause.parent)
+            && clause.parent.moduleSpecifier.text === 'zod';
+    }
+
+    for (const statement of sourceFile.statements) {
+        if ((ts.isInterfaceDeclaration(statement) && !statement.heritageClauses
+            && !statement.typeParameters)
+            || (ts.isTypeAliasDeclaration(statement) && !statement.typeParameters
+                && ts.isTypeLiteralNode(statement.type))) {
+            const members = ts.isInterfaceDeclaration(statement)
+                ? statement.members : statement.type.members;
+            if (!members.length || members.some(member =>
+                !ts.isPropertySignature(member) || !simpleName(member.name))) continue;
+            const required = members.filter(member => !member.questionToken)
+                .map(member => member.name.text);
+            if (simpleName(statement.name)) {
+                types.set(statement.name.text, {node: statement.name, required});
+            }
+        }
+        if (!ts.isVariableStatement(statement)
+            || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+            if (!simpleName(declaration.name)) continue;
+            const call = declaration.initializer;
+            if (!call || !ts.isCallExpression(call) || call.arguments.length !== 1
+                || !ts.isPropertyAccessExpression(call.expression)
+                || call.expression.name.text !== 'object'
+                || !zodOwner(call.expression.expression)
+                || !ts.isObjectLiteralExpression(call.arguments[0])) continue;
+            const properties = call.arguments[0].properties;
+            if (!properties.length || properties.some(property =>
+                !ts.isPropertyAssignment(property) || !simpleName(property.name))) continue;
+            schemas.set(declaration.name.text, {
+                node: declaration.name,
+                keys: new Set(properties.map(property => property.name.text)),
+            });
+        }
+    }
+
+    return function collect(node, fileFeatures) {
+        if (!ts.isAsExpression(node) || !ts.isTypeReferenceNode(node.type)
+            || !simpleName(node.type.typeName) || node.type.typeArguments?.length) return;
+        const parsed = node.expression;
+        if (!ts.isCallExpression(parsed) || parsed.arguments.length !== 1
+            || !ts.isPropertyAccessExpression(parsed.expression)
+            || parsed.expression.name.text !== 'parse'
+            || !simpleName(parsed.expression.expression)) return;
+        const schemaRef = parsed.expression.expression;
+        const schema = schemas.get(schemaRef.text);
+        const type = types.get(node.type.typeName.text);
+        if (!schema || !type || schema.node.getStart(sourceFile) >= node.getStart(sourceFile)
+            || type.node.getStart(sourceFile) >= node.getStart(sourceFile)
+            || symbolAt(schemaRef) !== symbolAt(schema.node)
+            || symbolAt(node.type.typeName) !== symbolAt(type.node)
+            || (symbolAt(type.node)?.declarations || []).length !== 1) return;
+        const missing = type.required.filter(key => !schema.keys.has(key)).sort();
+        if (!missing.length) return;
+        const schemaLine = sourceFile.getLineAndCharacterOfPosition(schema.node.getStart(sourceFile)).line + 1;
+        const castLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        if (schemaLine < castLine) {
+            fileFeatures.add(`TypeScript:ZodObjectBroaderCast:${schemaRef.text}:${node.type.typeName.text}:${missing[0]}:${schemaLine}:${castLine}`);
+        }
+    };
+}
+
+function createFiniteNumberGuardCollector(sourceFile, targetFile, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+
+    function nonNumberSubject(expression) {
+        const value = unwrapExpression(expression);
+        if (!value || !ts.isBinaryExpression(value)
+            || value.operatorToken.kind !== ts.SyntaxKind.ExclamationEqualsEqualsToken) return null;
+        const left = unwrapExpression(value.left);
+        const right = unwrapExpression(value.right);
+        for (const [typeOf, literal] of [[left, right], [right, left]]) {
+            if (ts.isTypeOfExpression(typeOf)
+                && ts.isIdentifier(unwrapExpression(typeOf.expression))
+                && ts.isStringLiteral(literal) && literal.text === 'number') {
+                return unwrapExpression(typeOf.expression);
+            }
+        }
+        return null;
+    }
+
+    function nanOnlySubject(expression) {
+        const value = unwrapExpression(expression);
+        if (!value || !ts.isCallExpression(value) || value.arguments.length !== 1
+            || !ts.isPropertyAccessExpression(value.expression)
+            || value.expression.name.text !== 'isNaN') return null;
+        const owner = unwrapExpression(value.expression.expression);
+        const subject = unwrapExpression(value.arguments[0]);
+        return ts.isIdentifier(owner) && owner.text === 'Number' && !symbolAt(owner)
+            && ts.isIdentifier(subject) ? subject : null;
+    }
+
+    function guardSubject(statement) {
+        if (!ts.isIfStatement(statement) || statement.elseStatement) return null;
+        const rejection = statement.thenStatement;
+        if (!ts.isThrowStatement(rejection)
+            && !(ts.isBlock(rejection) && rejection.statements.length === 1
+                && ts.isThrowStatement(rejection.statements[0]))) return null;
+        const condition = unwrapExpression(statement.expression);
+        if (!ts.isBinaryExpression(condition)
+            || condition.operatorToken.kind !== ts.SyntaxKind.BarBarToken) return null;
+        for (const [typeCheck, nanCheck] of [
+            [condition.left, condition.right], [condition.right, condition.left]
+        ]) {
+            const nonNumber = nonNumberSubject(typeCheck);
+            const nanOnly = nanOnlySubject(nanCheck);
+            if (nonNumber && nanOnly && nonNumber.text === nanOnly.text
+                && symbolAt(nonNumber) && symbolAt(nonNumber) === symbolAt(nanOnly)) {
+                return nonNumber;
+            }
+        }
+        return null;
+    }
+
+    return function collect(node, fileFeatures) {
+        if (!ts.isBlock(node) || node.statements.length !== 2
+            || !ts.isFunctionLike(node.parent) || node.parent.body !== node) return;
+        const [guard, sink] = node.statements;
+        const subject = guardSubject(guard);
+        if (!subject || !ts.isReturnStatement(sink) || !sink.expression) return;
+        const returned = unwrapExpression(sink.expression);
+        if (!ts.isIdentifier(returned) || returned.text !== subject.text
+            || symbolAt(returned) !== symbolAt(subject)) return;
+        const guardLine = sourceFile.getLineAndCharacterOfPosition(guard.getStart(sourceFile)).line + 1;
+        const sinkLine = sourceFile.getLineAndCharacterOfPosition(sink.getStart(sourceFile)).line + 1;
+        if (guardLine < sinkLine) {
+            fileFeatures.add(`TypeScript:FiniteNumberNaNOnlyGuard:${subject.text}:${guardLine}:${sinkLine}`);
+        }
+    };
+}
+
+function createUnawaitedAsyncHelperCollector(sourceFile, targetFile, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    const helpers = new Map();
+    function registerHelper(name) {
+        const matches = helpers.get(name.text) || [];
+        matches.push(name);
+        helpers.set(name.text, matches);
+    }
+    function isAsync(fn) {
+        return !!fn.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword);
+    }
+    function hasOwnAwait(body) {
+        let found = false;
+        function visit(node) {
+            if (found || ts.isFunctionLike(node)) return;
+            if (ts.isAwaitExpression(node)) {
+                found = true;
+                return;
+            }
+            ts.forEachChild(node, visit);
+        }
+        visit(body);
+        return found;
+    }
+    for (const statement of sourceFile.statements) {
+        if (ts.isVariableStatement(statement)
+            && (statement.declarationList.flags & ts.NodeFlags.Const)) {
+            for (const declaration of statement.declarationList.declarations) {
+                if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+                const fn = unwrapExpression(declaration.initializer);
+                if (!(ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))
+                    || !isAsync(fn) || !hasOwnAwait(fn.body)) continue;
+                registerHelper(declaration.name);
+            }
+        } else if (ts.isFunctionDeclaration(statement) && statement.name
+            && isAsync(statement) && statement.body && hasOwnAwait(statement.body)) {
+            registerHelper(statement.name);
+        }
+    }
+    return function collect(node, fileFeatures) {
+        if (!ts.isExpressionStatement(node) || !ts.isBlock(node.parent)) return;
+        const caller = node.parent.parent;
+        if (!ts.isFunctionLike(caller) || caller.body !== node.parent || !isAsync(caller)) return;
+        const call = unwrapExpression(node.expression);
+        if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)
+            || call.questionDotToken) return;
+        const matches = helpers.get(call.expression.text);
+        if (matches?.length !== 1) return;
+        const helper = matches[0];
+        const symbol = symbolAt(helper);
+        if (!symbol || symbol.declarations?.length !== 1
+            || symbol !== symbolAt(call.expression)
+            || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(helper.text)) return;
+        const helperLine = sourceFile.getLineAndCharacterOfPosition(helper.getStart(sourceFile)).line + 1;
+        const callLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        if (helperLine < callLine) {
+            fileFeatures.add(`TypeScript:UnawaitedAsyncHelperCall:${helper.text}:${helperLine}:${callLine}`);
+        }
+    };
+}
+
+function hasOnlyLogNamedCalls(block) {
+    const logNames = new Set(['log', 'logError', 'error', 'warn', 'info', 'debug']);
+    return ts.isBlock(block) && block.statements.length > 0
+        && block.statements.every(statement => {
+            if (!ts.isExpressionStatement(statement)) return false;
+            const call = unwrapExpression(statement.expression);
+            return ts.isCallExpression(call) && !call.questionDotToken
+                && ts.isPropertyAccessExpression(call.expression)
+                && logNames.has(call.expression.name.text);
+        });
+}
+
+function createCaughtAsyncAwaitCollector(sourceFile, targetFile) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    function isAsync(fn) {
+        return !!fn.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword);
+    }
+    function ownAwait(body) {
+        let found = false;
+        function visit(node) {
+            if (found || ts.isFunctionLike(node)) return;
+            if (ts.isAwaitExpression(node)) {
+                found = true;
+                return;
+            }
+            ts.forEachChild(node, visit);
+        }
+        visit(body);
+        return found;
+    }
+    return function collect(node, fileFeatures) {
+        if (!ts.isBlock(node) || !ts.isFunctionLike(node.parent)
+            || node.parent.body !== node || !isAsync(node.parent)) return;
+        let name = null;
+        if (ts.isFunctionDeclaration(node.parent) && node.parent.name) {
+            name = node.parent.name;
+        } else if ((ts.isArrowFunction(node.parent) || ts.isFunctionExpression(node.parent))
+            && ts.isVariableDeclaration(node.parent.parent)
+            && ts.isIdentifier(node.parent.parent.name)) {
+            name = node.parent.parent.name;
+        }
+        if (!name || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name.text)) return;
+        if (node.statements.length !== 1) return;
+        for (const statement of node.statements) {
+            if (!ts.isTryStatement(statement) || !statement.catchClause
+                || statement.finallyBlock
+                || !ownAwait(statement.tryBlock)
+                || !hasOnlyLogNamedCalls(statement.catchClause.block)) continue;
+            const helperLine = sourceFile.getLineAndCharacterOfPosition(name.getStart(sourceFile)).line + 1;
+            const catchLine = sourceFile.getLineAndCharacterOfPosition(
+                statement.catchClause.getStart(sourceFile)).line + 1;
+            if (helperLine < catchLine) {
+                fileFeatures.add(`TypeScript:CaughtAsyncAwaitNoRethrow:${name.text}:${helperLine}:${catchLine}`);
+            }
+        }
+    };
+}
+
+function createReturnedQueueCatchCollector(sourceFile, targetFile, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    function isAsync(fn) {
+        return !!fn.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword);
+    }
+    function ownAwait(body) {
+        let found = false;
+        function visit(node) {
+            if (found || ts.isFunctionLike(node)) return;
+            if (ts.isAwaitExpression(node)) {
+                found = true;
+                return;
+            }
+            ts.forEachChild(node, visit);
+        }
+        visit(body);
+        return found;
+    }
+    function indexed(node) {
+        const value = unwrapExpression(node);
+        if (!ts.isElementAccessExpression(value) || value.questionDotToken) return null;
+        const root = unwrapExpression(value.expression);
+        const key = unwrapExpression(value.argumentExpression);
+        return ts.isIdentifier(root) && ts.isIdentifier(key) ? {root, key} : null;
+    }
+    function sameIndexed(left, right) {
+        return !!left && !!right && left.root.text === right.root.text
+            && left.key.text === right.key.text
+            && !!symbolAt(left.root) && symbolAt(left.root) === symbolAt(right.root)
+            && !!symbolAt(left.key) && symbolAt(left.key) === symbolAt(right.key);
+    }
+    function callbackForThen(statements, thenName) {
+        if (!ts.isIdentifier(thenName)) return null;
+        const binding = symbolAt(thenName);
+        if (!binding || binding.declarations?.length !== 1) return null;
+        for (const statement of statements) {
+            if (!ts.isVariableStatement(statement)
+                || !(statement.declarationList.flags & ts.NodeFlags.Const)
+                || statement.declarationList.declarations.length !== 1) continue;
+            const declaration = statement.declarationList.declarations[0];
+            if (!ts.isIdentifier(declaration.name) || declaration.name.text !== thenName.text
+                || symbolAt(declaration.name) !== binding) continue;
+            const fn = declaration.initializer && unwrapExpression(declaration.initializer);
+            if (fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))
+                && isAsync(fn) && ts.isBlock(fn.body) && ownAwait(fn.body)) return fn;
+        }
+        return null;
+    }
+    function falsyLookupGuard(callback) {
+        const statements = callback.body.statements;
+        if (statements.length !== 2 || !ts.isVariableStatement(statements[0])
+            || !(statements[0].declarationList.flags & ts.NodeFlags.Const)
+            || statements[0].declarationList.declarations.length !== 1
+            || !ts.isIfStatement(statements[1])) return null;
+        const declaration = statements[0].declarationList.declarations[0];
+        const awaited = declaration.initializer && unwrapExpression(declaration.initializer);
+        const guard = statements[1];
+        if (!ts.isIdentifier(declaration.name) || !awaited || !ts.isAwaitExpression(awaited)
+            || !ts.isCallExpression(unwrapExpression(awaited.expression))
+            || !ts.isIdentifier(unwrapExpression(guard.expression))
+            || !symbolAt(declaration.name)
+            || symbolAt(declaration.name) !== symbolAt(unwrapExpression(guard.expression))
+            || !ts.isBlock(guard.thenStatement) || !ownAwait(guard.thenStatement)) return null;
+        if (guard.elseStatement) {
+            const alternative = guard.elseStatement;
+            if (ts.isBlock(alternative)) {
+                if (!hasOnlyLogNamedCalls(alternative)) return null;
+            } else if (!ts.isIfStatement(alternative) || alternative.elseStatement
+                || !hasOnlyLogNamedCalls(alternative.thenStatement)) return null;
+        }
+        return {lookup: declaration.name, guard};
+    }
+    return function collect(node, fileFeatures) {
+        if (!ts.isBlock(node) || !ts.isFunctionLike(node.parent)
+            || node.parent.body !== node || !isAsync(node.parent)
+            || node.statements.length < 3) return;
+        let name = null;
+        if (ts.isFunctionDeclaration(node.parent) && node.parent.name) {
+            name = node.parent.name;
+        } else if ((ts.isArrowFunction(node.parent) || ts.isFunctionExpression(node.parent))
+            && ts.isVariableDeclaration(node.parent.parent)
+            && ts.isIdentifier(node.parent.parent.name)) {
+            name = node.parent.parent.name;
+        }
+        if (!name || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name.text)) return;
+        const assignment = node.statements[node.statements.length - 2];
+        const returned = node.statements[node.statements.length - 1];
+        if (!ts.isExpressionStatement(assignment) || !ts.isReturnStatement(returned)
+            || !returned.expression) return;
+        const expression = unwrapExpression(assignment.expression);
+        if (!ts.isBinaryExpression(expression)
+            || expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken
+            || !sameIndexed(indexed(expression.left), indexed(returned.expression))) return;
+        const caught = unwrapExpression(expression.right);
+        if (!ts.isCallExpression(caught) || caught.questionDotToken
+            || caught.arguments.length !== 1 || !ts.isPropertyAccessExpression(caught.expression)
+            || caught.expression.name.text !== 'catch') return;
+        const catchFn = unwrapExpression(caught.arguments[0]);
+        if (!(ts.isArrowFunction(catchFn) || ts.isFunctionExpression(catchFn))
+            || !hasOnlyLogNamedCalls(catchFn.body)) return;
+        const chained = unwrapExpression(caught.expression.expression);
+        if (!ts.isCallExpression(chained) || chained.questionDotToken
+            || chained.arguments.length !== 1 || !ts.isPropertyAccessExpression(chained.expression)
+            || chained.expression.name.text !== 'then') return;
+        const callback = callbackForThen(node.statements.slice(0, -2),
+            unwrapExpression(chained.arguments[0]));
+        if (!callback) return;
+        const assignmentLine = sourceFile.getLineAndCharacterOfPosition(assignment.getStart(sourceFile)).line + 1;
+        const returnLine = sourceFile.getLineAndCharacterOfPosition(returned.getStart(sourceFile)).line + 1;
+        if (assignmentLine < returnLine) {
+            fileFeatures.add(`TypeScript:ReturnedQueueCatchNoRethrow:${name.text}:${assignmentLine}:${returnLine}`);
+        }
+        const falsy = falsyLookupGuard(callback);
+        if (!falsy) return;
+        const lookupLine = sourceFile.getLineAndCharacterOfPosition(falsy.lookup.getStart(sourceFile)).line + 1;
+        const guardLine = sourceFile.getLineAndCharacterOfPosition(falsy.guard.getStart(sourceFile)).line + 1;
+        if (lookupLine < guardLine) {
+            fileFeatures.add(`TypeScript:QueuedLookupFalsyFallthrough:${name.text}:${lookupLine}:${guardLine}`);
+        }
+    };
+}
+
+function createRepositoryBulkDirectWriteCollector(sourceFile, targetFile, importBindings, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    const bulkMethods = new Set(['bulkCreate', 'bulkUpdate']);
+    const storageWrites = new Set(['bulkAdd', 'bulkPut']);
+    function importedRoot(expression) {
+        let root = unwrapExpression(expression);
+        while (ts.isPropertyAccessExpression(root)) root = unwrapExpression(root.expression);
+        if (!ts.isIdentifier(root) || !importBindings.has(root.text)) return false;
+        const declarations = symbolAt(root)?.declarations || [];
+        const binding = declarations.length === 1 ? declarations[0] : null;
+        if (binding && ts.isImportSpecifier(binding) && binding.isTypeOnly) return false;
+        let declaration = binding;
+        while (declaration && !ts.isImportDeclaration(declaration)) declaration = declaration.parent;
+        return !!declaration && !declaration.importClause?.isTypeOnly
+            && declaration.moduleSpecifier?.text === importBindings.get(root.text).source;
+    }
+    function directStorageWrite(call) {
+        if (!ts.isCallExpression(call) || call.questionDotToken
+            || !ts.isPropertyAccessExpression(call.expression)
+            || !storageWrites.has(call.expression.name.text)) return false;
+        const receiver = unwrapExpression(call.expression.expression);
+        return (ts.isPropertyAccessExpression(receiver)
+            && receiver.expression.kind === ts.SyntaxKind.ThisKeyword
+            && receiver.name.text === 'table')
+            || importedRoot(receiver);
+    }
+    function permissiveLocalSchema(cls) {
+        const ctor = cls.members.find(member => ts.isConstructorDeclaration(member));
+        const superCall = ctor?.body?.statements.find(statement =>
+            ts.isExpressionStatement(statement) && ts.isCallExpression(statement.expression)
+            && statement.expression.expression.kind === ts.SyntaxKind.SuperKeyword
+        )?.expression;
+        const schema = superCall?.arguments[1];
+        if (!schema || !ts.isIdentifier(schema)) return false;
+        const binding = symbolAt(schema);
+        if (!binding || binding.declarations?.length !== 1) return false;
+        const declaration = binding.declarations[0];
+        if (!ts.isVariableDeclaration(declaration) || declaration.parent.parent.parent !== sourceFile) return false;
+        const initializer = declaration.initializer && unwrapExpression(declaration.initializer);
+        if (!initializer || !ts.isCallExpression(initializer) || initializer.arguments.length
+            || !ts.isPropertyAccessExpression(initializer.expression)
+            || !['any', 'unknown'].includes(initializer.expression.name.text)) return false;
+        const z = unwrapExpression(initializer.expression.expression);
+        return ts.isIdentifier(z) && importBindings.get(z.text)?.source === 'zod'
+            && importedRoot(z);
+    }
+    function priorBaseOrValidationCall(method, writeStart) {
+        const collection = method.parameters[0]?.name;
+        const collectionSymbol = collection && ts.isIdentifier(collection) && symbolAt(collection);
+        for (const statement of method.body.statements) {
+            if (statement.getStart(sourceFile) >= writeStart || !ts.isExpressionStatement(statement)) continue;
+            const expression = unwrapExpression(statement.expression);
+            const call = ts.isAwaitExpression(expression)
+                ? unwrapExpression(expression.expression) : expression;
+            if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression)) continue;
+            const owner = unwrapExpression(call.expression.expression);
+            if (ts.isAwaitExpression(expression) && owner.kind === ts.SyntaxKind.SuperKeyword
+                && call.expression.name.text === method.name.text) return true;
+            if (!collectionSymbol || !ts.isIdentifier(owner)
+                || symbolAt(owner) !== collectionSymbol
+                || call.expression.name.text !== 'forEach'
+                || call.arguments.length !== 1) continue;
+            const callback = unwrapExpression(call.arguments[0]);
+            if (!(ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))
+                || callback.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+                || callback.parameters.length !== 1 || !ts.isIdentifier(callback.parameters[0].name)) continue;
+            const item = callback.parameters[0].name;
+            const body = ts.isBlock(callback.body) && callback.body.statements.length === 1
+                && ts.isExpressionStatement(callback.body.statements[0])
+                ? callback.body.statements[0].expression : callback.body;
+            const validation = unwrapExpression(body);
+            if (!ts.isCallExpression(validation) || validation.arguments.length !== 1
+                || !ts.isPropertyAccessExpression(validation.expression)
+                || validation.expression.expression.kind !== ts.SyntaxKind.ThisKeyword
+                || validation.expression.name.text !== 'validateForWrite') continue;
+            const validated = unwrapExpression(validation.arguments[0]);
+            if (ts.isIdentifier(validated) && symbolAt(validated) === symbolAt(item)) return true;
+        }
+        return false;
+    }
+    return function collect(node, fileFeatures) {
+        if (!ts.isClassDeclaration(node) || !node.name || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(node.name.text)) return;
+        const parentClass = node.heritageClauses?.find(clause =>
+            clause.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]?.expression;
+        if (!parentClass || !ts.isIdentifier(parentClass) || !/Repository$/.test(parentClass.text)
+            || !importedRoot(parentClass) || permissiveLocalSchema(node)) return;
+        for (const method of node.members) {
+            if (!ts.isMethodDeclaration(method) || !ts.isIdentifier(method.name)
+                || !bulkMethods.has(method.name.text) || !method.body) continue;
+            let firstWrite = null;
+            function visit(inner) {
+                if (inner !== method.body && ts.isFunctionLike(inner)) return;
+                if (ts.isAwaitExpression(inner) && directStorageWrite(unwrapExpression(inner.expression))
+                    && (!firstWrite || inner.getStart(sourceFile) < firstWrite.getStart(sourceFile))) {
+                    firstWrite = inner;
+                }
+                ts.forEachChild(inner, visit);
+            }
+            visit(method.body);
+            if (!firstWrite || priorBaseOrValidationCall(method, firstWrite.getStart(sourceFile))) continue;
+            const methodLine = sourceFile.getLineAndCharacterOfPosition(method.name.getStart(sourceFile)).line + 1;
+            const writeLine = sourceFile.getLineAndCharacterOfPosition(firstWrite.getStart(sourceFile)).line + 1;
+            if (methodLine < writeLine) {
+                fileFeatures.add(`TypeScript:RepositoryBulkDirectWrite:${node.name.text}:${method.name.text}:${methodLine}:${writeLine}`);
+            }
+        }
+    };
+}
+
+function createFailedSafeParseRawFallbackCollector(sourceFile, targetFile, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    function sameIdentifier(left, right) {
+        return ts.isIdentifier(left) && ts.isIdentifier(right)
+            && !!symbolAt(left) && symbolAt(left) === symbolAt(right);
+    }
+    function isConsoleLog(statement) {
+        if (!ts.isExpressionStatement(statement)) return false;
+        const call = unwrapExpression(statement.expression);
+        return ts.isCallExpression(call) && !call.questionDotToken
+            && ts.isPropertyAccessExpression(call.expression)
+            && ts.isIdentifier(call.expression.expression)
+            && call.expression.expression.text === 'console'
+            && ['error', 'warn', 'log', 'info'].includes(call.expression.name.text)
+            && !symbolAt(call.expression.expression);
+    }
+    return function collect(node, fileFeatures) {
+        if (!ts.isClassDeclaration(node) || !node.name
+            || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(node.name.text)) return;
+        for (const method of node.members) {
+            if (!ts.isMethodDeclaration(method) || !ts.isIdentifier(method.name)
+                || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(method.name.text)
+                || method.body?.statements.length !== 3) continue;
+            const [declaration, guard, successReturn] = method.body.statements;
+            if (!ts.isVariableStatement(declaration)
+                || !(declaration.declarationList.flags & ts.NodeFlags.Const)
+                || declaration.declarationList.declarations.length !== 1
+                || !ts.isIfStatement(guard) || guard.elseStatement
+                || !ts.isReturnStatement(successReturn) || !successReturn.expression) continue;
+            const parsed = declaration.declarationList.declarations[0];
+            const call = parsed.initializer && unwrapExpression(parsed.initializer);
+            if (!ts.isIdentifier(parsed.name) || !call || !ts.isCallExpression(call)
+                || call.questionDotToken || call.arguments.length !== 1
+                || !ts.isPropertyAccessExpression(call.expression)
+                || call.expression.name.text !== 'safeParse') continue;
+            const schema = unwrapExpression(call.expression.expression);
+            const raw = unwrapExpression(call.arguments[0]);
+            if (!ts.isPropertyAccessExpression(schema)
+                || schema.expression.kind !== ts.SyntaxKind.ThisKeyword
+                || !ts.isIdentifier(raw) || !method.parameters.some(parameter =>
+                    ts.isIdentifier(parameter.name) && sameIdentifier(parameter.name, raw))) continue;
+            const failure = unwrapExpression(guard.expression);
+            if (!ts.isPrefixUnaryExpression(failure)
+                || failure.operator !== ts.SyntaxKind.ExclamationToken) continue;
+            const success = unwrapExpression(failure.operand);
+            if (!ts.isPropertyAccessExpression(success) || success.name.text !== 'success'
+                || !sameIdentifier(unwrapExpression(success.expression), parsed.name)) continue;
+            const failedStatements = ts.isBlock(guard.thenStatement)
+                ? guard.thenStatement.statements : [guard.thenStatement];
+            const failedReturn = failedStatements[failedStatements.length - 1];
+            if (!ts.isReturnStatement(failedReturn) || !failedReturn.expression
+                || !failedStatements.slice(0, -1).every(isConsoleLog)
+                || !sameIdentifier(unwrapExpression(failedReturn.expression), raw)) continue;
+            const validated = unwrapExpression(successReturn.expression);
+            if (!ts.isPropertyAccessExpression(validated) || validated.name.text !== 'data'
+                || !sameIdentifier(unwrapExpression(validated.expression), parsed.name)) continue;
+            const guardLine = sourceFile.getLineAndCharacterOfPosition(guard.getStart(sourceFile)).line + 1;
+            const returnLine = sourceFile.getLineAndCharacterOfPosition(failedReturn.getStart(sourceFile)).line + 1;
+            if (guardLine < returnLine) {
+                fileFeatures.add('TypeScript:FailedSafeParseReturnsRaw:' + node.name.text + ':' + method.name.text + ':' + guardLine + ':' + returnLine);
+            }
+        }
+    };
+}
+
+function createRepositoryDirectReadReturnCollector(sourceFile, targetFile, importBindings, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+    function boundImport(identifier) {
+        if (!ts.isIdentifier(identifier)) return null;
+        const binding = importBindings.get(identifier.text);
+        const declarations = symbolAt(identifier)?.declarations || [];
+        const declaration = declarations.length === 1 ? declarations[0] : null;
+        if (!binding || !declaration) return null;
+        let importNode = declaration;
+        while (importNode && !ts.isImportDeclaration(importNode)) importNode = importNode.parent;
+        if (!importNode || importNode.importClause?.isTypeOnly
+            || (ts.isImportSpecifier(declaration) && declaration.isTypeOnly)
+            || importNode.moduleSpecifier?.text !== binding.source) return null;
+        return binding;
+    }
+    function selectionOnlyPredicate(node) {
+        const callback = unwrapExpression(node);
+        if (!ts.isArrowFunction(callback) || callback.parameters.length !== 1
+            || callback.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+            || ts.isBlock(callback.body)) return false;
+        const parameter = callback.parameters[0];
+        if (!ts.isIdentifier(parameter.name) || parameter.initializer || parameter.dotDotDotToken) return false;
+        const binding = symbolAt(parameter.name);
+        if (!binding) return false;
+        function selectionValue(expression) {
+            const value = unwrapExpression(expression);
+            if (ts.isIdentifier(value)) return symbolAt(value) === binding;
+            if (ts.isPropertyAccessExpression(value) && !value.questionDotToken) {
+                return selectionValue(value.expression);
+            }
+            if (ts.isStringLiteral(value) || ts.isNumericLiteral(value)
+                || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(value.kind)) return true;
+            if (ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.ExclamationToken) {
+                return selectionValue(value.operand);
+            }
+            if (ts.isBinaryExpression(value)
+                && [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+                    ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
+                    ts.SyntaxKind.LessThanToken, ts.SyntaxKind.LessThanEqualsToken,
+                    ts.SyntaxKind.GreaterThanToken, ts.SyntaxKind.GreaterThanEqualsToken,
+                    ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken].includes(value.operatorToken.kind)) {
+                return selectionValue(value.left) && selectionValue(value.right);
+            }
+            return false;
+        }
+        return selectionValue(callback.body);
+    }
+    function collectionRead(node) {
+        const awaited = unwrapExpression(node);
+        if (!ts.isAwaitExpression(awaited)) return null;
+        const call = unwrapExpression(awaited.expression);
+        if (!ts.isCallExpression(call) || call.questionDotToken || call.arguments.length
+            || !ts.isPropertyAccessExpression(call.expression) || call.expression.questionDotToken
+            || call.expression.name.text !== 'toArray') return null;
+        let receiver = unwrapExpression(call.expression.expression);
+        // Only a small source grammar of selection chains, not arbitrary builders.
+        while (ts.isCallExpression(receiver)) {
+            const query = receiver;
+            if (query.questionDotToken || query.arguments.length !== 1
+                || !ts.isPropertyAccessExpression(query.expression) || query.expression.questionDotToken) return null;
+            const operation = query.expression.name.text;
+            if (operation === 'filter') {
+                if (!selectionOnlyPredicate(query.arguments[0])) return null;
+            } else if (operation === 'where') {
+                const key = unwrapExpression(query.arguments[0]);
+                if (!ts.isStringLiteral(key)) return null;
+            } else if (operation !== 'equals') return null;
+            receiver = unwrapExpression(query.expression.expression);
+        }
+        if (!ts.isPropertyAccessExpression(receiver) || receiver.questionDotToken) return null;
+        if (receiver.expression.kind === ts.SyntaxKind.ThisKeyword && receiver.name.text === 'table') return awaited;
+        const binding = boundImport(unwrapExpression(receiver.expression));
+        return binding && /(?:^|\/)(?:db|database|dexie(?:db)?)(?:\/|$)/i.test(binding.source) ? awaited : null;
+    }
+    function collectCollectionReturn(method, className, fileFeatures) {
+        if (!/^getAll(?:By[A-Z][A-Za-z0-9_$]*)?$/.test(method.name.text)
+            || !method.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)) return;
+        const statements = method.body.statements;
+        let read = null;
+        let returned = null;
+        let form = null;
+        if (statements.length === 1 && ts.isReturnStatement(statements[0]) && statements[0].expression) {
+            if (!collectionRead(statements[0].expression)) return;
+            read = method.name;
+            returned = statements[0];
+            form = 'inline_await';
+        } else if (statements.length === 2 && ts.isVariableStatement(statements[0])
+            && (statements[0].declarationList.flags & ts.NodeFlags.Const)
+            && statements[0].declarationList.declarations.length === 1
+            && ts.isReturnStatement(statements[1]) && statements[1].expression) {
+            const declaration = statements[0].declarationList.declarations[0];
+            if (!ts.isIdentifier(declaration.name) || !declaration.initializer) return;
+            read = collectionRead(declaration.initializer);
+            const binding = read && symbolAt(declaration.name);
+            if (!binding) return;
+            const value = unwrapExpression(statements[1].expression);
+            if (ts.isIdentifier(value) && symbolAt(value) === binding) {
+                form = 'const_binding';
+            } else if (ts.isCallExpression(value) && !value.questionDotToken && value.arguments.length === 1
+                && ts.isPropertyAccessExpression(value.expression) && !value.expression.questionDotToken
+                && value.expression.name.text === 'filter'
+                && ts.isIdentifier(unwrapExpression(value.expression.expression))
+                && symbolAt(unwrapExpression(value.expression.expression)) === binding
+                && selectionOnlyPredicate(value.arguments[0])) {
+                form = 'filtered_binding';
+            } else return;
+            returned = statements[1];
+        } else return;
+        const readLine = sourceFile.getLineAndCharacterOfPosition(read.getStart(sourceFile)).line + 1;
+        const returnLine = sourceFile.getLineAndCharacterOfPosition(returned.getStart(sourceFile)).line + 1;
+        if (readLine < returnLine) {
+            fileFeatures.add('TypeScript:RepositoryCollectionReadReturn:' + className
+                + ':' + method.name.text + ':' + form + ':' + readLine + ':' + returnLine);
+        }
+    }
+    function directRead(node) {
+        const awaited = unwrapExpression(node);
+        if (!ts.isAwaitExpression(awaited)) return null;
+        const call = unwrapExpression(awaited.expression);
+        if (!ts.isCallExpression(call) || call.questionDotToken || call.arguments.length !== 1
+            || !ts.isPropertyAccessExpression(call.expression)
+            || call.expression.questionDotToken || call.expression.name.text !== 'get') return null;
+        const receiver = unwrapExpression(call.expression.expression);
+        if (ts.isPropertyAccessExpression(receiver) && receiver.questionDotToken) return null;
+        if (ts.isPropertyAccessExpression(receiver)
+            && receiver.expression.kind === ts.SyntaxKind.ThisKeyword
+            && receiver.name.text === 'table') return awaited;
+        if (!ts.isPropertyAccessExpression(receiver)) return null;
+        const root = unwrapExpression(receiver.expression);
+        const binding = boundImport(root);
+        return binding && /(?:^|\/)(?:db|database|dexie(?:db)?)(?:\/|$)/i.test(binding.source)
+            ? awaited : null;
+    }
+    function methodHasReadValidation(method) {
+        let found = false;
+        function visit(node) {
+            if (found || (node !== method.body && ts.isFunctionLike(node))) return;
+            if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+                const owner = unwrapExpression(node.expression.expression);
+                if ((owner.kind === ts.SyntaxKind.ThisKeyword
+                    && node.expression.name.text === 'validateReadData')
+                    || (owner.kind === ts.SyntaxKind.SuperKeyword
+                        && node.expression.name.text === 'getById')) {
+                    found = true;
+                    return;
+                }
+            }
+            ts.forEachChild(node, visit);
+        }
+        visit(method.body);
+        return found;
+    }
+    function parsesReadBinding(method, binding) {
+        let found = false;
+        function visit(node) {
+            if (found || (node !== method.body && ts.isFunctionLike(node))) return;
+            if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+                && ['parse', 'safeParse'].includes(node.expression.name.text)
+                && node.arguments.some(argument => {
+                    const value = unwrapExpression(argument);
+                    return ts.isIdentifier(value) && symbolAt(value) === binding;
+                })) {
+                found = true;
+                return;
+            }
+            ts.forEachChild(node, visit);
+        }
+        visit(method.body);
+        return found;
+    }
+    return function collect(node, fileFeatures) {
+        if (!ts.isClassDeclaration(node) || !node.name
+            || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(node.name.text)) return;
+        const parent = node.heritageClauses?.find(clause =>
+            clause.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]?.expression;
+        if (!parent || !ts.isIdentifier(parent)
+            || !/Repository$/.test(parent.text) || !boundImport(parent)) return;
+        for (const method of node.members) {
+            if (ts.isMethodDeclaration(method) && ts.isIdentifier(method.name) && method.body) {
+                collectCollectionReturn(method, node.name.text, fileFeatures);
+            }
+            if (!ts.isMethodDeclaration(method) || !ts.isIdentifier(method.name)
+                || method.name.text !== 'getById' || !method.body
+                || methodHasReadValidation(method)) continue;
+            // Inline return is a distinct source form; the declaration line is
+            // context, not an executed guard or a resolved storage type.
+            if (method.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)) {
+                for (const statement of method.body.statements) {
+                    if (!ts.isReturnStatement(statement) || !statement.expression
+                        || !directRead(statement.expression)) continue;
+                    const methodLine = sourceFile.getLineAndCharacterOfPosition(method.name.getStart(sourceFile)).line + 1;
+                    const returnLine = sourceFile.getLineAndCharacterOfPosition(statement.getStart(sourceFile)).line + 1;
+                    if (methodLine < returnLine) {
+                        fileFeatures.add('TypeScript:RepositoryInlineReadReturn:' + node.name.text
+                            + ':getById:' + methodLine + ':' + returnLine);
+                    }
+                }
+            }
+            for (const statement of method.body.statements) {
+                if (!ts.isVariableStatement(statement)
+                    || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+                for (const declaration of statement.declarationList.declarations) {
+                    if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+                    const read = directRead(declaration.initializer);
+                    const binding = read && symbolAt(declaration.name);
+                    if (!binding || parsesReadBinding(method, binding)) continue;
+                    let returned = null;
+                    function findReturn(inner) {
+                        if (returned || (inner !== method.body && ts.isFunctionLike(inner))) return;
+                        if (ts.isReturnStatement(inner) && inner.expression) {
+                            const value = unwrapExpression(inner.expression);
+                            if (ts.isIdentifier(value) && symbolAt(value) === binding) {
+                                returned = inner;
+                                return;
+                            }
+                        }
+                        ts.forEachChild(inner, findReturn);
+                    }
+                    findReturn(method.body);
+                    if (!returned) continue;
+                    const readLine = sourceFile.getLineAndCharacterOfPosition(read.getStart(sourceFile)).line + 1;
+                    const returnLine = sourceFile.getLineAndCharacterOfPosition(returned.getStart(sourceFile)).line + 1;
+                    if (readLine < returnLine) {
+                        fileFeatures.add('TypeScript:RepositoryDirectReadReturn:' + node.name.text
+                            + ':getById:' + readLine + ':' + returnLine);
+                    }
+                }
+            }
+        }
+    };
+}
+
+function createImmutableKeyTruthinessGuardCollector(sourceFile, targetFile) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) {
+        return () => {};
+    }
+
+    function member(node) {
+        const value = node ? unwrapExpression(node) : null;
+        if (!value || !ts.isPropertyAccessExpression(value) || value.questionDotToken) return null;
+        const root = unwrapExpression(value.expression);
+        return ts.isIdentifier(root) ? {root: root.text, key: value.name.text} : null;
+    }
+
+    function sameMember(left, right) {
+        return Boolean(left && right && left.root === right.root && left.key === right.key);
+    }
+
+    function throwsDirectly(statement) {
+        if (ts.isThrowStatement(statement)) return true;
+        return ts.isBlock(statement)
+            && statement.statements.length === 1
+            && ts.isThrowStatement(statement.statements[0]);
+    }
+
+    function guardMembers(statement) {
+        if (!ts.isIfStatement(statement) || statement.elseStatement
+            || !throwsDirectly(statement.thenStatement)) return null;
+        const condition = unwrapExpression(statement.expression);
+        if (!ts.isBinaryExpression(condition)
+            || condition.operatorToken.kind !== ts.SyntaxKind.AmpersandAmpersandToken) return null;
+        const truthy = member(condition.left);
+        const comparison = unwrapExpression(condition.right);
+        if (!truthy || !ts.isBinaryExpression(comparison)
+            || comparison.operatorToken.kind !== ts.SyntaxKind.ExclamationEqualsEqualsToken) return null;
+        const left = member(comparison.left);
+        const right = member(comparison.right);
+        if (sameMember(truthy, left) && right && right.root !== truthy.root
+            && right.key === truthy.key) return {patch: truthy.root, original: right.root, key: truthy.key};
+        if (sameMember(truthy, right) && left && left.root !== truthy.root
+            && left.key === truthy.key) return {patch: truthy.root, original: left.root, key: truthy.key};
+        return null;
+    }
+
+    function returnsOverwritingSpread(statement, guard) {
+        if (!ts.isReturnStatement(statement) || !statement.expression) return false;
+        const result = unwrapExpression(statement.expression);
+        if (!ts.isObjectLiteralExpression(result) || result.properties.length !== 2) return false;
+        const [original, patch] = result.properties;
+        return ts.isSpreadAssignment(original) && ts.isSpreadAssignment(patch)
+            && ts.isIdentifier(unwrapExpression(original.expression))
+            && ts.isIdentifier(unwrapExpression(patch.expression))
+            && unwrapExpression(original.expression).text === guard.original
+            && unwrapExpression(patch.expression).text === guard.patch;
+    }
+
+    function hasPriorParserUse(statements, beforeIndex, patchName) {
+        let found = false;
+        function visit(node) {
+            if (found) return;
+            if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+                && node.name.text === patchName && node.initializer) {
+                const initializer = unwrapExpression(node.initializer);
+                if (ts.isCallExpression(initializer)
+                    && ts.isPropertyAccessExpression(initializer.expression)
+                    && initializer.expression.name.text === 'parse') {
+                    found = true;
+                    return;
+                }
+            }
+            if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+                && ['parse', 'safeParse'].includes(node.expression.name.text)
+                && node.arguments.some(argument => {
+                    const value = unwrapExpression(argument);
+                    return ts.isIdentifier(value) && value.text === patchName;
+                })) {
+                found = true;
+                return;
+            }
+            ts.forEachChild(node, visit);
+        }
+        for (const statement of statements.slice(0, beforeIndex)) visit(statement);
+        return found;
+    }
+
+    return function collect(node, fileFeatures) {
+        if (!ts.isBlock(node)) return;
+        const statements = node.statements;
+        for (let index = 0; index + 1 < statements.length; index++) {
+            const guard = guardMembers(statements[index]);
+            if (!guard || !returnsOverwritingSpread(statements[index + 1], guard)
+                || hasPriorParserUse(statements, index, guard.patch)) continue;
+            const guardLine = sourceFile.getLineAndCharacterOfPosition(
+                statements[index].getStart(sourceFile)
+            ).line + 1;
+            const sinkLine = sourceFile.getLineAndCharacterOfPosition(
+                statements[index + 1].getStart(sourceFile)
+            ).line + 1;
+            if (guardLine < sinkLine) {
+                fileFeatures.add(`TypeScript:ImmutableKeyTruthinessGuard:${guard.key}:${guardLine}:${sinkLine}`);
+            }
+        }
+    };
+}
+
 function detectRuntimeExportContract(targetFile, fileFeatures, symbolName) {
     const normalizedPath = (targetFile || '').replace(/\\/g, '/').toLowerCase();
     const fileName = normalizedPath.split('/').pop() || '';
@@ -3282,6 +4730,7 @@ function analyzeFile(targetFile) {
             semanticDepth: 'unavailable',
             parserDiagnosticCount: 0,
             moduleImports: [],
+            directImportBindings: [],
             features: [
                 'Error:FileReadFailed',
                 'ParserStatus:unavailable',
@@ -3299,8 +4748,19 @@ function analyzeFile(targetFile) {
     const collectSameFileStoreActionCalls = createSameFileStoreActionCallCollector(sourceFile, importBindings, symbolAt);
     const collectSameFileDirectCalls = createSameFileDirectCallCollector(sourceFile, symbolAt);
     const collectStoreHookSelectors = createStoreHookSelectorCollector(sourceFile, importBindings, symbolAt);
+    const collectImmutableKeyTruthinessGuard = createImmutableKeyTruthinessGuardCollector(sourceFile, targetFile);
+    const collectFiniteNumberGuard = createFiniteNumberGuardCollector(sourceFile, targetFile, symbolAt);
+    const collectZodBroaderCast = createZodObjectBroaderCastCollector(sourceFile, targetFile, importBindings, symbolAt);
+    const collectUnawaitedAsyncHelper = createUnawaitedAsyncHelperCollector(sourceFile, targetFile, symbolAt);
+    const collectCaughtAsyncAwait = createCaughtAsyncAwaitCollector(sourceFile, targetFile);
+    const collectReturnedQueueCatch = createReturnedQueueCatchCollector(sourceFile, targetFile, symbolAt);
+    const collectRepositoryBulkDirectWrite = createRepositoryBulkDirectWriteCollector(sourceFile, targetFile, importBindings, symbolAt);
+    const collectFailedSafeParseRawFallback = createFailedSafeParseRawFallbackCollector(sourceFile, targetFile, symbolAt);
+    const collectRepositoryDirectReadReturn = createRepositoryDirectReadReturnCollector(sourceFile, targetFile, importBindings, symbolAt);
     const symbols = [];
     const fileFeatures = new Set();
+    const structuredOutputCandidates = [];
+    let structuredOutputCandidatesOmitted = 0;
     if (parserStatus === 'observed') {
         fileFeatures.add('ParserEvidence:ImportedPropertyEventCallsV1');
     }
@@ -3325,10 +4785,13 @@ function analyzeFile(targetFile) {
     for (const feature of collectReactRuntimeFeatures(sourceFile, importBindings)) {
         fileFeatures.add(feature);
     }
-    for (const feature of collectReactHookFlowFeatures(sourceFile, importBindings)) {
+    for (const feature of collectReactHookFlowFeatures(sourceFile, importBindings, symbolAt)) {
         fileFeatures.add(feature);
     }
     for (const feature of collectReactMutationContextFeatures(sourceFile)) {
+        fileFeatures.add(feature);
+    }
+    for (const feature of collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt)) {
         fileFeatures.add(feature);
     }
     for (const feature of collectFormValidationFeatures(sourceFile, importBindings)) {
@@ -3346,6 +4809,22 @@ function analyzeFile(targetFile) {
 
     // 2. High-Fidelity AST Traversal
     function visit(node) {
+        if (parserStatus === 'observed') {
+            collectImmutableKeyTruthinessGuard(node, fileFeatures);
+            collectFiniteNumberGuard(node, fileFeatures);
+            collectZodBroaderCast(node, fileFeatures);
+            collectUnawaitedAsyncHelper(node, fileFeatures);
+            collectCaughtAsyncAwait(node, fileFeatures);
+            collectReturnedQueueCatch(node, fileFeatures);
+            collectRepositoryBulkDirectWrite(node, fileFeatures);
+            collectFailedSafeParseRawFallback(node, fileFeatures);
+            collectRepositoryDirectReadReturn(node, fileFeatures);
+            const candidate = structuredXmlSinkCandidate(node, sourceFile, importBindings, symbolAt);
+            if (candidate) {
+                if (structuredOutputCandidates.length < 16) structuredOutputCandidates.push(candidate);
+                else structuredOutputCandidatesOmitted += 1;
+            }
+        }
         if (ts.isVariableStatement(node)) {
             const isExported = node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
             const isDefault = node.modifiers?.some(m => m.kind === ts.SyntaxKind.DefaultKeyword);
@@ -3633,7 +5112,13 @@ function analyzeFile(targetFile) {
         semanticDepth: parserStatus === 'observed' ? 'ast_normalized' : 'partial_ast',
         parserDiagnosticCount: parseDiagnostics.length,
         parserDiagnosticCodes: [...new Set(parseDiagnostics.map(item => String(item.code)))].slice(0, 20),
+        structuredOutputScanStatus: parserStatus === 'observed' ? 'observed' : 'unavailable_parser',
+        structuredOutputScanVersion: 'v3-xml-mime-helper-argument-candidate',
+        structuredOutputCandidates,
+        structuredOutputCandidatesOmitted,
         moduleImports: collectModuleImportEvidence(sourceFile),
+        directImportBindings: collectDirectImportBindingEvidence(sourceFile),
+        moduleRootImportCallEvidence: collectImportCalls(sourceFile, 'module_root'),
         features: [
             ...fileFeatures,
             `ParserStatus:${parserStatus}`,

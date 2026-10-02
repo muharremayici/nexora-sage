@@ -14,7 +14,7 @@ from tools.core.strict_contract_cache import (
     load_json_object_strict_cached,
     strict_json_content_cache_metrics,
 )
-from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
 
 
 _JSON_CONTENT_CACHE: dict[tuple[str, Callable[[Any], Any] | None], tuple[str, Any]] = {}
@@ -143,11 +143,11 @@ def is_raw_artifact_path(path: str | Path) -> bool:
 
 def _raw_state_connection(json_path: Path) -> sqlite3.Connection | None:
     db_path = json_path.parent / "codemaps.db"
-    if not db_path.exists():
+    if not Path(native_filesystem_path(db_path)).is_file():
         return None
     from tools.core.operational_limits import sqlite_read_timeout_seconds
 
-    uri = f"{db_path.resolve().as_uri()}?mode=ro"
+    uri = sqlite_read_only_uri(db_path)
     return sqlite3.connect(
         uri,
         uri=True,
@@ -268,7 +268,7 @@ def raw_artifact_content_fingerprint(path: str | Path) -> str:
             "Raw artifact SQLite fingerprint could not be read.",
             exc,
         )
-    if not json_path.exists():
+    if not Path(native_filesystem_path(json_path)).exists():
         return "missing"
     _, fingerprint = _content_snapshot(json_path)
     return f"json_shadow:{fingerprint}"
@@ -282,12 +282,12 @@ def load_raw_artifact_path(path: str | Path, default: Any = None) -> Any:
     if _is_managed_raw_artifact(json_path):
         return load_json_file(json_path, default)
 
-    if (json_path.parent / "codemaps.db").exists():
+    if Path(native_filesystem_path(json_path.parent / "codemaps.db")).is_file():
         try:
             row = _raw_state_payload_row(json_path)
             if row is not None:
                 return loads_json_strict(row[0])
-            if json_path.exists():
+            if Path(native_filesystem_path(json_path)).exists():
                 _record_raw_artifact_fallback(
                     json_path,
                     "External raw SQLite store has no state_payload row for this artifact.",
@@ -311,12 +311,12 @@ def load_raw_artifact_path_strict(path: str | Path) -> Any:
         if payload is None:
             raise FileNotFoundError(json_path)
         return payload
-    if (json_path.parent / "codemaps.db").exists():
+    if Path(native_filesystem_path(json_path.parent / "codemaps.db")).is_file():
         try:
             row = _raw_state_payload_row(json_path)
             if row is not None:
                 return loads_json_strict(row[0])
-            if json_path.exists():
+            if Path(native_filesystem_path(json_path)).exists():
                 _record_raw_artifact_fallback(
                     json_path,
                     "External raw SQLite store has no state_payload row for this artifact.",

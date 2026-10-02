@@ -1,6 +1,7 @@
 import json
 import sys
 import fnmatch
+import re
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -43,6 +44,428 @@ VIOLATION_LABELS = require_doctrine_mapping("violation_labels")
 RELATIVE_IMPORTS_NO_ALIAS_RULE = "relative_imports_no_alias"
 
 DEFAULT_VIOLATION_KEYS = list(VIOLATION_LABELS.keys())
+IMMUTABLE_KEY_TRUTHINESS_FEATURE = re.compile(
+    r"TypeScript:ImmutableKeyTruthinessGuard:([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+FINITE_NUMBER_NAN_ONLY_FEATURE = re.compile(
+    r"TypeScript:FiniteNumberNaNOnlyGuard:([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+ZOD_OBJECT_BROADER_CAST_FEATURE = re.compile(
+    r"TypeScript:ZodObjectBroaderCast:([A-Za-z_$][A-Za-z0-9_$]*):([A-Za-z_$][A-Za-z0-9_$]*):([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+UNAWAITED_ASYNC_HELPER_FEATURE = re.compile(
+    r"TypeScript:UnawaitedAsyncHelperCall:([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+CAUGHT_ASYNC_AWAIT_FEATURE = re.compile(
+    r"TypeScript:CaughtAsyncAwaitNoRethrow:([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+RETURNED_QUEUE_CATCH_FEATURE = re.compile(
+    r"TypeScript:ReturnedQueueCatchNoRethrow:([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+QUEUED_LOOKUP_FALSY_FEATURE = re.compile(
+    r"TypeScript:QueuedLookupFalsyFallthrough:([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+REPOSITORY_BULK_DIRECT_WRITE_FEATURE = re.compile(
+    r"TypeScript:RepositoryBulkDirectWrite:([A-Za-z_$][A-Za-z0-9_$]*):(bulkCreate|bulkUpdate):([1-9][0-9]*):([1-9][0-9]*)"
+)
+FAILED_SAFE_PARSE_RAW_FALLBACK_FEATURE = re.compile(
+    r"TypeScript:FailedSafeParseReturnsRaw:([A-Za-z_$][A-Za-z0-9_$]*):([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
+REPOSITORY_DIRECT_READ_RETURN_FEATURE = re.compile(
+    r"TypeScript:RepositoryDirectReadReturn:([A-Za-z_$][A-Za-z0-9_$]*):(getById):([1-9][0-9]*):([1-9][0-9]*)"
+)
+REPOSITORY_INLINE_READ_RETURN_FEATURE = re.compile(
+    r"TypeScript:RepositoryInlineReadReturn:([A-Za-z_$][A-Za-z0-9_$]*):(getById):([1-9][0-9]*):([1-9][0-9]*)"
+)
+REPOSITORY_COLLECTION_READ_RETURN_FEATURE = re.compile(
+    r"TypeScript:RepositoryCollectionReadReturn:([A-Za-z_$][A-Za-z0-9_$]*):(getAll(?:By[A-Z][A-Za-z0-9_$]*)?):(const_binding|inline_await|filtered_binding):([1-9][0-9]*):([1-9][0-9]*)"
+)
+
+
+def _runtime_review_file_evidence(project: str, rel_path: str, file_data: dict):
+    """Require observed, source-bound TypeScript Atlas evidence for review candidates."""
+    if not isinstance(file_data, dict) or file_data.get("language") != "typescript":
+        return None
+    if file_data.get("project_key", project) != project \
+            or file_data.get("atlas_rel_path", rel_path) != rel_path:
+        return None
+    parser = file_data.get("parser_evidence")
+    if not isinstance(parser, dict) or parser.get("status") != "observed" \
+            or parser.get("parser_kind") != "typescript_compiler_api":
+        return None
+    source_hash = str(file_data.get("hash") or "")
+    if not source_hash or source_hash == "err":
+        return None
+    expected_ref = f"{project}::{file_data.get('repo_relative_path') or rel_path}"
+    target_ref = str(file_data.get("target_ref") or expected_ref)
+    if target_ref != expected_ref:
+        return None
+    try:
+        loc = int(file_data.get("loc") or 0)
+    except (TypeError, ValueError):
+        return None
+    if loc <= 0:
+        return None
+    features = file_data.get("features")
+    if not isinstance(features, list):
+        return None
+    return source_hash, target_ref, loc, sorted({item for item in features if isinstance(item, str)})
+
+
+def _immutable_key_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Project bounded AST facts outside the violation/quality-gate lane."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = IMMUTABLE_KEY_TRUTHINESS_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        key, guard_text, sink_text = match.groups()
+        guard_line, sink_line = int(guard_text), int(sink_text)
+        if not (guard_line < sink_line <= loc):
+            continue
+        rows.append({
+            "kind": "immutable_key_truthiness_guard_bypass",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "property": key,
+            "guard_line": guard_line,
+            "sink_line": sink_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "Static guard-to-spread candidate only. Upstream validation, callers and persisted effects are unproven.",
+        })
+    return rows
+
+
+def _finite_number_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Expose a NaN-only numeric acceptance guard as unproven review evidence."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = FINITE_NUMBER_NAN_ONLY_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        subject, guard_text, sink_text = match.groups()
+        guard_line, sink_line = int(guard_text), int(sink_text)
+        if not (guard_line < sink_line <= loc):
+            continue
+        rows.append({
+            "kind": "finite_number_nan_only_acceptance",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": subject,
+            "guard_line": guard_line,
+            "sink_line": sink_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "The local guard rejects non-number and NaN before returning the same value, but upstream finite validation, callers and persistence are unproven.",
+        })
+    return rows
+
+
+def _schema_broader_cast_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Keep same-file Zod object/cast mismatch in the review-only lane."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = ZOD_OBJECT_BROADER_CAST_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        _schema_name, _type_name, subject, schema_text, cast_text = match.groups()
+        schema_line, cast_line = int(schema_text), int(cast_text)
+        if not (schema_line < cast_line <= loc):
+            continue
+        rows.append({
+            "kind": "zod_object_broader_cast",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": subject,
+            "guard_line": schema_line,
+            "sink_line": cast_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "A direct Zod object shape omits a required field of the directly asserted local type. Package version, input, transformations, callers and actual runtime stripping are unproven.",
+        })
+    return rows
+
+
+def _unawaited_async_helper_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Project a direct same-file async call as review evidence, never a runtime verdict."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = UNAWAITED_ASYNC_HELPER_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        helper, helper_text, call_text = match.groups()
+        helper_line, call_line = int(helper_text), int(call_text)
+        if not (helper_line < call_line <= loc):
+            continue
+        rows.append({
+            "kind": "unawaited_async_helper_call",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": helper,
+            "guard_line": helper_line,
+            "sink_line": call_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "A direct call to a same-file async helper containing await is not awaited or returned by its async caller. Whether this is intentional detached work, whether errors are handled elsewhere, and persistence effects are unproven.",
+        })
+    return rows
+
+
+def _caught_async_await_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Expose a log-named catch around an awaited operation, without inferring data loss."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = CAUGHT_ASYNC_AWAIT_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        helper, helper_text, catch_text = match.groups()
+        helper_line, catch_line = int(helper_text), int(catch_text)
+        if not (helper_line < catch_line <= loc):
+            continue
+        rows.append({
+            "kind": "caught_async_await_without_rethrow",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": helper,
+            "guard_line": helper_line,
+            "sink_line": catch_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "A same-function awaited operation has a catch containing only log-named calls and no explicit rethrow. Call behavior, authoritative persistence, intentional best-effort handling, caller expectations and data loss are unproven.",
+        })
+    return rows
+
+
+def _queued_mutation_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Project exact returned-queue and nested falsy-lookup syntax without a runtime verdict."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    patterns = (
+        (
+            RETURNED_QUEUE_CATCH_FEATURE,
+            "returned_queue_catch_without_rethrow",
+            "A bound queue element is assigned a then/catch chain and returned by the same async helper; the catch contains only log-named calls. Promise identity, callback behavior, intended queue recovery, caller expectations and persistence outcome are unproven.",
+            [
+                "When the queued operation rejects, does awaiting the returned mutation promise reject or resolve?",
+                "After a rejected operation, does the next mutation for the same key execute and report its own result?",
+            ],
+        ),
+        (
+            QUEUED_LOOKUP_FALSY_FEATURE,
+            "queued_lookup_falsy_fallthrough",
+            "A bound queued callback awaits a lookup and only its truthy branch awaits a later operation; the falsy branch has no explicit rejection. Whether falsy means missing, an intentional no-op, handled elsewhere, or affects durability is unproven.",
+            [
+                "For each repository-defined falsy lookup result, does the returned mutation promise reject, report absence, or resolve as a documented no-op?",
+                "Does the expected durable side effect occur before the public mutation settles on a found record?",
+            ],
+        ),
+    )
+    rows = []
+    for feature in features:
+        for pattern, kind, boundary, verification_questions in patterns:
+            match = pattern.fullmatch(feature)
+            if not match:
+                continue
+            helper, guard_text, sink_text = match.groups()
+            guard_line, sink_line = int(guard_text), int(sink_text)
+            if not (guard_line < sink_line <= loc):
+                continue
+            rows.append({
+                "kind": kind,
+                "project": project,
+                "file": rel_path,
+                "target_ref": target_ref,
+                "subject": helper,
+                "guard_line": guard_line,
+                "sink_line": sink_line,
+                "source_hash": source_hash,
+                "evidence_source": "typescript_syntax_ast",
+                "atlas_feature": feature,
+                "confidence": "needs_runtime_proof",
+                "actionability": "review",
+                "claim_boundary": boundary,
+                "verification_questions": verification_questions,
+            })
+    return rows
+
+
+def _repository_bulk_direct_write_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Report a subclass bulk-method direct write without assuming invalid data."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = REPOSITORY_BULK_DIRECT_WRITE_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        cls, method, method_text, write_text = match.groups()
+        method_line, write_line = int(method_text), int(write_text)
+        if not (method_line < write_line <= loc):
+            continue
+        rows.append({
+            "kind": "repository_bulk_method_direct_storage_write",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": f"{cls}.{method}",
+            "guard_line": method_line,
+            "sink_line": write_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "A repository subclass bulk method directly awaits an imported storage adapter or this.table write, without same-method base delegation or a recognized collection-wide local validation. Base behavior, schema strength, helper/upstream validation, intentional bypass and invalid-data persistence are unproven.",
+            "verification_questions": [
+                "What validation or transformation owns each bulk input before the direct storage write?",
+                "Does a target-native malformed-record test reject before storage mutates, while a valid record persists?",
+            ],
+        })
+    return rows
+
+
+def _failed_safeparse_raw_fallback_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Surface a failed validation read fallback without judging legacy intent."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = FAILED_SAFE_PARSE_RAW_FALLBACK_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        cls, method, guard_text, return_text = match.groups()
+        guard_line, return_line = int(guard_text), int(return_text)
+        if not (guard_line < return_line <= loc):
+            continue
+        rows.append({
+            "kind": "failed_schema_parse_returns_raw_input",
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": f"{cls}.{method}",
+            "guard_line": guard_line,
+            "sink_line": return_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": "A same-method failed safeParse guard returns its original input while the success path returns parsed data. Caller reachability, schema ownership, intentional legacy-data handling and downstream persistence are unproven.",
+            "verification_questions": [
+                "Is returning invalid legacy data an intentional, documented read contract or should it be quarantined?",
+                "Do target-native malformed-read tests prove the intended caller-visible and storage behavior?",
+            ],
+        })
+    return rows
+
+
+def _repository_direct_read_return_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Keep a subclass direct-read return in the review lane, not violation counts."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        collection_match = REPOSITORY_COLLECTION_READ_RETURN_FEATURE.fullmatch(feature)
+        inline_match = REPOSITORY_INLINE_READ_RETURN_FEATURE.fullmatch(feature)
+        match = collection_match or inline_match or REPOSITORY_DIRECT_READ_RETURN_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        if collection_match:
+            cls, method, return_form, read_text, return_text = match.groups()
+        else:
+            cls, method, read_text, return_text = match.groups()
+            return_form = "inline_await" if inline_match else "const_binding"
+        read_line, return_line = int(read_text), int(return_text)
+        if not (read_line < return_line <= loc):
+            continue
+        rows.append({
+            "kind": (
+                "repository_collection_read_return_without_local_validation" if collection_match
+                else "repository_direct_read_return_without_local_validation"
+            ),
+            "project": project,
+            "file": rel_path,
+            "target_ref": target_ref,
+            "subject": f"{cls}.{method}",
+            "return_form": return_form,
+            "guard_line": read_line,
+            "sink_line": return_line,
+            "source_hash": source_hash,
+            "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature,
+            "confidence": "needs_runtime_proof",
+            "actionability": "review",
+            "claim_boundary": (
+                "A repository subclass collection read returns awaited toArray records directly "
+                "or through a bounded selection-only predicate. Selection is not schema validation; "
+                "inline guard_line is method declaration context, not an executed validation guard. "
+                if collection_match else
+                "A repository subclass getById returns an inline awaited storage get result; "
+                "guard_line identifies the method declaration, not an executed validation guard. "
+                if inline_match else
+                "A repository subclass getById returns a const-bound same-method storage get result directly. "
+            ) + "No recognized same-method base read or validateReadData call was observed. The base read path may itself return raw input after failed validation; storage and returned-domain type correspondence, relative data-integrity impact, indirect validation, remote fallback, intentional legacy behavior and caller reachability are unproven.",
+            "verification_questions": [
+                "How does this direct return compare with the base read path on malformed data, logging, parsed transformations and intentional legacy handling?",
+                (
+                    "Do target-native malformed-record collection tests establish per-element validation, "
+                    "intentional legacy loading or quarantine, and selected-record behavior?"
+                    if collection_match else
+                    "Do target-native malformed-record tests show the intended getById result and distinguish local from fallback storage?"
+                ),
+                "Does the storage record type actually satisfy the returned-domain contract, including required fields, or does a type assertion conceal a mismatch? Resolve both declarations and check target-native types before deciding.",
+            ],
+        })
+    return rows
 
 
 def _canonical_audit_artifact_identity(atlas: dict) -> dict:
@@ -276,6 +699,7 @@ def _write_outputs(
     scope_authority_artifact: dict | None = None,
     architecture_policy_application: dict | None = None,
     analysis_gaps: list[dict] | None = None,
+    runtime_review_candidates: list[dict] | None = None,
 ):
     output_start = time.perf_counter()
     lines = ['=== NEXORA SAGE ARCHITECTURAL AUDIT V15 (ATLAS-PURE) ===', '']
@@ -295,6 +719,7 @@ def _write_outputs(
         else {}
     )
     analysis_gaps = list(analysis_gaps or [])
+    runtime_review_candidates = list(runtime_review_candidates or [])
     project_counts = defaultdict(int)
     for items in violations.values():
         for item in items:
@@ -374,6 +799,21 @@ def _write_outputs(
             lines.append(f"  Hotspot: {bucket['path']} ({bucket['count']})")
     lines.append('')
 
+    lines.append('--- RUNTIME INVARIANT REVIEW CANDIDATES (NOT VIOLATIONS) ---')
+    lines.append(f"Review-only candidates: {len(runtime_review_candidates)}")
+    lines.append('Static source/guard/sink evidence does not prove a runtime or persistence defect.')
+    for row in runtime_review_candidates[:20]:
+        subject_field = "property" if "property" in row else "subject"
+        lines.append(
+            f"  - [{row['project']}] {row['file']}:{row['guard_line']} "
+            f"kind={row['kind']} {subject_field}={row[subject_field]} sink_line={row['sink_line']}"
+        )
+        for question in row.get("verification_questions", []):
+            lines.append(f"    Target-native question (unverified): {question}")
+    if len(runtime_review_candidates) > 20:
+        lines.append(f"  - {len(runtime_review_candidates) - 20} more in audit_report.json")
+    lines.append('')
+
     if project_counts:
         lines.append('--- PROJECT AUDIT TOTALS ---')
         for project, count in sorted(project_counts.items(), key=lambda pair: (-pair[1], pair[0])):
@@ -394,6 +834,11 @@ def _write_outputs(
         lines.append(
             f"RESULT: {summary['total']} ACTIVE-POLICY VIOLATIONS; ARCHITECTURE-SENSITIVE "
             f"COVERAGE INCOMPLETE FOR {len(incomplete_architecture)} PROJECT(S)."
+        )
+    elif summary['total'] == 0 and runtime_review_candidates:
+        lines.append(
+            'RESULT: 0 ACTIVE-POLICY VIOLATIONS; RUNTIME REVIEW CANDIDATES '
+            'REMAIN UNPROVEN.'
         )
     elif summary['total'] == 0:
         lines.append('RESULT: 100% SEALED. NO ACTIVE-POLICY VIOLATIONS DETECTED.')
@@ -494,6 +939,7 @@ def _write_outputs(
     summary["architecture_policy_application"] = architecture_policy_application
     summary["analysis_gaps"] = analysis_gaps
     summary["analysis_gap_count"] = len(analysis_gaps)
+    summary["runtime_review_candidate_count"] = len(runtime_review_candidates)
     summary["remediation_backlog"] = remediation_backlog
     payload = {
         'meta': {
@@ -508,6 +954,7 @@ def _write_outputs(
         'audited_projects': audited_projects,
         'violation_project_count': len(by_project),
         'violations': structured_violations,
+        'runtime_review_candidates': runtime_review_candidates,
         'report_sections': report_sections
     }
     payload["artifact_identity"] = (
@@ -636,6 +1083,7 @@ def analyze_project(changed_files=None, atlas=None):
     # applicability. This also keeps suppressed false-positive counts observable.
     violations = {key: [] for key in DEFAULT_VIOLATION_KEYS}
     analysis_gaps: list[dict] = []
+    runtime_review_candidates: list[dict] = []
     
     report_sections = get_audit_report_sections()
     module_root_name = get_module_root_name()
@@ -684,6 +1132,33 @@ def analyze_project(changed_files=None, atlas=None):
             audited_file_refs.add(f"{pkey}::{str(rel_path).replace(chr(92), '/')}")
             
             all_feats = set(a_data.get("features", []))
+            runtime_review_candidates.extend(
+                _immutable_key_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _finite_number_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _schema_broader_cast_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _unawaited_async_helper_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _caught_async_await_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _queued_mutation_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _repository_bulk_direct_write_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _failed_safeparse_raw_fallback_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _repository_direct_read_return_review_candidates(pkey, rel_path, a_data)
+            )
             imports = a_data.get("import_records", [])
             if not imports:
                 imports = [
@@ -905,6 +1380,7 @@ def analyze_project(changed_files=None, atlas=None):
         scope_authority_artifact=scope_authority_artifact,
         architecture_policy_application=architecture_policy_application,
         analysis_gaps=analysis_gaps,
+        runtime_review_candidates=runtime_review_candidates,
     )
     outputs_written_at = time.perf_counter()
     profile_timings["write_outputs_seconds"] = round(outputs_written_at - scan_finished_at, 3)

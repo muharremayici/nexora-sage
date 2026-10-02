@@ -601,9 +601,54 @@ def build_validation() -> dict[str, Any]:
             "details": "Search results should be target selectors, not edit instructions; default brief must point agents to inspect_file with a scoped target_ref.",
         },
         {
+            "name": "search_symbols_separates_candidate_and_display_omission",
+            "passed": all(
+                isinstance(agent_surface_contract.get("symbol_search_policy", {}).get(key), int)
+                and not isinstance(agent_surface_contract["symbol_search_policy"][key], bool)
+                and agent_surface_contract["symbol_search_policy"][key] > 0
+                for key in ("brief_max_visible_items", "machine_max_visible_items")
+            )
+            and "def _symbol_search_display(" in server_text
+            and '"candidate_count_semantics"' in server_text
+            and '"display_truncated"' in server_text
+            and "indexed_symbols_files_and_derived_syntax_not_source_tree" in server_text
+            and "_render_symbol_search_brief(query, matches[:" not in server_text,
+            "details": "One display projection preserves collected candidate counts, separate source/display caps and governed output limits; focused executable controls prove arithmetic and identity.",
+        },
+        {
             "name": "surgical_operation_packet_supports_llm_brief_projection",
             "passed": 'format: str = "brief"' in server_text and "format=json returns the canonical machine contract" in server_text and "render_surgical_operation_brief" in server_text and "brief_debug" in server_text,
             "details": "The surgical operation packet should stay one MCP tool, default to the target-repo brief, and preserve canonical JSON plus debug projections.",
+        },
+        {
+            "name": "symbol_class_method_search_is_separate_and_coverage_honest",
+            "passed": bool(agent_surface_contract.get("symbol_search_policy", {}).get("class_method_evidence_rule"))
+            and "def _find_class_method_search_matches(" in server_text
+            and "sqlite_read_only_uri(db_path)" in server_text
+            and "legacy_or_unreadable_method_projection" in server_text
+            and '"class_method_search"' in server_text
+            and "not evidence of absence" in server_text,
+            "details": "Method syntax has a read-only search-specific projection, explicit legacy/partial coverage and no graph/runtime authority; focused producer/persistence/MCP controls prove behavior.",
+        },
+        {
+            "name": "symbol_store_action_search_is_separate_and_coverage_honest",
+            "passed": bool(agent_surface_contract.get("symbol_search_policy", {}).get("store_action_evidence_rule"))
+            and "def _find_store_action_search_matches(" in server_text
+            and "legacy_or_unreadable_action_projection" in server_text
+            and '"store_action_search"' in server_text
+            and "Store action candidates are recorded direct Zustand initializer setter-call syntax" in server_text
+            and "store_action_search coverage" in normalized_hitl_runbook_text,
+            "details": "Direct store-action syntax has a read-only search-specific projection, explicit legacy/partial coverage and no declaration/runtime authority; focused parser/persistence/MCP controls prove behavior.",
+        },
+        {
+            "name": "symbol_import_binding_search_is_separate_and_coverage_honest",
+            "passed": bool(agent_surface_contract.get("symbol_search_policy", {}).get("import_binding_evidence_rule"))
+            and "def _find_direct_import_binding_search_matches(" in server_text
+            and "legacy_or_unreadable_import_binding_projection" in server_text
+            and '"import_binding_search"' in server_text
+            and "Import binding candidates are top-level ES import syntax" in server_text
+            and "import_binding_search coverage" in normalized_hitl_runbook_text,
+            "details": "Direct import-binding syntax has read-only search projection, explicit coverage and no declaration/dependency/runtime authority; focused parser/persistence/MCP controls prove behavior.",
         },
         {
             "name": "agent_validation_commands_expose_scope_contracts",

@@ -22,6 +22,7 @@ if _ROOT not in sys.path:
 from tools.core.vendor_bootstrap import inject_vendor_paths
 from tools.core.python_runtime_env import python_subprocess_env
 from tools.core.stdio import configure_utf8_stdio
+from tools.core.unmanaged_atomic_io import sqlite_read_only_uri
 
 BASE_DIR = Path(_ROOT)
 _VENDOR_PATHS = inject_vendor_paths(BASE_DIR)
@@ -1689,7 +1690,7 @@ def _canonical_indexed_watch_baseline(candidate_paths: list[str] | None = None) 
         indexed: dict[Path, dict] = {}
         projects = resolve_runtime_projects(ROOT)
         db_path = RAW_DIR / "codemaps.db"
-        uri = f"{db_path.resolve().as_uri()}?mode=ro"
+        uri = sqlite_read_only_uri(db_path)
         try:
             with closing(sqlite3.connect(uri, uri=True)) as conn:
                 conn.row_factory = sqlite3.Row

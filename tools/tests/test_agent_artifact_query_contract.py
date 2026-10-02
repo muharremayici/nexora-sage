@@ -1892,7 +1892,8 @@ export function typeOnlyHook() { return TypeOnly((state: any) => state.update); 
         assert "directCalls" in source.splitlines()[call["line"] - 1]
     assert len(_state_focus(atlas, symbol="blockAndCatch")["symbol_context"]["import_calls"]["items"]) == 1
     unsupported = _state_focus(atlas, symbol="unsupportedCalls")["symbol_context"]["import_calls"]
-    assert unsupported["items"] == []
+    assert [(item["localName"], item["member"], item["kind"]) for item in
+            unsupported["items"]] == [("repo", "persist", "namespace")]
     assert "type_only_import_not_runtime_callee" in unsupported["limitations"]
     assert "nested_callable_excluded" in _state_focus(atlas, symbol="nestedCalls")["symbol_context"]["import_calls"]["limitations"]
     upstream = _state_focus(atlas, symbol="simpleStore.update", max_items=8, scan_limit=500)["upstream_action_calls"]

@@ -6,24 +6,58 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from tools.core.config import CONFIG_DIR, save_json_atomic
+from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, save_json_atomic
 from tools.core.json_io import load_json_object_strict
+from tools.core.source_layer_classifier import classify_source_layer
+from tools.core.work_package_state import (
+    _inherited_dirty_source_path,
+    inherited_dirty_file_identity,
+    load_ledger,
+    package_from_ledger,
+)
 
 
 LEDGER_PATH = CONFIG_DIR / "sage_active_work_package.json"
 LOOP_CONTRACT_PATH = CONFIG_DIR / "sage_development_loop_contract.json"
+TRACE_CONTRACT_PATH = CONFIG_DIR / "governance_trace_contract.json"
+
+
+def capture_inherited_dirty_baseline(
+    successor: dict[str, Any],
+    changed_files: list[str],
+    *,
+    root: Path = CODE_MAPS_DIR,
+    trace_contract: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record exact bytes of pre-existing governed dirt outside the next package."""
+    contract = trace_contract if trace_contract is not None else load_json_object_strict(
+        TRACE_CONTRACT_PATH, label="Governance trace contract"
+    )
+    closeout = contract["work_package_receipts"]["closeout_policy"]
+    scope = closeout["changed_file_scope"]
+    excluded = set(scope["excluded_source_layers"])
+    unknown = set(scope["unknown_source_layers"])
+    declared = {str(item).replace("\\", "/") for item in successor.get("affected_contracts", [])}
+    files: dict[str, str] = {}
+    for raw in sorted({str(item) for item in changed_files if str(item)}):
+        if raw in declared:
+            continue
+        source = _inherited_dirty_source_path(raw, root)
+        layer, _ = classify_source_layer(source.resolve(), root=root.resolve())
+        if layer in unknown:
+            raise ValueError(f"Unknown inherited dirty source layer: {raw}")
+        if layer not in excluded:
+            files[raw] = inherited_dirty_file_identity(raw, root=root)
+    policy = closeout["inherited_dirty_baseline"]
+    return {"version": policy["version"], "status": policy["captured_status"], "files": files}
 
 
 def load_active_work_package_ledger() -> dict[str, Any]:
-    return load_json_object_strict(LEDGER_PATH, label="SAGE active work package ledger")
+    return load_ledger(LEDGER_PATH)
 
 
 def active_work_package() -> dict[str, Any]:
-    ledger = load_active_work_package_ledger()
-    package = ledger.get("active_package")
-    if not isinstance(package, dict):
-        raise ValueError("SAGE active work package ledger must contain active_package")
-    return package
+    return package_from_ledger(load_active_work_package_ledger())
 
 
 def package_history(ledger: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -179,6 +213,7 @@ def save_package_transition(
     closed_package: dict[str, Any] | None = None,
     closure_contract: dict[str, Any] | None = None,
     ledger_path: Path = LEDGER_PATH,
+    changed_files: list[str] | None = None,
 ) -> dict[str, Any]:
     """Persist close-and-activate as one shared atomic JSON write."""
     ledger = load_json_object_strict(ledger_path, label="SAGE active work package ledger")
@@ -188,6 +223,63 @@ def save_package_transition(
         successor_selection=successor_selection,
         closed_package=closed_package,
         closure_contract=closure_contract,
+    )
+    if "inherited_dirty_baseline" in successor:
+        raise ValueError("Successor cannot supply its own inherited dirty baseline")
+    if changed_files is None:
+        # Reuse the same Git discovery authority as the closeout proposal.
+        from tools.core.artifact_store import get_adaptive_timeout
+        from tools.generate_semantic_diff_lesson_projection import changed_files_from_git
+
+        loop = load_json_object_strict(LOOP_CONTRACT_PATH, label="SAGE development loop contract")
+        timeout = int(
+            loop["semantic_diff_review"]["lesson_application_levels"]["impacted"]
+            ["projection_contract"]["git_discovery_timeout_seconds"]
+        )
+        changed_files = changed_files_from_git(timeout_seconds=get_adaptive_timeout(timeout))
+    # The non-mutating closeout proposal is advisory to humans, but a BLOCKED
+    # live proposal cannot be turned into a closed package by changing adapters.
+    from tools.core.work_package_receipts import (
+        build_work_package_closeout_proposal,
+        propose_work_package_evidence,
+    )
+    from tools.validate_sage_work_package_closure import run as validate_closure
+
+    closeout = build_work_package_closeout_proposal(
+        package=ledger["active_package"],
+        receipt_projection=propose_work_package_evidence(),
+        closure_validation=validate_closure(),
+        changed_files=changed_files,
+        package_history=ledger["package_history"],
+    )
+    closeout_policy = load_json_object_strict(
+        TRACE_CONTRACT_PATH, label="Governance trace contract"
+    )["work_package_receipts"]["closeout_policy"]
+    ready_statuses = {
+        closeout_policy["transition_required_status"],
+        closeout_policy["accepted_risk_transition_status"],
+    }
+    if closeout["status"] not in ready_statuses:
+        raise ValueError("Current work package closeout proposal is blocked")
+    live_diff = closeout.get("live_diff")
+    accepted_unknown = (
+        live_diff.get("legacy_accepted_unknown_changed_files", [])
+        if isinstance(live_diff, dict) else []
+    )
+    if (
+        closeout["status"] == closeout_policy["accepted_risk_transition_status"]
+        and not accepted_unknown
+    ):
+        raise ValueError("Accepted-risk closeout has no exact legacy dirty file set")
+    if accepted_unknown:
+        expected = closeout_policy["one_time_legacy_exception"]["current_file_sha256"]
+        if any(
+            inherited_dirty_file_identity(relative) != expected[relative]
+            for relative in accepted_unknown
+        ):
+            raise ValueError("Accepted legacy dirty bytes changed before transition")
+    updated["active_package"]["inherited_dirty_baseline"] = capture_inherited_dirty_baseline(
+        successor, changed_files
     )
     save_json_atomic(ledger_path, updated)
     return updated

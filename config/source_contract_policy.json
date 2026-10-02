@@ -128,6 +128,7 @@
     "tools/generate_agent_surface_quality_review.py": "central source-grounded agent-facing surface review harness with token budget checks",
     "tools/core/artifact_store.py": "SQLite-first artifact SSOT, shadow export, self-heal and fallback telemetry spine",
     "tools/core/contextos_mcp.py": "central ContextOS packet and target-repository agent-brief projection surface; guarded by MCP/context validators",
+    "tools/core/execution_waves.py": "single-owner execution-wave, release-train and successor-selection projection; guarded by focused historical/current/future release-scope and dependency-selection regressions; split only when release-scope decision authority remains centralized",
     "tools/core/pipeline_registry.py": "canonical pipeline DAG, execution-profile and claim-owned proof-plan projection surface; guarded by pipeline execution validation and focused dependency-closure regressions",
     "tools/core/release_evidence_cadence.py": "central release-evidence cadence selector with fail-closed trigger, baseline and lifecycle-phase semantics; guarded by dedicated cadence contract tests and validator",
     "tools/core/release_proof_resume.py": "cohesive exact-interruption and completed-semantic receipt identity boundary; guarded by focused resume, dependency-closure and tamper regressions and split only when identity authority can remain single-owner",
@@ -151,6 +152,8 @@
     "tools/tests/test_engine_contracts.py": "large regression suite by design",
     "tools/tests/test_init_execution_contract.py": "cohesive init, installation-proof and immutable Preflight receipt lifecycle regression suite; split only when an execution-contract owner boundary can preserve the shared setup and reuse semantics",
     "tools/tests/test_pipeline_registry.py": "central pipeline registry, release DAG, freshness and execution-policy regression suite; split only with preserved cross-contract ownership evidence",
+    "tools/tests/test_sage_active_work_package_lifecycle.py": "cohesive work-package validation, successor selection and atomic transition regression suite; the accepted-risk final-byte drift control shares the transition fixture and must remain adjacent to its writer checks",
+    "tools/tests/test_sage_work_item_registry_validation.py": "cohesive work-item registry, release-scope successor selection and historical/current/future phase guard regression suite; shared roadmap and wave fixtures keep positive and fail-closed selection assertions directly comparable",
     "tools/tests/test_typescript_source_binding.py": "cohesive real Node TypeScript collector, source identity, producer-lineage and Merge fail-closed regression suite; split only when a separate semantic evidence owner can retain the cross-consumer proof",
     "tools/tests/test_release_proof_dispatch_cadence.py": "cohesive dispatch, append-only history, source-stability and external-blocker propagation regression suite; split only along an independently owned contract boundary",
     "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist"
