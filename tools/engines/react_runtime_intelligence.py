@@ -372,6 +372,46 @@ def _react_mutation_contexts(atlas_features: set[str]) -> dict[str, list[int]]:
     return {key: sorted(set(lines)) for key, lines in contexts.items()}
 
 
+def _hook_dependency_contexts(atlas_features: set[str], content: str) -> dict[str, list[tuple[str, int]]]:
+    contexts: dict[str, list[tuple[str, int]]] = {"MissingDeps": [], "DynamicDeps": []}
+    source_lines = content.splitlines()
+    for feature in sorted(atlas_features):
+        match = re.fullmatch(
+            r"Hook:(MissingDeps|DynamicDeps):(useEffect|useLayoutEffect|useMemo|useCallback)(?::(\d+))?",
+            feature,
+        )
+        if not match or not source_lines:
+            continue
+        kind, hook, recorded_line = match.groups()
+        if recorded_line is not None:
+            line = int(recorded_line)
+            if not 1 <= line <= len(source_lines) or not source_lines[line - 1].strip():
+                continue
+        else:
+            # Historical features had no line. Do not attach ambiguous evidence
+            # when several calls of the same hook exist in the source snapshot.
+            candidates = [
+                content[:item.start()].count("\n") + 1
+                for item in re.finditer(rf"\b{hook}\s*\(", content)
+            ]
+            if len(candidates) != 1:
+                continue
+            line = candidates[0]
+        contexts[kind].append((hook, line))
+    return {kind: sorted(set(items)) for kind, items in contexts.items()}
+
+
+def _react_response_state_contexts(atlas_features: set[str]) -> list[tuple[str, int, int]]:
+    candidates: set[tuple[str, int, int]] = set()
+    for feature in atlas_features:
+        match = re.fullmatch(
+            r"React:ExternalResponse(StateCast|AnyState|DirectState):(\d+):(\d+)", str(feature)
+        )
+        if match:
+            candidates.add((match.group(1), int(match.group(2)), int(match.group(3))))
+    return sorted(candidates)
+
+
 def _finding(
     project: str,
     rel_path: str,
@@ -556,52 +596,60 @@ def analyze_runtime_intelligence_file(
     compiler_risks: list[str] = []
     compiler_score = 0
     
-    # Phase 1.3: Hook CFG integration
+    # Atlas projects __file_meta__.features to the file level. Retain raw-meta
+    # compatibility for direct sequencer fixtures and historical inputs.
     atlas_features = set()
-    if atlas_file:
-        for s in atlas_file.get("symbols", []):
-            if s.get("name") == "__file_meta__":
-                atlas_features.update(s.get("features", []))
+    if isinstance(atlas_file, dict):
+        atlas_features.update(feature for feature in (atlas_file.get("features") or []) if isinstance(feature, str))
+        for symbol in atlas_file.get("symbols", []):
+            if isinstance(symbol, dict) and symbol.get("name") == "__file_meta__":
+                atlas_features.update(feature for feature in (symbol.get("features") or []) if isinstance(feature, str))
                 break
 
-    missing_deps = [f for f in atlas_features if f.startswith("Hook:MissingDeps:")]
-    dynamic_deps = [f for f in atlas_features if f.startswith("Hook:DynamicDeps:")]
+    hook_contexts = _hook_dependency_contexts(atlas_features, content)
+    missing_deps = hook_contexts["MissingDeps"]
+    dynamic_deps = hook_contexts["DynamicDeps"]
 
     if missing_deps:
-        compiler_risks.append(f"hooks missing dependencies ({', '.join([f.split(':')[-1] for f in missing_deps])})")
+        compiler_risks.append(f"hooks without dependency arrays ({', '.join(name for name, _ in missing_deps)})")
         compiler_score += 5
     if dynamic_deps:
-        compiler_risks.append(f"hooks with dynamic/non-literal dependencies ({', '.join([f.split(':')[-1] for f in dynamic_deps])})")
+        compiler_risks.append(f"hooks with dynamic/non-literal dependency arrays ({', '.join(name for name, _ in dynamic_deps)})")
         compiler_score += 4
 
     mutation_contexts = _react_mutation_contexts(atlas_features)
-    mutation_lines = mutation_contexts["render"]
+    source_lines = content.splitlines()
+    mutation_lines = [
+        line for line in mutation_contexts["render"]
+        if 1 <= line <= len(source_lines) and source_lines[line - 1].strip()
+    ]
+    unresolved_lines = [
+        line for line in mutation_contexts["unresolved"]
+        if 1 <= line <= len(source_lines) and source_lines[line - 1].strip()
+    ]
     if mutation_lines:
         compiler_risks.append("syntax-AST observed mutable assignment in React render context")
         compiler_score += 6
-    if mutation_contexts["unresolved"]:
+    if unresolved_lines:
         compiler_risks.append("syntax-AST observed mutable assignment with unresolved execution context")
         compiler_score += 1
-    if compiler_risks:
-        evidence_lines = (
-            mutation_lines
-            or mutation_contexts["unresolved"]
-            or _match_lines(content, HOOK_RE)[:3]
-            or [1]
-        )
+    if compiler_risks and content:
+        evidence_lines = sorted(set(
+            mutation_lines + unresolved_lines + [line for _, line in missing_deps + dynamic_deps]
+        ))
         evidence_source = (
             "typescript_syntax_ast"
-            if mutation_lines or mutation_contexts["unresolved"]
-            else "static_source_location"
+            if mutation_lines or unresolved_lines
+            else "typescript_syntax_ast_hook_feature"
         )
         evidence_spans = [
             {"file": normalized, "line": line_no, "source": evidence_source}
             for line_no in evidence_lines
         ]
         if mutation_lines:
-            compiler_action = "Fix hook dependencies, remove render-time mutation, and prefer compiler-friendly pure components."
+            compiler_action = "Review the render-time mutation and hook dependency contract before making a React Compiler readiness claim."
         elif missing_deps or dynamic_deps:
-            compiler_action = "Fix hook dependency contracts and keep memoization boundaries compiler-friendly."
+            compiler_action = "Review whether the hook dependency form is intentional and compatible with the target React Compiler setup."
         else:
             compiler_action = "Resolve the assignment execution context before making a React Compiler readiness claim."
         item = _finding(
@@ -612,16 +660,51 @@ def analyze_runtime_intelligence_file(
             "; ".join(compiler_risks),
             min(10, compiler_score),
             compiler_action,
-            {"static", "atlas_feature"},
+            {"static", "atlas_feature", "needs_runtime_proof"},
             line=evidence_lines[0],
             evidence_spans=evidence_spans,
         )
-        item["confidence"] = (
-            "confirmed"
-            if atlas_file and (missing_deps or dynamic_deps or mutation_lines)
-            else "probable"
-        )
         findings.append(item)
+
+    source_line_count = max(1, len(content.splitlines()))
+    for signal, sink_line, producer_line in _react_response_state_contexts(atlas_features):
+        if not content or not (1 <= producer_line < sink_line <= source_line_count):
+            continue
+        explicit_any = signal == "AnyState"
+        direct_json = signal == "DirectState"
+        evidence_spans = [
+            {"file": normalized, "line": producer_line, "source": "typescript_syntax_ast"},
+            {"file": normalized, "line": sink_line, "source": "typescript_syntax_ast"},
+        ]
+        findings.append(
+            _finding(
+                project,
+                normalized,
+                "target_runtime_schema_mutation",
+                (
+                    "external_response_direct_json_to_typed_react_state"
+                    if direct_json else "external_response_any_to_typed_react_state"
+                    if explicit_any else "external_response_cast_to_typed_react_state"
+                ),
+                (
+                    "syntax-AST links a direct or unannotated fetch response.json() value to a typed React state setter; local guards, runtime response validity and upstream response contracts require review"
+                    if direct_json else
+                    "syntax-AST links an explicitly any-typed fetch response.json() value directly to a typed React state setter; runtime response validity and upstream response contracts are not established"
+                    if explicit_any else
+                    "syntax-AST links fetch response.json() through an explicit type assertion to a typed React state setter; runtime response validity and upstream response contracts are not established"
+                ),
+                3,
+                "Review the exact response contract and add a target-native malformed-payload test or a dominating runtime parser before treating this state value as validated.",
+                {"static", "atlas_feature", "needs_runtime_proof"},
+                line=sink_line,
+                evidence_spans=evidence_spans,
+                evidence_scope=(
+                    "same_file_direct_json_candidate"
+                    if direct_json else "same_file_explicit_any_candidate"
+                    if explicit_any else "same_file_explicit_cast_candidate"
+                ),
+            )
+        )
 
     density_risks: list[str] = []
     density_score = 0

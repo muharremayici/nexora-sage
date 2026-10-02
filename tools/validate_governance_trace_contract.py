@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -52,6 +52,26 @@ def run() -> dict[str, Any]:
         evidence_requirements = receipts.get("evidence_requirements") if isinstance(receipts.get("evidence_requirements"), dict) else {}
         mutation_preflight = receipts.get("mutation_preflight") if isinstance(receipts.get("mutation_preflight"), dict) else {}
         closeout_policy = receipts.get("closeout_policy") if isinstance(receipts.get("closeout_policy"), dict) else {}
+        inherited_dirty_policy = closeout_policy.get("inherited_dirty_baseline") if isinstance(closeout_policy.get("inherited_dirty_baseline"), dict) else {}
+        legacy_exception = closeout_policy.get("one_time_legacy_exception") if isinstance(closeout_policy.get("one_time_legacy_exception"), dict) else {}
+        legacy_authority = legacy_exception.get("authority") if isinstance(legacy_exception.get("authority"), dict) else {}
+        legacy_hashes = legacy_exception.get("current_file_sha256") if isinstance(legacy_exception.get("current_file_sha256"), dict) else {}
+        legacy_exception_valid = (
+            all(isinstance(legacy_exception.get(key), str) and legacy_exception[key].strip() for key in ("id", "package_id", "prior_package_id", "claim_boundary"))
+            and legacy_exception.get("status") == "human_approved_unknown_provenance"
+            and all(isinstance(legacy_authority.get(key), str) and legacy_authority[key].strip() for key in ("principal", "source", "scope"))
+            and legacy_authority.get("public_release_authority") is False
+            and len(legacy_hashes) == 16
+            and all(
+                isinstance(path, str) and path == PurePosixPath(path).as_posix()
+                and not PurePosixPath(path).is_absolute()
+                and not any(part in {"", ".", ".."} for part in PurePosixPath(path).parts)
+                and ":" not in PurePosixPath(path).parts[0]
+                and isinstance(digest, str) and len(digest) == 64
+                and all(character in "0123456789abcdef" for character in digest)
+                for path, digest in legacy_hashes.items()
+            )
+        )
         changed_file_scope = closeout_policy.get("changed_file_scope") if isinstance(closeout_policy.get("changed_file_scope"), dict) else {}
         applicability_profiles = closeout_policy.get("evidence_applicability_by_release_mode") if isinstance(closeout_policy.get("evidence_applicability_by_release_mode"), dict) else {}
         pipeline_policy_source = PIPELINE_POLICY_PATH.read_text(encoding="utf-8")
@@ -89,8 +109,9 @@ def run() -> dict[str, Any]:
             for operation_id, profile in operation_profiles.items()
         )
         machine_group_ids = set(map(str, evidence_requirements))
-        expected_release_modes = {"roadmap_delivery", "active_product_release", "active_release_closure"}
-        applicability_is_complete = set(map(str, applicability_profiles)) == expected_release_modes and all(
+        active_ledger = json.loads((ROOT / "config" / "sage_active_work_package.json").read_text(encoding="utf-8"))
+        expected_release_modes = set(map(str, active_ledger.get("lifecycle", {}).get("release_scope_policy", {}).get("allowed_modes", [])))
+        applicability_is_complete = bool(expected_release_modes) and set(map(str, applicability_profiles)) == expected_release_modes and all(
             isinstance(profile, dict)
             and isinstance(profile.get("required_evidence_groups"), list)
             and isinstance(profile.get("not_applicable_evidence_groups"), dict)
@@ -167,7 +188,9 @@ def run() -> dict[str, Any]:
             {"id": "work_package_receipt_authority_is_non_mutating", "ok": receipts.get("authority") == "non_authoritative_evidence_proposal" and receipts.get("closure_mutation_allowed") is False},
             {"id": "work_package_receipts_do_not_dirty_clean_mirrors", "ok": receipts.get("write_scope") == "development_workspace_only" and receipts.get("clean_mirror_behavior") == "skip_with_explicit_notice"},
             {"id": "work_package_operation_profiles_are_contract_derived_and_coherent", "ok": operation_profiles_are_coherent},
-            {"id": "work_package_closeout_scope_and_applicability_are_fail_closed", "ok": closeout_policy.get("version") == "v1" and changed_file_scope.get("classification_authority") == "tools.core.source_layer_classifier.classify_source_layer" and changed_file_scope.get("excluded_source_layers") == ["generated_runtime_artifact"] and changed_file_scope.get("excluded_behavior") == "report_without_affected_contract_requirement" and changed_file_scope.get("unknown_source_layers") == ["unknown_or_review"] and changed_file_scope.get("unknown_behavior") == "block" and changed_file_scope.get("undeclared_governed_behavior") == "block" and changed_file_scope.get("invalid_path_behavior") == "block" and closeout_policy.get("explicit_not_applicable_closure_status") == "not_applicable" and closeout_policy.get("unknown_release_mode_behavior") == "block" and applicability_is_complete},
+            {"id": "work_package_closeout_scope_and_applicability_are_fail_closed", "ok": closeout_policy.get("version") == "v1" and closeout_policy.get("transition_required_status") == "EVIDENCE_READY_HUMAN_ACTION_REQUIRED" and changed_file_scope.get("classification_authority") == "tools.core.source_layer_classifier.classify_source_layer" and changed_file_scope.get("excluded_source_layers") == ["generated_runtime_artifact"] and changed_file_scope.get("excluded_behavior") == "report_without_affected_contract_requirement" and changed_file_scope.get("unknown_source_layers") == ["unknown_or_review"] and changed_file_scope.get("unknown_behavior") == "block" and changed_file_scope.get("undeclared_governed_behavior") == "block" and changed_file_scope.get("invalid_path_behavior") == "block" and closeout_policy.get("explicit_not_applicable_closure_status") == "not_applicable" and closeout_policy.get("unknown_release_mode_behavior") == "block" and applicability_is_complete},
+            {"id": "inherited_dirty_baseline_is_content_bound_and_fail_closed", "ok": inherited_dirty_policy.get("version") == "v1" and inherited_dirty_policy.get("captured_status") == "captured" and inherited_dirty_policy.get("legacy_unknown_status") == "legacy_unavailable" and inherited_dirty_policy.get("capture_point") == "atomic_successor_activation" and inherited_dirty_policy.get("hash_algorithm") == "sha256" and inherited_dirty_policy.get("missing_identity") == "missing" and inherited_dirty_policy.get("scope") == "governed_git_dirty_files_outside_successor_affected_contracts" and inherited_dirty_policy.get("unchanged_behavior") == "report_separately_without_affected_contract_requirement" and inherited_dirty_policy.get("unrecorded_or_changed_behavior") == "block" and inherited_dirty_policy.get("legacy_without_baseline_behavior") == "block_undeclared_governed_files" and inherited_dirty_policy.get("invalid_baseline_behavior") == "block"},
+            {"id": "one_time_legacy_exception_is_exact_and_non_release", "ok": closeout_policy.get("accepted_risk_transition_status") == "EVIDENCE_READY_WITH_ACCEPTED_RISK_HUMAN_ACTION_REQUIRED" and legacy_exception_valid},
             {"id": "mutation_preflight_is_fail_closed_and_non_authoritative", "ok": bool(preflight_operations) and bool(mutation_preflight.get("accepted_package_statuses")) and mutation_preflight.get("blocked_status") == "BLOCKED" and mutation_preflight.get("external_editor_enforcement") == "not_available" and mutation_preflight.get("enforced_surfaces") == ["mcp_sage_internal_mutating_tools"] and mutation_preflight.get("read_only_recovery_allowed_when_blocked") is True and "requires_sage_developer_mutation_preflight" in mcp_source and "propose_work_package_evidence" in mcp_source},
             {"id": "bounded_retention", "ok": int(retention.get("max_events_per_tenant") or 0) > 0},
         ])

@@ -65,3 +65,6 @@ These documents explain product behavior and evidence. Machine-readable
 contracts and current generated artifacts control where a document makes a
 more specific operational claim. No historical development note is public
 operating authority.
+
+
+Public projection recovery guide: `FAILURE_MODE_RUNBOOK.md`.

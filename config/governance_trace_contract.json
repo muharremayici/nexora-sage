@@ -290,6 +290,21 @@
     },
     "closeout_policy": {
       "version": "v1",
+      "transition_required_status": "EVIDENCE_READY_HUMAN_ACTION_REQUIRED",
+      "accepted_risk_transition_status": "EVIDENCE_READY_WITH_ACCEPTED_RISK_HUMAN_ACTION_REQUIRED",
+      "inherited_dirty_baseline": {
+        "version": "v1",
+        "captured_status": "captured",
+        "legacy_unknown_status": "legacy_unavailable",
+        "capture_point": "atomic_successor_activation",
+        "hash_algorithm": "sha256",
+        "missing_identity": "missing",
+        "scope": "governed_git_dirty_files_outside_successor_affected_contracts",
+        "unchanged_behavior": "report_separately_without_affected_contract_requirement",
+        "unrecorded_or_changed_behavior": "block",
+        "legacy_without_baseline_behavior": "block_undeclared_governed_files",
+        "invalid_baseline_behavior": "block"
+      },
       "changed_file_scope": {
         "classification_authority": "tools.core.source_layer_classifier.classify_source_layer",
         "excluded_source_layers": [
@@ -311,6 +326,15 @@
           ],
           "not_applicable_evidence_groups": {
             "clean_mirror_synced_and_validated_when_applicable": "roadmap_delivery_has_no_distribution_projection"
+          }
+        },
+        "published_carryover_development": {
+          "required_evidence_groups": [
+            "targeted_validators_pass",
+            "semantic_git_diff_review_completed"
+          ],
+          "not_applicable_evidence_groups": {
+            "clean_mirror_synced_and_validated_when_applicable": "published_carryover_development_has_no_distribution_projection"
           }
         },
         "active_product_release": {

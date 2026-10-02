@@ -20,6 +20,8 @@ from tools.core.artifact_validator import ensure_valid_payload
 from tools.core.json_io import load_json_file, raw_artifact_content_fingerprint
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
 from tools.core.polyglot_imports import (
+    extract_direct_import_binding_evidence,
+    extract_module_root_import_call_evidence,
     extract_go_qualified_imports,
     extract_imports as extract_polyglot_imports,
     extract_typescript_import_evidence,
@@ -82,7 +84,7 @@ class SizeBoundedDict(dict):
 
 
 GLOBAL_ATLAS_CACHE = SizeBoundedDict(max_size=10)
-AST_CONTRACT_VERSION = "v18.6-syntax-import-evidence"
+AST_CONTRACT_VERSION = "v18.29-repository-collection-read-return-review"
 PYTHON_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_python.py"
 JAVA_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_java.py"
 CS_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_cs.py"
@@ -412,6 +414,13 @@ def file_contract_is_current(file_data: Dict) -> bool:
         return False
     if not _parser_evidence_is_reusable(file_data.get("parser_evidence")):
         return False
+    if file_data.get("language") in {"typescript", "javascript"}:
+        root_calls = file_data.get("module_root_import_call_evidence")
+        if (not isinstance(root_calls, dict)
+                or root_calls.get("callsite_scope") != "module_root"
+                or not isinstance(root_calls.get("calls"), list)
+                or type(root_calls.get("omitted")) is not int):
+            return False
     required_file_keys = {
         "project_key",
         "atlas_rel_path",
@@ -883,6 +892,56 @@ def _file_parser_evidence(raw_results, language: str) -> Dict[str, object]:
         ),
         "error_family": meta.get("errorFamily", meta.get("error_family")),
         "error_type": meta.get("errorType", meta.get("error_type")),
+    }
+
+
+def _structured_output_evidence(raw_results) -> Dict[str, object]:
+    """Carry bounded AST candidates; older scan coverage is not a clean scan."""
+    meta = next(
+        (item for item in raw_results or []
+         if isinstance(item, dict) and item.get("name") == "__file_meta__"),
+        {},
+    )
+    candidates = meta.get("structuredOutputCandidates")
+    omitted = meta.get("structuredOutputCandidatesOmitted")
+    scope = "xml_template_or_imported_mime_helper_candidate"
+    if (meta.get("parserStatus") != "observed"
+            or meta.get("structuredOutputScanStatus") != "observed"
+            or meta.get("structuredOutputScanVersion") != "v3-xml-mime-helper-argument-candidate"
+            or not isinstance(candidates, list) or len(candidates) > 16
+            or type(omitted) is not int or omitted < 0
+            or any(not isinstance(row, dict)
+                   or row.get("kind") != "xml_template_interpolation_candidate"
+                   or row.get("sink") not in {
+                       "xml_http_response", "xml_file_write", "xml_mime_helper_call_unverified",
+                   }
+                   or type(row.get("line")) is not int or row["line"] < 1
+                   or row.get("proof_status") != "needs_format_native_round_trip"
+                   or row.get("evidence_scope") not in {
+                       "direct_template_to_literal_xml_sink",
+                       "same_file_const_template_to_literal_xml_sink",
+                       "direct_template_to_xml_mime_helper_call",
+                       "same_file_const_template_to_xml_mime_helper_call",
+                   }
+                   or ((row.get("sink") == "xml_mime_helper_call_unverified")
+                       != (row.get("evidence_scope") in {
+                           "direct_template_to_xml_mime_helper_call",
+                           "same_file_const_template_to_xml_mime_helper_call",
+                       }))
+                   or not isinstance(row.get("interpolation_contexts"), list)
+                   or not row["interpolation_contexts"]
+                   or type(row.get("interpolation_count")) is not int
+                   or row["interpolation_count"] < len(row["interpolation_contexts"])
+                   or any(context not in {"element_text", "attribute_value", "cdata"}
+                          for context in row["interpolation_contexts"])
+                   for row in candidates)):
+        return {"status": "unavailable", "scope": scope,
+                "candidates": [], "omitted": 0}
+    return {
+        "status": "partial_budget" if omitted else "observed",
+        "scope": scope,
+        "candidates": candidates,
+        "omitted": omitted,
     }
 
 
@@ -2659,6 +2718,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             internal_deps = sorted(list(set(fixed_deps)))
 
             raw_node_results = node_results_by_file.get(Path(full_path).resolve().as_posix(), [])
+            direct_import_binding_evidence = {"status": "unavailable", "records": []}
+            module_root_import_call_evidence = extract_module_root_import_call_evidence(None)
             ast_symbols = []
             ast_features = []
             line_breaks = [i for i, char in enumerate(content) if char == '\n']
@@ -2701,6 +2762,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     ast_features.extend(sym_entry['features'])
             if f_lang in {"typescript", "javascript"}:
                 syntax_imports = extract_typescript_import_evidence(raw_node_results)
+                direct_import_binding_evidence = extract_direct_import_binding_evidence(raw_node_results)
+                module_root_import_call_evidence = extract_module_root_import_call_evidence(raw_node_results)
                 import_records = []
                 for record in syntax_imports["records"]:
                     raw_source = record["source"]
@@ -2850,12 +2913,16 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "exports": all_exports,
                 "imports": resolved_imports,
                 "import_records": import_records,
+                "direct_import_binding_evidence": direct_import_binding_evidence,
+                "module_root_import_call_evidence": module_root_import_call_evidence,
                 "internal_deps": internal_deps,
                 "lazy_internal_deps": lazy_internal_deps,
                 "symbols": [s for s in ast_symbols if s['name'] != '__file_meta__'],
                 "features": ast_features,
                 "state_flow": state_flow,
                 "parser_evidence": _file_parser_evidence(raw_node_results, f_lang),
+                **({"structured_output_evidence": _structured_output_evidence(raw_node_results)}
+                   if f_lang in {"typescript", "javascript"} else {}),
                 "dna": "".join([s['dna'] or "" for s in ast_symbols if s['name'] != '__file_meta__']),
                 "mtime": f_mtime,
                 "size": f_size,

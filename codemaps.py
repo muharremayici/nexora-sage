@@ -1915,7 +1915,7 @@ def cmd_self_audit(args):
 def cmd_work_package(args):
     from tools.core.artifact_store import get_adaptive_timeout
     from tools.core.config import REPORTS_DIR, save_json_atomic, save_text_atomic
-    from tools.core.sage_active_work_package import active_work_package
+    from tools.core.sage_active_work_package import load_active_work_package_ledger
     from tools.core.work_package_receipts import (
         build_work_package_closeout_proposal,
         propose_work_package_evidence,
@@ -1946,11 +1946,13 @@ def cmd_work_package(args):
     if baseline_timeout < 1:
         raise RuntimeError("missing_git_discovery_timeout_seconds")
     changed_files = changed_files_from_git(timeout_seconds=get_adaptive_timeout(baseline_timeout))
+    ledger = load_active_work_package_ledger()
     payload = build_work_package_closeout_proposal(
-        package=active_work_package(),
+        package=ledger["active_package"],
         receipt_projection=receipt_projection,
         closure_validation=validate_package_closure(),
         changed_files=changed_files,
+        package_history=ledger["package_history"],
     )
     save_json_atomic(RAW_DIR / "sage_work_package_closeout_proposal.json", payload)
     save_text_atomic(
@@ -1958,7 +1960,13 @@ def cmd_work_package(args):
         render_work_package_closeout_proposal(payload),
     )
     print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return 0 if payload.get("status") == "EVIDENCE_READY_HUMAN_ACTION_REQUIRED" else 1
+    trace_contract = load_json_file(CONFIG_DIR / "governance_trace_contract.json", {})
+    closeout_policy = trace_contract.get("work_package_receipts", {}).get("closeout_policy", {})
+    ready_statuses = {
+        closeout_policy.get("transition_required_status"),
+        closeout_policy.get("accepted_risk_transition_status"),
+    }
+    return 0 if payload.get("status") in ready_statuses - {None, ""} else 1
 
 
 def cmd_ledger_update(args):
@@ -2421,6 +2429,12 @@ def build_parser():
     doctor_parser.add_argument("--skip-release-proof", action="store_true", help="Skip existing release proof bundle status when checking local installation health.")
     doctor_parser.add_argument("--repair-optional-deps", action="store_true", help="Attempt pip --user repair for blocked/missing optional feature dependencies.")
     doctor_parser.add_argument("--verbose-env", action="store_true", help="Print Python import path details for environment mismatch debugging.")
+    doctor_parser.add_argument(
+        "--target-root",
+        dest="doctor_target_root",
+        metavar="REPOSITORY",
+        help="Unsupported for installation doctor; use external target preflight or run instead.",
+    )
     doctor_parser.set_defaults(func=cmd_doctor)
 
     mcp_parser = subparsers.add_parser(
@@ -2845,6 +2859,12 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    if args.command == "doctor" and args.doctor_target_root is not None:
+        parser.error(
+            "doctor checks this SAGE installation, not a target repository; "
+            "use python tools/external_target_preflight.py --target-root <repository> "
+            "for target inspection, or python sage.py run --target-root <repository> --profile daily"
+        )
     
     # Read-only storage inspection must not create or migrate a missing database.
     # Its explicit apply path acquires the shared pipeline lock before schema setup.

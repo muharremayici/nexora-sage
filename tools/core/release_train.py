@@ -129,15 +129,20 @@ def successor_selection_policy_issues(
         != "config/sage_active_work_package.json:active_package.successor_selection_decision"
     ):
         issues.append("invalid_human_choice_source")
-    if human_choice_input.get("applicable_reason_code") != "equal_rank_requires_human_choice":
+    if human_choice_input.get("applicable_reason_codes") != [
+        "equal_rank_requires_human_choice",
+        "published_carryover_requires_human_scope",
+    ]:
         issues.append("invalid_human_choice_reason_boundary")
+    if human_choice_input.get("published_carryover_scope_field") != "roadmap_phase":
+        issues.append("invalid_published_carryover_scope_field")
     if human_choice_input.get("required_fields") != [
         "work_item_id",
         "decided_by",
         "reason",
     ]:
         issues.append("invalid_human_choice_required_fields")
-    if human_choice_input.get("authority") != "tie_resolution_only":
+    if human_choice_input.get("authority") != "successor_selection_only":
         issues.append("unsafe_human_choice_authority")
     issues.extend(release_train_policy_issues(policy))
     return sorted(set(issues))

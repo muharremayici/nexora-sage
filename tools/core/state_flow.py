@@ -755,6 +755,281 @@ def _focus_same_file_store_action_calls(record, declaring, action, target, limit
     return result
 
 
+def _focus_same_file_rehydrate_calls(record, declaring, action, target, limit, budget):
+    """Project bounded rehydrate syntax, including direct inline callbacks; never infer hydration."""
+    result = {"status": "not_applicable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "relation": "same_file_lexical_explicit_rehydrate_call_candidate",
+              "runtime_execution": "not_established", "source_binding": "not_checked",
+              "scope": "indexed_callable_body_same_file_export_direct_const_alias_or_inline_callback"}
+    setter = action.get("zustand_setter_call_evidence") if isinstance(action, dict) else None
+    if (not isinstance(declaring, dict) or declaring.get("type") != "Variable"
+            or declaring.get("exported") is not True or declaring.get("export_kind") != "named"
+            or type(declaring.get("start")) is not int
+            or not isinstance(setter, dict) or setter.get("status") != "observed"
+            or setter.get("middleware_form") != "persist"
+            or setter.get("binding_scope") != "single_file_lexical_store_factory_parameter"):
+        result["reason"] = "selected_action_not_supported_persist_store_candidate"
+        return result
+    symbols = record.get("symbols") if isinstance(record, dict) else None
+    if not isinstance(symbols, list):
+        result.update(status="unavailable", reason="caller_symbols_unavailable")
+        return result
+    result["status"] = "observed"
+    matched = 0
+    seen_evidence = False
+    for caller in symbols:
+        if result["visited_records"] >= budget:
+            result.update(status="incomplete_scan", reason="caller_scan_budget_exhausted")
+            break
+        result["visited_records"] += 1
+        if not isinstance(caller, dict):
+            result.update(status="unavailable", reason="malformed_caller_symbol")
+            break
+        if caller.get("name") == "__file_meta__" or caller.get("type") not in {
+                "Function", "Arrow", "Hook", "Component"}:
+            continue
+        evidence = caller.get("same_file_store_action_call_evidence")
+        if not isinstance(evidence, dict) or "rehydrate_calls" not in evidence:
+            result.update(status="unavailable", reason="parser_rehydrate_evidence_not_indexed")
+            break
+        seen_evidence = True
+        if (evidence.get("status") != "observed"
+                or evidence.get("binding_scope") != "single_file_lexical_store_or_named_import"
+                or evidence.get("runtime_execution") != "not_established"
+                or not isinstance(evidence.get("rehydrate_calls"), list)
+                or type(evidence.get("rehydrate_omitted")) is not int
+                or evidence["rehydrate_omitted"] < 0):
+            result.update(status="unavailable", reason="malformed_parser_rehydrate_evidence")
+            break
+        if evidence["rehydrate_omitted"]:
+            result.update(status="incomplete_scan", reason="parser_rehydrate_source_cap")
+        for call in evidence["rehydrate_calls"]:
+            if result["visited_records"] >= budget:
+                result.update(status="incomplete_scan", reason="caller_scan_budget_exhausted")
+                break
+            result["visited_records"] += 1
+            if not isinstance(call, dict):
+                result.update(status="unavailable", reason="malformed_parser_rehydrate_call")
+                break
+            line, end_line = call.get("line"), call.get("end_line")
+            start, end = caller.get("line"), caller.get("end_line")
+            call_form = call.get("call_form")
+            call_context = call.get("call_context")
+            if (not isinstance(call.get("store"), str) or not call["store"]
+                    or any(type(value) is not int for value in
+                           (call.get("store_start"), line, end_line, start, end))
+                    or not (0 < start <= line <= end_line <= end)
+                    or call["store_start"] < 0
+                    or (call_form is not None and
+                        (call_form != "const_local_alias"
+                         or not isinstance(call.get("alias_name"), str)
+                         or not call["alias_name"]))
+                    or (call_form is None and ("call_form" in call or "alias_name" in call))):
+                result.update(status="unavailable", reason="malformed_parser_rehydrate_call")
+                break
+            if (call_context is not None and
+                    (call_context != "inline_callback" or call_form is not None)):
+                result.update(status="unavailable", reason="malformed_parser_rehydrate_call")
+                break
+            if call_context is None and "call_context" in call:
+                result.update(status="unavailable", reason="malformed_parser_rehydrate_call")
+                break
+            if call["store"] != declaring.get("name"):
+                continue
+            if call["store_start"] != declaring["start"]:
+                result.update(status="unavailable", reason="rehydrate_store_identity_mismatch")
+                break
+            matched += 1
+            if len(result["items"]) < limit:
+                result["items"].append({
+                    "status": "source_candidate", "call_line": line, "call_end_line": end_line,
+                    "reason": ("checker_bound_same_file_inline_callback_rehydrate_call"
+                               if call_context else
+                               "checker_bound_same_file_const_alias_rehydrate_call"
+                               if call_form else "checker_bound_same_file_export_rehydrate_call"),
+                    **({"call_form": call_form, "alias_name": call["alias_name"]}
+                       if call_form else {}),
+                    **({"call_context": call_context} if call_context else {}),
+                    "caller": {key: target[key] for key in
+                               ("atlas_ref", "target_ref", "target_file", "source_hash")},
+                    "caller_symbol": caller["name"],
+                    "caller_span": {"start_line": start, "end_line": end},
+                })
+        if result["status"] == "unavailable":
+            break
+    if result["status"] == "observed" and not seen_evidence:
+        result.update(status="unavailable", reason="parser_rehydrate_evidence_not_indexed")
+    if result["status"] == "unavailable":
+        result["items"] = []
+    result["returned"] = len(result["items"])
+    result["omitted"] = max(0, matched - result["returned"]) if result["status"] == "observed" else None
+    return result
+
+
+def _focus_cross_file_rehydrate_calls(importer_rows, file_index, declaring, action, target,
+                                      project, limit, budget):
+    """Join bounded named-import rehydrate syntax, including direct inline callbacks."""
+    result = {"status": "not_applicable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0,
+              "relation": "same_project_named_import_explicit_rehydrate_call_candidate",
+              "runtime_execution": "not_established", "source_binding": "not_checked",
+              "scope": "indexed_callable_body_named_import_direct_const_alias_or_inline_callback"}
+    setter = action.get("zustand_setter_call_evidence") if isinstance(action, dict) else None
+    if (not isinstance(declaring, dict) or declaring.get("type") != "Variable"
+            or declaring.get("exported") is not True or declaring.get("export_kind") != "named"
+            or type(declaring.get("start")) is not int
+            or not isinstance(setter, dict) or setter.get("status") != "observed"
+            or setter.get("middleware_form") != "persist"
+            or setter.get("binding_scope") != "single_file_lexical_store_factory_parameter"):
+        result["reason"] = "selected_action_not_supported_persist_store_candidate"
+        return result
+    if not isinstance(importer_rows, list) or not isinstance(file_index, dict):
+        result.update(status="unavailable", reason="atlas_file_index_unavailable")
+        return result
+    result["status"] = "observed"
+    matched = 0
+    selected_rel = target["atlas_ref"].partition("::")[2]
+    for rel, record in importer_rows:
+        if result["visited_records"] >= budget:
+            result.update(status="incomplete_scan", reason="importer_scan_budget_exhausted")
+            break
+        result["visited_records"] += 1
+        if rel == selected_rel:
+            continue
+        if not isinstance(record, dict) or not _focus_relative_path(rel):
+            result.update(status="unavailable", reason="malformed_importer_file")
+            break
+        imports = record.get("import_records")
+        if not isinstance(imports, list):
+            result.update(status="unavailable", reason="importer_module_evidence_unavailable")
+            break
+        matching_imports = []
+        for entry in imports:
+            if result["visited_records"] >= budget:
+                result.update(status="incomplete_scan", reason="importer_scan_budget_exhausted")
+                break
+            result["visited_records"] += 1
+            if not isinstance(entry, dict):
+                result.update(status="unavailable", reason="malformed_importer_module_evidence")
+                break
+            resolved = entry.get("source")
+            if not _focus_relative_path(resolved):
+                continue
+            targets = file_index.get(resolved, [])
+            if not any(item.get("atlas_ref") == target["atlas_ref"] for item in targets):
+                continue
+            if len(targets) != 1:
+                result.update(status="ambiguous", reason="ambiguous_imported_store_file")
+                break
+            if (entry.get("kind") == "named" and entry.get("scope") == "top_level"
+                    and entry.get("name") == declaring.get("name")
+                    and isinstance(entry.get("raw_source"), str) and entry["raw_source"]):
+                matching_imports.append(entry)
+        if result["status"] != "observed":
+            break
+        if not matching_imports:
+            continue
+        if len(matching_imports) != 1:
+            result.update(status="ambiguous", reason="ambiguous_named_store_import")
+            break
+        module = matching_imports[0]
+        symbols = record.get("symbols")
+        workspace_rel = record.get("workspace_rel") or rel
+        if (not isinstance(symbols, list) or not isinstance(record.get("hash"), str)
+                or not record["hash"] or not _focus_relative_path(workspace_rel)):
+            result.update(status="unavailable", reason="importer_source_evidence_unavailable")
+            break
+        caller_target = {"atlas_ref": f"{project}::{rel}",
+                         "target_ref": f"{project}::{workspace_rel}",
+                         "target_file": workspace_rel, "source_hash": record["hash"]}
+        for caller in symbols:
+            if result["visited_records"] >= budget:
+                result.update(status="incomplete_scan", reason="caller_scan_budget_exhausted")
+                break
+            result["visited_records"] += 1
+            if not isinstance(caller, dict):
+                result.update(status="unavailable", reason="malformed_importer_symbol")
+                break
+            if caller.get("type") not in {"Function", "Arrow", "Hook", "Component"}:
+                continue
+            evidence = caller.get("same_file_store_action_call_evidence")
+            if not isinstance(evidence, dict) or "imported_rehydrate_calls" not in evidence:
+                result.update(status="unavailable", reason="imported_rehydrate_evidence_not_indexed")
+                break
+            if (evidence.get("status") != "observed"
+                    or evidence.get("binding_scope") != "single_file_lexical_store_or_named_import"
+                    or evidence.get("runtime_execution") != "not_established"
+                    or not isinstance(evidence.get("imported_rehydrate_calls"), list)
+                    or type(evidence.get("imported_rehydrate_omitted")) is not int
+                    or evidence["imported_rehydrate_omitted"] < 0):
+                result.update(status="unavailable", reason="malformed_imported_rehydrate_evidence")
+                break
+            if evidence["imported_rehydrate_omitted"]:
+                result.update(status="incomplete_scan", reason="parser_imported_rehydrate_source_cap")
+            for call in evidence["imported_rehydrate_calls"]:
+                if result["visited_records"] >= budget:
+                    result.update(status="incomplete_scan", reason="caller_scan_budget_exhausted")
+                    break
+                result["visited_records"] += 1
+                if not isinstance(call, dict):
+                    result.update(status="unavailable", reason="malformed_imported_rehydrate_call")
+                    break
+                line, end_line = call.get("line"), call.get("end_line")
+                start, end = caller.get("line"), caller.get("end_line")
+                call_form = call.get("call_form")
+                call_context = call.get("call_context")
+                if (not isinstance(call.get("store"), str) or not call["store"]
+                        or not isinstance(call.get("module_source"), str) or not call["module_source"]
+                        or not isinstance(call.get("imported_store"), str) or not call["imported_store"]
+                        or not isinstance(caller.get("name"), str) or not caller["name"]
+                        or any(type(value) is not int for value in (line, end_line, start, end))
+                        or not (0 < start <= line <= end_line <= end)
+                        or (call_form is not None and
+                            (call_form != "const_local_alias"
+                             or not isinstance(call.get("alias_name"), str)
+                             or not call["alias_name"]))
+                        or (call_form is None and ("call_form" in call or "alias_name" in call))):
+                    result.update(status="unavailable", reason="malformed_imported_rehydrate_call")
+                    break
+                if (call_context is not None and
+                        (call_context != "inline_callback" or call_form is not None)):
+                    result.update(status="unavailable", reason="malformed_imported_rehydrate_call")
+                    break
+                if call_context is None and "call_context" in call:
+                    result.update(status="unavailable", reason="malformed_imported_rehydrate_call")
+                    break
+                if (call["module_source"] != module["raw_source"]
+                        or call["imported_store"] != declaring["name"]):
+                    continue
+                matched += 1
+                if len(result["items"]) < limit:
+                    result["items"].append({
+                        "status": "source_candidate",
+                        "reason": ("checker_bound_named_import_inline_callback_rehydrate_call"
+                                   if call_context else
+                                   "checker_bound_named_import_const_alias_rehydrate_call"
+                                   if call_form else
+                                   "checker_bound_named_import_and_unique_module_rehydrate_call"),
+                        **({"call_form": call_form, "alias_name": call["alias_name"]}
+                           if call_form else {}),
+                        **({"call_context": call_context} if call_context else {}),
+                        "call_line": line, "call_end_line": end_line,
+                        "local_store": call["store"], "imported_store": declaring["name"],
+                        "module_source": module["raw_source"], "caller": caller_target,
+                        "caller_symbol": caller["name"],
+                        "caller_span": {"start_line": start, "end_line": end},
+                    })
+            if result["status"] != "observed":
+                break
+        if result["status"] != "observed":
+            break
+    if result["status"] in {"unavailable", "ambiguous"}:
+        result["items"] = []
+    result["returned"] = len(result["items"])
+    result["omitted"] = max(0, matched - result["returned"]) if result["status"] == "observed" else None
+    return result
+
+
 def _focus_cross_file_store_action_calls(importer_rows, file_index, declaring, action, target,
                                          project, limit, budget):
     """Join exact named-import call syntax to one stored same-project module target."""
@@ -2167,4 +2442,16 @@ def project_state_flow_focus(atlas: dict, *, project: str, file: str, symbol: st
                     "bounded_file_import_scan" if indexed_importers is None
                     else "same_snapshot_resolved_module_importer_index")
                 result["visited_records"] += result["hook_selector_candidates"]["visited_records"]
+                result["rehydrate_call_candidates"] = _focus_same_file_rehydrate_calls(
+                    record, declaring, row, result["target"], limit,
+                    budget - result["visited_records"])
+                result["visited_records"] += result["rehydrate_call_candidates"]["visited_records"]
+                result["cross_file_rehydrate_call_candidates"] = _focus_cross_file_rehydrate_calls(
+                    importer_rows if indexed_importers is None else indexed_importers,
+                    file_index, declaring, row, result["target"], project, limit,
+                    budget - result["visited_records"])
+                result["cross_file_rehydrate_call_candidates"]["importer_lookup"] = (
+                    "bounded_file_import_scan" if indexed_importers is None
+                    else "same_snapshot_resolved_module_importer_index")
+                result["visited_records"] += result["cross_file_rehydrate_call_candidates"]["visited_records"]
     return result

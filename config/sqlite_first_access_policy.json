@@ -97,6 +97,10 @@
         "tools/tests/test_mcp_impact_radius.py": "Bounded impact tests synthesize an isolated Atlas shadow to verify SQLite-only graph refusal, never read production shadow truth",
         "tools/tests/test_scoped_atlas_persistence.py": "scoped persistence tests synthesize isolated Atlas shadows and exercise the canonical proxy-aware loader",
         "tools/tests/test_typescript_import_evidence.py": "TypeScript import evidence tests locate isolated external-target Atlas fixtures without consuming production runtime truth",
+        "tools/tests/test_sqlite_read_only_uri.py": "Native read-only URI tests synthesize isolated SQLite and conflicting Atlas shadows to prove canonical precedence, closure and missing-database fallback; validator controls retain unknown-reference and live-consumer refusal",
+        "tools/tests/test_structured_export_advisory.py": "Structured export tests inspect their own generated isolated external-target Atlas projection to prove source-bound advisory evidence, never production runtime shadow truth",
+        "tools/tests/test_target_runtime_repository_direct_read_advisory.py": "Repository direct-read tests inspect their own isolated external-target Atlas fixture and retain review-only source/evidence/schema boundaries",
+        "tools/tests/test_target_runtime_repository_override_advisory.py": "Repository override tests inspect their own isolated external-target Atlas fixture to verify failed-parse fallback remains advisory rather than confirmed runtime defect",
         "tools/tests/test_engine_contracts.py": "test fixture and contract assertions",
         "tools/tests/test_target_repository_lesson_projection.py": "target lesson projection test records Atlas as fixture provenance without consuming the runtime shadow",
         "tools/validate_target_repository_lesson_projection.py": "isolated target lesson projection fixture records Atlas provenance without consuming the runtime shadow"

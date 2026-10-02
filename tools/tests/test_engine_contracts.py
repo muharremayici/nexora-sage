@@ -121,7 +121,7 @@ from tools.engines.react_runtime_intelligence import _react_mutation_contexts
 from tools.engines.react_compiler_readiness import _normalize_finding as normalize_compiler_finding
 from tools.engines.react_frontier_intelligence import analyze_frontier_file
 from tools.engines.react_frontier_intelligence import _evidence_readiness, _hot_profiler_entries, _large_assets
-from tools.engines.react_frontier_intelligence import _ts_diagnostic_findings
+from tools.engines.react_frontier_intelligence import _enrich_findings_with_ts_diagnostics, _ts_diagnostic_findings
 from tools.engines import react_frontier_intelligence as react_frontier_engine
 from tools.engines.release_readiness_report import build_release_readiness_payload
 from tools.generate_nexora_operator_packet import _combined_release_readiness
@@ -8640,14 +8640,15 @@ class ReactFrontierIntelligenceTests(unittest.TestCase):
         self.assertEqual(assets, ["admin.js=410000B", "vendor=320000B"])
         self.assertEqual(hot, ["Editor=32.5ms", "Canvas=21.2ms"])
 
-    def test_typescript_diagnostics_become_frontier_findings(self):
+    def test_checked_syntax_diagnostics_do_not_claim_type_contract_failure(self):
         findings = _ts_diagnostic_findings(
             {
                 "projects": {
                     "APP": {
+                        "mode": "syntax",
+                        "status": "OK_SYNTAX_ONLY",
                         "diagnostics": [
-                            {"file": "src/App.tsx", "code": "TS2322", "category": "Error"},
-                            {"file": "src/App.tsx", "code": "TS2339", "category": "Error"},
+                            {"file": "src/App.tsx", "code": "TS1005", "category": "Error"},
                         ]
                     }
                 }
@@ -8655,8 +8656,27 @@ class ReactFrontierIntelligenceTests(unittest.TestCase):
         )
 
         self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0]["dimension"], "typescript_compiler_diagnostics")
-        self.assertEqual(findings[0]["confidence"], "likely")
+        self.assertEqual(findings[0]["dimension"], "typescript_syntax_diagnostics")
+        self.assertEqual(findings[0]["risk"], "compiler_reported_syntax_failure")
+        self.assertEqual(findings[0]["evidence_scope"], "checked_syntax_files_only")
+        self.assertNotIn("type contract", findings[0]["recommended_action"].lower())
+
+    def test_checked_syntax_diagnostic_does_not_boost_unrelated_finding(self):
+        finding = {"project": "APP", "file": "src/App.tsx", "dimension": "react_security",
+                   "score": 5, "confidence": "probable", "evidence": "static suspicion"}
+        payload = {"projects": {"APP": {
+            "mode": "syntax", "status": "OK_SYNTAX_ONLY",
+            "diagnostics": [{"file": "src/App.tsx", "code": "TS1005", "line": 2}],
+        }}}
+        enriched, count = _enrich_findings_with_ts_diagnostics([finding], payload)
+        self.assertEqual(count, 0)
+        self.assertEqual(enriched, [finding])
+
+    def test_unscoped_typescript_diagnostic_cannot_become_frontier_finding(self):
+        payload = {"projects": {"APP": {
+            "diagnostics": [{"file": "src/App.tsx", "code": "TS2322", "category": "Error"}],
+        }}}
+        self.assertEqual(_ts_diagnostic_findings(payload), [])
 
     def test_frontier_evidence_readiness_reports_missing_runtime_artifacts(self):
         readiness = _evidence_readiness(

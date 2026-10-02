@@ -11,12 +11,13 @@ import socket
 import sqlite3
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 from typing import Any, Callable
 
 from tools.core.advisory_file_lock import AdvisoryFileLock
 from tools.core.db import SQLiteManager
-from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
 
 
 _AUTO_VACUUM_NAMES = {0: "none", 1: "full", 2: "incremental"}
@@ -44,7 +45,7 @@ def _connect(path: Path, *, timeout_seconds: int, read_only: bool = False) -> sq
     native_path = Path(native_filesystem_path(path))
     if read_only:
         conn = sqlite3.connect(
-            native_path.resolve().as_uri() + "?mode=ro",
+            sqlite_read_only_uri(path),
             uri=True,
             timeout=float(max(0, timeout_seconds)),
         )
@@ -129,7 +130,7 @@ def _profile_from_connection(conn: sqlite3.Connection, database_path: Path) -> d
 def inspect_sqlite_storage(database_path: Path, *, timeout_seconds: int = 5) -> dict[str, Any]:
     """Inspect one existing database without creating or mutating it."""
     path = Path(database_path)
-    if not path.is_file():
+    if not Path(native_filesystem_path(path)).is_file():
         return {
             "status": "MISSING",
             "database_path": str(path.resolve()),
@@ -137,7 +138,7 @@ def inspect_sqlite_storage(database_path: Path, *, timeout_seconds: int = 5) -> 
             "reclamation_path": "not_available",
             "claim_boundary": "No database was opened or created.",
         }
-    with _connect(path, timeout_seconds=timeout_seconds, read_only=True) as conn:
+    with closing(_connect(path, timeout_seconds=timeout_seconds, read_only=True)) as conn:
         profile = _profile_from_connection(conn, path)
     profile["status"] = "OBSERVED"
     return profile

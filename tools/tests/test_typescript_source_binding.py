@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -13,6 +14,7 @@ from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.config import CODE_MAPS_DIR
 from tools.core.typescript_source_binding import (
     checked_source_errors, semantic_config_root_read_errors, semantic_diagnostic_source_errors,
+    semantic_program_declaration_errors, semantic_program_source_errors, semantic_workspace_external_errors,
     semantic_workspace_read_errors,
 )
 from tools.core.typescript_source_binding import capture_compiler_library_inputs, reconcile_compiler_library_inputs
@@ -176,6 +178,7 @@ def test_real_library_reads_match_independent_invocation_inventory_without_live_
         binding = reconcile_compiler_library_inputs(payload, inventory)
     assert binding["status"] == "MATCHED_POSITIVE_READS", binding
     assert "lib.d.ts" in binding["projects"]["MAIN"]["matched_files"]
+    assert "lib.d.ts" in binding["projects"]["MAIN"]["matched_program_files"]
     assert binding["loaded_code_attested"] is False
     assert binding["snapshot_bound"] is False
     assert binding["inventory"] == inventory
@@ -188,6 +191,83 @@ def test_real_library_reads_match_independent_invocation_inventory_without_live_
         payloads={"ts_diagnostics": with_binding},
     )
     assert "ts_diagnostics" not in usable
+
+
+def test_program_library_sourcefiles_require_independent_installed_text_and_complete_manifest(
+    compiler_input_run, tmp_path,
+):
+    payload, _, inventory = compiler_input_run
+    manifest = payload["projects"]["MAIN"]["checked_source_manifest"]
+    library_files = manifest["program_outside_workspace_files"]
+    assert manifest["program_outside_workspace_files_total"] == len(library_files)
+    assert library_files
+    assert all(Path(row["file"]).is_relative_to(Path(inventory["library_root"])) for row in library_files)
+    assert reconcile_compiler_library_inputs(payload, inventory)["status"] == "MATCHED_POSITIVE_READS"
+
+    stale = deepcopy(payload)
+    relative = os.path.relpath(
+        library_files[0]["file"], stale["projects"]["MAIN"]["project_root"],
+    ).replace("\\", "/")
+    row = next(row for row in stale["projects"]["MAIN"]["checked_source_manifest"]["files"]
+               if row["file"] == relative)
+    row["sha256"] = "0" * 64
+    assert reconcile_compiler_library_inputs(stale, inventory)["status"] == "BLOCKED"
+
+    budgeted, _ = collect(
+        tmp_path, {"a.ts": "export const x = 1;"}, "--semantic", "true",
+        "--requestId", "library-input", "--maxFiles", "1",
+        project_config={"files": ["a.ts"]},
+    )
+    assert budgeted["projects"]["MAIN"]["checked_source_manifest"][
+        "program_outside_workspace_files_total"] > 0
+    binding = reconcile_compiler_library_inputs(budgeted, inventory)
+    assert binding["status"] == "BLOCKED"
+    assert "MAIN:compiler_program_inventory_incomplete" in binding["errors"]
+
+
+@pytest.mark.parametrize("failure", [
+    "nonlibrary", "duplicate", "declaration", "missing_row", "count", "version",
+])
+def test_program_library_manifest_fails_closed_on_unowned_or_malformed_sourcefile(
+    compiler_input_run, failure,
+):
+    payload, _, inventory = deepcopy(compiler_input_run)
+    manifest = payload["projects"]["MAIN"]["checked_source_manifest"]
+    entry = manifest["program_outside_workspace_files"][0]
+    if failure == "nonlibrary":
+        original = entry["file"]
+        entry["file"] = str(Path(inventory["library_root"]).parent / "foreign.d.ts").replace("\\", "/")
+        original_name = os.path.relpath(original, payload["projects"]["MAIN"]["project_root"]).replace("\\", "/")
+        replacement = os.path.relpath(
+            entry["file"], payload["projects"]["MAIN"]["project_root"],
+        ).replace("\\", "/")
+        next(row for row in manifest["files"] if row["file"] == original_name)["file"] = replacement
+        expected = "MAIN:compiler_program_nonlibrary_input_unbound"
+    elif failure == "duplicate":
+        manifest["program_outside_workspace_files"].append(deepcopy(entry))
+        manifest["program_outside_workspace_files_total"] += 1
+        manifest["source_files_total"] += 1
+        manifest["omitted_files"] += 1
+        expected = "MAIN:compiler_program_path_unbound"
+    elif failure == "declaration":
+        entry["declaration"] = False
+        expected = "MAIN:compiler_program_source_unbound"
+    elif failure == "missing_row":
+        relative = os.path.relpath(
+            entry["file"], payload["projects"]["MAIN"]["project_root"],
+        ).replace("\\", "/")
+        manifest["files"] = [row for row in manifest["files"] if row["file"] != relative]
+        manifest["omitted_files"] += 1
+        expected = "MAIN:compiler_program_manifest_unavailable"
+    elif failure == "count":
+        manifest["program_outside_workspace_files_total"] = -1
+        expected = "MAIN:compiler_program_inventory_unavailable"
+    else:
+        manifest["version"] = "unknown"
+        expected = "MAIN:compiler_program_inventory_unavailable"
+    binding = reconcile_compiler_library_inputs(payload, inventory)
+    assert binding["status"] == "BLOCKED"
+    assert any(error == expected or error.startswith(expected + ":") for error in binding["errors"])
 
 
 @pytest.mark.parametrize("failure", [
@@ -363,19 +443,44 @@ def test_malformed_scope_is_unavailable_not_an_exception(checked, bad_meta):
     assert checked_source_errors(payload, atlas)
 
 
-@pytest.mark.parametrize("failure", [OSError, ValueError])
-def test_root_resolution_failure_is_explicit_unavailable_evidence(checked, monkeypatch, failure):
+def test_syntax_root_binding_does_not_requery_live_filesystem(checked, monkeypatch):
     payload, atlas = checked
     root = atlas["MAIN"]["project"]["root"]
     resolve = Path.resolve
     def denied(path, *args, **kwargs):
         if str(path) == root:
-            raise failure("fixture root unavailable")
+            raise AssertionError("snapshot binder must not resolve the live target root")
         return resolve(path, *args, **kwargs)
     monkeypatch.setattr(Path, "resolve", denied)
-    errors = checked_source_errors(payload, atlas)
-    assert "typescript:MAIN:project_root_unavailable" in errors
-    assert "typescript:MAIN:project_root_mismatch" in errors
+    assert checked_source_errors(payload, atlas) == []
+
+
+def test_real_checked_syntax_diagnostic_stays_syntax_scoped(checked):
+    from tools.engines.react_frontier_intelligence import (
+        _enrich_findings_with_ts_diagnostics, _ts_diagnostic_findings,
+    )
+
+    payload, atlas = checked
+    assert checked_source_errors(payload, atlas) == []
+    data = payload["projects"]["MAIN"]
+    assert data["mode"] == "syntax" and data["diagnostics"]
+    findings = _ts_diagnostic_findings(payload)
+    assert len(findings) == 1
+    assert findings[0]["risk"] == "compiler_reported_syntax_failure"
+    assert findings[0]["evidence_scope"] == "checked_syntax_files_only"
+    unrelated = [{"project": "MAIN", "file": "a.ts", "dimension": "react_security",
+                  "score": 5, "evidence": "static suspicion"}]
+    assert _enrich_findings_with_ts_diagnostics(unrelated, payload) == (unrelated, 0)
+
+
+@pytest.mark.parametrize("suffix", ["\\nested\\..", "\\."])
+def test_syntax_root_alias_cannot_borrow_atlas_identity(checked, tmp_path, suffix):
+    payload, atlas = checked
+    root = atlas["MAIN"]["project"]["root"]
+    alias = deepcopy(payload)
+    alias["projects"]["MAIN"]["project_root"] = root + suffix
+    assert "typescript:MAIN:project_root_mismatch" in checked_source_errors(alias, atlas)
+    assert write_receipt(tmp_path, alias, atlas)["status"] == "BLOCKED"
 
 
 @pytest.mark.parametrize("meta", [{"collector_run_id": "previous-run"}, None, "malformed"])
@@ -519,6 +624,261 @@ def test_semantic_manifest_budget_keeps_selected_root_without_diagnostic(tmp_pat
     assert semantic_diagnostic_source_errors(malformed, atlas["MAIN"]) == [
         "semantic_root_file_path_unbound"]
     assert "typescript:MAIN:semantic_context_not_snapshot_bound" in checked_source_errors(payload, atlas)
+
+
+def test_semantic_program_dependency_without_diagnostic_is_compared_to_atlas(tmp_path):
+    payload, atlas = collect(
+        tmp_path, {
+            "a.ts": 'import { value } from "./b"; export const result = value;',
+            "b.ts": "export const value = 42;",
+        }, "--semantic", "true",
+        project_config={"files": ["a.ts"], "compilerOptions": {"noLib": True, "types": []}},
+    )
+    data = payload["projects"]["MAIN"]
+    assert data["checked_source_manifest"]["selected_root_files"] == ["a.ts"]
+    assert all(row["file"] != "b.ts" for row in data["diagnostics"])
+    assert semantic_diagnostic_source_errors(data, atlas["MAIN"]) == []
+    assert semantic_program_source_errors(data, atlas["MAIN"]) == []
+    stale = deepcopy(atlas)
+    stale["MAIN"]["files"]["b.ts"]["hash"] = "0" * 64
+    assert semantic_program_source_errors(data, stale["MAIN"]) == [
+        "semantic_program_source_mismatch:b.ts"]
+    assert "typescript:MAIN:semantic_program_source_mismatch:b.ts" in checked_source_errors(
+        payload, stale)
+    assert "typescript:MAIN:semantic_context_not_snapshot_bound" in checked_source_errors(
+        payload, atlas)
+    receipt = write_receipt(tmp_path, payload, stale)
+    assert "typescript:MAIN:semantic_program_source_mismatch:b.ts" in receipt["errors"]
+    _, usable = evaluate_snapshot_bound_inputs(
+        contract_path=CODE_MAPS_DIR / "config/merge_simulation_input_contract.json",
+        raw_dir=tmp_path, expected_snapshot_id=build_atlas_commit(stale)["snapshot_id"],
+        payloads={"ts_diagnostics": payload},
+    )
+    assert "ts_diagnostics" not in usable
+
+
+def test_semantic_program_source_budget_and_missing_authority_remain_unbound(tmp_path):
+    payload, atlas = collect(
+        tmp_path, {
+            "a.ts": 'import { value } from "./b"; export const result = value;',
+            "b.ts": "export const value = 42;",
+        }, "--semantic", "true", "--maxFiles", "1",
+        project_config={"files": ["a.ts"], "compilerOptions": {"noLib": True, "types": []}},
+    )
+    data = payload["projects"]["MAIN"]
+    assert "semantic_program_source_inventory_incomplete" in semantic_program_source_errors(
+        data, atlas["MAIN"])
+    missing = deepcopy(atlas)
+    missing["MAIN"]["files"].pop("a.ts")
+    assert "semantic_program_source_unbound:a.ts" in semantic_program_source_errors(
+        data, missing["MAIN"])
+    malformed = deepcopy(data)
+    malformed["checked_source_manifest"].pop("program_project_source_files")
+    assert semantic_program_source_errors(malformed, atlas["MAIN"]) == [
+        "semantic_program_source_inventory_unavailable"]
+    assert "typescript:MAIN:semantic_context_not_snapshot_bound" in checked_source_errors(
+        payload, atlas)
+
+
+@pytest.mark.parametrize("declaration_text", [
+    "export interface Shape { x: number; }",
+    "\ufeffexport interface Shape { x: number; }\r\n",
+])
+def test_semantic_program_declaration_text_matches_owned_atlas_auxiliary(tmp_path, declaration_text):
+    from tools.core.atlas_typescript_inputs import capture_auxiliary_inputs
+
+    sources = {
+        "a.ts": 'import type { Shape } from "./types"; export const shape: Shape = { x: 1 };',
+        "types.d.ts": declaration_text,
+    }
+    payload, atlas = collect(
+        tmp_path, sources, "--semantic", "true",
+        project_config={"files": ["a.ts"], "compilerOptions": {"noLib": True, "types": []}},
+    )
+    root = tmp_path / "repo"
+    atlas["MAIN"]["files"].pop("types.d.ts")
+    atlas["MAIN"]["typescript_auxiliary_inputs"] = capture_auxiliary_inputs(
+        root, [(str(root / "types.d.ts"), "types.d.ts", "types.d.ts")])
+    data = payload["projects"]["MAIN"]
+    manifest = data["checked_source_manifest"]
+    assert manifest["program_project_declaration_files"] == ["types.d.ts"]
+    assert manifest["program_project_declaration_files_total"] == 1
+    assert "types.d.ts" not in manifest["selected_root_files"]
+    assert all(row["file"] != "types.d.ts" for row in data["diagnostics"])
+    assert semantic_program_declaration_errors(data, atlas["MAIN"]) == []
+
+    stale = deepcopy(atlas)
+    stale["MAIN"]["typescript_auxiliary_inputs"]["files"]["types.d.ts"]["host_text_sha256"] = "0" * 64
+    assert semantic_program_declaration_errors(data, stale["MAIN"]) == [
+        "semantic_program_declaration_mismatch:types.d.ts"]
+    assert "typescript:MAIN:semantic_program_declaration_mismatch:types.d.ts" in checked_source_errors(
+        payload, stale)
+    assert "typescript:MAIN:semantic_context_not_snapshot_bound" in checked_source_errors(
+        payload, atlas)
+    receipt = write_receipt(tmp_path, payload, stale)
+    assert "typescript:MAIN:semantic_program_declaration_mismatch:types.d.ts" in receipt["errors"]
+    _, usable = evaluate_snapshot_bound_inputs(
+        contract_path=CODE_MAPS_DIR / "config/merge_simulation_input_contract.json",
+        raw_dir=tmp_path, expected_snapshot_id=build_atlas_commit(stale)["snapshot_id"],
+        payloads={"ts_diagnostics": payload},
+    )
+    assert "ts_diagnostics" not in usable
+
+    missing = deepcopy(atlas)
+    missing["MAIN"]["typescript_auxiliary_inputs"]["files"].pop("types.d.ts")
+    assert semantic_program_declaration_errors(data, missing["MAIN"]) == [
+        "semantic_program_declaration_unbound:types.d.ts"]
+    malformed = deepcopy(data)
+    malformed["checked_source_manifest"].pop("program_project_declaration_files")
+    assert semantic_program_declaration_errors(malformed, atlas["MAIN"]) == [
+        "semantic_program_declaration_inventory_unavailable"]
+    unsafe_path = deepcopy(data)
+    unsafe_path["checked_source_manifest"]["program_project_declaration_files"] = ["../types.d.ts"]
+    assert semantic_program_declaration_errors(unsafe_path, atlas["MAIN"]) == [
+        "semantic_program_declaration_path_unbound"]
+    unsafe_root = deepcopy(atlas["MAIN"])
+    unsafe_root["project"]["root"] = str(root / ".." / "repo")
+    assert semantic_program_declaration_errors(data, unsafe_root) == [
+        "semantic_program_declaration_inventory_unavailable"]
+
+
+def test_semantic_program_declaration_budget_omission_is_explicit(tmp_path):
+    payload, atlas = collect(
+        tmp_path, {
+            "a.ts": 'import type { Shape } from "./types"; export const shape: Shape = { x: 1 };',
+            "types.d.ts": "export interface Shape { x: number; }",
+        }, "--semantic", "true", "--maxFiles", "1",
+        project_config={"files": ["a.ts"], "compilerOptions": {"noLib": True, "types": []}},
+    )
+    manifest = payload["projects"]["MAIN"]["checked_source_manifest"]
+    assert manifest["program_project_declaration_files_total"] == 1
+    assert manifest["program_project_declaration_files"] == []
+    assert "semantic_program_declaration_inventory_incomplete" in semantic_program_declaration_errors(
+        payload["projects"]["MAIN"], atlas["MAIN"])
+
+
+def test_semantic_cross_project_program_source_requires_unique_atlas_owner(tmp_path):
+    workspace = tmp_path / "workspace"
+    alpha, beta = workspace / "alpha", workspace / "beta"
+    alpha.mkdir(parents=True)
+    beta.mkdir()
+    alpha_source = 'import { value } from "../beta/b"; export const result = value;'
+    beta_source = "export const value = 42;"
+    (alpha / "a.ts").write_text(alpha_source, encoding="utf-8")
+    (beta / "b.ts").write_text(beta_source, encoding="utf-8")
+    config_content = {"files": ["a.ts"], "compilerOptions": {"noLib": True, "types": []}}
+    (alpha / "tsconfig.json").write_text(json.dumps(config_content), encoding="utf-8")
+    (beta / "tsconfig.json").write_text(json.dumps({
+        **config_content, "files": ["b.ts"],
+    }), encoding="utf-8")
+    runtime = tmp_path / "runtime.json"
+    output = tmp_path / "diagnostics.json"
+    runtime.write_text(json.dumps({
+        "workspace_root": str(workspace), "variations": {"ALPHA": "alpha", "BETA": "beta"},
+    }), encoding="utf-8")
+    result = subprocess.run(
+        ["node", str(CODE_MAPS_DIR / "tools/engines/ts_diagnostics_collector.cjs"),
+         "--config", str(runtime), "--out", str(output), "--semantic", "true", "--maxFiles", "8"],
+        cwd=CODE_MAPS_DIR, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    payload["collector_status"] = "OK"
+    atlas = {
+        "ALPHA": {"project": {"root": str(alpha)}, "files": {
+            "a.ts": {"hash": hashlib.sha256(alpha_source.encode()).hexdigest()},
+        }},
+        "BETA": {"project": {"root": str(beta)}, "files": {
+            "b.ts": {"hash": hashlib.sha256(beta_source.encode()).hexdigest()},
+        }},
+    }
+    data = payload["projects"]["ALPHA"]
+    manifest = data["checked_source_manifest"]
+    assert manifest["program_workspace_external_files"] == [{
+        "file": (beta / "b.ts").as_posix(), "declaration": False,
+    }]
+    assert manifest["program_workspace_external_files_total"] == 1
+    assert semantic_workspace_external_errors(data, atlas, "ALPHA") == []
+
+    stale = deepcopy(atlas)
+    stale["BETA"]["files"]["b.ts"]["hash"] = "0" * 64
+    assert semantic_workspace_external_errors(data, stale, "ALPHA") == [
+        "semantic_workspace_external_mismatch:BETA:b.ts"]
+    assert "typescript:ALPHA:semantic_workspace_external_mismatch:BETA:b.ts" in checked_source_errors(
+        payload, stale)
+    receipt = write_receipt(tmp_path, payload, stale)
+    assert "typescript:ALPHA:semantic_workspace_external_mismatch:BETA:b.ts" in receipt["errors"]
+
+    missing = deepcopy(atlas)
+    missing.pop("BETA")
+    assert semantic_workspace_external_errors(data, missing, "ALPHA") == [
+        "semantic_workspace_external_owner_unavailable"]
+    ambiguous = deepcopy(atlas)
+    ambiguous["MIRROR"] = deepcopy(ambiguous["BETA"])
+    assert semantic_workspace_external_errors(data, ambiguous, "ALPHA") == [
+        "semantic_workspace_external_owner_ambiguous"]
+    malformed = deepcopy(data)
+    malformed["checked_source_manifest"].pop("program_workspace_external_files")
+    assert semantic_workspace_external_errors(malformed, atlas, "ALPHA") == [
+        "semantic_workspace_external_inventory_unavailable"]
+    limited_output = tmp_path / "limited.json"
+    limited_run = subprocess.run(
+        ["node", str(CODE_MAPS_DIR / "tools/engines/ts_diagnostics_collector.cjs"),
+         "--config", str(runtime), "--out", str(limited_output), "--semantic", "true",
+         "--maxFiles", "1"],
+        cwd=CODE_MAPS_DIR, capture_output=True, text=True, timeout=30,
+    )
+    assert limited_run.returncode == 0, limited_run.stderr
+    limited = json.loads(limited_output.read_text(encoding="utf-8"))["projects"]["ALPHA"]
+    assert limited["checked_source_manifest"]["program_workspace_external_files_total"] == 1
+    assert limited["checked_source_manifest"]["program_workspace_external_files"] == []
+    assert semantic_workspace_external_errors(limited, atlas, "ALPHA") == [
+        "semantic_workspace_external_inventory_incomplete"]
+
+
+def test_semantic_cross_project_declaration_uses_unique_owned_auxiliary(tmp_path):
+    from tools.core.atlas_typescript_inputs import capture_auxiliary_inputs
+
+    workspace = tmp_path / "workspace"
+    alpha, beta = workspace / "alpha", workspace / "beta"
+    alpha.mkdir(parents=True)
+    beta.mkdir()
+    alpha_source = 'import { value } from "../beta/b"; export const result = value;'
+    beta_declaration = "export declare const value: number;"
+    (alpha / "a.ts").write_text(alpha_source, encoding="utf-8")
+    (beta / "b.d.ts").write_text(beta_declaration, encoding="utf-8")
+    for root, name in ((alpha, "a.ts"), (beta, "b.d.ts")):
+        (root / "tsconfig.json").write_text(json.dumps({
+            "files": [name], "compilerOptions": {"noLib": True, "types": []},
+        }), encoding="utf-8")
+    runtime, output = tmp_path / "runtime.json", tmp_path / "diagnostics.json"
+    runtime.write_text(json.dumps({
+        "workspace_root": str(workspace), "variations": {"ALPHA": "alpha", "BETA": "beta"},
+    }), encoding="utf-8")
+    result = subprocess.run(
+        ["node", str(CODE_MAPS_DIR / "tools/engines/ts_diagnostics_collector.cjs"),
+         "--config", str(runtime), "--out", str(output), "--semantic", "true", "--maxFiles", "8"],
+        cwd=CODE_MAPS_DIR, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    data = payload["projects"]["ALPHA"]
+    assert data["checked_source_manifest"]["program_workspace_external_files"] == [{
+        "file": (beta / "b.d.ts").as_posix(), "declaration": True,
+    }]
+    atlas = {
+        "ALPHA": {"project": {"root": str(alpha)}, "files": {
+            "a.ts": {"hash": hashlib.sha256(alpha_source.encode()).hexdigest()},
+        }},
+        "BETA": {"project": {"root": str(beta)}, "files": {},
+                 "typescript_auxiliary_inputs": capture_auxiliary_inputs(
+                     beta, [(str(beta / "b.d.ts"), "b.d.ts", "b.d.ts")])},
+    }
+    assert semantic_workspace_external_errors(data, atlas, "ALPHA") == []
+    stale = deepcopy(atlas)
+    stale["BETA"]["typescript_auxiliary_inputs"]["files"]["b.d.ts"]["host_text_sha256"] = "0" * 64
+    assert semantic_workspace_external_errors(data, stale, "ALPHA") == [
+        "semantic_workspace_external_mismatch:BETA:b.d.ts"]
 
 
 def test_semantic_source_host_read_matches_atlas_content_without_live_target_lookup(tmp_path, monkeypatch):

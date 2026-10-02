@@ -1,0 +1,352 @@
+{
+  "meta": {
+    "kind": "nexora.target_runtime_schema_mutation_advisory_fixtures",
+    "version": "v1",
+    "status": "syntax_ast_advisory_calibration",
+    "scope": "Single-file TypeScript syntax-AST external-response-to-typed-React-state and direct Zod-object-to-broader-type-cast advisory calibration only",
+    "authority": "Synthetic examples and bounded source-derived excerpts specify review disposition; they do not establish an observed target-repository defect or activate a public SAGE capability."
+  },
+  "cases": [
+    {
+      "id": "direct_json_cast_to_structured_state",
+      "expected": "advisory_candidate",
+      "engine_expectation": "advisory",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: unknown = await response.json();\n    setItems(raw as Item[]);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "typed_state_sink",
+        "unvalidated_cast_path"
+      ],
+      "claim_ceiling": "Review the exact producer-to-sink path and target-native malformed-payload test; no runtime defect is confirmed."
+    },
+    {
+      "id": "explicit_any_json_to_structured_state",
+      "expected": "advisory_candidate",
+      "engine_expectation": "advisory",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: any = await response.json();\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "explicit_any_value",
+        "typed_state_sink",
+        "same_block_source_sink"
+      ],
+      "claim_ceiling": "Review the exact producer-to-state path and target-native malformed-payload test; explicit any is not runtime validation and no defect is confirmed."
+    },
+    {
+      "id": "explicit_any_json_dominating_parse",
+      "expected": "guarded",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: any = await response.json();\n    ItemsSchema.array().parse(raw);\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "schema_parse_dominates_sink"
+      ],
+      "claim_ceiling": "A direct throwing parser statement before the setter is a local guard; do not emit a missing-validation advisory."
+    },
+    {
+      "id": "explicit_any_json_to_opaque_state",
+      "expected": "intentional_opaque",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\nexport function DebugPayload() {\n  const [rawPayload, setRawPayload] = useState<any>(null);\n  async function load() {\n    const response = await fetch('/debug');\n    const raw: any = await response.json();\n    setRawPayload(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "opaque_state_sink"
+      ],
+      "claim_ceiling": "An explicitly opaque state value does not establish a missing domain schema."
+    },
+    {
+      "id": "explicit_any_json_from_shadowed_fetch",
+      "expected": "producer_only_insufficient_sink",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    async function fetch() { return { json: async () => [{ id: 'local' }] }; }\n    const response = await fetch();\n    const raw: any = await response.json();\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "local_fetch_binding",
+        "typed_state_sink"
+      ],
+      "claim_ceiling": "A locally shadowed fetch is not the external network-response producer required by this advisory."
+    },
+    {
+      "id": "unannotated_json_to_typed_state",
+      "expected": "advisory_candidate",
+      "engine_expectation": "advisory",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw = await response.json();\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "global_fetch_response",
+        "direct_json_value",
+        "typed_state_sink",
+        "same_block_source_sink"
+      ],
+      "claim_ceiling": "Review the exact unannotated JSON-to-state path and target-native malformed-payload test; no runtime defect is confirmed."
+    },
+    {
+      "id": "inline_json_to_typed_state",
+      "expected": "advisory_candidate",
+      "engine_expectation": "advisory",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    setItems(await response.json());\n  }\n  return null;\n}",
+      "required_evidence": [
+        "global_fetch_response",
+        "inline_json_value",
+        "typed_state_sink",
+        "same_block_source_sink"
+      ],
+      "claim_ceiling": "A direct JSON call at the state setter is review evidence, not proof the response violates its runtime contract."
+    },
+    {
+      "id": "unannotated_json_dominating_parse",
+      "expected": "guarded",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw = await response.json();\n    ItemsSchema.array().parse(raw);\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "global_fetch_response",
+        "schema_parse_dominates_sink"
+      ],
+      "claim_ceiling": "A direct throwing parser statement before the setter is a local guard."
+    },
+    {
+      "id": "unannotated_json_assigned_parse_result",
+      "expected": "guarded",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw = await response.json();\n    const checked = ItemsSchema.array().parse(raw);\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "global_fetch_response",
+        "prior_throwing_parser_use"
+      ],
+      "claim_ceiling": "A prior parser call makes the missing-validation claim unresolved even if its result is not used by the setter."
+    },
+    {
+      "id": "unannotated_json_safe_parse_branch",
+      "expected": "guarded",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw = await response.json();\n    if (!ItemsSchema.array().safeParse(raw).success) return;\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "global_fetch_response",
+        "prior_safe_parse_branch"
+      ],
+      "claim_ceiling": "A safeParse guard is source-level validation evidence; do not label this path unvalidated without branch proof."
+    },
+    {
+      "id": "unannotated_json_to_opaque_state",
+      "expected": "intentional_opaque",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\nexport function DebugPayload() {\n  const [rawPayload, setRawPayload] = useState<unknown>(null);\n  async function load() {\n    const response = await fetch('/debug');\n    const raw = await response.json();\n    setRawPayload(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "global_fetch_response",
+        "opaque_state_sink"
+      ],
+      "claim_ceiling": "Explicitly opaque state does not establish a missing domain schema."
+    },
+    {
+      "id": "unannotated_json_from_local_fetch",
+      "expected": "producer_only_insufficient_sink",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    async function fetch() { return { json: async () => [{ id: 'local' }] }; }\n    const response = await fetch();\n    const raw = await response.json();\n    setItems(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "local_fetch_binding",
+        "typed_state_sink"
+      ],
+      "claim_ceiling": "Locally shadowed fetch cannot establish the network-response producer."
+    },
+    {
+      "id": "inline_json_before_fetch_response_declaration",
+      "expected": "producer_only_insufficient_sink",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    setItems(await response.json());\n    const response = await fetch('/items');\n  }\n  return null;\n}",
+      "required_evidence": [
+        "forward_response_binding",
+        "typed_state_sink"
+      ],
+      "claim_ceiling": "A response declared after the JSON sink is not an executable producer-to-sink path."
+    },
+    {
+      "id": "schema_parse_before_structured_state",
+      "expected": "guarded",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: unknown = await response.json();\n    const parsed = ItemsSchema.array().parse(raw);\n    setItems(parsed);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "schema_parse_dominates_sink"
+      ],
+      "claim_ceiling": "Do not emit a missing-validation advisory from this local path."
+    },
+    {
+      "id": "dominating_parse_before_explicit_cast",
+      "expected": "guarded",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: unknown = await response.json();\n    ItemsSchema.array().parse(raw);\n    setItems(raw as Item[]);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "schema_parse_dominates_sink"
+      ],
+      "claim_ceiling": "A direct throwing parser statement before the cast is a local validation guard; do not emit the advisory from this lexical path."
+    },
+    {
+      "id": "intentionally_opaque_response_state",
+      "expected": "intentional_opaque",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\nexport function DebugPayload() {\n  const [rawPayload, setRawPayload] = useState<unknown>(null);\n  async function load() {\n    const response = await fetch('/debug-payload');\n    const raw: unknown = await response.json();\n    setRawPayload(raw);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "opaque_state_sink"
+      ],
+      "claim_ceiling": "Do not require domain schema validation for an explicitly opaque state value."
+    },
+    {
+      "id": "lower_adapter_schema_guard",
+      "expected": "requires_cross_file_resolution",
+      "engine_expectation": "out_of_scope",
+      "source": "const [data, setData] = useState<any>(null);\nconst result = await strategy.generate(context);\nsetData(result);\n// The inspected adapter ultimately calls schema.safeParse(parsed).",
+      "required_evidence": [
+        "state_sink",
+        "callee_resolution",
+        "lower_adapter_validation",
+        "failure_result_handling"
+      ],
+      "claim_ceiling": "The hook alone cannot prove an unvalidated response; resolve the called adapter and separately review failure-result handling before any advisory."
+    },
+    {
+      "id": "generic_json_adapter_without_state_sink",
+      "expected": "producer_only_insufficient_sink",
+      "engine_expectation": "none",
+      "source": "async function fetchApi<T>(url: string): Promise<T> {\n  const response = await fetch(url);\n  if (!response.ok) throw new Error(response.statusText);\n  return response.json();\n}",
+      "required_evidence": [
+        "external_response_producer",
+        "missing_state_sink"
+      ],
+      "claim_ceiling": "A generic unschematized JSON producer alone is not a React-state mutation finding; trace an actual consumer first."
+    },
+    {
+      "id": "local_fetch_shadow_is_not_external_response",
+      "expected": "producer_only_insufficient_sink",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    async function fetch() { return { json: async () => [{ id: 'local' }] }; }\n    const response = await fetch();\n    const raw: unknown = await response.json();\n    setItems(raw as Item[]);\n  }\n  return null;\n}",
+      "required_evidence": [
+        "local_fetch_binding",
+        "typed_state_sink"
+      ],
+      "claim_ceiling": "A same-named local fetch function is not an external network-response producer."
+    },
+    {
+      "id": "corpus_unrelated_response_and_state_cast",
+      "expected": "producer_only_insufficient_sink",
+      "engine_expectation": "none",
+      "source": "import { useState } from 'react';\ntype Product = 'a' | 'b';\nexport function Workspace() {\n  const [selected, setSelected] = useState<Product>('a');\n  async function save() {\n    const response = await fetch('/workspace');\n    if (!response.ok) { const { error } = await response.json(); throw new Error(error.message); }\n  }\n  function choose(option: { value: string }) { setSelected(option.value as Product); }\n  return null;\n}",
+      "required_evidence": [
+        "unrelated_error_response",
+        "independent_state_cast"
+      ],
+      "claim_ceiling": "A JSON error response and a separate state cast in one file are not a linked response-to-state path."
+    },
+    {
+      "id": "corpus_giphy_numeric_offset_constructed_by_server",
+      "expected": "guarded",
+      "engine_expectation": "out_of_scope",
+      "source": "// In the request wrapper, searchSchema.parse(req.body) throws on invalid input.\n// In the handler, const { offset } = req.body.\nreturn res.status(200).json({ nextOffset: total === offset + 1 ? 0 : offset + 1 });\n// The UI calls setNextOffset(json.nextOffset) after res.ok.",
+      "required_evidence": [
+        "typed_state_sink",
+        "server_response_path",
+        "server_numeric_construction"
+      ],
+      "claim_ceiling": "Do not infer a missing numeric response guard from the UI file alone; the inspected server path constructs a number after input validation."
+    },
+    {
+      "id": "corpus_giphy_image_shape_needs_review",
+      "expected": "advisory_candidate",
+      "engine_expectation": "out_of_scope",
+      "source": "const responseBody = await response.json();\nconst gifImageUrl = responseBody.data?.[0]?.images?.fixed_height_downsampled?.url || null;\n// The server returns { image: gifImageUrl }.\n// The UI calls setGifImage(json.image || '').",
+      "required_evidence": [
+        "external_provider_json",
+        "server_response_path",
+        "typed_state_sink",
+        "truthy_value_type_unproven"
+      ],
+      "claim_ceiling": "Review whether the provider image field can be a truthy non-string value; fallback-to-empty does not prove a string. Do not call this a demonstrated runtime defect."
+    }
+  ],
+  "schema_strip_cases": [
+    {
+      "id": "direct_zod_object_broader_required_type",
+      "expected": "advisory",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "namespace_zod_interface_type",
+      "expected": "advisory",
+      "source": "import * as zz from 'zod';\ninterface Domain { id: string; history: string[] }\nconst Schema = zz.object({ id: zz.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "named_zod_alias",
+      "expected": "advisory",
+      "source": "import { z as zz } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = zz.object({ id: zz.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "same_declared_keys",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string(), history: z.array(z.string()) });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "optional_extra_type_field",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history?: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "passthrough_schema",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() }).passthrough();\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "loose_object_schema",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.looseObject({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "strict_object_schema",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.strictObject({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "transformed_schema",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() }).transform(v => ({ ...v, history: [] }));\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "other_library_named_z",
+      "expected": "none",
+      "source": "import { z } from 'other-validation';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "type_only_zod_import_is_not_runtime_parser",
+      "expected": "none",
+      "source": "import type { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "quoted_field_requires_unambiguous_feature_encoding",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; 'history:field': string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "two_step_unknown_cast",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as unknown as Domain; }"
+    },
+    {
+      "id": "shadowed_schema_binding",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { const Schema = { parse: (value: unknown) => value }; return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "shadowed_type_parameter",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load<Domain>(raw: unknown) { return Schema.parse(raw) as Domain; }"
+    },
+    {
+      "id": "safe_parse_result_is_not_parsed_value",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.safeParse(raw) as Domain; }"
+    },
+    {
+      "id": "degraded_parser",
+      "expected": "none",
+      "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain;"
+    }
+  ]
+}

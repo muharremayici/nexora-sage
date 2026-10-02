@@ -9,22 +9,42 @@ def project_dependency_failures(steps: list[dict[str, Any]]) -> dict[str, list[d
     """Project failed proof steps into roots and dependency-derived cascades."""
     by_id = {str(step.get("id") or ""): step for step in steps if str(step.get("id") or "")}
     failed_ids = {step_id for step_id, step in by_id.items() if not bool(step.get("passed"))}
+    if not failed_ids:
+        return {"root_causes": [], "cascaded_failures": []}
 
-    def failed_ancestors(step_id: str, seen: set[str] | None = None) -> set[str]:
-        seen = set() if seen is None else seen
-        if step_id in seen:
-            return set()
-        seen.add(step_id)
-        ancestors: set[str] = set()
-        for dependency in by_id[step_id].get("depends_on", []) or []:
+    edges: dict[str, set[str]] = {}
+    for step_id, step in by_id.items():
+        dependencies: set[str] = set()
+        if step.get("execution_status") == "NOT_EXECUTED_FAILURE_BUDGET":
+            for trigger in step.get("failure_collection_trigger_step_ids", []) or []:
+                trigger_id = str(trigger)
+                if trigger_id in failed_ids and trigger_id != step_id:
+                    dependencies.add(trigger_id)
+        for dependency in step.get("depends_on", []) or []:
             dependency_id = str(dependency)
             if dependency_id not in by_id:
                 continue
-            if dependency_failure_mode(by_id[step_id], dependency_id) == "advisory":
-                continue
+            if dependency_failure_mode(step, dependency_id) != "advisory":
+                dependencies.add(dependency_id)
+        edges[step_id] = dependencies
+
+    ancestor_cache: dict[str, set[str]] = {}
+
+    def failed_ancestors(step_id: str) -> set[str]:
+        if step_id in ancestor_cache:
+            return ancestor_cache[step_id]
+        ancestors: set[str] = set()
+        seen = {step_id}
+        pending = list(edges[step_id])
+        while pending:
+            dependency_id = pending.pop()
             if dependency_id in failed_ids:
                 ancestors.add(dependency_id)
-            ancestors.update(failed_ancestors(dependency_id, seen | {step_id}))
+            if dependency_id in seen:
+                continue
+            seen.add(dependency_id)
+            pending.extend(edges[dependency_id])
+        ancestor_cache[step_id] = ancestors
         return ancestors
 
     roots: list[dict[str, Any]] = []

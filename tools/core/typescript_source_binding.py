@@ -146,6 +146,89 @@ def capture_compiler_library_inputs(code_maps_dir: Path, run_id: str) -> dict[st
     return result
 
 
+def _reconcile_compiler_program_sources(
+    data: dict[str, Any], inventory: dict[str, Any], matched_reads: set[str],
+) -> tuple[list[str], list[str]]:
+    """Match bounded external Program text with the owner-held installation image."""
+    manifest = data.get("checked_source_manifest")
+    context = data.get("semantic_context")
+    if not isinstance(manifest, dict) or not isinstance(context, dict):
+        return ["compiler_program_inventory_unavailable"], []
+    files = manifest.get("files")
+    outside = manifest.get("program_outside_workspace_files")
+    count = manifest.get("program_outside_workspace_files_total")
+    source_total = manifest.get("source_files_total")
+    omitted = manifest.get("omitted_files")
+    other_counts = [manifest.get(key) for key in (
+        "program_project_source_files_total", "program_project_declaration_files_total",
+        "program_workspace_external_files_total",
+    )]
+    project_root = data.get("project_root")
+    workspace_root = context.get("workspace_root")
+    if (manifest.get("version") != "v1"
+            or manifest.get("hash_basis") != "sha256_utf8_source_text"
+            or manifest.get("scope") != "semantic_context_not_snapshot_bound"
+            or not isinstance(files, list) or any(not isinstance(row, dict) for row in files)
+            or not isinstance(outside, list) or any(not isinstance(row, dict) for row in outside)
+            or any(type(value) is not int or value < 0
+                   for value in [count, source_total, omitted, *other_counts])
+            or source_total != len(files) + omitted
+            or source_total != count + sum(other_counts)
+            or len(outside) > count
+            or not isinstance(project_root, str) or not Path(project_root).is_absolute()
+            or not isinstance(workspace_root, str) or not Path(workspace_root).is_absolute()
+            or not Path(project_root).is_relative_to(Path(workspace_root))):
+        return ["compiler_program_inventory_unavailable"], []
+    errors: set[str] = set()
+    if len(outside) != count:
+        errors.add("compiler_program_inventory_incomplete")
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    for row in files:
+        name = row.get("file")
+        if isinstance(name, str):
+            indexed.setdefault(name, []).append(row)
+    library_root = Path(inventory["library_root"])
+    seen: set[str] = set()
+    matched_program: set[str] = set()
+    for entry in outside:
+        candidate_text = entry.get("file")
+        declaration = entry.get("declaration")
+        if (not isinstance(candidate_text, str) or not candidate_text
+                or "\\" in candidate_text or type(declaration) is not bool):
+            errors.add("compiler_program_path_unbound")
+            continue
+        candidate = Path(candidate_text)
+        if (not candidate.is_absolute() or ".." in candidate.parts
+                or candidate.as_posix() != candidate_text
+                or candidate.is_relative_to(Path(workspace_root))
+                or candidate_text in seen):
+            errors.add("compiler_program_path_unbound")
+            continue
+        seen.add(candidate_text)
+        manifest_name = os.path.relpath(candidate, Path(project_root)).replace("\\", "/")
+        rows = indexed.get(manifest_name, [])
+        if len(rows) != 1:
+            errors.add("compiler_program_manifest_unavailable")
+            continue
+        if not candidate.is_relative_to(library_root):
+            errors.add("compiler_program_nonlibrary_input_unbound")
+            continue
+        relative = candidate.relative_to(library_root).as_posix()
+        expected = inventory["files"].get(relative)
+        digest = rows[0].get("sha256")
+        if (not declaration or not relative.startswith("lib") or not relative.endswith(".d.ts")
+                or not isinstance(expected, dict)
+                or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or digest != expected.get("host_text_sha256")
+                or relative not in matched_reads):
+            errors.add(f"compiler_program_source_unbound:{relative}")
+        else:
+            matched_program.add(relative)
+    if not matched_program:
+        errors.add("compiler_program_files_unavailable")
+    return sorted(errors), sorted(matched_program)
+
+
 def reconcile_compiler_library_inputs(payload: Any, inventory: dict[str, Any]) -> dict[str, Any]:
     """Compare actual host reads with the separately held pre-invocation image.
 
@@ -216,7 +299,11 @@ def reconcile_compiler_library_inputs(payload: Any, inventory: dict[str, Any]) -
         # An empty trace is not a positive library-read proof (e.g. noLib).
         if not matched:
             errors.add(f"{project}:compiler_library_reads_unavailable")
-        result["projects"][project] = {"matched_files": sorted(matched)}
+        program_errors, matched_program = _reconcile_compiler_program_sources(data, inventory, matched)
+        errors.update(f"{project}:{issue}" for issue in program_errors)
+        result["projects"][project] = {
+            "matched_files": sorted(matched), "matched_program_files": matched_program,
+        }
     result["errors"] = sorted(errors)
     result["status"] = "MATCHED_POSITIVE_READS" if not errors else "BLOCKED"
     return result
@@ -882,6 +969,260 @@ def semantic_diagnostic_source_errors(data: Any, project_atlas: Any) -> list[str
     return sorted(errors)
 
 
+def semantic_program_source_errors(data: Any, project_atlas: Any) -> list[str]:
+    """Compare recorded project-local non-declaration Program files to Atlas.
+
+    The collector's count is an observation, not independent proof of the
+    entire Program. Even complete correspondence here cannot bind options,
+    compiler libraries, excluded dependencies, physical links or one atomic
+    filesystem image; semantic lineage remains blocked elsewhere.
+    """
+    unavailable = ["semantic_program_source_inventory_unavailable"]
+    if not isinstance(data, dict) or not isinstance(project_atlas, dict):
+        return unavailable
+    manifest = data.get("checked_source_manifest")
+    atlas_files = project_atlas.get("files")
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    names = manifest.get("program_project_source_files") if isinstance(manifest, dict) else None
+    total = manifest.get("program_project_source_files_total") if isinstance(manifest, dict) else None
+    source_total = manifest.get("source_files_total") if isinstance(manifest, dict) else None
+    if (data.get("status") != "OK" or data.get("mode") != "semantic"
+            or not isinstance(manifest, dict) or manifest.get("version") != "v1"
+            or manifest.get("hash_basis") != "sha256_utf8_source_text"
+            or manifest.get("scope") != "semantic_context_not_snapshot_bound"
+            or not isinstance(files, list) or not isinstance(names, list)
+            or not isinstance(atlas_files, dict)
+            or type(total) is not int or type(source_total) is not int
+            or total < 0 or total > source_total or len(names) > total
+            or any(not isinstance(row, dict) for row in files)
+            or any(not isinstance(name, str) for name in names)
+            or len(names) != len(set(names))):
+        return unavailable
+    errors: set[str] = set()
+    if total == 0:
+        errors.add("semantic_program_source_inventory_empty")
+    elif len(names) != total:
+        errors.add("semantic_program_source_inventory_incomplete")
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    for row in files:
+        name = row.get("file")
+        if isinstance(name, str) and name in names:
+            indexed.setdefault(name, []).append(row)
+    for name in names:
+        if (not name or "\\" in name or ":" in name or name.startswith("/")
+                or ".." in PurePosixPath(name).parts
+                or str(PurePosixPath(name)) != name):
+            errors.add("semantic_program_file_path_unbound")
+            continue
+        matches = indexed.get(name, [])
+        if len(matches) != 1:
+            errors.add(f"semantic_program_manifest_{'ambiguous' if matches else 'missing'}:{name}")
+            continue
+        atlas_row = atlas_files.get(name)
+        atlas_digest = atlas_row.get("hash") if isinstance(atlas_row, dict) else None
+        if not _valid_atlas_source_hash(atlas_digest):
+            errors.add(f"semantic_program_source_unbound:{name}")
+        elif not _atlas_source_hash_matches(atlas_digest, matches[0]):
+            errors.add(f"semantic_program_source_mismatch:{name}")
+    return sorted(errors)
+
+
+def semantic_program_declaration_errors(data: Any, project_atlas: Any) -> list[str]:
+    """Match captured project-local declaration SourceFile text to Atlas.
+
+    This compares only manifest-covered declarations. Their observed total
+    cannot independently prove complete Program or physical input authority.
+    """
+    unavailable = ["semantic_program_declaration_inventory_unavailable"]
+    if not isinstance(data, dict) or not isinstance(project_atlas, dict):
+        return unavailable
+    manifest = data.get("checked_source_manifest")
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    names = manifest.get("program_project_declaration_files") if isinstance(manifest, dict) else None
+    total = manifest.get("program_project_declaration_files_total") if isinstance(manifest, dict) else None
+    source_total = manifest.get("source_files_total") if isinstance(manifest, dict) else None
+    project_source_total = manifest.get("program_project_source_files_total") if isinstance(manifest, dict) else None
+    metadata = project_atlas.get("project")
+    root = metadata.get("root") if isinstance(metadata, dict) else None
+    observed_root = data.get("project_root")
+    if (data.get("status") != "OK" or data.get("mode") != "semantic"
+            or not isinstance(manifest, dict) or manifest.get("version") != "v1"
+            or manifest.get("hash_basis") != "sha256_utf8_source_text"
+            or manifest.get("scope") != "semantic_context_not_snapshot_bound"
+            or not isinstance(files, list) or not isinstance(names, list)
+            or type(total) is not int or type(source_total) is not int
+            or type(project_source_total) is not int
+            or total < 0 or project_source_total < 0
+            or total + project_source_total > source_total or len(names) > total
+            or any(not isinstance(row, dict) for row in files)
+            or any(not isinstance(name, str) for name in names)
+            or len(names) != len(set(names))
+            or not isinstance(root, str) or not root or not Path(root).is_absolute()
+            or ".." in Path(root).parts
+            or not isinstance(observed_root, str) or ".." in Path(observed_root).parts
+            or Path(observed_root) != Path(root)):
+        return unavailable
+    if total == 0:
+        return []
+    errors: set[str] = set()
+    if len(names) != total:
+        errors.add("semantic_program_declaration_inventory_incomplete")
+    auxiliary = project_atlas.get("typescript_auxiliary_inputs")
+    entries = auxiliary.get("files") if isinstance(auxiliary, dict) else None
+    if (not isinstance(auxiliary, dict) or auxiliary.get("version") != "v1"
+            or auxiliary.get("status") not in {"captured", "partial"}
+            or auxiliary.get("scope") != "owned_walk_positive_inputs_only"
+            or auxiliary.get("negative_resolution_authority") is not False
+            or auxiliary.get("project_root") != Path(root).as_posix()
+            or not isinstance(entries, dict)):
+        errors.add("semantic_program_declaration_auxiliary_unavailable")
+        entries = {}
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    for row in files:
+        name = row.get("file")
+        if isinstance(name, str) and name in names:
+            indexed.setdefault(name, []).append(row)
+    for name in names:
+        if (not name or "\\" in name or ":" in name or name.startswith("/")
+                or ".." in PurePosixPath(name).parts
+                or str(PurePosixPath(name)) != name
+                or not name.lower().endswith((".d.ts", ".d.mts", ".d.cts"))):
+            errors.add("semantic_program_declaration_path_unbound")
+            continue
+        matches = indexed.get(name, [])
+        if len(matches) != 1:
+            errors.add(f"semantic_program_declaration_manifest_{'ambiguous' if matches else 'missing'}:{name}")
+            continue
+        entry = entries.get(name)
+        digest = entry.get("host_text_sha256") if isinstance(entry, dict) else None
+        if (not isinstance(entry, dict) or entry.get("status") != "ok"
+                or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+            errors.add(f"semantic_program_declaration_unbound:{name}")
+        elif matches[0].get("sha256") != digest:
+            errors.add(f"semantic_program_declaration_mismatch:{name}")
+    return sorted(errors)
+
+
+def semantic_workspace_external_errors(
+    data: Any, atlas: dict[str, Any], project: str,
+) -> list[str]:
+    """Compare bounded out-of-project Program text only to a unique Atlas owner.
+
+    This is lexical, cross-project content correspondence. The collector's
+    list/count and workspace root cannot prove complete Program membership,
+    physical ownership, or semantic lineage.
+    """
+    unavailable = ["semantic_workspace_external_inventory_unavailable"]
+    if not isinstance(data, dict) or not isinstance(atlas, dict):
+        return unavailable
+    current = atlas.get(project)
+    metadata = current.get("project") if isinstance(current, dict) else None
+    root_text = metadata.get("root") if isinstance(metadata, dict) else None
+    context = data.get("semantic_context")
+    workspace_text = context.get("workspace_root") if isinstance(context, dict) else None
+    manifest = data.get("checked_source_manifest")
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    externals = manifest.get("program_workspace_external_files") if isinstance(manifest, dict) else None
+    total = manifest.get("program_workspace_external_files_total") if isinstance(manifest, dict) else None
+    source_total = manifest.get("source_files_total") if isinstance(manifest, dict) else None
+    local_source_total = manifest.get("program_project_source_files_total") if isinstance(manifest, dict) else None
+    local_declaration_total = (
+        manifest.get("program_project_declaration_files_total") if isinstance(manifest, dict) else None
+    )
+    if (data.get("status") != "OK" or data.get("mode") != "semantic"
+            or not isinstance(manifest, dict) or manifest.get("version") != "v1"
+            or manifest.get("hash_basis") != "sha256_utf8_source_text"
+            or manifest.get("scope") != "semantic_context_not_snapshot_bound"
+            or not isinstance(files, list) or any(not isinstance(row, dict) for row in files)
+            or not isinstance(externals, list) or any(not isinstance(row, dict) for row in externals)
+            or any(not isinstance(row.get("file"), str)
+                   or type(row.get("declaration")) is not bool for row in externals)
+            or len({row["file"] for row in externals}) != len(externals)
+            or any(type(value) is not int or value < 0 for value in
+                   (total, source_total, local_source_total, local_declaration_total))
+            or total + local_source_total + local_declaration_total > source_total
+            or len(externals) > total
+            or not isinstance(root_text, str) or not Path(root_text).is_absolute()
+            or ".." in Path(root_text).parts
+            or not isinstance(workspace_text, str) or not Path(workspace_text).is_absolute()
+            or ".." in Path(workspace_text).parts
+            or not isinstance(data.get("project_root"), str)
+            or Path(data["project_root"]) != Path(root_text)
+            or not Path(root_text).is_relative_to(Path(workspace_text))):
+        return unavailable
+    if total == 0:
+        return []
+    errors: set[str] = set()
+    if len(externals) != total:
+        errors.add("semantic_workspace_external_inventory_incomplete")
+    root = Path(root_text)
+    workspace = Path(workspace_text)
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    for row in files:
+        name = row.get("file")
+        if isinstance(name, str):
+            indexed.setdefault(name, []).append(row)
+    for external in externals:
+        raw = external["file"]
+        candidate = Path(raw)
+        if (not raw or "\\" in raw or not candidate.is_absolute()
+                or ".." in candidate.parts or candidate.as_posix() != raw
+                or not candidate.is_relative_to(workspace)
+                or candidate.is_relative_to(root)):
+            errors.add("semantic_workspace_external_path_unbound")
+            continue
+        manifest_name = os.path.relpath(candidate, root).replace("\\", "/")
+        matches = indexed.get(manifest_name, [])
+        if len(matches) != 1:
+            errors.add("semantic_workspace_external_manifest_unavailable")
+            continue
+        owners: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
+        for owner, payload in atlas.items():
+            if owner in {project, "symbols"} or not isinstance(payload, dict):
+                continue
+            project_meta = payload.get("project")
+            owner_root_text = project_meta.get("root") if isinstance(project_meta, dict) else None
+            if (not isinstance(owner_root_text, str) or not Path(owner_root_text).is_absolute()
+                    or ".." in Path(owner_root_text).parts):
+                continue
+            owner_root = Path(owner_root_text)
+            if not candidate.is_relative_to(owner_root):
+                continue
+            relative = candidate.relative_to(owner_root).as_posix()
+            inventory = payload.get("typescript_auxiliary_inputs") if external["declaration"] else payload.get("files")
+            entries = inventory.get("files") if external["declaration"] and isinstance(inventory, dict) else inventory
+            if isinstance(entries, dict) and isinstance(entries.get(relative), dict):
+                owners.append((str(owner), relative, entries[relative], payload))
+        if not owners:
+            errors.add("semantic_workspace_external_owner_unavailable")
+            continue
+        if len(owners) != 1:
+            errors.add("semantic_workspace_external_owner_ambiguous")
+            continue
+        owner, relative, entry, payload = owners[0]
+        if external["declaration"]:
+            auxiliary = payload.get("typescript_auxiliary_inputs")
+            digest = entry.get("host_text_sha256")
+            if (not relative.lower().endswith((".d.ts", ".d.mts", ".d.cts"))
+                    or not isinstance(auxiliary, dict) or auxiliary.get("version") != "v1"
+                    or auxiliary.get("status") not in {"captured", "partial"}
+                    or auxiliary.get("scope") != "owned_walk_positive_inputs_only"
+                    or auxiliary.get("negative_resolution_authority") is not False
+                    or auxiliary.get("project_root") != Path(payload["project"]["root"]).as_posix()
+                    or entry.get("status") != "ok"
+                    or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+                errors.add(f"semantic_workspace_external_unbound:{owner}:{relative}")
+            elif matches[0].get("sha256") != digest:
+                errors.add(f"semantic_workspace_external_mismatch:{owner}:{relative}")
+        else:
+            digest = entry.get("hash")
+            if not _valid_atlas_source_hash(digest):
+                errors.add(f"semantic_workspace_external_unbound:{owner}:{relative}")
+            elif not _atlas_source_hash_matches(digest, matches[0]):
+                errors.add(f"semantic_workspace_external_mismatch:{owner}:{relative}")
+    return sorted(errors)
+
+
 def checked_source_errors(payload: Any, atlas: dict[str, Any]) -> list[str]:
     if not isinstance(payload, dict) or payload.get("collector_status") != "OK":
         return ["typescript_collector_unavailable"]
@@ -953,6 +1294,9 @@ def checked_source_errors(payload: Any, atlas: dict[str, Any]) -> list[str]:
             errors.extend(prefix + issue for issue in semantic_workspace_read_errors(context, atlas.get(project)))
             errors.extend(prefix + issue for issue in semantic_config_root_read_errors(data, atlas.get(project)))
             errors.extend(prefix + issue for issue in semantic_diagnostic_source_errors(data, atlas.get(project)))
+            errors.extend(prefix + issue for issue in semantic_program_source_errors(data, atlas.get(project)))
+            errors.extend(prefix + issue for issue in semantic_program_declaration_errors(data, atlas.get(project)))
+            errors.extend(prefix + issue for issue in semantic_workspace_external_errors(data, atlas, project))
             continue  # Complete observations cannot authorize their own snapshot binding.
         if (
             data.get("status") != "OK_SYNTAX_ONLY" or data.get("mode") != "syntax"
@@ -969,12 +1313,20 @@ def checked_source_errors(payload: Any, atlas: dict[str, Any]) -> list[str]:
         project_meta = project_atlas.get("project")
         root = project_meta.get("root") if isinstance(project_meta, dict) else None
         observed_root = data.get("project_root")
-        root_matches = False
-        if isinstance(root, str) and root and isinstance(observed_root, str) and observed_root:
-            try:
-                root_matches = Path(root).resolve() == Path(observed_root).resolve()
-            except (OSError, ValueError):
-                errors.append(prefix + "project_root_unavailable")
+        # Snapshot binding compares the recorded lexical root identity. Resolving
+        # either path here would consult mutable target filesystem state after
+        # Atlas and the collector captured their respective inputs.
+        roots = (root, observed_root)
+        roots_valid = all(
+            isinstance(value, str) and bool(value) and Path(value).is_absolute()
+            and not {".", ".."}.intersection(value.replace("\\", "/").split("/"))
+            for value in roots
+        )
+        if not roots_valid:
+            errors.append(prefix + "project_root_unavailable")
+        root_matches = (
+            roots_valid and root.replace("\\", "/") == observed_root.replace("\\", "/")
+        )
         if not root_matches:
             errors.append(prefix + "project_root_mismatch")
         files = manifest.get("files")

@@ -1136,7 +1136,13 @@ def write_preflight(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate an external-target preflight projection.")
-    parser.add_argument("target_root")
+    parser.add_argument("target_root", nargs="?", help="Repository root (positional form).")
+    parser.add_argument(
+        "--target-root",
+        dest="target_root_option",
+        metavar="REPOSITORY",
+        help="Repository root (documented option form).",
+    )
     parser.add_argument("--projects", help="Comma-separated runtime project filter requested by the caller.")
     parser.add_argument(
         "--trust-class",
@@ -1145,7 +1151,12 @@ def main() -> int:
         help="Target trust classification. Hostile repositories are rejected because V1 has no hostile-input isolation claim.",
     )
     args = parser.parse_args()
-    payload = write_preflight(args.target_root, projects=args.projects, trust_class=args.trust_class)
+    if args.target_root and args.target_root_option:
+        parser.error("choose one target form: positional TARGET_ROOT or --target-root REPOSITORY")
+    target_root = args.target_root_option or args.target_root
+    if not target_root:
+        parser.error("a target repository is required: TARGET_ROOT or --target-root REPOSITORY")
+    payload = write_preflight(target_root, projects=args.projects, trust_class=args.trust_class)
     print(json.dumps(payload.get("summary", {}), ensure_ascii=False))
     return 0 if payload.get("summary", {}).get("status") in {"PASS", "ATTENTION"} else 1
 

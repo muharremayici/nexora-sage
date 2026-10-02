@@ -42,7 +42,7 @@ from tools.core.import_classifier import import_specifier_from_audit_detail
 from tools.core.atlas_integrity import ATLAS_COMMIT_KIND, ATLAS_COMMIT_VERSION
 from tools.core.state_flow import TRANSITIVE_HOOK_COVERAGE
 from tools.core.external_target_generation import external_target_output_slug, resolve_external_target_artifact_dir
-from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
 
 BASE_DIR = Path(_ROOT)
 TARGET_ROOT = Path(CONFIG_ROOT)
@@ -437,9 +437,15 @@ def _work_queue_brief_policy() -> dict[str, Any]:
 def _symbol_search_policy() -> dict[str, Any]:
     contract = _agent_surface_contract()
     policy = contract.get("symbol_search_policy") if isinstance(contract.get("symbol_search_policy"), dict) else {}
+    for key in ("brief_max_visible_items", "machine_max_visible_items"):
+        value = policy.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"Missing or invalid symbol search limit: {key}")
     return {
         "max_candidate_rows_per_source": max(1, int(policy.get("max_candidate_rows_per_source") or 1)),
         "ambiguity_preview_items": max(1, int(policy.get("ambiguity_preview_items") or 1)),
+        "brief_max_visible_items": policy["brief_max_visible_items"],
+        "machine_max_visible_items": policy["machine_max_visible_items"],
         "agent_rule": str(policy.get("agent_rule") or "Symbol search policy is missing from config/agent_surface_contract.json."),
     }
 
@@ -1840,56 +1846,538 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
         return None
 
 
+def _symbol_search_match_score(query: str, name: str, file_path: str) -> tuple[int, str]:
+    q = query.lower().strip()
+    name_l = str(name or "").lower()
+    file_l = str(file_path or "").replace("\\", "/").lower()
+    filename = Path(file_l).name
+    stem = Path(filename).stem
+    if not q:
+        return (99, file_l)
+    tokens = [token for token in re.split(r"[^a-z0-9]+", f"{name_l}/{file_l}") if token]
+    segments = [segment for segment in file_l.split("/") if segment]
+    if q in {name_l, file_l, filename, stem}:
+        return (0, file_l)
+    if q in tokens:
+        return (1, file_l)
+    if q in {Path(segment).stem for segment in segments}:
+        return (2, file_l)
+    if name_l.startswith(q) or filename.startswith(q) or stem.startswith(q):
+        return (3, file_l)
+    if q in name_l or q in file_l:
+        return (4, file_l)
+    return (99, file_l)
+
+
+def _symbol_search_unicode_lower(value: str | None) -> str:
+    """Match the Atlas fallback's Python lower() semantics in SQLite search."""
+    return str(value or "").lower()
+
+
+def _symbol_search_candidate_sort_key(query: str, row: dict[str, Any]) -> tuple[int, int, int, str, str, int]:
+    needle = str(query or "").lower()
+    indexed_path = str(row.get("file") or "").replace("\\", "/").lower()
+    repo_path = str(row.get("repo_relative_path") or indexed_path).replace("\\", "/").lower()
+    exact_candidate = bool(needle) and needle in {
+        str(row.get("name") or "").lower(),
+        str(row.get("member_name") or "").lower(),
+        indexed_path,
+        Path(indexed_path).name,
+    }
+    return (
+        0 if exact_candidate else 1,
+        int(row.get("match_score") if row.get("match_score") is not None else 99),
+        0 if str(row.get("project") or "").upper() == "MAIN" else 1,
+        repo_path,
+        str(row.get("name") or ""),
+        int(row.get("line") or 0),
+    )
+
+
+def _symbol_search_repo_relative(project_path: str, rel_path: str) -> str:
+    project_path = str(project_path or "").replace("\\", "/").strip("/")
+    if project_path in {".", "./"}:
+        project_path = ""
+    if project_path.startswith("./"):
+        project_path = project_path[2:].strip("/")
+    rel_path = str(rel_path or "").replace("\\", "/").strip("/")
+    if rel_path.startswith("./"):
+        rel_path = rel_path[2:].strip("/")
+    if project_path and rel_path and rel_path != project_path and not rel_path.startswith(f"{project_path}/"):
+        return f"{project_path}/{rel_path}".strip("/")
+    return rel_path
+
+
+def _symbol_search_sqlite_path_rank(query: str, rel_path: str, *, ascii_token_query: bool) -> int:
+    """Cheap indexed-path rank for SQLite source-cap selection."""
+    needle = str(query or "").lower()
+    path = str(rel_path or "").replace("\\", "/").lower()
+    filename = path.rsplit("/", 1)[-1]
+    dot = filename.rfind(".")
+    stem = filename[:dot] if dot > 0 else filename
+    if needle == stem:
+        return 0
+    # ASCII segment-stem hits are already stronger SQL token hits.
+    if not ascii_token_query:
+        for segment in path.split("/"):
+            split = segment.rfind(".")
+            if needle == (segment[:split] if split > 0 else segment):
+                return 2
+    if filename.startswith(needle) or stem.startswith(needle):
+        return 3
+    return 4
+
+
+def _symbol_search_register_derived_path_rank(
+    conn: sqlite3.Connection, query: str, *, ascii_token_query: bool,
+) -> None:
+    """Register the Python-lower path rank after scope/coverage read begins."""
+    conn.create_function(
+        "sage_path_rank", 1,
+        lambda path: _symbol_search_sqlite_path_rank(
+            query, path, ascii_token_query=ascii_token_query),
+        deterministic=True,
+    )
+
+
+def _symbol_search_derived_order(alias: str, query: str) -> tuple[str, tuple[Any, ...], bool]:
+    """One pre-cap ranking contract for method and action syntax tables."""
+    if alias not in {"m", "a", "b", "c"}:
+        raise ValueError("Unsupported derived symbol search alias")
+    q = str(query or "").lower()
+    ascii_token_query = bool(re.fullmatch(r"[a-z0-9]+", q))
+    token_sql = (
+        f"('/' || sage_lower({alias}.name) || '/' || sage_lower({alias}.member_name) "
+        "|| '/' || sage_lower(files.rel_path) || '/') GLOB ?"
+        if ascii_token_query else "0"
+    )
+    basename_sql = (
+        "substr(sage_lower(files.rel_path), -length(?)) = ? "
+        "AND (length(sage_lower(files.rel_path)) = length(?) "
+        "OR substr(sage_lower(files.rel_path), -length(?) - 1, 1) = '/')"
+    )
+    order_sql = f"""
+        CASE WHEN sage_lower({alias}.name) = ? OR sage_lower({alias}.member_name) = ?
+                  OR sage_lower(files.rel_path) = ? OR {basename_sql}
+             THEN 0 ELSE 1 END,
+        min(
+            sage_path_rank(files.rel_path),
+            CASE
+                WHEN {token_sql} THEN 1
+                WHEN substr(sage_lower({alias}.name), 1, length(?)) = ?
+                  OR substr(sage_lower({alias}.member_name), 1, length(?)) = ? THEN 3
+                ELSE 4
+            END
+        ),
+        CASE WHEN upper(files.project_key) = 'MAIN' THEN 0 ELSE 1 END,
+        sage_lower(files.rel_path), files.project_key, {alias}.line, {alias}.end_line
+    """
+    params: tuple[Any, ...] = (
+        q, q, q, q, q, q, q,
+        *((f"*[^a-z0-9]{q}[^a-z0-9]*",) if ascii_token_query else ()),
+        q, q, q, q,
+    )
+    return order_sql, params, ascii_token_query
+
+
+def _find_class_method_search_matches(
+    query: str, project: str | None = None, raw_dir: Path | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Read derived method syntax only; never migrate, rescan or load Atlas."""
+    coverage = {
+        "status": "unavailable", "reason": "missing_sqlite_index",
+        "scope": "recorded_identifier_named_class_methods_only",
+        "indexed_files": 0, "projected_files": 0, "partial_files": 0,
+        "unprojected_files": 0, "source_tree_complete": False,
+    }
+    db_path = Path(native_filesystem_path((raw_dir or RAW_DIR) / "codemaps.db"))
+    if not db_path.exists():
+        return [], coverage
+    selected = str(project or "").strip()
+    scoped = bool(selected and selected.lower() not in {"*", "all", "any"})
+    clause = "WHERE sage_lower(files.project_key) = sage_lower(?)" if scoped else ""
+    project_params = [selected] if scoped else []
+    limit = _symbol_search_policy()["max_candidate_rows_per_source"]
+    try:
+        uri = sqlite_read_only_uri(db_path)
+        with closing(sqlite3.connect(uri, uri=True,
+                                    timeout=float(sqlite_read_timeout_seconds()))) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.create_function("sage_lower", 1, _symbol_search_unicode_lower, deterministic=True)
+            conn.execute("BEGIN;")  # One read snapshot for coverage and candidate rows.
+            counts = conn.execute(
+                f"""SELECT class_method_search_status AS status, COUNT(*) AS count
+                    FROM files {clause} GROUP BY class_method_search_status;""",
+                tuple(project_params),
+            ).fetchall()
+            for row in counts:
+                count = int(row["count"])
+                coverage["indexed_files"] += count
+                if row["status"] == "recorded_class_methods":
+                    coverage["projected_files"] += count
+                elif row["status"] == "partial_recorded_class_methods":
+                    coverage["partial_files"] += count
+                else:
+                    coverage["unprojected_files"] += count
+            where = "AND sage_lower(files.project_key) = sage_lower(?)" if scoped else ""
+            q = str(query).lower()
+            order_sql, order_params, ascii_token_query = _symbol_search_derived_order("m", q)
+            _symbol_search_register_derived_path_rank(conn, q, ascii_token_query=ascii_token_query)
+            rows = conn.execute(
+                f"""SELECT m.*, files.project_key, files.rel_path, projects.path
+                    FROM symbol_search_members m
+                    JOIN files ON files.file_id = m.file_id
+                    LEFT JOIN projects ON projects.project_key = files.project_key
+                    WHERE (instr(sage_lower(m.name), ?) > 0 OR instr(sage_lower(files.rel_path), ?) > 0)
+                    {where}
+                    ORDER BY {order_sql}, m.member_id
+                    LIMIT ?;""",
+                tuple([q, q, *project_params, *order_params, limit + 1]),
+            ).fetchall()
+        missing = coverage["partial_files"] + coverage["unprojected_files"]
+        coverage["status"] = "partial" if missing else "available" if coverage["indexed_files"] else "unavailable"
+        coverage["reason"] = "incomplete_recorded_evidence" if missing else "recorded_evidence_only" if coverage["indexed_files"] else "no_indexed_files_in_scope"
+        truncated = len(rows) > limit
+        matches = []
+        for row in rows[:limit]:
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
+                        _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
+            matches.append({
+                "name": row["name"], "type": "ClassMethod",
+                "declaring_symbol": row["declaring_symbol"], "declaring_line": row["declaring_line"],
+                "member_name": row["member_name"], "is_static": bool(row["is_static"]),
+                "project": row["project_key"], "file": row["rel_path"],
+                "repo_relative_path": repo_rel, "atlas_node": f"{row['project_key']}::{row['rel_path']}",
+                "line": row["line"], "end_line": row["end_line"],
+                "source_lines": f"L{row['line']}-L{row['end_line']}",
+                "evidence_kind": "recorded_class_method_syntax",
+                "match_score": score, "search_truncated": truncated,
+            })
+        return matches, coverage
+    except sqlite3.Error:
+        coverage.update(status="unavailable", reason="legacy_or_unreadable_method_projection")
+        return [], coverage
+
+
+def _find_store_action_search_matches(
+    query: str, project: str | None = None, raw_dir: Path | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Read only recorded direct Zustand action syntax from the derived index."""
+    coverage = {
+        "status": "unavailable", "reason": "missing_sqlite_index",
+        "scope": "recorded_direct_zustand_initializer_setter_call_members_only",
+        "indexed_files": 0, "projected_files": 0, "partial_files": 0,
+        "unprojected_files": 0, "source_tree_complete": False,
+    }
+    db_path = Path(native_filesystem_path((raw_dir or RAW_DIR) / "codemaps.db"))
+    if not db_path.exists():
+        return [], coverage
+    selected = str(project or "").strip()
+    scoped = bool(selected and selected.lower() not in {"*", "all", "any"})
+    clause = "WHERE sage_lower(files.project_key) = sage_lower(?)" if scoped else ""
+    project_params = [selected] if scoped else []
+    limit = _symbol_search_policy()["max_candidate_rows_per_source"]
+    try:
+        uri = sqlite_read_only_uri(db_path)
+        with closing(sqlite3.connect(uri, uri=True,
+                                    timeout=float(sqlite_read_timeout_seconds()))) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.create_function("sage_lower", 1, _symbol_search_unicode_lower, deterministic=True)
+            conn.execute("BEGIN;")
+            counts = conn.execute(
+                f"""SELECT store_action_search_status AS status, COUNT(*) AS count
+                    FROM files {clause} GROUP BY store_action_search_status;""",
+                tuple(project_params),
+            ).fetchall()
+            for row in counts:
+                count = int(row["count"])
+                coverage["indexed_files"] += count
+                if row["status"] == "recorded_store_actions":
+                    coverage["projected_files"] += count
+                elif row["status"] == "partial_recorded_store_actions":
+                    coverage["partial_files"] += count
+                else:
+                    coverage["unprojected_files"] += count
+            where = "AND sage_lower(files.project_key) = sage_lower(?)" if scoped else ""
+            q = str(query).lower()
+            order_sql, order_params, ascii_token_query = _symbol_search_derived_order("a", q)
+            _symbol_search_register_derived_path_rank(conn, q, ascii_token_query=ascii_token_query)
+            rows = conn.execute(
+                f"""SELECT a.*, files.project_key, files.rel_path, projects.path
+                    FROM symbol_search_actions a
+                    JOIN files ON files.file_id = a.file_id
+                    LEFT JOIN projects ON projects.project_key = files.project_key
+                    WHERE (instr(sage_lower(a.name), ?) > 0 OR instr(sage_lower(files.rel_path), ?) > 0)
+                    {where}
+                    ORDER BY {order_sql}, a.action_id
+                    LIMIT ?;""",
+                tuple([q, q, *project_params, *order_params, limit + 1]),
+            ).fetchall()
+        missing = coverage["partial_files"] + coverage["unprojected_files"]
+        coverage["status"] = "partial" if missing else "available" if coverage["indexed_files"] else "unavailable"
+        coverage["reason"] = "incomplete_recorded_evidence" if missing else "recorded_evidence_only" if coverage["indexed_files"] else "no_indexed_files_in_scope"
+        truncated = len(rows) > limit
+        matches = []
+        for row in rows[:limit]:
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
+                        _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
+            matches.append({
+                "name": row["name"], "type": "StoreActionCandidate",
+                "declaring_symbol": row["declaring_symbol"], "declaring_line": row["declaring_line"],
+                "member_name": row["member_name"], "member_kind": row["member_kind"],
+                "factory_api": row["factory_api"],
+                "project": row["project_key"], "file": row["rel_path"],
+                "repo_relative_path": repo_rel, "atlas_node": f"{row['project_key']}::{row['rel_path']}",
+                "line": row["line"], "end_line": row["end_line"],
+                "source_lines": f"L{row['line']}-L{row['end_line']}",
+                "evidence_kind": "recorded_direct_zustand_initializer_setter_call_syntax",
+                "runtime_execution": "not_established", "runtime_owner_binding": "not_established",
+                "match_score": score, "search_truncated": truncated,
+            })
+        return matches, coverage
+    except sqlite3.Error:
+        coverage.update(status="unavailable", reason="legacy_or_unreadable_action_projection")
+        return [], coverage
+
+
+def _find_direct_import_binding_search_matches(
+    query: str, project: str | None = None, raw_dir: Path | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Read file-local ES import syntax candidates without inferring use or resolution."""
+    coverage = {
+        "status": "unavailable", "reason": "missing_sqlite_index",
+        "scope": "recorded_top_level_es_import_bindings_only",
+        "indexed_files": 0, "projected_files": 0, "partial_files": 0,
+        "unprojected_files": 0, "source_tree_complete": False,
+    }
+    db_path = Path(native_filesystem_path((raw_dir or RAW_DIR) / "codemaps.db"))
+    if not db_path.exists():
+        return [], coverage
+    selected = str(project or "").strip()
+    scoped = bool(selected and selected.lower() not in {"*", "all", "any"})
+    clause = "AND sage_lower(project_key) = sage_lower(?)" if scoped else ""
+    project_params = [selected] if scoped else []
+    limit = _symbol_search_policy()["max_candidate_rows_per_source"]
+    try:
+        uri = sqlite_read_only_uri(db_path)
+        with closing(sqlite3.connect(uri, uri=True,
+                                    timeout=float(sqlite_read_timeout_seconds()))) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.create_function("sage_lower", 1, _symbol_search_unicode_lower, deterministic=True)
+            conn.execute("BEGIN;")
+            counts = conn.execute(
+                f"""SELECT import_binding_search_status AS status, COUNT(*) AS count
+                    FROM files WHERE language IN ('typescript', 'javascript')
+                    {clause} GROUP BY import_binding_search_status;""",
+                tuple(project_params),
+            ).fetchall()
+            for row in counts:
+                count = int(row["count"])
+                coverage["indexed_files"] += count
+                if row["status"] == "recorded_import_bindings":
+                    coverage["projected_files"] += count
+                elif row["status"] == "partial_recorded_import_bindings":
+                    coverage["partial_files"] += count
+                else:
+                    coverage["unprojected_files"] += count
+            where = "AND sage_lower(files.project_key) = sage_lower(?)" if scoped else ""
+            q = str(query).lower()
+            order_sql, order_params, ascii_token_query = _symbol_search_derived_order("b", q)
+            _symbol_search_register_derived_path_rank(conn, q, ascii_token_query=ascii_token_query)
+            rows = conn.execute(
+                f"""SELECT b.*, files.project_key, files.rel_path, projects.path
+                    FROM symbol_search_import_bindings b
+                    JOIN files ON files.file_id = b.file_id
+                    LEFT JOIN projects ON projects.project_key = files.project_key
+                    WHERE (instr(sage_lower(b.name), ?) > 0 OR instr(sage_lower(b.member_name), ?) > 0
+                           OR instr(sage_lower(files.rel_path), ?) > 0)
+                    {where}
+                    ORDER BY {order_sql}, b.binding_id
+                    LIMIT ?;""",
+                tuple([q, q, q, *project_params, *order_params, limit + 1]),
+            ).fetchall()
+        missing = coverage["partial_files"] + coverage["unprojected_files"]
+        coverage["status"] = "partial" if missing else "available" if coverage["indexed_files"] else "unavailable"
+        coverage["reason"] = "incomplete_recorded_evidence" if missing else "recorded_evidence_only" if coverage["indexed_files"] else "no_indexed_files_in_scope"
+        truncated = len(rows) > limit
+        matches = []
+        for row in rows[:limit]:
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
+                        _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
+            matches.append({
+                "name": row["name"], "type": "ImportBindingCandidate",
+                "imported_name": row["member_name"], "raw_source": row["raw_source"],
+                "import_kind": row["import_kind"], "type_only": bool(row["type_only"]),
+                "binding_scope": "file_top_level_import_declaration",
+                "project": row["project_key"], "file": row["rel_path"],
+                "repo_relative_path": repo_rel, "atlas_node": f"{row['project_key']}::{row['rel_path']}",
+                "line": row["line"], "end_line": row["end_line"],
+                "source_lines": f"L{row['line']}-L{row['end_line']}",
+                "evidence_kind": "recorded_direct_es_import_binding_syntax",
+                "runtime_execution": "not_established", "runtime_owner_binding": "not_established",
+                "match_score": score, "search_truncated": truncated,
+            })
+        return matches, coverage
+    except sqlite3.Error:
+        coverage.update(status="unavailable", reason="legacy_or_unreadable_import_binding_projection")
+        return [], coverage
+
+
+def _find_qualified_import_call_search_matches(
+    query: str, project: str | None = None, raw_dir: Path | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Read bounded namespace-import member-call syntax from one Atlas snapshot."""
+    coverage = {
+        "status": "unavailable", "reason": "missing_sqlite_index",
+        "scope": "indexed_top_level_callable_and_module_root_direct_namespace_import_calls",
+        "indexed_files": 0, "projected_files": 0, "partial_files": 0,
+        "unprojected_files": 0, "producer_cap_per_file": 64,
+        "source_tree_complete": False,
+    }
+    db_path = Path(native_filesystem_path((raw_dir or RAW_DIR) / "codemaps.db"))
+    if not db_path.exists():
+        return [], coverage
+    selected = str(project or "").strip()
+    scoped = bool(selected and selected.lower() not in {"*", "all", "any"})
+    clause = "AND sage_lower(project_key) = sage_lower(?)" if scoped else ""
+    project_params = [selected] if scoped else []
+    limit = _symbol_search_policy()["max_candidate_rows_per_source"]
+    try:
+        uri = sqlite_read_only_uri(db_path)
+        with closing(sqlite3.connect(uri, uri=True,
+                                    timeout=float(sqlite_read_timeout_seconds()))) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.create_function("sage_lower", 1, _symbol_search_unicode_lower, deterministic=True)
+            conn.execute("BEGIN;")
+            counts = conn.execute(
+                f"""SELECT qualified_import_call_search_status AS status, COUNT(*) AS count
+                    FROM files WHERE language IN ('typescript', 'javascript')
+                    {clause} GROUP BY qualified_import_call_search_status;""",
+                tuple(project_params),
+            ).fetchall()
+            for row in counts:
+                count = int(row["count"])
+                coverage["indexed_files"] += count
+                if row["status"] == "recorded_qualified_calls":
+                    coverage["projected_files"] += count
+                elif row["status"] == "partial_recorded_qualified_calls":
+                    coverage["partial_files"] += count
+                else:
+                    coverage["unprojected_files"] += count
+            where = "AND sage_lower(files.project_key) = sage_lower(?)" if scoped else ""
+            q = str(query).lower()
+            order_sql, order_params, ascii_token_query = _symbol_search_derived_order("c", q)
+            _symbol_search_register_derived_path_rank(conn, q, ascii_token_query=ascii_token_query)
+            rows = conn.execute(
+                f"""SELECT c.*, files.project_key, files.rel_path, projects.path
+                    FROM symbol_search_qualified_import_calls c
+                    JOIN files ON files.file_id = c.file_id
+                    LEFT JOIN projects ON projects.project_key = files.project_key
+                    WHERE (instr(sage_lower(c.name), ?) > 0 OR instr(sage_lower(c.member_name), ?) > 0
+                           OR instr(sage_lower(files.rel_path), ?) > 0)
+                    {where}
+                    ORDER BY {order_sql}, c.call_id
+                    LIMIT ?;""",
+                tuple([q, q, q, *project_params, *order_params, limit + 1]),
+            ).fetchall()
+        missing = coverage["partial_files"] + coverage["unprojected_files"]
+        coverage["status"] = "partial" if missing else "available" if coverage["indexed_files"] else "unavailable"
+        coverage["reason"] = (
+            "incomplete_recorded_evidence" if missing else
+            "recorded_evidence_only" if coverage["indexed_files"] else
+            "no_indexed_files_in_scope"
+        )
+        truncated = len(rows) > limit
+        matches = []
+        for row in rows[:limit]:
+            callsite_scope = str(row["callsite_scope"] or "")
+            if callsite_scope not in {"indexed_top_level_callable", "module_root"}:
+                coverage.update(status="partial", reason="invalid_recorded_callsite_scope")
+                continue
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
+                        _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
+            candidate = {
+                "name": row["name"], "type": "QualifiedImportCallCandidate",
+                "receiver_name": row["receiver_name"], "member_name": row["member_name"],
+                "raw_source": row["raw_source"], "import_kind": "namespace",
+                "callsite_scope": callsite_scope,
+                "binding_scope": "single_file_lexical_import",
+                "project": row["project_key"], "file": row["rel_path"],
+                "repo_relative_path": repo_rel,
+                "atlas_node": f"{row['project_key']}::{row['rel_path']}",
+                "line": row["line"], "end_line": row["end_line"],
+                "source_lines": f"L{row['line']}-L{row['end_line']}",
+                "evidence_kind": "recorded_namespace_import_member_call_syntax",
+                "module_resolution": "not_established", "runtime_execution": "not_established",
+                "match_score": score, "search_truncated": truncated,
+            }
+            if callsite_scope == "indexed_top_level_callable":
+                candidate["caller_symbol"] = row["caller_symbol"]
+                candidate["caller_line"] = row["caller_line"]
+            matches.append(candidate)
+        return matches, coverage
+    except sqlite3.Error:
+        coverage.update(status="unavailable", reason="legacy_or_unreadable_qualified_call_projection")
+        return [], coverage
+
+
 def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path | None = None) -> list[dict]:
     matches = []
     query_lower = query.lower()
     search_limit = int(_symbol_search_policy()["max_candidate_rows_per_source"])
+    project_filter = str(project or "").strip()
+    project_filter_active = bool(project_filter and project_filter.lower() not in {"*", "all", "any"})
 
     def match_score(name: str, file_path: str) -> tuple[int, str]:
-        q = query_lower.strip()
-        name_l = str(name or "").lower()
-        file_l = str(file_path or "").replace("\\", "/").lower()
-        filename = Path(file_l).name
-        stem = Path(filename).stem
-        tokens = [token for token in re.split(r"[^a-z0-9]+", f"{name_l}/{file_l}") if token]
-        segments = [segment for segment in file_l.split("/") if segment]
-        if q in {name_l, filename, stem}:
-            return (0, file_l)
-        if q in tokens:
-            return (1, file_l)
-        if q in {Path(segment).stem for segment in segments}:
-            return (2, file_l)
-        if name_l.startswith(q) or filename.startswith(q) or stem.startswith(q):
-            return (3, file_l)
-        if q in name_l or q in file_l:
-            return (4, file_l)
-        return (99, file_l)
+        return _symbol_search_match_score(query_lower, name, file_path)
 
-    def repo_relative(project_path: str, rel_path: str) -> str:
-        project_path = str(project_path or "").replace("\\", "/").strip("/")
-        if project_path in {".", "./"}:
-            project_path = ""
-        if project_path.startswith("./"):
-            project_path = project_path[2:].strip("/")
-        rel_path = str(rel_path or "").replace("\\", "/").strip("/")
-        if rel_path.startswith("./"):
-            rel_path = rel_path[2:].strip("/")
-        if project_path and rel_path and rel_path != project_path and not rel_path.startswith(f"{project_path}/"):
-            return f"{project_path}/{rel_path}".strip("/")
-        return rel_path
+    def candidate_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str, str, int]:
+        return _symbol_search_candidate_sort_key(query_lower, row)
+
+    repo_relative = _symbol_search_repo_relative
 
     db_path = (raw_dir or RAW_DIR) / "codemaps.db"
     if Path(native_filesystem_path(db_path)).exists():
         try:
-            like = f"%{query_lower}%"
-            project_filter = str(project or "").strip()
-            project_filter_active = bool(project_filter and project_filter.lower() not in {"*", "all", "any"})
+            needle = query_lower
+            # Keep the cheap SQL token test ahead of the source cap; running the
+            # full Python scorer as a SQLite UDF for every candidate is costly.
+            token_sql = (
+                "('/' || sage_lower(symbols.name) || '/' || sage_lower(files.rel_path) || '/') GLOB ?"
+                if re.fullmatch(r"[a-z0-9]+", needle) else "0"
+            )
+            file_token_sql = (
+                "('/' || sage_lower(files.rel_path) || '/') GLOB ?"
+                if re.fullmatch(r"[a-z0-9]+", needle) else "0"
+            )
+            token_pattern = f"*[^a-z0-9]{needle}[^a-z0-9]*"
+            ascii_token_query = token_sql != "0"
+
+            exact_basename_sql = (
+                "substr(sage_lower(files.rel_path), -length(?)) = ? "
+                "AND (length(sage_lower(files.rel_path)) = length(?) "
+                "OR substr(sage_lower(files.rel_path), -length(?) - 1, 1) = '/')"
+            )
             with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
                 conn.row_factory = sqlite3.Row
-                params: list[Any] = [like, like]
+                conn.create_function(
+                    "sage_path_rank", 1,
+                    lambda path: _symbol_search_sqlite_path_rank(
+                        needle, path, ascii_token_query=ascii_token_query,
+                    ),
+                    deterministic=True,
+                )
+                conn.create_function(
+                    "sage_lower", 1, _symbol_search_unicode_lower, deterministic=True,
+                )
+                params: list[Any] = [needle, needle]
                 project_clause = ""
                 if project_filter_active:
-                    project_clause = "AND lower(files.project_key) = lower(?)"
+                    project_clause = "AND sage_lower(files.project_key) = sage_lower(?)"
                     params.append(project_filter)
                 symbol_rows = conn.execute(
                     f"""
@@ -1911,20 +2399,34 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                     FROM symbols
                     JOIN files ON files.file_id = symbols.file_id
                     LEFT JOIN projects ON projects.project_key = files.project_key
-                    WHERE (lower(symbols.name) LIKE ? OR lower(files.rel_path) LIKE ?)
+                    WHERE (instr(sage_lower(symbols.name), ?) > 0 OR instr(sage_lower(files.rel_path), ?) > 0)
                     {project_clause}
                     ORDER BY
                         CASE
-                            WHEN lower(symbols.name) = ? THEN 0
-                            WHEN lower(files.rel_path) = ? THEN 1
-                            ELSE 2
+                            WHEN sage_lower(symbols.name) = ? OR sage_lower(files.rel_path) = ?
+                                 OR {exact_basename_sql} THEN 0
+                            ELSE 1
                         END,
-                        lower(files.rel_path),
+                        min(
+                            sage_path_rank(files.rel_path),
+                            CASE
+                                WHEN {token_sql} THEN 1
+                                WHEN substr(sage_lower(symbols.name), 1, length(?)) = ? THEN 3
+                                ELSE 4
+                            END
+                        ),
+                        CASE WHEN upper(files.project_key) = 'MAIN' THEN 0 ELSE 1 END,
+                        sage_lower(files.rel_path),
                         symbols.line,
-                        lower(symbols.name)
+                        sage_lower(symbols.name),
+                        sage_lower(files.project_key)
                     LIMIT ?;
                     """,
-                    tuple([*params, query_lower, query_lower, search_limit + 1]),
+                    tuple([
+                        *params, query_lower, query_lower, *([query_lower] * 4),
+                        *([token_pattern] if token_sql != "0" else []),
+                        query_lower, query_lower, search_limit + 1,
+                    ]),
                 ).fetchall()
                 symbol_rows_truncated = len(symbol_rows) > search_limit
                 symbol_rows = symbol_rows[:search_limit]
@@ -1932,7 +2434,7 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                     project_key = str(row["project_key"] or "")
                     rel_path = str(row["rel_path"] or "")
                     repo_rel = repo_relative(str(row["path"] or ""), rel_path)
-                    score, _sort_path = match_score(str(row["name"] or ""), repo_rel)
+                    score, _sort_path = match_score(str(row["name"] or ""), rel_path)
                     matches.append(
                         {
                             "name": row["name"],
@@ -1950,7 +2452,7 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                         }
                     )
 
-                file_params: list[Any] = [like]
+                file_params: list[Any] = [needle]
                 if project_filter_active:
                     file_params.append(project_filter)
                 file_rows = conn.execute(
@@ -1963,11 +2465,30 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                            ) AS dependency_count
                     FROM files
                     LEFT JOIN projects ON projects.project_key = files.project_key
-                    WHERE lower(files.rel_path) LIKE ?
+                    WHERE instr(sage_lower(files.rel_path), ?) > 0
                     {project_clause}
+                    ORDER BY
+                        CASE
+                            WHEN sage_lower(files.rel_path) = ? OR {exact_basename_sql} THEN 0
+                            ELSE 1
+                        END,
+                        min(
+                            sage_path_rank(files.rel_path),
+                            CASE
+                                WHEN {file_token_sql} THEN 1
+                                ELSE 4
+                            END
+                        ),
+                        CASE WHEN upper(files.project_key) = 'MAIN' THEN 0 ELSE 1 END,
+                        sage_lower(files.rel_path),
+                        sage_lower(files.project_key)
                     LIMIT ?;
                     """,
-                    tuple([*file_params, search_limit + 1]),
+                    tuple([
+                        *file_params, query_lower, *([query_lower] * 4),
+                        *([token_pattern] if file_token_sql != "0" else []),
+                        search_limit + 1,
+                    ]),
                 ).fetchall()
                 file_rows_truncated = len(file_rows) > search_limit
                 file_rows = file_rows[:search_limit]
@@ -1982,7 +2503,7 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                     dedupe_key = (project_key, rel_path, "File")
                     if dedupe_key in seen_file_rows:
                         continue
-                    score, _sort_path = match_score(Path(repo_rel).name, repo_rel)
+                    score, _sort_path = match_score(Path(rel_path).name, rel_path)
                     matches.append(
                         {
                             "name": Path(repo_rel).name,
@@ -1995,14 +2516,7 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                             "match_score": score,
                         }
                     )
-            matches.sort(
-                key=lambda row: (
-                    int(row.get("match_score") if row.get("match_score") is not None else 99),
-                    0 if str(row.get("project") or "").upper() == "MAIN" else 1,
-                    str(row.get("repo_relative_path") or row.get("file") or ""),
-                    str(row.get("name") or ""),
-                )
-            )
+            matches.sort(key=candidate_sort_key)
             search_truncated = symbol_rows_truncated or file_rows_truncated
             for match in matches:
                 match["search_truncated"] = search_truncated
@@ -2029,7 +2543,7 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
     file_fallback_matches: list[dict[str, Any]] = []
 
     for project_key, project_data in atlas.items():
-        if project and _normalize_project_name(project, atlas) != project_key:
+        if project_filter_active and _normalize_project_name(project_filter, atlas) != project_key:
             continue
         for symbol_info in (project_data.get("symbols") or []):
             if not isinstance(symbol_info, dict):
@@ -2037,11 +2551,12 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
             symbol_name = str(symbol_info.get("name") or "")
             if not symbol_name:
                 continue
-            if query_lower not in symbol_name.lower():
-                continue
             file_context = _file_context_from_atlas(project_data, project_key, str(symbol_info.get("file") or ""))
             repo_rel = str(file_context.get("repo_relative_path") or symbol_info.get("file") or "")
-            score, _sort_path = match_score(symbol_name, repo_rel)
+            indexed_rel = str(file_context.get("atlas_relative_path") or symbol_info.get("file") or "")
+            if query_lower not in symbol_name.lower() and query_lower not in indexed_rel.lower():
+                continue
+            score, _sort_path = match_score(symbol_name, indexed_rel)
             symbol_fallback_matches.append(
                 {
                     "name": symbol_name,
@@ -2058,11 +2573,11 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
         if isinstance(files, dict):
             for rel_path, file_info in files.items():
                 workspace_rel = str((file_info or {}).get("workspace_rel") or rel_path) if isinstance(file_info, dict) else str(rel_path)
-                if query_lower not in str(rel_path).lower() and query_lower not in workspace_rel.lower():
+                if query_lower not in str(rel_path).lower():
                     continue
                 file_context = _file_context_from_atlas(project_data, project_key, str(rel_path))
                 repo_rel = str(file_context.get("repo_relative_path") or workspace_rel)
-                score, _sort_path = match_score(Path(workspace_rel).name, repo_rel)
+                score, _sort_path = match_score(Path(str(rel_path)).name, str(rel_path))
                 file_fallback_matches.append(
                     {
                         "name": Path(workspace_rel).name,
@@ -2079,39 +2594,61 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
         len(symbol_fallback_matches) > search_limit
         or len(file_fallback_matches) > search_limit
     )
+    symbol_fallback_matches.sort(key=candidate_sort_key)
+    file_fallback_matches.sort(key=candidate_sort_key)
     matches = symbol_fallback_matches[:search_limit] + file_fallback_matches[:search_limit]
-    matches.sort(
-        key=lambda row: (
-            int(row.get("match_score") if row.get("match_score") is not None else 99),
-            0 if str(row.get("project") or "").upper() == "MAIN" else 1,
-            str(row.get("repo_relative_path") or row.get("file") or ""),
-            str(row.get("name") or ""),
-        )
-    )
+    matches.sort(key=candidate_sort_key)
     for match in matches:
         match["search_truncated"] = search_truncated
     return matches
 
 
-def _render_symbol_search_brief(query: str, matches: list[dict], analysis_root: str = "") -> str:
-    display_root = analysis_root or _analysis_root_display()
+def _symbol_search_display(matches: list[dict], *, limit: int) -> tuple[list[dict], dict[str, Any]]:
+    """Project display evidence without mutating or pre-slicing candidate truth."""
+    visible = matches[:limit]
     search_truncated = any(bool(row.get("search_truncated")) for row in matches)
+    omitted = len(matches) - len(visible)
+    return visible, {
+        "returned": len(visible),
+        "shown": len(visible),
+        "candidate_count": len(matches),
+        "candidate_count_semantics": "lower_bound" if search_truncated else "complete_indexed_match_set",
+        "omitted": omitted,
+        "display_truncated": omitted > 0,
+        "search_truncated": search_truncated,
+        "returned_count_semantics": "bounded_display" if omitted else "lower_bound" if search_truncated else "complete_match_set",
+        "search_scope": "indexed_symbols_files_and_derived_syntax_not_source_tree",
+    }
+
+
+def _render_symbol_search_brief(
+    query: str, matches: list[dict], analysis_root: str = "",
+    class_method_search: dict[str, Any] | None = None,
+    store_action_search: dict[str, Any] | None = None,
+    import_binding_search: dict[str, Any] | None = None,
+    qualified_import_call_search: dict[str, Any] | None = None,
+) -> str:
+    display_root = analysis_root or _analysis_root_display()
+    visible, counts = _symbol_search_display(matches, limit=_symbol_search_policy()["brief_max_visible_items"])
     yaml_lines = [
         "mission:",
         "  - Use these target-repository search results to choose the smallest safe inspection scope.",
         "task:",
         "  analysis_root: " + json.dumps(display_root, ensure_ascii=False),
         f"  query: {json.dumps(query, ensure_ascii=False)}",
-        f"  returned: {len(matches)}",
-        f"  search_truncated: {str(search_truncated).lower()}",
-        f"  returned_count_semantics: {json.dumps('lower_bound' if search_truncated else 'complete_match_set', ensure_ascii=False)}",
+        *[f"  {key}: {json.dumps(value, ensure_ascii=False)}" for key, value in counts.items()],
+        "  class_method_search: " + json.dumps(class_method_search or {"status": "not_evaluated"}, ensure_ascii=False),
+        "  store_action_search: " + json.dumps(store_action_search or {"status": "not_evaluated"}, ensure_ascii=False),
+        "  import_binding_search: " + json.dumps(import_binding_search or {"status": "not_evaluated"}, ensure_ascii=False),
+        "  qualified_import_call_search: " + json.dumps(
+            qualified_import_call_search or {"status": "not_evaluated"}, ensure_ascii=False),
         "path_contract:",
         "  open_files_with: \"analysis_root + file\"",
         "  sage_refs_only_for: \"MCP follow-up calls, never filesystem access\"",
         "matches:",
     ]
     if matches:
-        for row in matches[:10]:
+        for row in visible:
             target_file = row.get("repo_relative_path") or row.get("file") or ""
             project = row.get("project") or ""
             target_ref = f"{project}::{target_file}" if project and target_file else target_file
@@ -2121,15 +2658,20 @@ def _render_symbol_search_brief(query: str, matches: list[dict], analysis_root: 
             yaml_lines.append("    project: " + json.dumps(project, ensure_ascii=False))
             yaml_lines.append("    file: " + json.dumps(target_file, ensure_ascii=False))
             yaml_lines.append("    target_ref: " + json.dumps(target_ref, ensure_ascii=False))
-            yaml_lines.append("    match_quality: " + json.dumps("exact_or_token" if match_score <= 2 else "substring", ensure_ascii=False))
+            yaml_lines.append("    match_quality: " + json.dumps("exact_or_token" if match_score <= 2 else "prefix" if match_score == 3 else "substring", ensure_ascii=False))
+            for key in ("declaring_symbol", "declaring_line", "member_name", "is_static", "member_kind", "factory_api", "imported_name", "raw_source", "import_kind", "type_only", "receiver_name", "caller_symbol", "caller_line", "callsite_scope", "binding_scope", "evidence_kind", "module_resolution", "runtime_execution", "runtime_owner_binding"):
+                if key in row:
+                    yaml_lines.append(f"    {key}: " + json.dumps(row[key], ensure_ascii=False))
             if int(row.get("line") or 0) > 0:
                 yaml_lines.append(f"    line: {int(row.get('line') or 0)}")
                 if int(row.get("end_line") or 0) > 0:
                     yaml_lines.append(f"    end_line: {int(row.get('end_line') or row.get('line') or 0)}")
                 if row.get("source_lines"):
                     yaml_lines.append("    source_lines: " + json.dumps(row.get("source_lines") or "", ensure_ascii=False))
-                yaml_lines.append(f"    char: {int(row.get('char') or 0)}")
-            yaml_lines.append(f"    dependencies: {int(row.get('dependencies') or 0)}")
+                if row.get("type") not in {"ClassMethod", "StoreActionCandidate", "ImportBindingCandidate", "QualifiedImportCallCandidate"}:
+                    yaml_lines.append(f"    char: {int(row.get('char') or 0)}")
+            if row.get("type") not in {"ClassMethod", "StoreActionCandidate", "ImportBindingCandidate", "QualifiedImportCallCandidate"}:
+                yaml_lines.append(f"    dependencies: {int(row.get('dependencies') or 0)}")
             yaml_lines.append("    next_tool: " + json.dumps(f"inspect_file(file_path={json.dumps(target_ref, ensure_ascii=False)})", ensure_ascii=False))
     else:
         yaml_lines.append("  []")
@@ -2138,8 +2680,13 @@ def _render_symbol_search_brief(query: str, matches: list[dict], analysis_root: 
             "next_step:",
             "  - Pick one returned target_ref, call inspect_file(file_path=target_ref) for scoped evidence, then open the returned file path under the analyzed repository root.",
             "  - If no match is returned, verify the path/query or refresh the target analysis.",
+            "  - If rows are omitted or source search is truncated, narrow the project/path/query. The omitted count covers collected candidates only; additional source-cap omissions are unknown.",
             "do_not:",
             "  - Do not edit from search results alone.",
+            "  - Method candidates are recorded syntax, not proven calls, runtime behavior or a complete source-tree inventory. Unavailable/partial method coverage is not evidence of absence.",
+            "  - Store action candidates are recorded direct Zustand initializer setter-call syntax, not proven call-result ownership, execution or a complete source-tree inventory. Unavailable/partial action coverage is not evidence of absence.",
+            "  - Import binding candidates are top-level ES import syntax, not proof of use, module resolution, runtime execution or a complete source-tree inventory. Unavailable/partial binding coverage is not evidence of absence.",
+            "  - Qualified import call candidates are checker-bound namespace.member() syntax in indexed callable bodies or module-root expressions outside nested callables/classes, not proven module resolution, invocation or a complete source-tree inventory. Partial/legacy coverage is not evidence of absence.",
             "  - Do not broaden scope without inspecting the chosen file or symbol first.",
         ]
     )
@@ -5685,12 +6232,12 @@ def _audit_violation_work_items_from_sqlite(
         params.append(target_project)
     target_rule = str(rule or "").strip()
     if target_rule:
-        where.append("LOWER(fi.code) LIKE LOWER(?)")
-        params.append(f"%{target_rule}%")
+        where.append("instr(LOWER(fi.code), LOWER(?)) > 0")
+        params.append(target_rule)
     target_severity = str(severity or "").strip()
     if target_severity:
-        where.append("LOWER(fi.severity) LIKE LOWER(?)")
-        params.append(f"%{target_severity}%")
+        where.append("instr(LOWER(fi.severity), LOWER(?)) > 0")
+        params.append(target_severity)
     target_file = str(file_path or "").replace("\\", "/").strip("/")
     if target_file:
         where.append("LOWER(f.rel_path) = LOWER(?)")
@@ -5824,14 +6371,13 @@ def _module_integrity_items_from_sqlite(
         where.append(
             """
             (
-                LOWER(f.rel_path) LIKE ?
-                OR LOWER(CASE WHEN p.path = '' THEN f.rel_path ELSE p.path || '/' || f.rel_path END) LIKE ?
+                instr(LOWER(f.rel_path), ?) > 0
+                OR instr(LOWER(CASE WHEN p.path = '' THEN f.rel_path ELSE p.path || '/' || f.rel_path END), ?) > 0
                 OR LOWER(p.path) = ?
             )
             """
         )
-        like = f"%{module_filter}%"
-        params.extend([like, like, module_filter])
+        params.extend([module_filter, module_filter, module_filter])
     where_clause = " AND ".join(where)
     try:
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
@@ -6534,6 +7080,9 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
 
     Defaults to MAIN so coding agents do not treat variations as edit targets.
     Use project="*" / "all" only for merge, variation, or cross-project review.
+    Counts describe collected indexed declaration, file and derived-syntax candidates,
+    not distinct files or the source tree.
+    Display omissions are separate from source candidate caps; machine output stays a list.
     """
     requested_format = str(format or "brief").strip().lower()
     analysis_root = _analysis_root_display(target_root)
@@ -6542,13 +7091,37 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
     except ValueError as exc:
         return _invalid_external_target_brief("search_symbols", target_root)
     matches = _find_symbol_matches(query, project=project or None, raw_dir=raw_dir)
+    methods, method_coverage = _find_class_method_search_matches(query, project=project or None, raw_dir=raw_dir)
+    actions, action_coverage = _find_store_action_search_matches(query, project=project or None, raw_dir=raw_dir)
+    bindings, binding_coverage = _find_direct_import_binding_search_matches(query, project=project or None, raw_dir=raw_dir)
+    qualified_calls, qualified_coverage = _find_qualified_import_call_search_matches(
+        query, project=project or None, raw_dir=raw_dir)
+    if methods or actions or bindings or qualified_calls:
+        matches = [*matches, *methods, *actions, *bindings, *qualified_calls]
+        matches.sort(key=lambda row: _symbol_search_candidate_sort_key(query, row))
+        truncated = any(bool(row.get("search_truncated")) for row in matches)
+        matches = [{**row, "search_truncated": truncated} for row in matches]
     if not matches:
         if requested_format in {"json", "machine"}:
-            return f"No symbols found matching '{query}'."
-        return _render_symbol_search_brief(query, [], analysis_root=analysis_root)
+            return (f"No symbols found matching '{query}'. Class method coverage: "
+                    + json.dumps(method_coverage, ensure_ascii=False)
+                    + ". Store action coverage: " + json.dumps(action_coverage, ensure_ascii=False)
+                    + ". Import binding coverage: " + json.dumps(binding_coverage, ensure_ascii=False)
+                    + ". Qualified import call coverage: " + json.dumps(qualified_coverage, ensure_ascii=False))
+        return _render_symbol_search_brief(query, [], analysis_root=analysis_root,
+                                           class_method_search=method_coverage, store_action_search=action_coverage,
+                                           import_binding_search=binding_coverage,
+                                           qualified_import_call_search=qualified_coverage)
     if requested_format in {"json", "machine"}:
-        return json.dumps(matches[:20], indent=2, ensure_ascii=False)
-    return _render_symbol_search_brief(query, matches[:10], analysis_root=analysis_root)
+        visible, counts = _symbol_search_display(matches, limit=_symbol_search_policy()["machine_max_visible_items"])
+        return json.dumps([{**row, **counts, "class_method_search": method_coverage,
+                            "store_action_search": action_coverage,
+                            "import_binding_search": binding_coverage,
+                            "qualified_import_call_search": qualified_coverage} for row in visible], indent=2, ensure_ascii=False)
+    return _render_symbol_search_brief(query, matches, analysis_root=analysis_root,
+                                       class_method_search=method_coverage, store_action_search=action_coverage,
+                                       import_binding_search=binding_coverage,
+                                       qualified_import_call_search=qualified_coverage)
 
 
 @mcp.tool()
@@ -8986,6 +9559,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
         # Reuse checks for repeated targets; neither endpoint proves a call edge.
         checked = {target["atlas_ref"]: result["source_binding"]}
         for lane_name in ("cross_file_action_calls", "hook_selector_candidates",
+                          "rehydrate_call_candidates",
+                          "cross_file_rehydrate_call_candidates",
                           "event_bus_calls", "imported_property_event_calls",
                           "upstream_direct_import_calls",
                           "same_file_direct_calls"):

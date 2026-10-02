@@ -92,6 +92,40 @@ def extract_typescript_import_evidence(parser_entries: list[dict] | None) -> dic
     }
 
 
+def extract_direct_import_binding_evidence(parser_entries: list[dict] | None) -> dict:
+    """Keep parser-recorded top-level ES import bindings separate from module edges."""
+    meta = next(
+        (entry for entry in parser_entries or []
+         if isinstance(entry, dict) and entry.get("name") == "__file_meta__"),
+        None,
+    )
+    if not isinstance(meta, dict) or not isinstance(meta.get("directImportBindings"), list):
+        return {"status": "unavailable", "records": []}
+    return {
+        "status": str(meta.get("parserStatus") or "unavailable").strip().lower(),
+        "records": list(meta["directImportBindings"]),
+    }
+
+
+def extract_module_root_import_call_evidence(parser_entries: list[dict] | None) -> dict:
+    """Preserve parser-bound module-root syntax without promoting it to an edge."""
+    meta = next(
+        (entry for entry in parser_entries or []
+         if isinstance(entry, dict) and entry.get("name") == "__file_meta__"),
+        None,
+    )
+    evidence = meta.get("moduleRootImportCallEvidence") if isinstance(meta, dict) else None
+    if isinstance(evidence, dict):
+        return evidence
+    return {
+        "status": "unavailable", "calls": [], "omitted": 0,
+        "limitations": ["module_root_parser_evidence_missing"],
+        "binding_scope": "single_file_lexical_import",
+        "callsite_scope": "module_root",
+        "runtime_execution": "not_established",
+    }
+
+
 def extract_imports(content: str, language: str, *, parser_entries: list[dict] | None = None) -> list[str]:
     """Extract module specifiers without treating JS/TS source text as syntax evidence."""
     imports: list[str] = []

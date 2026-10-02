@@ -949,6 +949,8 @@ def _checkpoint_result(result: dict[str, Any]) -> dict[str, Any]:
         "id", "label", "proof_domain", "execution_cadence", "evidence_role",
         "blocks_machine_release", "blocks_public_release", "readiness_authority_reason",
         "required", "execution_status", "depends_on", "returncode", "passed", "timed_out",
+        "dependency_failure_modes", "advisory_failed_dependencies", "blocked_by_failed_dependencies",
+        "failure_collection_budget_status", "failure_collection_trigger_step_ids",
         "raw_artifact", "raw_artifact_sha256", "artifact_payload_sha256", "attention",
         "attention_reasons", "reuse_identity", "evidence_sha256", "checkpoint_reuse_eligible",
         "completed_reuse_identity", "completed_evidence_sha256", "completed_reuse_eligible",

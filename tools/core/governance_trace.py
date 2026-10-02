@@ -326,6 +326,7 @@ def record_release_proof_step_trace(step_result: dict[str, Any]) -> dict[str, An
         limit=80,
     )
     dependency_blocked = execution_status == "BLOCKED_BY_FAILED_DEPENDENCY"
+    failure_budget_limited = execution_status == "NOT_EXECUTED_FAILURE_BUDGET"
     blocked_dependencies = step_result.get("blocked_by_failed_dependencies")
     blocked_dependency_count = len(blocked_dependencies) if isinstance(blocked_dependencies, list) else 0
     advisory_dependencies = step_result.get("advisory_failed_dependencies")
@@ -339,7 +340,9 @@ def record_release_proof_step_trace(step_result: dict[str, Any]) -> dict[str, An
         context_fingerprint=_bounded_text(step_result.get("raw_artifact_sha256"), limit=128),
         policy_version=str(_contract().get("meta", {}).get("version") or UNKNOWN_VALUE),
         state_change=(
-            "release_proof_step_blocked_by_failed_dependency"
+            "release_proof_step_not_executed_failure_budget"
+            if failure_budget_limited
+            else "release_proof_step_blocked_by_failed_dependency"
             if dependency_blocked
             else "release_proof_step_completed"
         ),

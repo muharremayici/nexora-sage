@@ -163,7 +163,7 @@
       }
     },
     "same_file_store_action_call_evidence": {
-      "description": "Direct store.getState().action() or const { action } = store.getState(); action() syntax in an indexed callable, lexically bound to a same-file exported variable or exact named import. No module resolution, execution or runtime state-flow claim.",
+      "description": "Direct store.getState().action(), const-destructured action(), and separately recorded direct, same-callable const-local-alias or one-level inline-callback store.persist.rehydrate() syntax. Rehydrate candidates require a checker-bound same-file exported variable or direct named import; module resolution is a separate Atlas/State Flow join, not callback execution or runtime hydration proof.",
       "type": [
         "object",
         "null"
@@ -201,6 +201,101 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "rehydrate_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rehydrate_calls": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "required": [
+                "store",
+                "store_start",
+                "line",
+                "end_line"
+              ],
+              "properties": {
+                "store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "store_start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "call_form": {
+                  "const": "const_local_alias"
+                },
+                "call_context": {
+                  "const": "inline_callback"
+                },
+                "alias_name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "imported_rehydrate_omitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "imported_rehydrate_calls": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "required": [
+                "store",
+                "module_source",
+                "imported_store",
+                "line",
+                "end_line"
+              ],
+              "properties": {
+                "store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "module_source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imported_store": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "call_form": {
+                  "const": "const_local_alias"
+                },
+                "call_context": {
+                  "const": "inline_callback"
+                },
+                "alias_name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "end_line": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
             }
           },
           "calls": {
@@ -302,6 +397,13 @@
           },
           "binding_scope": {
             "const": "single_file_lexical_import"
+          },
+          "callsite_scope": {
+            "const": "module_root"
+          },
+          "omitted": {
+            "type": "integer",
+            "minimum": 0
           },
           "runtime_execution": {
             "const": "not_established"
@@ -1122,6 +1224,156 @@
           "properties": {
             "type": {
               "type": "string"
+            },
+            "structured_output_evidence": {
+              "type": "object",
+              "required": [
+                "status",
+                "scope",
+                "candidates",
+                "omitted"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "observed",
+                    "partial_budget",
+                    "unavailable"
+                  ]
+                },
+                "scope": {
+                  "enum": [
+                    "direct_or_same_file_const_xml_template_sink_only",
+                    "xml_template_or_imported_mime_helper_candidate"
+                  ]
+                },
+                "omitted": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "candidates": {
+                  "type": "array",
+                  "maxItems": 16,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "sink",
+                      "interpolation_contexts",
+                      "interpolation_count",
+                      "line",
+                      "evidence_scope",
+                      "proof_status"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "xml_template_interpolation_candidate"
+                      },
+                      "sink": {
+                        "enum": [
+                          "xml_http_response",
+                          "xml_file_write",
+                          "xml_mime_helper_call_unverified"
+                        ]
+                      },
+                      "interpolation_contexts": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "enum": [
+                            "element_text",
+                            "attribute_value",
+                            "cdata"
+                          ]
+                        }
+                      },
+                      "interpolation_count": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "evidence_scope": {
+                        "enum": [
+                          "direct_template_to_literal_xml_sink",
+                          "same_file_const_template_to_literal_xml_sink",
+                          "direct_template_to_xml_mime_helper_call",
+                          "same_file_const_template_to_xml_mime_helper_call"
+                        ]
+                      },
+                      "proof_status": {
+                        "const": "needs_format_native_round_trip"
+                      }
+                    },
+                    "allOf": [
+                      {
+                        "if": {
+                          "type": "object",
+                          "properties": {
+                            "sink": {
+                              "const": "xml_mime_helper_call_unverified"
+                            }
+                          }
+                        },
+                        "then": {
+                          "type": "object",
+                          "properties": {
+                            "evidence_scope": {
+                              "enum": [
+                                "direct_template_to_xml_mime_helper_call",
+                                "same_file_const_template_to_xml_mime_helper_call"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "type": "object",
+                          "properties": {
+                            "evidence_scope": {
+                              "enum": [
+                                "direct_template_to_xml_mime_helper_call",
+                                "same_file_const_template_to_xml_mime_helper_call"
+                              ]
+                            }
+                          }
+                        },
+                        "then": {
+                          "type": "object",
+                          "properties": {
+                            "sink": {
+                              "const": "xml_mime_helper_call_unverified"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "module_root_import_call_evidence": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/import_call_evidence"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "callsite_scope",
+                    "omitted"
+                  ],
+                  "properties": {
+                    "calls": {
+                      "type": "array",
+                      "maxItems": 64
+                    }
+                  }
+                }
+              ]
             },
             "exports": {
               "type": "array",

@@ -113,6 +113,14 @@ class SQLiteManager:
             # WAL is a database-level setting. Keep it out of the hot connection
             # path so parallel validators do not contend on journal-mode changes.
             conn.execute("PRAGMA journal_mode=WAL;")
+            existing_search_tables = {
+                row[0] for row in conn.execute(
+                    """SELECT name FROM sqlite_master WHERE type = 'table'
+                       AND name IN ('symbol_search_members', 'symbol_search_actions',
+                                    'symbol_search_import_bindings',
+                                    'symbol_search_qualified_import_calls');"""
+                )
+            }
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS state_payloads (
                     name TEXT PRIMARY KEY,
@@ -216,6 +224,65 @@ class SQLiteManager:
                     UNIQUE(project_key, rel_path)
                 );
 
+                -- Derived search candidates only; never declaration/graph authority.
+                CREATE TABLE IF NOT EXISTS symbol_search_members (
+                    member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    declaring_symbol TEXT NOT NULL,
+                    declaring_line INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    member_name TEXT NOT NULL,
+                    is_static INTEGER NOT NULL,
+                    line INTEGER NOT NULL,
+                    end_line INTEGER NOT NULL,
+                    FOREIGN KEY(file_id) REFERENCES files(file_id) ON DELETE CASCADE
+                );
+
+                -- Search-only direct store action syntax, never declaration authority.
+                CREATE TABLE IF NOT EXISTS symbol_search_actions (
+                    action_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    declaring_symbol TEXT NOT NULL,
+                    declaring_line INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    member_name TEXT NOT NULL,
+                    member_kind TEXT NOT NULL,
+                    factory_api TEXT NOT NULL,
+                    line INTEGER NOT NULL,
+                    end_line INTEGER NOT NULL,
+                    FOREIGN KEY(file_id) REFERENCES files(file_id) ON DELETE CASCADE
+                );
+
+                -- Search-only direct ES import binding syntax; not symbol or graph authority.
+                CREATE TABLE IF NOT EXISTS symbol_search_import_bindings (
+                    binding_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    member_name TEXT NOT NULL,
+                    raw_source TEXT NOT NULL,
+                    import_kind TEXT NOT NULL,
+                    type_only INTEGER NOT NULL,
+                    line INTEGER NOT NULL,
+                    end_line INTEGER NOT NULL,
+                    FOREIGN KEY(file_id) REFERENCES files(file_id) ON DELETE CASCADE
+                );
+
+                -- Search-only checker-bound namespace import call syntax.
+                CREATE TABLE IF NOT EXISTS symbol_search_qualified_import_calls (
+                    call_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    receiver_name TEXT NOT NULL,
+                    member_name TEXT NOT NULL,
+                    raw_source TEXT NOT NULL,
+                    callsite_scope TEXT NOT NULL DEFAULT 'indexed_top_level_callable',
+                    caller_symbol TEXT NOT NULL,
+                    caller_line INTEGER NOT NULL,
+                    line INTEGER NOT NULL,
+                    end_line INTEGER NOT NULL,
+                    FOREIGN KEY(file_id) REFERENCES files(file_id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS source_snapshots (
                     file_id INTEGER NOT NULL,
                     project_key TEXT NOT NULL,
@@ -310,6 +377,14 @@ class SQLiteManager:
                 CREATE INDEX IF NOT EXISTS idx_source_snapshots_hash ON source_snapshots(content_hash);
                 CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(file_id);
                 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_members_file ON symbol_search_members(file_id);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_members_name ON symbol_search_members(name);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_actions_file ON symbol_search_actions(file_id);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_actions_name ON symbol_search_actions(name);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_import_bindings_file ON symbol_search_import_bindings(file_id);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_import_bindings_name ON symbol_search_import_bindings(name);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_qualified_calls_file ON symbol_search_qualified_import_calls(file_id);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_qualified_calls_name ON symbol_search_qualified_import_calls(name);
                 CREATE INDEX IF NOT EXISTS idx_dependencies_source ON dependencies(source_file_id);
                 CREATE INDEX IF NOT EXISTS idx_dependencies_target ON dependencies(target_file_id);
                 CREATE INDEX IF NOT EXISTS idx_findings_engine ON findings(engine_name);
@@ -323,6 +398,9 @@ class SQLiteManager:
                 CREATE INDEX IF NOT EXISTS idx_atlas_staging_runs_status ON atlas_staging_runs(status, updated_at);
                 CREATE INDEX IF NOT EXISTS idx_sage_sqlite_maintenance_runs_status ON sage_sqlite_maintenance_runs(status, updated_at);
             """)
+            existing_qualified_call_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(symbol_search_qualified_import_calls);")
+            }
             for statement in (
                 "ALTER TABLE state_payloads ADD COLUMN payload_sha TEXT;",
                 "ALTER TABLE state_payloads ADD COLUMN payload_bytes INTEGER;",
@@ -333,6 +411,11 @@ class SQLiteManager:
                 "ALTER TABLE state_payloads ADD COLUMN updated_at TEXT;",
                 "ALTER TABLE symbols ADD COLUMN end_line INTEGER;",
                 "ALTER TABLE symbols ADD COLUMN source_lines TEXT;",
+                "ALTER TABLE files ADD COLUMN class_method_search_status TEXT;",
+                "ALTER TABLE files ADD COLUMN store_action_search_status TEXT;",
+                "ALTER TABLE files ADD COLUMN import_binding_search_status TEXT;",
+                "ALTER TABLE files ADD COLUMN qualified_import_call_search_status TEXT;",
+                "ALTER TABLE symbol_search_qualified_import_calls ADD COLUMN callsite_scope TEXT NOT NULL DEFAULT 'indexed_top_level_callable';",
                 "ALTER TABLE atlas_staging_files ADD COLUMN payload_bytes INTEGER NOT NULL DEFAULT 0;",
                 "ALTER TABLE atlas_staging_files ADD COLUMN storage_mode TEXT NOT NULL DEFAULT 'inline_json';",
                 "ALTER TABLE atlas_staging_files ADD COLUMN generation_id TEXT;",
@@ -343,3 +426,14 @@ class SQLiteManager:
                 except sqlite3.OperationalError as exc:
                     if "duplicate column name" not in str(exc).lower():
                         raise
+            # A recreated empty table cannot retain an older file's projected claim.
+            for table, status_column in (
+                ("symbol_search_members", "class_method_search_status"),
+                ("symbol_search_actions", "store_action_search_status"),
+                ("symbol_search_import_bindings", "import_binding_search_status"),
+                ("symbol_search_qualified_import_calls", "qualified_import_call_search_status"),
+            ):
+                if table not in existing_search_tables:
+                    conn.execute(f"UPDATE files SET {status_column} = NULL;")
+            if "callsite_scope" not in existing_qualified_call_columns:
+                conn.execute("UPDATE files SET qualified_import_call_search_status = NULL;")

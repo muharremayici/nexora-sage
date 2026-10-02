@@ -12,12 +12,14 @@ from tools.core.release_train import (
     unavailable_release_train_projection,
 )
 from tools.core.roadmap_phase_registry import (
+    SEMVER_CORE_PATTERN,
     current_product_release,
     load_roadmap_phase_registry,
     project_semver_candidate,
     production_release_history,
     roadmap_phase_rows,
 )
+from tools.core.sage_active_work_package import package_closure_is_complete
 from tools.core.work_item_readiness import assess_work_item_technical_readiness
 
 
@@ -82,7 +84,7 @@ def project_release_delivery(
     wave_registry: dict[str, Any] | None = None,
     technical_ready_work_item_ids: set[str] | None = None,
 ) -> dict[str, Any]:
-    """Project one bounded package without inventing a concrete publication."""
+    """Project live delivery or completed package history without publication authority."""
     roadmap = roadmap_registry if roadmap_registry is not None else load_roadmap_phase_registry()
     waves_doc = wave_registry if wave_registry is not None else load_execution_wave_registry()
     scope = active_package.get("release_scope") if isinstance(active_package.get("release_scope"), dict) else {}
@@ -104,6 +106,10 @@ def project_release_delivery(
         technical_ready_work_item_ids=technical_ready_work_item_ids,
     )
     issues: list[str] = []
+    package_status = str(active_package.get("status") or "")
+    history_projection = package_status == "closed" and package_closure_is_complete(active_package)
+    if package_status == "closed" and not history_projection:
+        issues.append("closed_package_evidence_incomplete")
     if explicit_phase and legacy_target and explicit_phase != legacy_target:
         issues.append("ambiguous_roadmap_phase")
     if not roadmap_phase:
@@ -115,6 +121,7 @@ def project_release_delivery(
     recommended_release = str(semver_candidate.get("recommended_release") or "")
     if (
         mode == "roadmap_delivery"
+        and not history_projection
         and concrete_release
         and recommended_release
         and concrete_release != recommended_release
@@ -124,21 +131,30 @@ def project_release_delivery(
     phase_status = str(phase_rows.get(roadmap_phase, {}).get("status") or "")
     concrete_status = str(phase_rows.get(concrete_release, {}).get("status") or "") if concrete_release else ""
     if mode == "roadmap_delivery":
-        if phase_status != "roadmap":
+        if not history_projection and phase_status != "roadmap":
             issues.append("roadmap_delivery_requires_roadmap_phase")
         if scope.get("does_not_expand_current_release_claims") is not True:
             issues.append("roadmap_claim_non_expansion_not_declared")
-        if concrete_release and concrete_status != "roadmap":
+        if not history_projection and concrete_release and concrete_status != "roadmap":
             issues.append("concrete_release_not_unpublished_roadmap")
     elif mode == "active_product_release":
-        if roadmap_phase != current_release:
+        if not history_projection and roadmap_phase != current_release:
             issues.append("active_release_phase_mismatch")
-        if concrete_release and concrete_release != current_release:
+        expected_release = roadmap_phase if history_projection else current_release
+        if concrete_release and concrete_release != expected_release:
             issues.append("active_release_concrete_target_mismatch")
+    elif mode == "published_carryover_development":
+        if phase_status not in {"active", "released"}:
+            issues.append("carryover_requires_published_phase")
+        if concrete_release:
+            issues.append("carryover_cannot_select_concrete_release")
+        if scope.get("does_not_expand_current_release_claims") is not True:
+            issues.append("carryover_claim_non_expansion_not_declared")
     elif mode == "active_release_closure":
-        if roadmap_phase != current_release:
+        if not history_projection and roadmap_phase != current_release:
             issues.append("release_closure_phase_mismatch")
-        if concrete_release and concrete_release != current_release:
+        expected_release = roadmap_phase if history_projection else current_release
+        if concrete_release and concrete_release != expected_release:
             issues.append("release_closure_concrete_target_mismatch")
     else:
         issues.append("unknown_release_scope_mode")
@@ -161,7 +177,14 @@ def project_release_delivery(
     eligible_ids = {str(row.get("id") or "") for row in eligible}
     package_ids = [str(item) for item in active_package.get("work_item_ids", []) if str(item)]
     missing_package_ids = sorted(item for item in package_ids if item not in item_by_id)
-    outside_phase_ids = sorted(item for item in package_ids if item in item_by_id and item not in eligible_ids)
+    # Closure does not imply parent-work delivery. Historical membership uses
+    # declared scope; only live packages must also remain in the open backlog.
+    scope_ids = (
+        {item_id for item_id, row in item_by_id.items() if str(row.get("target_release") or "") == roadmap_phase}
+        if history_projection
+        else eligible_ids
+    )
+    outside_phase_ids = sorted(item for item in package_ids if item in item_by_id and item not in scope_ids)
     if missing_package_ids:
         issues.append("unknown_bounded_package_work_item")
     if outside_phase_ids:
@@ -183,7 +206,7 @@ def project_release_delivery(
         wave = wave_by_id.get(wave_id, {})
         wave_item_ids = [str(item) for item in wave.get("work_item_ids", []) if str(item)]
         matching = [item for item in wave_item_ids if item in eligible_ids]
-        selected = [item for item in matching if item in package_ids]
+        selected = [] if history_projection else [item for item in matching if item in package_ids]
         if matching or selected:
             delivery_waves.append(
                 {
@@ -202,7 +225,7 @@ def project_release_delivery(
     )
     status = "FAIL" if issues else (
         "ATTENTION_PLANNING_ONLY"
-        if mode == "roadmap_delivery" and not concrete_release
+        if not history_projection and mode in {"roadmap_delivery", "published_carryover_development"} and not concrete_release
         else "PASS"
     )
     return {
@@ -223,6 +246,8 @@ def project_release_delivery(
         },
         "bounded_package": {
             "id": active_package.get("id"),
+            "status": package_status,
+            "history_projection": history_projection,
             "execution_wave": active_package.get("execution_wave"),
             "work_item_ids": package_ids,
             "missing_work_item_ids": missing_package_ids,
@@ -290,7 +315,8 @@ def project_successor_selection(
         "work_item_id": str(human_choice.get("work_item_id") or "") or None,
         "decided_by": str(human_choice.get("decided_by") or "") or None,
         "reason": str(human_choice.get("reason") or "") or None,
-        "authority": "tie_resolution_only",
+        "roadmap_phase": str(human_choice.get("roadmap_phase") or "") or None,
+        "authority": "successor_selection_only",
     }
     authority = {
         "delivery_authorized": False,
@@ -373,6 +399,13 @@ def project_successor_selection(
     active_phase = str(
         active_scope.get("roadmap_phase") or active_scope.get("target_release") or ""
     )
+    current_release_match = SEMVER_CORE_PATTERN.fullmatch(
+        current_product_release(roadmap_registry)
+    )
+    current_release_key = (
+        tuple(int(part) for part in current_release_match.groups())
+        if current_release_match else None
+    )
     preferred_releases: list[str] = []
     for release in [active_phase, *phase_order, *phases]:
         if release and release not in preferred_releases:
@@ -407,6 +440,12 @@ def project_successor_selection(
         ]
         target_release = str(item.get("target_release") or "")
         release_status = str(phases.get(target_release, {}).get("status") or "unknown")
+        target_release_match = SEMVER_CORE_PATTERN.fullmatch(target_release)
+        historical_target = (
+            current_release_key is not None and target_release_match is not None
+            and tuple(int(part) for part in target_release_match.groups())
+            < current_release_key
+        )
         priority = str(item.get("priority") or "")
         candidates.append(
             {
@@ -415,12 +454,17 @@ def project_successor_selection(
                 "priority": priority,
                 "target_release": target_release,
                 "release_status": release_status,
+                "historical_target_release": historical_target,
                 "wave_id": wave_id,
                 "dependency_ready": not unsatisfied,
                 "unsatisfied_technical_dependencies": unsatisfied,
                 "interrupt_priority": priority in interrupt_priorities,
-                "automatic_release_scope": release_status in automatic_release_statuses,
-                "human_choice_release_scope": release_status in human_choice_release_statuses,
+                "automatic_release_scope": (
+                    release_status in automatic_release_statuses and not historical_target
+                ),
+                "human_choice_release_scope": (
+                    release_status in human_choice_release_statuses and not historical_target
+                ),
                 "stable_order": {
                     "wave": wave_order.get(wave_id, len(wave_order)),
                     "wave_work_item": wave_item_order,
@@ -455,11 +499,15 @@ def project_successor_selection(
         for item_id in sorted(duplicate_assignments)
         if item_id in item_by_id
     ]
+    if current_release_key is None:
+        input_issues.append("invalid_current_product_release_semver")
     for row in candidates:
         if row["priority"] not in priority_rank:
             input_issues.append(f"unknown_priority:{row['work_item_id']}")
         if row["target_release"] not in phases:
             input_issues.append(f"unknown_target_release:{row['work_item_id']}")
+        if not SEMVER_CORE_PATTERN.fullmatch(row["target_release"]):
+            input_issues.append(f"invalid_target_release_semver:{row['work_item_id']}")
         if row["wave_id"] not in row_by_id or row["wave_id"] not in wave_order:
             input_issues.append(f"unknown_wave:{row['work_item_id']}")
     if human_choice_present:
@@ -514,7 +562,10 @@ def project_successor_selection(
     dependency_ready = [
         row for row in selection_candidates if row["dependency_ready"]
     ]
-    interrupt = [row for row in dependency_ready if row["interrupt_priority"]]
+    eligible_ready = [
+        row for row in dependency_ready if not row["historical_target_release"]
+    ]
+    interrupt = [row for row in eligible_ready if row["interrupt_priority"]]
     reason_codes: list[str] = []
     pool: list[dict[str, Any]] = []
     if interrupt:
@@ -525,17 +576,17 @@ def project_successor_selection(
             reason_codes = ["interrupt_priority"]
             pool = interrupt
     else:
-        automatic = [row for row in dependency_ready if row["automatic_release_scope"]]
+        automatic = [row for row in eligible_ready if row["automatic_release_scope"]]
         if automatic:
             reason_codes = ["unpublished_roadmap_scope"]
             pool = automatic
-        elif dependency_ready:
+        elif eligible_ready:
             reason_codes = ["published_carryover_requires_human_scope"]
             pool = [
                 row
-                for row in dependency_ready
+                for row in eligible_ready
                 if row["human_choice_release_scope"]
-            ] or dependency_ready
+            ] or eligible_ready
 
     if not selection_candidates:
         status = "NO_CANDIDATE"
@@ -545,6 +596,10 @@ def project_successor_selection(
         status = "DEPENDENCY_BLOCKED"
         reason_codes = ["all_candidates_dependency_blocked"]
         top = []
+    elif not eligible_ready:
+        status = "HUMAN_CHOICE_REQUIRED"
+        reason_codes = ["historical_target_release_requires_replanning"]
+        top = dependency_ready
     elif not pool:
         status = "HUMAN_CHOICE_REQUIRED"
         reason_codes = ["no_automatic_release_scope"]
@@ -600,10 +655,9 @@ def project_successor_selection(
     if human_choice_present:
         chosen_id = str(human_choice.get("work_item_id") or "")
         top_by_id = {str(row.get("work_item_id") or ""): row for row in top}
-        if (
-            status != "HUMAN_CHOICE_REQUIRED"
-            or "equal_rank_requires_human_choice" not in reason_codes
-        ):
+        tie_choice = "equal_rank_requires_human_choice" in reason_codes
+        carryover_choice = "published_carryover_requires_human_scope" in reason_codes
+        if status != "HUMAN_CHOICE_REQUIRED" or not (tie_choice or carryover_choice):
             status = "INVALID_INPUT"
             reason_codes = ["human_choice_decision_not_applicable"]
             top = []
@@ -611,10 +665,17 @@ def project_successor_selection(
             status = "INVALID_INPUT"
             reason_codes = ["human_choice_not_current_top_candidate"]
             top = []
+        elif carryover_choice and str(human_choice.get("roadmap_phase") or "") != str(top_by_id[chosen_id]["target_release"]):
+            status = "INVALID_INPUT"
+            reason_codes = ["human_carryover_scope_mismatch"]
+            top = []
         else:
             top = [top_by_id[chosen_id]]
             status = "SELECTED"
-            reason_codes.append("attributable_human_tie_resolution")
+            reason_codes.append(
+                "attributable_human_tie_resolution"
+                if tie_choice else "attributable_human_published_carryover_scope"
+            )
             human_choice_result["applied"] = True
 
     selected = top[0] if status == "SELECTED" else None
@@ -623,7 +684,11 @@ def project_successor_selection(
             "execution_wave": selected["wave_id"],
             "work_item_ids": [selected["work_item_id"]],
             "release_scope": {
-                "mode": "roadmap_delivery",
+                "mode": (
+                    "published_carryover_development"
+                    if "published_carryover_requires_human_scope" in reason_codes
+                    else "roadmap_delivery"
+                ),
                 "roadmap_phase": selected["target_release"],
                 "concrete_release": None,
                 "does_not_expand_current_release_claims": True,
@@ -822,6 +887,22 @@ def project_execution_waves(
             if str(item)
         }
     )
+    # A published carry-over may need more than one bounded package. An
+    # attributable choice can put its still-open item back into the ranking,
+    # but the ordinary priority, dependency, release-train and exact-phase
+    # checks below still decide whether that choice is selectable.
+    if successor_excluded_work_item_ids is None and isinstance(active_package, dict):
+        decision = active_package.get("successor_selection_decision")
+        scope = active_package.get("release_scope")
+        if (
+            isinstance(decision, dict)
+            and isinstance(scope, dict)
+            and scope.get("mode") == "published_carryover_development"
+            and scope.get("concrete_release") is None
+        ):
+            chosen_id = str(decision.get("work_item_id") or "")
+            if chosen_id in excluded_successor_ids:
+                excluded_successor_ids.remove(chosen_id)
     successor_selection = project_successor_selection(
         work_items,
         active_package=active_package,

@@ -157,6 +157,11 @@ def next_semver(current_release: str, impact_level: str) -> str:
     return f"{major}.{minor}.{patch}"
 
 
+def normal_semver_key(value: str) -> tuple[int, int, int] | None:
+    match = SEMVER_CORE_PATTERN.fullmatch(str(value).strip())
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
 def project_semver_candidate(
     work_items: list[dict[str, Any]],
     registry: dict[str, Any] | None = None,
@@ -202,6 +207,17 @@ def project_semver_candidate(
         by_impact.setdefault(level, []).append(str(row.get("id") or "<missing-id>"))
 
     current_release = current_product_release(doc)
+    current_key = normal_semver_key(current_release)
+    historical_open = sorted(
+        str(row.get("id") or "<missing-id>")
+        for row in work_items
+        if isinstance(row, dict)
+        and str(row.get("status") or "") != "closed"
+        and not str(row.get("delivered_release") or "").strip()
+        and current_key is not None
+        and (target_key := normal_semver_key(str(row.get("target_release") or ""))) is not None
+        and target_key < current_key
+    )
     recommended_release: str | None = None
     highest_impact: str | None = None
     registered_status: str | None = None
@@ -236,6 +252,26 @@ def project_semver_candidate(
             registered_status = str(registered.get("status") or "") if isinstance(registered, dict) else None
             status = "READY_REGISTERED" if registered_status == "roadmap" else "ATTENTION_REGISTRATION_REQUIRED"
 
+    phase_by_release = {
+        str(row.get("release") or ""): row for row in roadmap_phase_rows(doc)
+    }
+    current_profile = str(phase_by_release.get(current_release, {}).get("claim_profile_id") or "") or None
+    recommended_phase = phase_by_release.get(recommended_release or "", {})
+    recommended_profile = str(recommended_phase.get("claim_profile_id") or "") or None
+    profile_required = recommended_phase.get("release_claim_profile_required") is True
+    if recommended_release is None:
+        alignment_status = "NOT_PROJECTED"
+    elif not recommended_phase or registered_status != "roadmap":
+        alignment_status = "UNREGISTERED"
+    elif (
+        not current_profile
+        or (profile_required and not recommended_profile)
+        or (recommended_profile is not None and recommended_profile != current_profile)
+    ):
+        alignment_status = "CLAIM_PROFILE_REVIEW_REQUIRED"
+    else:
+        alignment_status = "NO_PROFILE_CHANGE_DECLARED"
+
     return {
         "meta": {"kind": "sage_semver_candidate_projection", "version": "v1"},
         "status": status,
@@ -244,6 +280,22 @@ def project_semver_candidate(
         "highest_impact": highest_impact,
         "recommended_release": recommended_release,
         "recommended_release_registry_status": registered_status,
+        "roadmap_alignment": {
+            "status": alignment_status,
+            "current_claim_profile_id": current_profile,
+            "recommended_claim_profile_id": recommended_profile,
+            "release_claim_profile_required": profile_required,
+            "claim_profile_evidence_verified": False,
+        },
+        "historical_planning": {
+            "undelivered_work_item_ids_with_past_targets": historical_open,
+            "activation_window_past_releases": sorted(
+                release for release in activation_planning_window(doc)
+                if current_key is not None
+                and (release_key := normal_semver_key(release)) is not None
+                and release_key <= current_key
+            ),
+        },
         "candidate_scope": {
             "work_items": len(eligible),
             "work_item_ids": [str(row.get("id") or "<missing-id>") for row in eligible],
@@ -269,7 +321,7 @@ def project_semver_candidate(
             "publication_authorized": False,
             "claim_profile_activation_authorized": False,
         },
-        "claim_boundary": "This deterministic projection recommends the next normal SemVer target and includes all technically ready undelivered work. It does not select a concrete release, prepare or publish artifacts, activate claims, or replace human authority for ambiguous impact.",
+        "claim_boundary": "This deterministic projection recommends the next normal SemVer target and includes all technically ready undelivered work. READY_REGISTERED means only that the version has a roadmap row; roadmap_alignment separately exposes unverified claim-profile intent. It does not select a concrete release, prepare or publish artifacts, activate claims, or replace human authority for ambiguous impact.",
     }
 
 

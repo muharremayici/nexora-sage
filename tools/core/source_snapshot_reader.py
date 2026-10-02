@@ -141,7 +141,8 @@ def load_source_text(
     if fallback_path is None:
         return None
     try:
-        return fallback_path.read_text(encoding="utf-8", errors="ignore")
+        with fallback_path.open("r", encoding="utf-8", errors="ignore", newline="") as source_file:
+            return source_file.read()
     except Exception as exc:
         logger.warning("Failed to read source fallback %s: %s", fallback_path, exc)
         record_honesty_event(

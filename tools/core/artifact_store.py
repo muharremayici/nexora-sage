@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import tempfile
 import threading
 import time
@@ -1562,6 +1563,321 @@ class ArtifactStore:
             ),
         )
 
+    @staticmethod
+    def _project_class_method_search(conn, file_id: int, file_info: dict[str, Any]) -> None:
+        """Replace search-only method syntax in the enclosing Atlas transaction.
+
+        File-local evidence is required: global registry fallback cannot supply
+        member spans. Unsupported/malformed method records lower coverage instead
+        of borrowing the enclosing class span or inventing execution authority.
+        """
+        conn.execute("DELETE FROM symbol_search_members WHERE file_id = ?;", (file_id,))
+        symbols = file_info.get("symbols")
+        partial = not isinstance(symbols, list)
+
+        def positive_line(value: Any) -> bool:
+            return type(value) is int and value > 0
+
+        def identifier(value: Any) -> bool:
+            return isinstance(value, str) and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", value) is not None
+
+        for symbol in symbols if isinstance(symbols, list) else []:
+            if not isinstance(symbol, dict):
+                partial = True
+                continue
+            if symbol.get("type") != "Class":
+                continue
+            parent = symbol.get("name")
+            start, end = symbol.get("line"), symbol.get("end_line")
+            members = symbol.get("member_details")
+            if (not identifier(parent) or not positive_line(start) or not positive_line(end)
+                    or end < start or not isinstance(members, list)):
+                partial = True
+                continue
+            for member in members:
+                if not isinstance(member, dict):
+                    partial = True
+                    continue
+                if member.get("kind") != "method":
+                    continue
+                name = member.get("name")
+                line, end_line = member.get("line"), member.get("end_line")
+                is_static = member.get("static")
+                if (not identifier(name) or not positive_line(line) or not positive_line(end_line)
+                        or not start <= line <= end_line <= end or type(is_static) is not bool):
+                    partial = True
+                    continue
+                conn.execute(
+                    """INSERT INTO symbol_search_members
+                       (file_id, declaring_symbol, declaring_line, name, member_name, is_static, line, end_line)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+                    (file_id, parent, start, f"{parent}.{name}", name, int(is_static), line, end_line),
+                )
+        conn.execute(
+            "UPDATE files SET class_method_search_status = ? WHERE file_id = ?;",
+            ("partial_recorded_class_methods" if partial else "recorded_class_methods", file_id),
+        )
+
+    @staticmethod
+    def _project_store_action_search(conn, file_id: int, file_info: dict[str, Any]) -> None:
+        """Replace recorded direct Zustand action syntax in the Atlas transaction."""
+        conn.execute("DELETE FROM symbol_search_actions WHERE file_id = ?;", (file_id,))
+        symbols = file_info.get("symbols")
+        partial = not isinstance(symbols, list)
+
+        def positive_line(value: Any) -> bool:
+            return type(value) is int and value > 0
+
+        def identifier(value: Any) -> bool:
+            return isinstance(value, str) and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", value) is not None
+
+        for symbol in symbols if isinstance(symbols, list) else []:
+            if not isinstance(symbol, dict):
+                partial = True
+                continue
+            if symbol.get("type") != "Variable":
+                continue
+            parent = symbol.get("name")
+            start, end = symbol.get("line"), symbol.get("end_line")
+            evidence = symbol.get("initializer_member_evidence")
+            if (not identifier(parent) or not positive_line(start) or not positive_line(end)
+                    or end < start or not isinstance(evidence, dict)
+                    or evidence.get("status") != "syntax_observed"
+                    or evidence.get("runtime_owner_binding") != "not_established"
+                    or evidence.get("lexical_binding") != "unverified"
+                    or not isinstance(evidence.get("members"), list)
+                    or not isinstance(evidence.get("limitations"), list)):
+                partial = True
+                continue
+            known_factory = any(
+                isinstance(member, dict)
+                and isinstance(member.get("zustand_setter_call_evidence"), dict)
+                and member["zustand_setter_call_evidence"].get("factory_api")
+                in {"react_bound_hook", "vanilla_store"}
+                for member in evidence["members"]
+            )
+            if known_factory and any(
+                limitation != "call_result_identity_unverified"
+                for limitation in evidence["limitations"]
+            ):
+                partial = True
+            for member in evidence["members"]:
+                if not isinstance(member, dict):
+                    partial = True
+                    continue
+                if member.get("attribution") != "returned_object_candidate":
+                    continue
+                setter = member.get("zustand_setter_call_evidence")
+                if setter is None:
+                    continue
+                if isinstance(setter, dict) and setter.get("status") == "not_applicable":
+                    continue
+                if (isinstance(setter, dict) and setter.get("status") == "observed"
+                        and setter.get("calls") == []):
+                    continue
+                name = member.get("name")
+                kind = member.get("kind")
+                line, end_line = member.get("line"), member.get("end_line")
+                factory_api = setter.get("factory_api") if isinstance(setter, dict) else None
+                if (not identifier(name) or kind not in {"member", "method"}
+                        or not positive_line(line) or not positive_line(end_line)
+                        or not start <= line <= end_line <= end
+                        or not isinstance(setter, dict) or setter.get("status") != "observed"
+                        or not isinstance(setter.get("calls"), list) or not setter["calls"]
+                        or setter.get("factory_form") not in {"direct", "curried"}
+                        or setter.get("middleware_form") not in {"none", "persist"}
+                        or setter.get("binding_scope") != "single_file_lexical_store_factory_parameter"
+                        or setter.get("runtime_execution") != "not_established"
+                        or factory_api not in {"react_bound_hook", "vanilla_store"}
+                        or any(
+                            not isinstance(call, dict)
+                            or not isinstance(call.get("parameter"), str) or not call["parameter"]
+                            or not positive_line(call.get("line")) or not positive_line(call.get("end_line"))
+                            or not line <= call["line"] <= call["end_line"] <= end_line
+                            or type(call.get("optional")) is not bool
+                            for call in setter["calls"]
+                        )):
+                    partial = True
+                    continue
+                conn.execute(
+                    """INSERT INTO symbol_search_actions
+                       (file_id, declaring_symbol, declaring_line, name, member_name, member_kind, factory_api, line, end_line)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                    (file_id, parent, start, f"{parent}.{name}", name, kind, factory_api, line, end_line),
+                )
+        conn.execute(
+            "UPDATE files SET store_action_search_status = ? WHERE file_id = ?;",
+            ("partial_recorded_store_actions" if partial else "recorded_store_actions", file_id),
+        )
+
+    @staticmethod
+    def _project_direct_import_binding_search(conn, file_id: int, file_info: dict[str, Any]) -> None:
+        """Project parser-recorded import syntax without creating symbols or edges."""
+        conn.execute("DELETE FROM symbol_search_import_bindings WHERE file_id = ?;", (file_id,))
+        if file_info.get("language") not in {"typescript", "javascript"}:
+            status = "not_applicable"
+        else:
+            evidence = file_info.get("direct_import_binding_evidence")
+            if not isinstance(evidence, dict) or not isinstance(evidence.get("records"), list):
+                status = "unprojected"
+            elif evidence.get("status") not in {"observed", "degraded"}:
+                status = "unprojected"
+            else:
+                partial = evidence["status"] != "observed"
+                for record in evidence["records"]:
+                    if not isinstance(record, dict):
+                        partial = True
+                        continue
+                    name = record.get("localName")
+                    imported = record.get("importedName")
+                    source = record.get("source")
+                    kind = record.get("kind")
+                    line, end_line = record.get("line"), record.get("endLine")
+                    if (not isinstance(name, str) or re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", name) is None
+                            or not isinstance(imported, str)
+                            or (imported not in {"default", "*"}
+                                and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", imported) is None)
+                            or not isinstance(source, str) or not source.strip()
+                            or kind not in {"default", "named", "namespace"}
+                            or (kind == "namespace" and imported != "*")
+                            or (kind == "default" and imported != "default")
+                            or type(record.get("typeOnly")) is not bool
+                            or type(line) is not int or line <= 0
+                            or type(end_line) is not int or end_line < line
+                            or record.get("bindingScope") != "file_top_level_import_declaration"):
+                        partial = True
+                        continue
+                    conn.execute(
+                        """INSERT INTO symbol_search_import_bindings
+                           (file_id, name, member_name, raw_source, import_kind, type_only, line, end_line)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+                        (file_id, name, imported, source, kind, int(record["typeOnly"]), line, end_line),
+                    )
+                status = "partial_recorded_import_bindings" if partial else "recorded_import_bindings"
+        conn.execute(
+            "UPDATE files SET import_binding_search_status = ? WHERE file_id = ?;",
+            (status, file_id),
+        )
+
+    @staticmethod
+    def _project_qualified_import_call_search(conn, file_id: int, file_info: dict[str, Any]) -> None:
+        """Keep bounded qualified-call syntax outside declaration and graph tables."""
+        conn.execute("DELETE FROM symbol_search_qualified_import_calls WHERE file_id = ?;", (file_id,))
+        if file_info.get("language") not in {"typescript", "javascript"}:
+            status = "not_applicable"
+        else:
+            binding_evidence = file_info.get("direct_import_binding_evidence")
+            symbols = file_info.get("symbols")
+            if (not isinstance(binding_evidence, dict)
+                    or binding_evidence.get("status") != "observed"
+                    or not isinstance(binding_evidence.get("records"), list)
+                    or not isinstance(symbols, list)):
+                status = "unprojected"
+            else:
+                bindings = {
+                    (row.get("localName"), row.get("source"))
+                    for row in binding_evidence["records"]
+                    if isinstance(row, dict) and row.get("kind") == "namespace"
+                    and row.get("importedName") == "*" and row.get("typeOnly") is False
+                    and row.get("bindingScope") == "file_top_level_import_declaration"
+                    and isinstance(row.get("localName"), str)
+                    and isinstance(row.get("source"), str)
+                }
+                partial = False
+                inserted = 0
+                file_loc = file_info.get("loc")
+
+                def project_call(
+                    call: dict[str, Any], caller_name: str,
+                    caller_line: int, caller_end: int, callsite_scope: str,
+                ) -> None:
+                    nonlocal partial, inserted
+                    receiver, member, source = (
+                        call.get("localName"), call.get("member"), call.get("source"))
+                    line, end_line = call.get("line"), call.get("end_line")
+                    if (not isinstance(receiver, str)
+                            or re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", receiver) is None
+                            or not isinstance(member, str)
+                            or re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", member) is None
+                            or not isinstance(source, str) or not source
+                            or call.get("importedName") != "*"
+                            or (receiver, source) not in bindings
+                            or any(type(value) is not int for value in (line, end_line))
+                            or not (caller_line <= line <= end_line <= caller_end)):
+                        partial = True
+                        return
+                    if inserted >= 64:
+                        partial = True
+                        return
+                    conn.execute(
+                        """INSERT INTO symbol_search_qualified_import_calls
+                           (file_id, name, receiver_name, member_name, raw_source,
+                            callsite_scope, caller_symbol, caller_line, line, end_line)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                        (file_id, f"{receiver}.{member}", receiver, member, source,
+                         callsite_scope, caller_name, caller_line, line, end_line),
+                    )
+                    inserted += 1
+
+                for caller in symbols:
+                    if not isinstance(caller, dict):
+                        partial = True
+                        continue
+                    if caller.get("type") not in {"Function", "Arrow", "Hook", "Component"}:
+                        continue
+                    evidence = caller.get("import_call_evidence")
+                    if (not isinstance(evidence, dict) or evidence.get("status") != "observed"
+                            or evidence.get("binding_scope") != "single_file_lexical_import"
+                            or not isinstance(evidence.get("calls"), list)):
+                        partial = True
+                        continue
+                    caller_name = caller.get("name")
+                    caller_line, caller_end = caller.get("line"), caller.get("end_line")
+                    if (not isinstance(caller_name, str) or not caller_name
+                            or any(type(value) is not int for value in (caller_line, caller_end))
+                            or not (0 < caller_line <= caller_end)):
+                        partial = True
+                        continue
+                    for call in evidence["calls"]:
+                        if not isinstance(call, dict):
+                            partial = True
+                            continue
+                        if call.get("kind") != "namespace":
+                            continue
+                        if call.get("optional") is not False:
+                            continue
+                        project_call(call, caller_name, caller_line, caller_end,
+                                     "indexed_top_level_callable")
+                root_evidence = file_info.get("module_root_import_call_evidence")
+                if (not isinstance(root_evidence, dict)
+                        or root_evidence.get("status") != "observed"
+                        or root_evidence.get("binding_scope") != "single_file_lexical_import"
+                        or root_evidence.get("callsite_scope") != "module_root"
+                        or root_evidence.get("runtime_execution") != "not_established"
+                        or not isinstance(root_evidence.get("calls"), list)
+                        or type(root_evidence.get("omitted")) is not int
+                        or root_evidence["omitted"] < 0
+                        or type(file_loc) is not int or file_loc < 1):
+                    partial = True
+                else:
+                    root_calls = root_evidence["calls"]
+                    if root_evidence["omitted"] or len(root_calls) > 64:
+                        partial = True
+                    for call in root_calls[:64]:
+                        if not isinstance(call, dict):
+                            partial = True
+                            continue
+                        if call.get("kind") != "namespace" or call.get("optional") is not False:
+                            partial = True
+                            continue
+                        project_call(call, "<module-root>", 1, file_loc, "module_root")
+                status = ("partial_recorded_qualified_calls" if partial
+                          else "recorded_qualified_calls")
+        conn.execute(
+            "UPDATE files SET qualified_import_call_search_status = ? WHERE file_id = ?;",
+            (status, file_id),
+        )
+
     def _assert_scoped_atlas_payload_covers_relational_projects(
         self,
         payload: dict[str, Any],
@@ -1785,6 +2101,10 @@ class ArtifactStore:
                     if not file_id or not isinstance(file_info, dict):
                         continue
                     conn.execute("DELETE FROM symbols WHERE file_id = ?;", (file_id,))
+                    self._project_class_method_search(conn, file_id, file_info)
+                    self._project_store_action_search(conn, file_id, file_info)
+                    self._project_direct_import_binding_search(conn, file_id, file_info)
+                    self._project_qualified_import_call_search(conn, file_id, file_info)
                     projected_names: set[str] = set()
                     for sym_info in file_info.get("symbols", []) or []:
                         if not isinstance(sym_info, dict):
@@ -1968,6 +2288,10 @@ class ArtifactStore:
             conn.execute("DELETE FROM findings;")
             conn.execute("DELETE FROM dependencies;")
             conn.execute("DELETE FROM symbols;")
+            conn.execute("DELETE FROM symbol_search_members;")
+            conn.execute("DELETE FROM symbol_search_actions;")
+            conn.execute("DELETE FROM symbol_search_import_bindings;")
+            conn.execute("DELETE FROM symbol_search_qualified_import_calls;")
             conn.execute("DELETE FROM source_snapshots;")
             conn.execute("DELETE FROM files;")
             conn.execute("DELETE FROM projects;")
@@ -2058,6 +2382,10 @@ class ArtifactStore:
                         if not file_id:
                             continue
                         file_symbols = file_info.get("symbols", [])
+                        self._project_class_method_search(conn, file_id, file_info)
+                        self._project_store_action_search(conn, file_id, file_info)
+                        self._project_direct_import_binding_search(conn, file_id, file_info)
+                        self._project_qualified_import_call_search(conn, file_id, file_info)
                         if not isinstance(file_symbols, list):
                             continue
                         for sym_info in file_symbols:
