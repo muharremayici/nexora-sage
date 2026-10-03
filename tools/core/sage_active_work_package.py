@@ -10,10 +10,13 @@ from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, save_json_atomic
 from tools.core.json_io import load_json_object_strict
 from tools.core.source_layer_classifier import classify_source_layer
 from tools.core.work_package_state import (
+    _closure_contract,
     _inherited_dirty_source_path,
     inherited_dirty_file_identity,
     load_ledger,
+    package_closure_is_complete,
     package_from_ledger,
+    successor_matches_selection,
 )
 
 
@@ -70,39 +73,6 @@ def package_history(ledger: dict[str, Any] | None = None) -> list[dict[str, Any]
     return rows
 
 
-def _closure_contract() -> dict[str, Any]:
-    loop = load_json_object_strict(LOOP_CONTRACT_PATH, label="SAGE development loop contract")
-    contract = loop.get("package_closure")
-    if not isinstance(contract, dict):
-        raise ValueError("SAGE development loop must contain package_closure")
-    return contract
-
-
-def package_closure_is_complete(
-    package: dict[str, Any],
-    closure_contract: dict[str, Any] | None = None,
-) -> bool:
-    contract = closure_contract if closure_contract is not None else _closure_contract()
-    required = [str(item) for item in contract.get("required", []) if str(item)]
-    validation = contract.get("validation") if isinstance(contract.get("validation"), dict) else {}
-    completion_statuses = {
-        str(item)
-        for item in validation.get("completion_evidence_statuses", [])
-        if str(item)
-    }
-    closure = package.get("closure") if isinstance(package.get("closure"), dict) else {}
-    evidence = closure.get("evidence") if isinstance(closure.get("evidence"), dict) else {}
-    return bool(required) and bool(completion_statuses) and (
-        package.get("status") == "closed"
-        and closure.get("status") == "closed"
-        and all(
-            isinstance(evidence.get(item), dict)
-            and str(evidence[item].get("status") or "") in completion_statuses
-            for item in required
-        )
-    )
-
-
 def _stable_package_identity(package: dict[str, Any]) -> dict[str, Any]:
     release_scope = package.get("release_scope") if isinstance(package.get("release_scope"), dict) else {}
     return {
@@ -117,46 +87,6 @@ def _stable_package_identity(package: dict[str, Any]) -> dict[str, Any]:
         ],
         "release_scope": deepcopy(release_scope),
     }
-
-
-def successor_matches_selection(
-    successor: dict[str, Any],
-    selection: dict[str, Any],
-) -> bool:
-    """Require one exact machine-selected package seed before ledger transition."""
-    if (
-        selection.get("status") != "SELECTED"
-        or selection.get("transition_validation_eligible") is not True
-    ):
-        return False
-    selected_id = str(selection.get("selected_work_item_id") or "")
-    seed = (
-        selection.get("selected_package_seed")
-        if isinstance(selection.get("selected_package_seed"), dict)
-        else {}
-    )
-    seed_scope = seed.get("release_scope") if isinstance(seed.get("release_scope"), dict) else {}
-    successor_scope = (
-        successor.get("release_scope")
-        if isinstance(successor.get("release_scope"), dict)
-        else {}
-    )
-    scope_fields = (
-        "mode",
-        "roadmap_phase",
-        "concrete_release",
-        "does_not_expand_current_release_claims",
-    )
-    return (
-        bool(selected_id)
-        and [str(item) for item in successor.get("work_item_ids", []) if str(item)]
-        == [selected_id]
-        and [str(item) for item in seed.get("work_item_ids", []) if str(item)]
-        == [selected_id]
-        and str(successor.get("execution_wave") or "")
-        == str(seed.get("execution_wave") or "")
-        and all(successor_scope.get(field) == seed_scope.get(field) for field in scope_fields)
-    )
 
 
 def build_package_transition(
@@ -180,6 +110,8 @@ def build_package_transition(
         raise ValueError("Closed package snapshot must be an object")
     if closed_package is not None and _stable_package_identity(snapshot) != _stable_package_identity(current):
         raise ValueError("Closed package snapshot must preserve the active package identity and scope")
+    if current.get("status") == "closed" and snapshot != current:
+        raise ValueError("Already closed package history must remain unchanged")
 
     current_id = str(current.get("id") or "").strip()
     snapshot_id = str(snapshot.get("id") or "").strip()
@@ -240,26 +172,42 @@ def save_package_transition(
     # The non-mutating closeout proposal is advisory to humans, but a BLOCKED
     # live proposal cannot be turned into a closed package by changing adapters.
     from tools.core.work_package_receipts import (
+        build_closed_package_activation_proposal,
         build_work_package_closeout_proposal,
         propose_work_package_evidence,
     )
     from tools.validate_sage_work_package_closure import run as validate_closure
 
+    receipt_projection = propose_work_package_evidence()
     closeout = build_work_package_closeout_proposal(
         package=ledger["active_package"],
-        receipt_projection=propose_work_package_evidence(),
+        receipt_projection=receipt_projection,
         closure_validation=validate_closure(),
         changed_files=changed_files,
         package_history=ledger["package_history"],
     )
-    closeout_policy = load_json_object_strict(
+    trace_contract = load_json_object_strict(
         TRACE_CONTRACT_PATH, label="Governance trace contract"
-    )["work_package_receipts"]["closeout_policy"]
+    )
+    receipt_contract = trace_contract["work_package_receipts"]
+    closeout_policy = receipt_contract["closeout_policy"]
     ready_statuses = {
         closeout_policy["transition_required_status"],
         closeout_policy["accepted_risk_transition_status"],
     }
-    if closeout["status"] not in ready_statuses:
+    if ledger["active_package"].get("status") == "closed":
+        activation = build_closed_package_activation_proposal(
+            package=ledger["active_package"],
+            successor=successor,
+            successor_selection=successor_selection,
+            receipt_projection=receipt_projection,
+            closeout=closeout,
+            closure_contract=closure_contract,
+        )
+        activation_policy = receipt_contract.get("closed_package_activation", {})
+        if not activation.get("ready") or activation["status"] != activation_policy.get("ready_status"):
+            raise ValueError(f"Closed package activation is blocked: {activation['errors']}")
+    elif closeout["status"] not in ready_statuses:
         raise ValueError("Current work package closeout proposal is blocked")
     live_diff = closeout.get("live_diff")
     accepted_unknown = (
@@ -279,7 +227,9 @@ def save_package_transition(
         ):
             raise ValueError("Accepted legacy dirty bytes changed before transition")
     updated["active_package"]["inherited_dirty_baseline"] = capture_inherited_dirty_baseline(
-        successor, changed_files
+        successor, changed_files, trace_contract=trace_contract
     )
+    if load_json_object_strict(ledger_path, label="SAGE active work package ledger") != ledger:
+        raise ValueError("Work package ledger changed during transition")
     save_json_atomic(ledger_path, updated)
     return updated

@@ -40,6 +40,9 @@
       "minimum_occurrences": 2,
       "freshness_boundary": "enclosing_function",
       "declared_independent_reads": {
+        "tools/core/sage_active_work_package.py|save_package_transition|load_json_object_strict|ledger_path": {
+          "reason": "The first acquisition constructs the transition from the live ledger; the final acquisition occurs after receipt, closure and dirty-source checks and rejects any intervening writer before the atomic save. These are distinct freshness boundaries, guarded by test_closed_activation_does_not_overwrite_changed_ledger."
+        },
         "tools/core/declarative_evidence.py|evaluate_evidence_contract|read_text|path": {
           "reason": "The contains and not_contains loops share a source-id cache; their syntactic reads are guarded cache misses, not repeated acquisitions of one immutable source."
         },

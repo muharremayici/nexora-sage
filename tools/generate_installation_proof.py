@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import platform
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,9 +25,13 @@ from tools.core.config import (
     save_text_atomic,
 )
 from tools.core.init_execution_contract import init_mode_contract, installation_proof_init_mode
-from tools.core.installation_authority import resolve_installation_authority_profile
+from tools.core.installation_authority import (
+    PUBLIC_TARGET_REPOSITORY_PROFILE,
+    resolve_installation_authority_profile,
+)
 from tools.core.operational_limits import install_proof_step_timeout_seconds
 from tools.core.python_runtime_env import python_subprocess_env
+from tools.core.quality_gate_ci import load_ci_execution_policy
 from tools.core.subprocess_telemetry import run_observed_subprocess
 
 
@@ -212,6 +217,24 @@ def _runtime_configuration_prerequisite(level: str) -> dict[str, Any]:
     }
 
 
+def _public_doctor_validation_arguments() -> list[str]:
+    """Project the existing CI quick-doctor command as argv, never as shell code."""
+    command = load_ci_execution_policy()["commands"]["target_doctor"]
+    parts = shlex.split(command)
+    if (
+        len(parts) != 8
+        or not parts[0].startswith("CODEMAPS_TARGET_ROOT=")
+        or not parts[0].removeprefix("CODEMAPS_TARGET_ROOT=").strip()
+        or parts[1:4] != ["python", "sage.py", "doctor"]
+        or parts[4:7] != ["--include-validate", "--quick", "--max-seconds"]
+        or not parts[7].isascii()
+        or not parts[7].isdecimal()
+        or int(parts[7]) <= 0
+    ):
+        raise ValueError("CI command must declare a bounded public doctor quick selection")
+    return parts[4:]
+
+
 def _commands_for_level(
     level: str,
     *,
@@ -222,6 +245,12 @@ def _commands_for_level(
     public_distribution: bool | None = None,
 ) -> list[dict[str, Any]]:
     py = sys.executable
+    authority_profile, omitted_step_ids = _installation_proof_authority(
+        public_distribution=public_distribution
+    )
+    doctor_command = [py, "sage.py", "doctor", "--skip-release-proof"]
+    if authority_profile == PUBLIC_TARGET_REPOSITORY_PROFILE:
+        doctor_command.extend(_public_doctor_validation_arguments())
     steps: list[dict[str, Any]] = [
         {
             "id": "installation_contract",
@@ -232,7 +261,7 @@ def _commands_for_level(
         {
             "id": "doctor",
             "label": "Doctor health check",
-            "command": [py, "sage.py", "doctor", "--skip-release-proof"],
+            "command": doctor_command,
             "timeout": max(1, int(max_doctor_seconds or install_proof_step_timeout_seconds("doctor"))),
         },
         {
@@ -302,9 +331,6 @@ def _commands_for_level(
                 "timeout": install_proof_step_timeout_seconds("installed_distribution_surface"),
             }
         )
-    _, omitted_step_ids = _installation_proof_authority(
-        public_distribution=public_distribution
-    )
     known_step_ids = {str(step["id"]) for step in steps}
     unknown_omissions = sorted(omitted_step_ids - known_step_ids)
     if unknown_omissions:
@@ -350,12 +376,19 @@ def build_installation_proof(
         )
     for spec in step_specs:
         print(f"[install-proof] START {spec['label']}", flush=True)
+        execution_env = step_env if spec["id"] == "daily_run" else None
+        if (
+            spec["id"] == "doctor"
+            and authority_profile == PUBLIC_TARGET_REPOSITORY_PROFILE
+            and target_root
+        ):
+            execution_env = {"CODEMAPS_TARGET_ROOT": str(target_root)}
         row = _step(
             spec["id"],
             spec["label"],
             spec["command"],
             timeout=int(spec["timeout"]),
-            env=step_env if spec["id"] == "daily_run" else None,
+            env=execution_env,
         )
         print(f"[install-proof] {'PASS' if row['passed'] else 'FAIL'} {spec['label']} ({row['duration_seconds']}s)", flush=True)
         steps.append(row)

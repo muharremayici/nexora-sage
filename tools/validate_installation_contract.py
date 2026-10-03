@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import sys
 import tomllib
 from pathlib import Path
@@ -184,6 +185,28 @@ def _files_without_legacy_cli_examples(paths: list[Path]) -> tuple[bool, list[st
     return not offenders, offenders
 
 
+def _installation_doctor_matches_ci_selection() -> tuple[bool, dict[str, Any]]:
+    from tools.generate_installation_proof import _commands_for_level
+
+    try:
+        ci_args = shlex.split(load_ci_execution_policy()["commands"]["target_doctor"])[4:]
+        steps = _commands_for_level(
+            "release", skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+        )
+        step_ids = [row["id"] for row in steps]
+        doctors = [row for row in steps if row["id"] == "doctor"]
+        expected = [sys.executable, "sage.py", "doctor", "--skip-release-proof", *ci_args]
+        passed = (
+            len(doctors) == 1
+            and doctors[0]["command"] == expected
+            and step_ids.index("init") < step_ids.index("doctor") < step_ids.index("daily_run")
+            and step_ids.count("daily_run") == 1
+        )
+        return passed, {"expected_command": expected, "doctor_steps": doctors, "step_order": step_ids}
+    except (KeyError, ValueError, OSError) as exc:
+        return False, {"error": f"{type(exc).__name__}:{exc}"}
+
+
 def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
 
@@ -269,6 +292,9 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
     )
     ci_target_lifecycle_surfaces_match, ci_target_lifecycle_details = (
         _ci_target_lifecycle_surfaces_match([quality_gate_workflow, quality_gate_doc])
+    )
+    installation_doctor_matches_ci, installation_doctor_details = (
+        _installation_doctor_matches_ci_selection()
     )
     clean_mirror_forbidden_paths = {
         str(path).replace("\\", "/")
@@ -483,6 +509,11 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
             "installation_proof_doctor_avoids_release_proof_cycle",
             _file_contains(installation_proof, '"doctor", "--skip-release-proof"'),
             "Installation proof must validate local setup without depending on a pre-existing release proof bundle.",
+        ),
+        _check(
+            "installation_proof_public_doctor_matches_ci_selection",
+            installation_doctor_matches_ci,
+            installation_doctor_details,
         ),
         _check(
             "release_proof_runs_installation_smoke",

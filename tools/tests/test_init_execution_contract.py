@@ -1,8 +1,11 @@
 import argparse
 import json
+import shlex
 import subprocess
 from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
 
 import codemaps
 from tools import external_target_preflight, generate_installation_proof
@@ -202,6 +205,96 @@ def test_private_installation_proof_retains_final_consistency():
     )
 
     assert "final_consistency" in [row["id"] for row in steps]
+
+
+@pytest.mark.parametrize("level", ["smoke", "daily", "release"])
+def test_public_installation_doctor_uses_current_ci_quick_selection(level):
+    from tools.core.quality_gate_ci import load_ci_execution_policy
+
+    ci_args = shlex.split(load_ci_execution_policy()["commands"]["target_doctor"])[4:]
+    steps = generate_installation_proof._commands_for_level(
+        level, skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+    )
+    doctors = [row for row in steps if row["id"] == "doctor"]
+    assert len(doctors) == 1
+    assert doctors[0]["command"][2:] == ["doctor", "--skip-release-proof", *ci_args]
+    assert doctors[0]["timeout"] == 90
+    if level != "smoke":
+        ids = [row["id"] for row in steps]
+        assert ids.index("init") < ids.index("doctor") < ids.index("daily_run")
+        assert ids.count("daily_run") == 1
+
+
+def test_private_installation_doctor_does_not_inherit_public_ci_validation():
+    steps = generate_installation_proof._commands_for_level(
+        "release", skip_deps=True, max_doctor_seconds=90, public_distribution=False,
+    )
+    doctor = next(row for row in steps if row["id"] == "doctor")
+    assert doctor["command"][2:] == ["doctor", "--skip-release-proof"]
+
+
+@pytest.mark.parametrize("command", [
+    "python sage.py doctor --include-validate --quick --max-seconds 45",
+    'CODEMAPS_TARGET_ROOT="target" python sage.py doctor',
+    'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --heavy --max-seconds 45',
+    'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --quick --max-seconds 0',
+    'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --quick --max-seconds nope',
+    'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --quick --max-seconds 45 --repair-deps',
+    'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --quick --max-seconds 45 && python other.py',
+])
+def test_public_installation_doctor_rejects_unbounded_or_incompatible_ci_command(monkeypatch, command):
+    monkeypatch.setattr(
+        generate_installation_proof, "load_ci_execution_policy",
+        lambda: {"commands": {"target_doctor": command}},
+    )
+    with pytest.raises(ValueError, match="bounded public doctor"):
+        generate_installation_proof._commands_for_level(
+            "release", skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+        )
+
+
+def test_public_installation_doctor_budget_is_derived_not_pinned(monkeypatch):
+    monkeypatch.setattr(
+        generate_installation_proof, "load_ci_execution_policy",
+        lambda: {"commands": {"target_doctor":
+            'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --quick --max-seconds 73'}},
+    )
+    steps = generate_installation_proof._commands_for_level(
+        "release", skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+    )
+    assert next(row for row in steps if row["id"] == "doctor")["command"][-1] == "73"
+
+
+@pytest.mark.parametrize("doctor_code", [1, 124])
+def test_public_installation_doctor_failure_stops_proof_and_keeps_explicit_target(
+    monkeypatch, tmp_path, doctor_code,
+):
+    target = tmp_path / "target with spaces"
+    observed = []
+    monkeypatch.setenv("CODEMAPS_TARGET_ROOT", "wrong-inherited-target")
+    monkeypatch.setattr(
+        generate_installation_proof, "_installation_preflight_reuse_transport",
+        lambda _target: {"path": "receipt.json", "sha256": "a" * 64, "run_id": "init"},
+    )
+
+    def run(command, **kwargs):
+        observed.append((kwargs["label"], command, kwargs["env"]))
+        code = doctor_code if kwargs["label"] == "doctor" else 0
+        return subprocess.CompletedProcess(command, code, "selected validator failure" if code else "", ""), 0.01
+
+    monkeypatch.setattr(generate_installation_proof, "run_observed_subprocess", run)
+    payload = generate_installation_proof.build_installation_proof(
+        "release", skip_deps=True, max_doctor_seconds=90,
+        target_root=str(target), projects="MAIN", public_distribution=True,
+    )
+    assert [row[0] for row in observed] == ["init", "installation_contract", "doctor"]
+    assert observed[-1][2]["CODEMAPS_TARGET_ROOT"] == str(target)
+    assert "CODEMAPS_TARGET_PREFLIGHT_RECEIPT" not in observed[-1][2]
+    assert "--include-validate" in observed[-1][1]
+    assert payload["summary"]["status"] == "FAIL"
+    assert payload["summary"]["target_governance"] == "NOT_EVALUATED"
+    assert payload["steps"][-1]["returncode"] == doctor_code
+    assert payload["steps"][-1]["output_excerpt"] == "selected validator failure"
 
 
 def test_installation_proof_unknown_profile_omission_fails_closed(monkeypatch):

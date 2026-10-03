@@ -109,6 +109,24 @@ def test_ci_target_lifecycle_rejects_doctor_before_init(tmp_path: Path) -> None:
     assert next(iter(details.values()))["passed"] is False
 
 
+def test_installation_contract_rejects_legacy_public_doctor_plan(monkeypatch) -> None:
+    from tools import generate_installation_proof
+
+    original = generate_installation_proof._commands_for_level
+
+    def legacy_plan(*args, **kwargs):
+        steps = original(*args, **kwargs)
+        next(row for row in steps if row["id"] == "doctor")["command"] = [
+            "python", "sage.py", "doctor", "--skip-release-proof",
+        ]
+        return steps
+
+    monkeypatch.setattr(generate_installation_proof, "_commands_for_level", legacy_plan)
+    payload = run_validation(public_distribution=True)
+    failed = {row["name"] for row in payload["checks"] if not row["passed"]}
+    assert failed == {"installation_proof_public_doctor_matches_ci_selection"}
+
+
 def test_current_installation_manifests_preserve_mcp_v1_compatibility() -> None:
     payload = run_validation()
     checks = {check["name"]: check for check in payload["checks"]}
@@ -167,6 +185,7 @@ def test_public_installation_profile_keeps_product_checks_and_omits_maintainer_c
         "dependency_manifest_parity",
         "init_command_is_publicly_documented",
         "doctor_command_is_publicly_documented",
+        "installation_proof_public_doctor_matches_ci_selection",
         "ci_fresh_target_lifecycle_is_explicit_and_ordered",
         "target_aware_installation_contract_is_explicit",
         "dependency_acquisition_is_capability_scoped_and_evidence_bounded",
