@@ -357,6 +357,22 @@
       "explicit_not_applicable_closure_status": "not_applicable",
       "unknown_release_mode_behavior": "block"
     },
+    "closed_package_activation": {
+      "version": "v1",
+      "accepted_package_statuses": [
+        "closed"
+      ],
+      "required_operations": [
+        "sage_learning_system_bootstrap"
+      ],
+      "ready_status": "CLOSED_PACKAGE_ACTIVATION_READY",
+      "blocked_status": "BLOCKED",
+      "general_mutation_allowed": false,
+      "historical_evidence_rule": "preserve_complete_closed_snapshot_without_replaying_release_proof",
+      "fresh_evidence_rule": "current_source_bound_bootstrap_and_live_closure_validation",
+      "changed_file_scope": "predecessor_or_exact_successor_or_verified_unchanged_inherited",
+      "claim_boundary": "This gate permits only the existing atomic append-and-activate operation after exact successor selection. It cannot reopen or alter the closed package, authorize general mutation, certify inherited contents, select a release, grant a seal, push Git or publish."
+    },
     "mutation_preflight": {
       "required_operations": [
         "sage_learning_system_bootstrap"

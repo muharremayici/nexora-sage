@@ -586,6 +586,89 @@ def build_work_package_closeout_proposal(
     }
 
 
+def build_closed_package_activation_proposal(
+    *,
+    package: dict[str, Any],
+    successor: dict[str, Any],
+    successor_selection: dict[str, Any],
+    receipt_projection: dict[str, Any],
+    closeout: dict[str, Any],
+    closure_contract: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate a new activation, never re-close or re-prove historical work."""
+    from tools.core.work_package_state import (
+        package_closure_is_complete,
+        successor_matches_selection,
+    )
+
+    policy = _receipt_contract().get("closed_package_activation")
+    if not isinstance(policy, dict):
+        return {"status": "BLOCKED", "errors": ["closed_activation_policy_missing"]}
+    errors: list[str] = []
+    required = policy.get("required_operations")
+    preflight = receipt_projection.get("mutation_preflight") or {}
+    ordinary_required = _receipt_contract()["mutation_preflight"]["required_operations"]
+    if (
+        policy.get("version") != "v1"
+        or policy.get("general_mutation_allowed") is not False
+        or policy.get("accepted_package_statuses") != ["closed"]
+        or not isinstance(required, list) or not required
+        or required != ordinary_required
+        or not policy.get("ready_status")
+        or policy.get("ready_status") == policy.get("blocked_status")
+    ):
+        errors.append("closed_activation_policy_invalid")
+    if not package_closure_is_complete(package, closure_contract):
+        errors.append("closed_predecessor_evidence_incomplete")
+    if not successor_matches_selection(successor, successor_selection):
+        errors.append("exact_successor_selection_required")
+    projected_package = receipt_projection.get("package") or {}
+    if (
+        projected_package.get("id") != package.get("id")
+        or projected_package.get("status") != package.get("status")
+        or projected_package.get("identity") != work_package_identity(package)
+        or projected_package.get("source_identity") != work_package_source_identity(package)
+    ):
+        errors.append("receipt_package_or_source_mismatch")
+    if not isinstance(required, list) or not set(required).issubset(
+        set(preflight.get("observed_operations", []))
+    ):
+        errors.append("current_bootstrap_missing")
+    if receipt_projection.get("summary", {}).get("stale_or_mismatched_receipts") != 0:
+        errors.append("stale_or_mismatched_receipts")
+    if closeout.get("closure_validation", {}).get("status") != "PASS":
+        errors.append("live_closure_validation_failed")
+    if closeout.get("applicability", {}).get("status") != "VALID":
+        errors.append("historical_release_scope_invalid")
+    live_diff = closeout.get("live_diff", {})
+    if (
+        live_diff.get("unknown_source_files")
+        or live_diff.get("invalid_changed_files")
+        or live_diff.get("inherited_dirty_baseline_status") == "INVALID"
+        or live_diff.get("legacy_accepted_unknown_changed_files")
+    ):
+        errors.append("live_diff_unknown_invalid_or_accepted_risk")
+    successor_scope = set(successor.get("affected_contracts", []))
+    undeclared = sorted(
+        path for path in live_diff.get("undeclared_changed_files", [])
+        if path not in successor_scope
+    )
+    if undeclared:
+        errors.append("live_diff_outside_predecessor_and_successor")
+    return {
+        "meta": {"kind": "closed_work_package_activation_proposal", "version": "v1"},
+        "status": policy["ready_status"] if not errors else policy.get("blocked_status", "BLOCKED"),
+        "ready": not errors,
+        "errors": errors,
+        "package": projected_package,
+        "successor_id": successor.get("id"),
+        "undeclared_changed_files": undeclared,
+        "historical_closeout_status": closeout.get("status"),
+        "general_mutation_preflight": preflight.get("status"),
+        "claim_boundary": policy.get("claim_boundary"),
+    }
+
+
 def render_work_package_closeout_proposal(payload: dict[str, Any]) -> str:
     package = payload.get("package", {}) if isinstance(payload.get("package"), dict) else {}
     live_diff = payload.get("live_diff", {}) if isinstance(payload.get("live_diff"), dict) else {}

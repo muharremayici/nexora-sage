@@ -65,6 +65,16 @@ Initialization precedes doctor because a successful first-run self-heal still
 reports the missing initial state as attention rather than rewriting that
 observation into a clean PASS.
 
+Before public transport, the existing local installation-proof doctor step
+derives the same bounded quick-validator arguments from
+`ci_execution_policy.commands.target_doctor`. It uses the local interpreter and
+explicit target, not the CI temporary path, and retains `--skip-release-proof`.
+The current repository-quick validator set remains owned by
+`config/cli_command_contract.json`; no second validator list, full-suite replay
+or extra initialization is added. Failure or timeout fails installation proof
+before later steps. Private maintainer doctor behavior is unchanged. This
+early check does not replace fresh public CI or confer publication authority.
+
 `tools/run_distribution_tests.py` remains the single suite entry point.
 Canonical and clean-install development deliveries run both
 `public_target_repository` and `private_maintainer` classifications. A public

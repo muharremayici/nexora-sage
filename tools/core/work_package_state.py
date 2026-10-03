@@ -14,6 +14,7 @@ from tools.core.json_io import load_json_object_strict
 
 
 LEDGER_PATH = CONFIG_DIR / "sage_active_work_package.json"
+LOOP_CONTRACT_PATH = CONFIG_DIR / "sage_development_loop_contract.json"
 
 
 def load_ledger(path: Path = LEDGER_PATH) -> dict[str, Any]:
@@ -61,3 +62,76 @@ def inherited_dirty_file_identity(relative: str, *, root: Path = CODE_MAPS_DIR) 
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _closure_contract() -> dict[str, Any]:
+    loop = load_json_object_strict(LOOP_CONTRACT_PATH, label="SAGE development loop contract")
+    contract = loop.get("package_closure")
+    if not isinstance(contract, dict):
+        raise ValueError("SAGE development loop must contain package_closure")
+    return contract
+
+
+def package_closure_is_complete(
+    package: dict[str, Any],
+    closure_contract: dict[str, Any] | None = None,
+) -> bool:
+    contract = closure_contract if closure_contract is not None else _closure_contract()
+    required = [str(item) for item in contract.get("required", []) if str(item)]
+    validation = contract.get("validation") if isinstance(contract.get("validation"), dict) else {}
+    completion_statuses = {
+        str(item)
+        for item in validation.get("completion_evidence_statuses", [])
+        if str(item)
+    }
+    closure = package.get("closure") if isinstance(package.get("closure"), dict) else {}
+    evidence = closure.get("evidence") if isinstance(closure.get("evidence"), dict) else {}
+    return bool(required) and bool(completion_statuses) and (
+        package.get("status") == "closed"
+        and closure.get("status") == "closed"
+        and all(
+            isinstance(evidence.get(item), dict)
+            and str(evidence[item].get("status") or "") in completion_statuses
+            for item in required
+        )
+    )
+
+
+def successor_matches_selection(
+    successor: dict[str, Any],
+    selection: dict[str, Any],
+) -> bool:
+    """Require one exact machine-selected package seed before ledger transition."""
+    if (
+        selection.get("status") != "SELECTED"
+        or selection.get("transition_validation_eligible") is not True
+    ):
+        return False
+    selected_id = str(selection.get("selected_work_item_id") or "")
+    seed = (
+        selection.get("selected_package_seed")
+        if isinstance(selection.get("selected_package_seed"), dict)
+        else {}
+    )
+    seed_scope = seed.get("release_scope") if isinstance(seed.get("release_scope"), dict) else {}
+    successor_scope = (
+        successor.get("release_scope")
+        if isinstance(successor.get("release_scope"), dict)
+        else {}
+    )
+    scope_fields = (
+        "mode",
+        "roadmap_phase",
+        "concrete_release",
+        "does_not_expand_current_release_claims",
+    )
+    return (
+        bool(selected_id)
+        and [str(item) for item in successor.get("work_item_ids", []) if str(item)]
+        == [selected_id]
+        and [str(item) for item in seed.get("work_item_ids", []) if str(item)]
+        == [selected_id]
+        and str(successor.get("execution_wave") or "")
+        == str(seed.get("execution_wave") or "")
+        and all(successor_scope.get(field) == seed_scope.get(field) for field in scope_fields)
+    )
