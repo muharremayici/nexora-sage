@@ -14,6 +14,9 @@
     "error": {
       "type": "string"
     },
+    "evidence_boundary": {
+      "type": "string"
+    },
     "impacted_tests": {
       "type": "array",
       "items": {
@@ -32,14 +35,178 @@
           "project": {
             "type": "string"
           },
+          "atlas_node": {
+            "type": "string"
+          },
           "type": {
             "type": "string"
           },
           "confidence": {
             "type": "number"
           },
+          "static_relation": {
+            "enum": [
+              "direct_import",
+              "transitive_dependency",
+              "naming_only",
+              "unknown_static_relation"
+            ]
+          },
+          "candidate_evidence": {
+            "type": "object",
+            "required": [
+              "relation",
+              "confidence_semantics",
+              "test_execution",
+              "changed_behavior",
+              "mock_binding",
+              "native_diagnostics"
+            ],
+            "properties": {
+              "relation": {
+                "enum": [
+                  "direct_import",
+                  "transitive_dependency",
+                  "naming_only",
+                  "unknown_static_relation"
+                ]
+              },
+              "confidence_semantics": {
+                "const": "static_candidate_ranking_not_behavioral_coverage"
+              },
+              "test_execution": {
+                "const": "not_run_by_sage"
+              },
+              "changed_behavior": {
+                "const": "not_established"
+              },
+              "mock_binding": {
+                "const": "not_assessed"
+              },
+              "native_diagnostics": {
+                "const": "not_ingested"
+              }
+            },
+            "additionalProperties": false
+          },
           "run_command": {
             "type": "string"
+          },
+          "mock_declaration_evidence": {
+            "type": "object",
+            "required": [
+              "status",
+              "reason",
+              "runtime_binding",
+              "proof_boundary",
+              "test_ref",
+              "target_ref",
+              "declarations"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "unknown",
+                  "target_mock_declaration_observed"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "runtime_binding": {
+                "const": "not_established"
+              },
+              "proof_boundary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "test_ref": {
+                "type": "string"
+              },
+              "target_ref": {
+                "type": "string"
+              },
+              "source_hash": {
+                "type": "string",
+                "pattern": "^(?:[0-9a-f]{32}|[0-9a-f]{64})$"
+              },
+              "declarations_omitted": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "declarations": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "module_specifier",
+                    "framework_source",
+                    "imported_name",
+                    "local_name",
+                    "method",
+                    "line"
+                  ],
+                  "properties": {
+                    "module_specifier": {
+                      "type": "string"
+                    },
+                    "framework_source": {
+                      "type": "string"
+                    },
+                    "imported_name": {
+                      "type": "string"
+                    },
+                    "local_name": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "const": "target_mock_declaration_observed"
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "source_hash"
+                  ],
+                  "properties": {
+                    "declarations": {
+                      "type": "array",
+                      "minItems": 1
+                    }
+                  }
+                },
+                "else": {
+                  "type": "object",
+                  "properties": {
+                    "declarations": {
+                      "type": "array",
+                      "maxItems": 0
+                    }
+                  }
+                }
+              }
+            ],
+            "additionalProperties": false
           }
         }
       }

@@ -14,6 +14,47 @@
     "semantic_convention_match": 0.8,
     "dual_vector_match": 1.0
   },
+  "evidence_policy": {
+    "proof_boundary": "Static test candidates are recommendations, not executed proof of the changed behavior. A high ranking score does not establish coverage, absence of mocks or a passing test result. Native test stdout/stderr is not ingested here; a passing process exit does not establish diagnostic cleanliness or changed-effect proof. Inspect target-native diagnostics and source before attributing a defect.",
+    "unknown_relation": "unknown_static_relation",
+    "relation_by_match_type": {
+      "Direct Static Import": "direct_import",
+      "Direct Co-located Static Import": "direct_import",
+      "Transitive Static Dependency": "transitive_dependency",
+      "Semantic Convention Match": "naming_only",
+      "Dual Vector Match": "unknown_static_relation"
+    },
+    "mock_declaration_policy": {
+      "literal_argument_evidence_version": 1,
+      "maximum_declarations": 3,
+      "framework_imports": [
+        {
+          "source": "vitest",
+          "imported_name": "vi",
+          "methods": [
+            "mock",
+            "doMock"
+          ]
+        },
+        {
+          "source": "@jest/globals",
+          "imported_name": "jest",
+          "methods": [
+            "mock",
+            "doMock"
+          ]
+        }
+      ],
+      "proof_boundary": "Observed declarations are static, snapshot-bound module-root syntax only. Runtime substitution, activation order and absence of mocks remain unproved."
+    },
+    "unexecuted_evidence": {
+      "confidence_semantics": "static_candidate_ranking_not_behavioral_coverage",
+      "test_execution": "not_run_by_sage",
+      "changed_behavior": "not_established",
+      "mock_binding": "not_assessed",
+      "native_diagnostics": "not_ingested"
+    }
+  },
   "languages": {
     "typescript": {
       "extensions": [

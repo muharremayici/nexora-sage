@@ -209,6 +209,13 @@ def write_lineage_receipt(
         from tools.core.typescript_source_binding import checked_source_errors
 
         errors.extend(checked_source_errors(artifact_payload, atlas))
+    elif source_binding == "native_declared_source_text_v1":
+        from tools.core.native_run_log_ingestion import native_source_errors
+
+        errors.extend(native_source_errors(artifact_payload, atlas))
+        source = artifact_payload.get("atlas_source_correspondence", {})
+        if source.get("status") != "MATCH" or source.get("atlas_snapshot_id") != atlas_commit.get("snapshot_id"):
+            errors.append("native_source_snapshot_correspondence_unavailable")
     elif source_binding is not None:
         errors.append("unsupported_source_binding_contract")
     atlas_checks = validate_atlas_commit(atlas, atlas_commit) if isinstance(atlas, dict) and isinstance(atlas_commit, dict) else []

@@ -296,7 +296,7 @@ from tools.core.lesson_projection import project_impacted_lessons, resolve_lesso
 from tools.core.sage_active_work_package import active_work_package
 from tools.core.work_package_receipts import record_work_package_operation_safely
 from tools.core.path_identity import strip_current_directory_prefix
-from tools.core.test_impact_profiles import command_for_test, confidence_value, extract_logical_base_name, is_test_path
+from tools.core.test_impact_profiles import command_for_test, confidence_value, extract_logical_base_name, is_test_path, snapshot_mock_declaration_evidence, static_candidate_evidence, static_test_evidence_policy, test_candidate_project
 
 
 def _with_context_budget(
@@ -1661,7 +1661,7 @@ def _normalize_project_name(project: str, atlas: dict) -> str:
     return project
 
 
-def _file_context_from_atlas(project_data: dict, project_key: str, rel_path: str) -> dict[str, Any]:
+def _file_context_from_atlas(project_data: dict, project_key: str, rel_path: str, *, raw_dir: Path | None = None) -> dict[str, Any]:
     normalized_rel = str(rel_path or "").replace("\\", "/").strip().lstrip("/")
     files = project_data.get("files") or {}
     candidate_rels = [
@@ -1684,20 +1684,33 @@ def _file_context_from_atlas(project_data: dict, project_key: str, rel_path: str
                 normalized_rel = candidate
                 break
     if not isinstance(meta, dict) and isinstance(files, dict):
-        for _key, value in files.items():
-            workspace_rel = str(value.get("workspace_rel") or "").replace("\\", "/") if isinstance(value, dict) else ""
-            if isinstance(value, dict) and workspace_rel in candidate_rels:
-                meta = value
-                normalized_rel = str(_key).replace("\\", "/")
-                break
+        aliases = []
+        for key, value in files.items():
+            if not isinstance(value, dict):
+                continue
+            alias = (_declared_atlas_workspace_path(
+                raw_dir, project_key, key, allow_legacy_relative_root=True, project_data=project_data,
+            ) if raw_dir is not None else value.get("workspace_rel"))
+            if isinstance(alias, str) and alias.replace("\\", "/") in candidate_rels:
+                aliases.append((key, value))
+        if aliases and (raw_dir is None or len(aliases) == 1):
+            normalized_rel = str(aliases[0][0]).replace("\\", "/")
+            meta = aliases[0][1]
     if not isinstance(meta, dict):
         meta = {}
     workspace_rel = str(meta.get("workspace_rel") or normalized_rel).replace("\\", "/")
-    return {
+    context = {
         "repo_relative_path": workspace_rel,
         "atlas_relative_path": normalized_rel,
         "atlas_node": f"{project_key}::{normalized_rel}" if project_key and normalized_rel else "",
     }
+    if raw_dir is not None:
+        workspace_rel = _declared_atlas_workspace_path(
+            raw_dir, project_key, normalized_rel, allow_legacy_relative_root=True, project_data=project_data,
+        )
+        context.update(repo_relative_path=workspace_rel,
+                       path_projection_status="resolved" if workspace_rel else "unresolved")
+    return context
 
 
 def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict[str, Any]] | None:
@@ -1752,18 +1765,42 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             project_path = ""
+            absolute_project_path = False
             if project_filter:
-                project_row = conn.execute(
-                    "SELECT project_key, path FROM projects WHERE lower(project_key) = lower(?) LIMIT 1;",
-                    (project_filter,),
-                ).fetchone()
+                conn.create_function("sage_lower", 1, _symbol_search_unicode_lower, deterministic=True)
+                project_rows = conn.execute(
+                    "SELECT project_key, path FROM projects WHERE sage_lower(project_key) = ? "
+                    "ORDER BY (project_key = ?) DESC, project_key LIMIT 2;",
+                    (_symbol_search_unicode_lower(project_filter), project_filter),
+                ).fetchall()
+                if len(project_rows) > 1 and project_rows[0]["project_key"] != project_filter:
+                    return None
+                project_row = project_rows[0] if project_rows else None
                 project_key = str(project_row["project_key"]) if project_row else project_filter
+                absolute_project_path = bool(project_row and Path(str(project_row["path"] or "")).is_absolute())
                 project_path = str(project_row["path"] or "").replace("\\", "/").strip("/") if project_row else ""
                 if project_path in {".", "./"}:
                     project_path = ""
                 if project_path.startswith("./"):
                     project_path = project_path[2:].strip("/")
-                if project_path and rel.startswith(f"{project_path}/"):
+                if absolute_project_path:
+                    # A physical project root is not a repo-relative prefix.
+                    # Use only this artifact's declared file identities; never
+                    # guess from host ROOT or walk a log/request-derived path.
+                    project_files = (_atlas(raw_dir=raw_dir).get(project_key) or {}).get("files") or {}
+                    if isinstance(project_files, dict):
+                        for candidate in list(candidate_rels):
+                            if candidate in project_files:
+                                continue
+                            matches = [path for path, meta in project_files.items()
+                                       if isinstance(meta, dict) and
+                                       str(meta.get("workspace_rel") or "").replace("\\", "/") == candidate]
+                            if len(matches) > 1:
+                                return None
+                            candidate_rels.extend(matches)
+                        candidate_rels = list(dict.fromkeys(candidate_rels))
+                        placeholders = ",".join("?" for _ in candidate_rels)
+                elif project_path and rel.startswith(f"{project_path}/"):
                     stripped_rel = rel[len(project_path) + 1 :].strip("/")
                     candidate_rels.extend(
                         [
@@ -1804,6 +1841,7 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
                 rel_path = rel_path[2:].strip("/")
             if not project_path:
                 try:
+                    absolute_project_path = Path(str(row["path"] or "")).is_absolute()
                     project_path = str(row["path"] or "").replace("\\", "/").strip("/")
                     if project_path in {".", "./"}:
                         project_path = ""
@@ -1811,7 +1849,12 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
                         project_path = project_path[2:].strip("/")
                 except Exception:
                     project_path = ""
-            if project_path and rel_path and not rel_path.startswith(f"{project_path}/") and rel_path != project_path:
+            if absolute_project_path:
+                workspace_rel = _declared_atlas_workspace_path(raw_dir, project_key, rel_path)
+                if not workspace_rel:
+                    return None
+                repo_relative_path = workspace_rel
+            elif project_path and rel_path and not rel_path.startswith(f"{project_path}/") and rel_path != project_path:
                 repo_relative_path = f"{project_path}/{rel_path}".strip("/")
             elif rel.startswith("src/") and not rel_path.startswith("src/"):
                 repo_relative_path = f"src/{rel_path}"
@@ -1826,6 +1869,8 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
                 "atlas_node": f"{project_key}::{rel_path}",
                 "source": "sqlite_files",
             }
+            if absolute_project_path:
+                context["repo_relative_path_source"] = "declared_atlas_workspace_rel"
             return context["atlas_node"], context
     except Exception as exc:
         try:
@@ -1894,7 +1939,32 @@ def _symbol_search_candidate_sort_key(query: str, row: dict[str, Any]) -> tuple[
     )
 
 
-def _symbol_search_repo_relative(project_path: str, rel_path: str) -> str:
+def _declared_atlas_workspace_path(raw_dir: Path, project_key: str, rel_path: str, *, allow_legacy_relative_root: bool = False, project_data: dict | None = None) -> str:
+    """Resolve an exact indexed file's display path from this artifact only."""
+    if project_data is None:
+        project_data = _atlas(raw_dir=raw_dir).get(project_key) or {}
+    project_files = project_data.get("files") or {}
+    meta = project_files.get(rel_path) if isinstance(project_files, dict) else None
+    value = meta.get("workspace_rel") if isinstance(meta, dict) else None
+    # JSON-only legacy targets may omit workspace metadata for a relative root.
+    # Never apply this compatibility lane to SQLite's absolute-root projection,
+    # explicit malformed metadata, an unknown file or a physical root.
+    if allow_legacy_relative_root and isinstance(meta, dict) and "workspace_rel" not in meta:
+        project_path = project_data.get("root_path", "")
+        if isinstance(project_path, str) and not Path(project_path).is_absolute():
+            value = _symbol_search_repo_relative(project_path, rel_path)
+    workspace_rel = value.replace("\\", "/") if isinstance(value, str) else ""
+    if (not workspace_rel or workspace_rel.startswith("/") or
+            re.match(r"^[A-Za-z]:", workspace_rel) or ".." in workspace_rel.split("/")):
+        return ""
+    return workspace_rel
+
+
+def _symbol_search_repo_relative(
+    project_path: str, rel_path: str, *, project_key: str = "", raw_dir: Path | None = None,
+) -> str:
+    if Path(str(project_path or "")).is_absolute():
+        return _declared_atlas_workspace_path(raw_dir or RAW_DIR, project_key, rel_path)
     project_path = str(project_path or "").replace("\\", "/").strip("/")
     if project_path in {".", "./"}:
         project_path = ""
@@ -2040,7 +2110,8 @@ def _find_class_method_search_matches(
         truncated = len(rows) > limit
         matches = []
         for row in rows[:limit]:
-            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"],
+                                                   project_key=row["project_key"], raw_dir=raw_dir)
             score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
                         _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
             matches.append({
@@ -2120,7 +2191,8 @@ def _find_store_action_search_matches(
         truncated = len(rows) > limit
         matches = []
         for row in rows[:limit]:
-            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"],
+                                                   project_key=row["project_key"], raw_dir=raw_dir)
             score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
                         _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
             matches.append({
@@ -2204,7 +2276,8 @@ def _find_direct_import_binding_search_matches(
         truncated = len(rows) > limit
         matches = []
         for row in rows[:limit]:
-            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"],
+                                                   project_key=row["project_key"], raw_dir=raw_dir)
             score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
                         _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
             matches.append({
@@ -2297,7 +2370,8 @@ def _find_qualified_import_call_search_matches(
             if callsite_scope not in {"indexed_top_level_callable", "module_root"}:
                 coverage.update(status="partial", reason="invalid_recorded_callsite_scope")
                 continue
-            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"])
+            repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"],
+                                                   project_key=row["project_key"], raw_dir=raw_dir)
             score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
                         _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
             candidate = {
@@ -2433,7 +2507,8 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                 for row in symbol_rows:
                     project_key = str(row["project_key"] or "")
                     rel_path = str(row["rel_path"] or "")
-                    repo_rel = repo_relative(str(row["path"] or ""), rel_path)
+                    repo_rel = repo_relative(str(row["path"] or ""), rel_path,
+                                             project_key=project_key, raw_dir=raw_dir)
                     score, _sort_path = match_score(str(row["name"] or ""), rel_path)
                     matches.append(
                         {
@@ -2499,14 +2574,15 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                 for row in file_rows:
                     project_key = str(row["project_key"] or "")
                     rel_path = str(row["rel_path"] or "")
-                    repo_rel = repo_relative(str(row["path"] or ""), rel_path)
+                    repo_rel = repo_relative(str(row["path"] or ""), rel_path,
+                                             project_key=project_key, raw_dir=raw_dir)
                     dedupe_key = (project_key, rel_path, "File")
                     if dedupe_key in seen_file_rows:
                         continue
                     score, _sort_path = match_score(Path(rel_path).name, rel_path)
                     matches.append(
                         {
-                            "name": Path(repo_rel).name,
+                            "name": Path(rel_path).name,
                             "project": project_key,
                             "file": rel_path,
                             "repo_relative_path": repo_rel,
@@ -2551,8 +2627,9 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
             symbol_name = str(symbol_info.get("name") or "")
             if not symbol_name:
                 continue
-            file_context = _file_context_from_atlas(project_data, project_key, str(symbol_info.get("file") or ""))
-            repo_rel = str(file_context.get("repo_relative_path") or symbol_info.get("file") or "")
+            file_context = _file_context_from_atlas(
+                project_data, project_key, str(symbol_info.get("file") or ""), raw_dir=raw_dir or RAW_DIR)
+            repo_rel = str(file_context.get("repo_relative_path") or "")
             indexed_rel = str(file_context.get("atlas_relative_path") or symbol_info.get("file") or "")
             if query_lower not in symbol_name.lower() and query_lower not in indexed_rel.lower():
                 continue
@@ -2564,6 +2641,7 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
                     "file": symbol_info.get("file"),
                     "repo_relative_path": repo_rel,
                     "atlas_node": file_context.get("atlas_node"),
+                    "path_projection_status": file_context["path_projection_status"],
                     "type": symbol_info.get("type"),
                     "dependencies": len(symbol_info.get("dependencies") or []),
                     "match_score": score,
@@ -2572,19 +2650,20 @@ def _find_symbol_matches(query: str, project: str | None = None, raw_dir: Path |
         files = project_data.get("files") or {}
         if isinstance(files, dict):
             for rel_path, file_info in files.items():
-                workspace_rel = str((file_info or {}).get("workspace_rel") or rel_path) if isinstance(file_info, dict) else str(rel_path)
                 if query_lower not in str(rel_path).lower():
                     continue
-                file_context = _file_context_from_atlas(project_data, project_key, str(rel_path))
-                repo_rel = str(file_context.get("repo_relative_path") or workspace_rel)
+                file_context = _file_context_from_atlas(
+                    project_data, project_key, str(rel_path), raw_dir=raw_dir or RAW_DIR)
+                repo_rel = str(file_context.get("repo_relative_path") or "")
                 score, _sort_path = match_score(Path(str(rel_path)).name, str(rel_path))
                 file_fallback_matches.append(
                     {
-                        "name": Path(workspace_rel).name,
+                        "name": Path(str(rel_path)).name,
                         "project": project_key,
                         "file": rel_path,
                         "repo_relative_path": repo_rel,
                         "atlas_node": file_context.get("atlas_node"),
+                        "path_projection_status": file_context["path_projection_status"],
                         "type": "File",
                         "dependencies": len((file_info or {}).get("imports") or []) if isinstance(file_info, dict) else 0,
                         "match_score": score,
@@ -2644,19 +2723,24 @@ def _render_symbol_search_brief(
             qualified_import_call_search or {"status": "not_evaluated"}, ensure_ascii=False),
         "path_contract:",
         "  open_files_with: \"analysis_root + file\"",
+        "  unresolved_paths: \"Do not open a guessed path; inspect the canonical Atlas reference.\"",
         "  sage_refs_only_for: \"MCP follow-up calls, never filesystem access\"",
         "matches:",
     ]
     if matches:
         for row in visible:
-            target_file = row.get("repo_relative_path") or row.get("file") or ""
+            path_unresolved = row.get("path_projection_status") == "unresolved"
+            target_file = "" if path_unresolved else row.get("repo_relative_path") or row.get("file") or ""
             project = row.get("project") or ""
-            target_ref = f"{project}::{target_file}" if project and target_file else target_file
+            target_ref = ((row.get("atlas_node") or "") if path_unresolved else
+                          f"{project}::{target_file}" if project and target_file else target_file)
             match_score = int(row.get("match_score") if row.get("match_score") is not None else 99)
             yaml_lines.append("  - name: " + json.dumps(row.get("name") or "", ensure_ascii=False))
             yaml_lines.append("    type: " + json.dumps(row.get("type") or "", ensure_ascii=False))
             yaml_lines.append("    project: " + json.dumps(project, ensure_ascii=False))
             yaml_lines.append("    file: " + json.dumps(target_file, ensure_ascii=False))
+            if "path_projection_status" in row:
+                yaml_lines.append("    path_projection_status: " + json.dumps(row["path_projection_status"]))
             yaml_lines.append("    target_ref: " + json.dumps(target_ref, ensure_ascii=False))
             yaml_lines.append("    match_quality: " + json.dumps("exact_or_token" if match_score <= 2 else "prefix" if match_score == 3 else "substring", ensure_ascii=False))
             for key in ("declaring_symbol", "declaring_line", "member_name", "is_static", "member_kind", "factory_api", "imported_name", "raw_source", "import_kind", "type_only", "receiver_name", "caller_symbol", "caller_line", "callsite_scope", "binding_scope", "evidence_kind", "module_resolution", "runtime_execution", "runtime_owner_binding"):
@@ -2764,21 +2848,45 @@ def _resolve_target_node_from_raw(raw_dir: Path, target: str, *, allow_atlas_fal
     if "::" in target_text:
         project, rel = target_text.split("::", 1)
         project_key = _normalize_project_name(project, atlas)
+        if project not in atlas and sum(str(key).lower() == project.lower() for key in atlas) > 1:
+            project_key = project
         project_data = atlas.get(project_key, {})
-        context = _file_context_from_atlas(project_data, project_key, rel)
+        context = _file_context_from_atlas(project_data, project_key, rel, raw_dir=raw_dir)
         return context.get("atlas_node") or f"{project_key}::{rel}", context
+    host_key = _host_key(atlas)
+    host_data = atlas.get(host_key, {})
+    host_files = host_data.get("files") or {}
+    if isinstance(host_files, dict) and isinstance(host_files.get(target_text), dict):
+        context = _file_context_from_atlas(host_data, host_key, target_text, raw_dir=raw_dir)
+        return context["atlas_node"], context
+    exact, aliases = [], []
     for project_key, project_data in atlas.items():
         files = project_data.get("files") or {}
         if not isinstance(files, dict):
             continue
         for rel_path, file_info in files.items():
-            workspace_rel = str((file_info or {}).get("workspace_rel") or rel_path).replace("\\", "/").strip("/")
-            if target_text in {str(rel_path).replace("\\", "/").strip("/"), workspace_rel}:
-                context = _file_context_from_atlas(project_data, project_key, str(rel_path))
-                return context.get("atlas_node") or f"{project_key}::{rel_path}", context
-    project_key = _host_key(atlas)
+            if not isinstance(file_info, dict):
+                continue
+            workspace_rel = _declared_atlas_workspace_path(
+                raw_dir, project_key, rel_path, allow_legacy_relative_root=True, project_data=project_data,
+            )
+            if target_text == str(rel_path).replace("\\", "/").strip("/"):
+                exact.append((project_key, project_data, rel_path))
+            elif target_text == workspace_rel:
+                aliases.append((project_key, project_data, rel_path))
+    matches = exact or aliases
+    if len(matches) == 1:
+        project_key, project_data, rel_path = matches[0]
+        context = _file_context_from_atlas(project_data, project_key, str(rel_path), raw_dir=raw_dir)
+        return context["atlas_node"], context
+    if len(matches) > 1:
+        return f"{host_key}::{target_text}", {
+            "repo_relative_path": "", "atlas_relative_path": target_text,
+            "atlas_node": f"{host_key}::{target_text}", "path_projection_status": "unresolved",
+        }
+    project_key = host_key
     project_data = atlas.get(project_key, {})
-    context = _file_context_from_atlas(project_data, project_key, target_text)
+    context = _file_context_from_atlas(project_data, project_key, target_text, raw_dir=raw_dir)
     return context.get("atlas_node") or f"{project_key}::{target_text}", context
 
 
@@ -2927,7 +3035,8 @@ def _repo_relative_from_node(raw_dir: Path, node: str) -> str:
         return str(context.get("repo_relative_path") or rel)
     atlas = _atlas(raw_dir=raw_dir)
     project_data = atlas.get(project, {}) if project else {}
-    return str(_file_context_from_atlas(project_data, project, rel).get("repo_relative_path") or rel)
+    context = _file_context_from_atlas(project_data, project, rel, raw_dir=raw_dir)
+    return str(context.get("repo_relative_path") or "")
 
 
 def _target_ref_from_context(resolved_node: str, context: dict[str, Any]) -> str:
@@ -3365,28 +3474,63 @@ def _attach_test_source_snippets(raw_dir: Path, payload: dict[str, Any], *, max_
         if isinstance(span, dict) and span.get("symbol")
     ]
     atlas = _atlas(raw_dir=raw_dir)
-    for row in tests:
+    # Atlas import records are project-relative; MCP target paths are repo-relative.
+    # Translate only through one exact indexed target identity, never by stripping
+    # guessed directory prefixes or rebuilding aliases.
+    target_entries = [
+        (path, value) for path, value in ((atlas.get(project) or {}).get("files") or {}).items()
+        if isinstance(value, dict) and target_file in {
+            str(path).replace("\\", "/").strip("/"),
+            str(value.get("repo_relative_path") or "").replace("\\", "/").strip("/"),
+            str(value.get("workspace_rel") or "").replace("\\", "/").strip("/"),
+        }
+    ]
+    target_module_path = (
+        str(target_entries[0][1].get("atlas_rel_path") or target_entries[0][0]).replace("\\", "/")
+        if len(target_entries) == 1 else ""
+    )
+    for candidate_index, row in enumerate(tests):
         if not isinstance(row, dict):
             continue
         item = dict(row)
         test_file = str(item.get("repo_relative_path") or item.get("file") or "").replace("\\", "/").strip("/")
-        if test_file and snippets_attached < max_tests_with_snippets:
-            content = _source_snapshot_content_for_ref(raw_dir, f"{project}::{test_file}")
-            project_files = (atlas.get(project) or {}).get("files") or {}
-            file_info = next(
-                (
-                    value
-                    for rel_path, value in project_files.items()
-                    if isinstance(value, dict)
-                    and test_file
-                    in {
-                        str(rel_path).replace("\\", "/").strip("/"),
-                        str(value.get("repo_relative_path") or "").replace("\\", "/").strip("/"),
-                        str(value.get("workspace_rel") or "").replace("\\", "/").strip("/"),
-                    }
-                ),
-                {},
-            )
+        test_project = test_candidate_project(item)
+        test_ref = f"{test_project}::{test_file}" if test_project else ""
+        target_ref = f"{project}::{target_file}"
+        # Overwrite borrowed claims even for missing snapshots or budget omissions.
+        item["mock_declaration_evidence"] = snapshot_mock_declaration_evidence(
+            {}, "", test_ref=test_ref, target_ref=target_ref)
+        if not test_project:
+            item["mock_declaration_evidence"]["reason"] = "candidate_project_identity_unavailable"
+            item["source_snippets"] = []
+            item["source_snippet_status"] = "candidate_project_identity_unavailable"
+            item["source_snippet_note"] = "Candidate project identity is missing or inconsistent; no target-project snapshot is borrowed."
+        elif test_file and snippets_attached < max_tests_with_snippets:
+            content = _source_snapshot_content_for_ref(raw_dir, test_ref)
+            project_files = (atlas.get(test_project) or {}).get("files") or {}
+            file_entries = [
+                value
+                for rel_path, value in project_files.items()
+                if isinstance(value, dict)
+                and test_file in {
+                    str(rel_path).replace("\\", "/").strip("/"),
+                    str(value.get("repo_relative_path") or "").replace("\\", "/").strip("/"),
+                    str(value.get("workspace_rel") or "").replace("\\", "/").strip("/"),
+                }
+            ]
+            if len(file_entries) != 1:
+                item["source_snippets"] = []
+                item["source_snippet_status"] = "candidate_file_identity_unavailable"
+                item["mock_declaration_evidence"]["reason"] = "candidate_file_identity_unavailable"
+                normalized_tests.append(item)
+                continue
+            file_info = file_entries[0]
+            if candidate_index < max_tests_with_snippets:
+                item["mock_declaration_evidence"] = snapshot_mock_declaration_evidence(
+                    file_info, content, test_ref=test_ref, target_ref=target_ref,
+                    target_module_path=target_module_path)
+            else:
+                item["mock_declaration_evidence"]["reason"] = "context_budget_omitted"
             snippets = _test_source_snippets(
                 content,
                 test_file,
@@ -3402,6 +3546,7 @@ def _attach_test_source_snippets(raw_dir: Path, payload: dict[str, Any], *, max_
                 item["source_snippet_status"] = "not_found_in_source_snapshot"
                 item["source_snippet_note"] = "No bounded import/assertion evidence line was found in the source snapshot; use the run command and inspect the test file if needed."
         elif test_file:
+            item["mock_declaration_evidence"]["reason"] = "context_budget_omitted"
             item["source_snippet_status"] = "omitted_context_budget"
             item["source_snippet_note"] = "Snippet omitted because this test is outside the bounded test-source snippet budget; run the command or inspect this test only if earlier listed evidence is insufficient."
         normalized_tests.append(item)
@@ -3413,13 +3558,69 @@ def _attach_test_source_snippets(raw_dir: Path, payload: dict[str, Any], *, max_
     return payload
 
 
-def _dependency_import_evidence(raw_dir: Path, source_ref: str) -> dict[str, str]:
+def _dependency_import_evidence(
+    raw_dir: Path, source_ref: str, *, source_content: str,
+) -> dict[str, dict[str, Any]]:
+    """Join captured import syntax to graph identity, never infer syntax from an edge."""
+    from tools.core.source_snapshot_integrity import snapshot_content_status
     try:
-        _source_node, source_context = _sqlite_file_context_from_raw(raw_dir, source_ref)
+        source_node, source_context = _sqlite_file_context_from_raw(raw_dir, source_ref)
         source_file_id = int(source_context.get("file_id") or 0)
+        source_project, source_path = source_node.split("::", 1)
+        project_data = _atlas(raw_dir=raw_dir).get(source_project)
+        source_meta = (project_data.get("files") or {}).get(source_path) if isinstance(project_data, dict) else None
     except Exception:
         return {}
-    if not source_file_id:
+    if not source_file_id or not source_content or not isinstance(source_meta, dict):
+        return {}
+    digest = source_meta.get("hash")
+    if snapshot_content_status(source_content, digest, digest) != "ok":
+        return {}
+    import_records = source_meta.get("import_records")
+    binding_evidence = source_meta.get("direct_import_binding_evidence")
+    if (not isinstance(import_records, list) or not isinstance(binding_evidence, dict)
+            or binding_evidence.get("status") != "observed"
+            or not isinstance(binding_evidence.get("records"), list)):
+        return {}
+
+    resolved_by_raw: dict[str, set[str]] = {}
+    runtime_kinds: set[tuple[str, str]] = set()
+    for record in import_records:
+        if not isinstance(record, dict):
+            continue
+        raw_source, resolved = record.get("raw_source"), record.get("source")
+        if not isinstance(raw_source, str) or not raw_source:
+            continue
+        node = ""
+        if isinstance(resolved, str) and resolved:
+            resolved = resolved.replace("\\", "/")
+            node = resolved if "::" in resolved else f"{source_project}::{resolved}"
+        resolved_by_raw.setdefault(raw_source, set()).add(node)
+        if record.get("scope") == "top_level" and isinstance(record.get("kind"), str):
+            runtime_kinds.add((raw_source, record["kind"]))
+
+    bindings_by_node: dict[str, list[dict[str, Any]]] = {}
+    line_count = len(source_content.splitlines())
+    for binding in binding_evidence["records"]:
+        if not isinstance(binding, dict):
+            continue
+        raw_source, kind = binding.get("source"), binding.get("kind")
+        if not isinstance(raw_source, str) or not isinstance(kind, str):
+            continue
+        resolved_nodes = resolved_by_raw.get(raw_source, set())
+        line, end_line = binding.get("line"), binding.get("endLine")
+        if (len(resolved_nodes) != 1 or "" in resolved_nodes
+                or (raw_source, kind) not in runtime_kinds
+                or binding.get("typeOnly") is not False
+                or binding.get("bindingScope") != "file_top_level_import_declaration"
+                or type(line) is not int or type(end_line) is not int
+                or not 1 <= line <= end_line <= line_count):
+            continue
+        node = next(iter(resolved_nodes))
+        bindings_by_node.setdefault(node, []).append({
+            "import_specifier": raw_source, "line": line, "end_line": end_line,
+        })
+    if not bindings_by_node:
         return {}
     db_path = raw_dir / "codemaps.db"
     if not Path(native_filesystem_path(db_path)).exists():
@@ -3429,7 +3630,7 @@ def _dependency_import_evidence(raw_dir: Path, source_ref: str) -> dict[str, str
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
-                SELECT tf.project_key, tf.rel_path, tp.path AS project_path, d.import_specifier
+                SELECT tf.project_key, tf.rel_path, tp.path AS project_path
                 FROM dependencies d
                 JOIN files tf ON tf.file_id = d.target_file_id
                 LEFT JOIN projects tp ON tp.project_key = tf.project_key
@@ -3440,14 +3641,37 @@ def _dependency_import_evidence(raw_dir: Path, source_ref: str) -> dict[str, str
             ).fetchall()
     except Exception:
         return {}
-    evidence: dict[str, str] = {}
+    evidence: dict[str, dict[str, Any]] = {}
     for row in rows:
-        repo_rel = _repo_relative_from_sqlite_row(str(row["project_path"] or ""), str(row["rel_path"] or ""))
+        bindings = bindings_by_node.get(f"{row['project_key']}::{row['rel_path']}")
+        if not bindings:
+            continue
+        repo_rel = _symbol_search_repo_relative(
+            str(row["project_path"] or ""), str(row["rel_path"] or ""),
+            project_key=str(row["project_key"] or ""), raw_dir=raw_dir,
+        )
+        if not repo_rel:
+            continue
         target_ref = f"{row['project_key']}::{repo_rel}"
-        import_specifier = str(row["import_specifier"] or "").strip()
-        if target_ref and import_specifier:
-            evidence[target_ref] = import_specifier
+        evidence[target_ref] = min(bindings, key=lambda item: (item["line"], item["end_line"], item["import_specifier"]))
     return evidence
+
+
+def _upstream_file_entries(
+    payload: dict[str, Any], files_key: str, context_key: str, project: str,
+) -> list[tuple[str, str]]:
+    """Keep SQLite workspace files paired with their own project references."""
+    contexts = payload.get(context_key)
+    if payload.get("dependency_graph_source") == "sqlite_dependencies" and isinstance(contexts, list):
+        return [
+            (str(row["repo_relative_path"]), str(row["target_ref"]))
+            for row in contexts
+            if isinstance(row, dict) and row.get("repo_relative_path") and row.get("target_ref")
+        ]
+    files = payload.get(files_key)
+    if files_key == "direct_dependent_files" and not isinstance(files, list):
+        files = payload.get("direct_dependents")
+    return [_agent_file_ref(str(path), project) for path in files] if isinstance(files, list) else []
 
 
 def _attach_upstream_dependency_snippets(raw_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -3459,28 +3683,22 @@ def _attach_upstream_dependency_snippets(raw_dir: Path, payload: dict[str, Any])
     if not target_ref:
         return payload
     content = _source_snapshot_content_for_ref(raw_dir, target_ref)
-    import_map = _dependency_import_evidence(raw_dir, target_ref)
-    upstream_files = payload.get("upstream_dependency_files") if isinstance(payload.get("upstream_dependency_files"), list) else []
+    import_map = _dependency_import_evidence(raw_dir, target_ref, source_content=content)
+    upstream_entries = _upstream_file_entries(payload, "upstream_dependency_files", "upstream_dependency_context", project)
     evidence_rows: list[dict[str, Any]] = []
-    for path in upstream_files[:8]:
-        file_path, candidate_ref = _agent_file_ref(str(path), project)
-        import_specifier = import_map.get(candidate_ref, "")
-        needles = []
-        if import_specifier:
-            normalized_spec = import_specifier.replace("\\", "/").strip()
-            no_ext = re.sub(r"\.(tsx|ts|jsx|js|css|scss|sass|json)$", "", normalized_spec)
-            basename = Path(no_ext).name
-            needles.extend([normalized_spec, no_ext, basename])
-            if not normalized_spec.startswith((".", "@", "/")):
-                needles.append(f"@/{no_ext.lstrip('/')}")
-        snippets = _line_evidence_snippets(
-            content,
-            needles,
-            evidence_label=f"{target_file} imports {import_specifier}",
-            status="included_dependency_evidence_line",
-            max_snippets=1,
-            context_lines=1,
-        )
+    for file_path, candidate_ref in upstream_entries[:8]:
+        binding = import_map.get(candidate_ref)
+        if not binding:
+            continue
+        import_specifier = binding["import_specifier"]
+        snippets = [
+            {**snippet, "evidence": f"{target_file} imports {import_specifier}",
+             "matched_line": binding["line"], "snippet_status": "included_dependency_evidence_line"}
+            for snippet in _bounded_source_snippets(
+                content, [{"start_line": binding["line"], "end_line": binding["end_line"], "symbol": import_specifier}],
+                max_snippets=1,
+            ) if snippet.get("snippet_status") == "included"
+        ]
         if snippets:
             evidence_rows.append(
                 {
@@ -3493,7 +3711,7 @@ def _attach_upstream_dependency_snippets(raw_dir: Path, payload: dict[str, Any])
             )
     payload = dict(payload)
     payload["upstream_dependency_evidence"] = evidence_rows
-    payload["upstream_dependency_evidence_omitted"] = max(0, len(upstream_files[:8]) - len(evidence_rows))
+    payload["upstream_dependency_evidence_omitted"] = max(0, min(int(payload.get("upstream_dependency_count", len(upstream_entries))), 8) - len(evidence_rows))
     return payload
 
 
@@ -3745,16 +3963,32 @@ def _target_path_status(
 ) -> dict[str, Any]:
     db_exists = Path(native_filesystem_path(raw_dir / "codemaps.db")).exists()
     resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_file, allow_atlas_fallback=not db_exists)
-    project_from_node, rel_from_node = resolved_node.split("::", 1) if "::" in resolved_node else ("", resolved_node)
-    target_rel = str(context.get("repo_relative_path") or rel_from_node).replace("\\", "/").strip("/")
+    rel_from_node = resolved_node.split("::", 1)[-1]
+    target_rel = ("" if context.get("path_projection_status") == "unresolved" else
+                  str(context.get("repo_relative_path") or rel_from_node).replace("\\", "/").strip("/"))
     target_ref = _target_ref_from_context(resolved_node, context)
+    project = _project_from_ref(target_ref)
+    # A successful qualified index lookup owns the source identity too. Do not
+    # discard its file_id and then ground against the earlier unresolved guess.
+    indexed_context = (
+        (resolved_node, context)
+        if context.get("source") == "sqlite_files" and context.get("file_id")
+        else (
+            _sqlite_file_context_from_raw(raw_dir, target_ref)
+            or _sqlite_file_context_from_raw(raw_dir, f"{project}::{target_rel}" if project else target_rel)
+        )
+    )
+    indexed = indexed_context is not None
+    if indexed_context is not None:
+        resolved_node, context = indexed_context
+        target_rel = str(context.get("repo_relative_path") or "").replace("\\", "/").strip("/")
+        target_ref = _target_ref_from_context(resolved_node, context)
+        project = _project_from_ref(target_ref)
     analysis_root = Path(_analysis_root_display(target_root)).resolve()
     target_abs = (analysis_root / target_rel).resolve() if target_rel else analysis_root
     inside_root = analysis_root in [target_abs, *target_abs.parents]
     exists = inside_root and target_abs.exists() and target_abs.is_file()
-    project = _project_from_ref(target_ref)
-    indexed = bool(_sqlite_file_context_from_raw(raw_dir, target_ref) or _sqlite_file_context_from_raw(raw_dir, f"{project}::{target_rel}" if project else target_rel))
-    if not indexed and not db_exists:
+    if not indexed and not db_exists and context.get("path_projection_status") != "unresolved":
         try:
             atlas = _atlas(raw_dir=raw_dir)
             project_data = atlas.get(project, {}) if isinstance(atlas, dict) else {}
@@ -3856,11 +4090,55 @@ def _compact_merge_path_status(status: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _compact_source_grounding_rows(
+    spans: list[dict[str, Any]], snippets: list[dict[str, Any]], *, max_spans: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Co-select existing evidence; never independently truncate spans and code."""
+    limit = max(0, max_spans)
+    paired, coordinates, unavailable = [], [], []
+    seen: set[tuple[str, int, int]] = set()
+    for span in spans:
+        if not isinstance(span, dict):
+            continue
+        start = _safe_positive_int(span.get("start_line"))
+        end = _safe_positive_int(span.get("end_line") or start)
+        if not start or end < start or span.get("line_status") == "not_available":
+            unavailable.append((span, None))
+            continue
+        source_range = str(span.get("source_lines") or f"L{start}-L{end}")
+        snippet = next((row for row in snippets if isinstance(row, dict)
+                        and row.get("symbol") == span.get("symbol")
+                        and row.get("source_lines") == source_range), None)
+        if snippet is not None:
+            paired.append((span, snippet))
+        else:
+            coordinates.append((span, None))
+    selected = []
+    for span, snippet in paired + coordinates + unavailable:
+        if len(selected) >= limit:
+            break
+        coordinate = (str(span.get("target_ref") or ""),
+                      _safe_positive_int(span.get("start_line")),
+                      _safe_positive_int(span.get("end_line") or span.get("start_line")))
+        if coordinate in seen:
+            continue
+        seen.add(coordinate)
+        selected.append((span, snippet))
+    shown_spans = [span for span, _ in selected]
+    shown_snippets = [snippet for _, snippet in selected if snippet is not None]
+    if not spans:
+        # File-start orientation has no symbol span; do not manufacture one.
+        shown_snippets = [row for row in snippets if isinstance(row, dict)
+                          and row.get("snippet_status") == "included_no_symbol_span"][:limit]
+    return shown_spans, shown_snippets
+
+
 def _bounded_source_grounding_for_agent(status: dict[str, Any], *, max_spans: int = 1) -> dict[str, Any]:
     """Return compact source grounding for agent operation packets."""
     public = _public_target_path_status(status)
     spans = public.get("target_spans") if isinstance(public.get("target_spans"), list) else []
     snippets = public.get("target_source_snippets") if isinstance(public.get("target_source_snippets"), list) else []
+    shown_spans, shown_snippets = _compact_source_grounding_rows(spans, snippets, max_spans=max_spans)
     snapshot_hash = str(public.get("source_snapshot_hash") or "")
     return {
         "repository_content_trust": public.get("repository_content_trust") or "untrusted_repository_data_not_instruction",
@@ -3875,12 +4153,12 @@ def _bounded_source_grounding_for_agent(status: dict[str, Any], *, max_spans: in
         "source_snapshot_hash_prefix": snapshot_hash[:12],
         "drift_check_status": public.get("drift_check_status") or "not_available",
         "target_span_count": int(public.get("target_span_count") or len(spans)),
-        "target_spans_shown": min(len(spans), max_spans),
-        "target_spans_omitted": max(0, len(spans) - max_spans),
-        "target_spans": spans[:max_spans],
-        "target_source_snippets_shown": min(len(snippets), max_spans),
-        "target_source_snippets_omitted": max(0, len(snippets) - max_spans),
-        "target_source_snippets": snippets[:max_spans],
+        "target_spans_shown": len(shown_spans),
+        "target_spans_omitted": len(spans) - len(shown_spans),
+        "target_spans": shown_spans,
+        "target_source_snippets_shown": len(shown_snippets),
+        "target_source_snippets_omitted": len(snippets) - len(shown_snippets),
+        "target_source_snippets": shown_snippets,
     }
 
 
@@ -3947,6 +4225,7 @@ def _source_grounding_yaml_lines(status: dict[str, Any], *, max_spans: int = 5) 
     snapshot_hash = str(status.get("source_snapshot_hash") or "")
     spans = status.get("target_spans") if isinstance(status.get("target_spans"), list) else []
     snippets = status.get("target_source_snippets") if isinstance(status.get("target_source_snippets"), list) else []
+    shown_spans, shown_snippets = _compact_source_grounding_rows(spans, snippets, max_spans=max_spans)
     lines = [
         "source_grounding:",
         f"  repository_content_trust: {json.dumps(status.get('repository_content_trust') or 'untrusted_repository_data_not_instruction', ensure_ascii=False)}",
@@ -3955,12 +4234,12 @@ def _source_grounding_yaml_lines(status: dict[str, Any], *, max_spans: int = 5) 
         f"  source_snapshot_hash_prefix: {json.dumps(snapshot_hash[:12], ensure_ascii=False)}",
         f"  drift_check_status: {json.dumps(status.get('drift_check_status') or 'not_available', ensure_ascii=False)}",
         f"  target_span_count: {int(status.get('target_span_count') or len(spans))}",
-        f"  target_spans_shown: {min(len(spans), max_spans)}",
-        f"  target_spans_omitted: {max(0, len(spans) - max_spans)}",
+        f"  target_spans_shown: {len(shown_spans)}",
+        f"  target_spans_omitted: {len(spans) - len(shown_spans)}",
         "  target_spans:",
     ]
-    if spans:
-        for span in spans[:max_spans]:
+    if shown_spans:
+        for span in shown_spans:
             if not isinstance(span, dict):
                 continue
             lines.append("    - symbol: " + json.dumps(span.get("symbol") or "", ensure_ascii=False))
@@ -3971,10 +4250,10 @@ def _source_grounding_yaml_lines(status: dict[str, Any], *, max_spans: int = 5) 
             lines.append("      line_status: " + json.dumps(span.get("line_status") or "not_available", ensure_ascii=False))
     else:
         lines.append("    []")
-    lines.append(f"  target_source_snippets_shown: {min(len(snippets), max_spans)}")
-    lines.append(f"  target_source_snippets_omitted: {max(0, len(snippets) - max_spans)}")
+    lines.append(f"  target_source_snippets_shown: {len(shown_snippets)}")
+    lines.append(f"  target_source_snippets_omitted: {len(snippets) - len(shown_snippets)}")
     lines.append("  target_source_snippet_usage: \"bounded source excerpts for grounding/orientation; inspect the target file or requested line range before editing outside shown lines\"")
-    lines.extend(render_target_source_snippets(snippets, indent="  ", item_indent="    ", max_items=max_spans))
+    lines.extend(render_target_source_snippets(shown_snippets, indent="  ", item_indent="    ", max_items=max_spans))
     evidence_snippets = (
         status.get("evidence_source_snippets")
         if isinstance(status.get("evidence_source_snippets"), list)
@@ -4457,7 +4736,7 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
     additional_total = max(0, int(payload.get("blast_radius_size") or 0) - direct_total)
     transitive_shown = min(len(transitive_sample_pairs), 20)
     inspect_first: list[str] = []
-    for candidate in [payload.get("target_file") or payload.get("target") or "", *direct[:3]]:
+    for candidate in [payload.get("target_file", payload.get("target") or ""), *direct[:3]]:
         normalized = str(candidate or "").strip()
         if normalized and normalized not in inspect_first:
             inspect_first.append(normalized)
@@ -4467,12 +4746,14 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
         "task:",
         f"  analysis_root: {json.dumps(payload.get('analysis_root') or '', ensure_ascii=False)}",
         f"  target_project: {json.dumps(payload.get('target_project') or _project_from_ref(target_ref), ensure_ascii=False)}",
-        f"  target_file: {json.dumps(payload.get('target_file') or payload.get('target') or '', ensure_ascii=False)}",
+        f"  target_file: {json.dumps(payload.get('target_file', payload.get('target') or ''), ensure_ascii=False)}",
         f"  target_ref: {json.dumps(target_ref, ensure_ascii=False)}",
         f"  radius_depth: {int(payload.get('radius_depth') or 0)}",
         f"  scope_kind: {json.dumps(payload.get('scope_kind') or 'target_reachable_dependents', ensure_ascii=False)}",
         f"  scope_completeness: {json.dumps(payload.get('scope_completeness') or 'unknown', ensure_ascii=False)}",
         f"  scope_limits: {json.dumps(payload.get('scope_limits') or {}, ensure_ascii=False)}",
+        f"  path_projection_status: {json.dumps(payload.get('path_projection_status') or 'not_evaluated')}",
+        f"  unresolved_dependent_refs: {json.dumps(payload.get('unresolved_dependent_refs') or [], ensure_ascii=False)}",
         "  evidence_basis: \"static dependency graph\"",
         f"  target_exists: {str(target_exists).lower()}",
         f"  target_indexed: {str(target_indexed).lower()}",
@@ -4490,6 +4771,7 @@ def _render_impact_brief(payload: dict[str, Any]) -> str:
         "path_contract:",
         "  open_files_with: \"analysis_root + target_file or listed file\"",
         "  target_ref_usage: \"SAGE/MCP reference only; not a filesystem path\"",
+        "  unresolved_paths: \"Canonical unresolved refs are not filesystem paths; refresh their declared workspace evidence.\"",
         "  target_ref_format: \"<project>::<repo_relative_path>; MAIN is the primary analyzed project scope\"",
         "directive:",
         "  next_action: " + json.dumps(next_action, ensure_ascii=False),
@@ -4821,14 +5103,23 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
     except Exception:
         return None
 
+    projected_paths = {
+        int(row["file_id"]): _symbol_search_repo_relative(
+            str(row["path"] or ""), str(row["rel_path"] or ""),
+            project_key=row["project_key"], raw_dir=raw_dir)
+        for row in {int(item["file_id"]): item for item in [*direct_rows, *transitive_rows]}.values()
+    }
+
     def path_for(row: sqlite3.Row) -> str:
-        return _repo_relative_from_sqlite_row(str(row["path"] or ""), str(row["rel_path"] or ""))
+        return projected_paths[int(row["file_id"])]
 
     def ref_for(row: sqlite3.Row) -> str:
-        return f"{row['project_key']}::{path_for(row)}"
+        return f"{row['project_key']}::{path_for(row) or row['rel_path']}"
 
-    direct_paths = [path_for(row) for row in direct_rows]
-    transitive_paths = [path_for(row) for row in transitive_rows]
+    direct_paths = [path for row in direct_rows if (path := path_for(row))]
+    transitive_paths = [path for row in transitive_rows if (path := path_for(row))]
+    unresolved_refs = list(dict.fromkeys(
+        f"{row['project_key']}::{row['rel_path']}" for row in [*direct_rows, *transitive_rows] if not path_for(row)))
     duration_ms = round((time.perf_counter() - started) * 1000, 2)
     target_file = str(context.get("repo_relative_path") or "").replace("\\", "/").strip("/")
     target_ref = _target_ref_from_context(resolved_node, context)
@@ -4838,7 +5129,7 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
         "analysis_root": _analysis_root_display(target_root),
         "target_project": _project_from_ref(target_ref),
         "target_file": target_file,
-        "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
+        "target_path_status": _target_path_status(raw_dir, target_ref, target_root=target_root),
         "radius_depth": radius_depth,
         "scope_kind": "target_reachable_dependents",
         "scope_completeness": "bounded",
@@ -4848,16 +5139,19 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
             "returned_transitive_limit": returned_transitive_limit,
         },
         "dependency_graph_source": "sqlite_dependencies",
+        "path_projection_status": "partial" if unresolved_refs else "resolved",
+        "unresolved_dependent_refs": unresolved_refs,
         "evidence_limits": [
-            "SQLite dependent counts stop at 128 hops and the returned transitive list stops at 200 rows; depth=0 does not export the complete repository graph."
+            "SQLite dependent counts stop at 128 hops and the returned transitive list stops at 200 rows; depth=0 does not export the complete repository graph.",
+            *(["Some indexed dependents have unresolved workspace paths; graph counts retain them but file lists omit them. Canonical unresolved references do not authorize filesystem access."] if unresolved_refs else []),
         ],
         "duration_ms": duration_ms,
         "slow_warning": "impact_radius_resolution_exceeded_2s" if duration_ms > 2000 else "",
         "status": "ok",
         "blast_radius_size": transitive_count,
         "returned_scope_size": len(transitive_paths),
-        "direct_dependents_count": len(direct_paths),
-        "direct_dependents_omitted": 0,
+        "direct_dependents_count": len(direct_rows),
+        "direct_dependents_omitted": len(direct_rows) - len(direct_paths),
         "transitive_dependents_omitted": max(0, transitive_count - len(transitive_paths)),
         "next_depth_hint": (
             "Depth=0 is still a bounded debug sample; omitted dependents are not returned by this call."
@@ -4867,10 +5161,10 @@ def _sqlite_impact_radius_from_raw(raw_dir: Path, target_node: str, target_root:
             else ""
         ),
         "direct_dependents": direct_paths,
-        "direct_dependent_refs": [ref_for(row) for row in direct_rows],
+        "direct_dependent_refs": [ref_for(row) for row in direct_rows if path_for(row)],
         "transitive_dependents": transitive_paths,
-        "transitive_dependent_refs": [ref_for(row) for row in transitive_rows],
-        "transitive_dependent_depths": {path_for(row): int(row["depth"] or 0) for row in transitive_rows},
+        "transitive_dependent_refs": [ref_for(row) for row in transitive_rows if path_for(row)],
+        "transitive_dependent_depths": {path: int(row["depth"] or 0) for row in transitive_rows if (path := path_for(row))},
     }
 
 
@@ -4936,11 +5230,19 @@ def _sqlite_upstream_trace_from_raw(
             pass
         return None
 
+    paths_by_id = {
+        int(row["file_id"]): _symbol_search_repo_relative(
+            str(row["path"] or ""), str(row["rel_path"] or ""),
+            project_key=str(row["project_key"] or ""), raw_dir=raw_dir,
+        )
+        for row in {int(item["file_id"]): item for item in upstream_rows + dependent_rows}.values()
+    }
+
     def path_for(row: sqlite3.Row) -> str:
-        return _repo_relative_from_sqlite_row(str(row["path"] or ""), str(row["rel_path"] or ""))
+        return paths_by_id[int(row["file_id"])]
 
     def ref_for(row: sqlite3.Row) -> str:
-        return f"{row['project_key']}::{path_for(row)}"
+        return f"{row['project_key']}::{path_for(row) or row['rel_path']}"
 
     def context_for(row: sqlite3.Row) -> dict[str, Any]:
         repo_rel = path_for(row)
@@ -4949,6 +5251,7 @@ def _sqlite_upstream_trace_from_raw(
             "repo_relative_path": repo_rel,
             "atlas_node": f"{row['project_key']}::{atlas_rel}",
             "target_ref": ref_for(row),
+            "path_projection_status": "resolved" if repo_rel else "unresolved",
             "project_key": str(row["project_key"] or ""),
             "source": "sqlite_dependencies",
         }
@@ -4957,6 +5260,8 @@ def _sqlite_upstream_trace_from_raw(
     target_file = str(context.get("repo_relative_path") or "").replace("\\", "/").strip("/")
     upstream_refs = [ref_for(row) for row in upstream_rows]
     dependent_refs = [ref_for(row) for row in dependent_rows]
+    unresolved_upstream_refs = [ref_for(row) for row in upstream_rows if not path_for(row)]
+    unresolved_dependent_refs = [ref_for(row) for row in dependent_rows if not path_for(row)]
     candidate_changed_sources: list[dict[str, Any]] = []
     if isinstance(signals_data, dict):
         target_keys = {resolved_node, target_ref, target_file}
@@ -4984,7 +5289,7 @@ def _sqlite_upstream_trace_from_raw(
         "analysis_root": _analysis_root_display(target_root),
         "target_project": _project_from_ref(target_ref),
         "target_file": target_file,
-        "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
+        "target_path_status": _target_path_status(raw_dir, target_ref, target_root=target_root),
         "target_file_context": {
             "repo_relative_path": target_file,
             "atlas_node": resolved_node,
@@ -4992,13 +5297,21 @@ def _sqlite_upstream_trace_from_raw(
             "source": "sqlite_files",
         },
         "dependency_graph_source": "sqlite_dependencies",
-        "evidence_limits": [],
+        "scope_completeness": "bounded",
+        "dependency_count_semantics": "returned_indexed_rows",
+        "evidence_limits": (["Unresolved workspace refs are canonical graph identities, not openable filesystem paths."]
+                            if unresolved_upstream_refs or unresolved_dependent_refs else []),
+        "path_projection_status": "partial" if unresolved_upstream_refs or unresolved_dependent_refs else "resolved",
+        "upstream_dependency_count": len(upstream_rows),
+        "direct_dependents_count": len(dependent_rows),
+        "unresolved_upstream_refs": unresolved_upstream_refs,
+        "unresolved_dependent_refs": unresolved_dependent_refs,
         "candidate_changed_sources": candidate_changed_sources[:25],
         "upstream_dependencies": upstream_refs,
-        "upstream_dependency_files": [path_for(row) for row in upstream_rows],
+        "upstream_dependency_files": [path_for(row) for row in upstream_rows if path_for(row)],
         "upstream_dependency_context": [context_for(row) for row in upstream_rows],
         "direct_dependents": dependent_refs,
-        "direct_dependent_files": [path_for(row) for row in dependent_rows],
+        "direct_dependent_files": [path_for(row) for row in dependent_rows if path_for(row)],
         "direct_dependent_context": [context_for(row) for row in dependent_rows],
         "reasoning": [
             "Upstream dependencies are files the target imports or depends on.",
@@ -5024,27 +5337,22 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
         files = project_data.get("files") or {}
         if not isinstance(files, dict):
             continue
-        for rel_path, file_info in files.items():
+        for rel_path in files:
             atlas_rel = str(rel_path).replace("\\", "/").strip("/")
-            workspace_rel = atlas_rel
-            if isinstance(file_info, dict):
-                workspace_rel = str(file_info.get("workspace_rel") or atlas_rel).replace("\\", "/").strip("/")
             if atlas_rel:
-                repo_rel_by_node[f"{project}::{atlas_rel}"] = workspace_rel
+                repo_rel_by_node[f"{project}::{atlas_rel}"] = _declared_atlas_workspace_path(
+                    raw_dir, project, rel_path, allow_legacy_relative_root=True, project_data=project_data)
 
     def repo_rel_for_node(node: str) -> str:
-        if node in repo_rel_by_node:
-            return repo_rel_by_node[node]
-        _project, rel = node.split("::", 1) if "::" in node else ("", node)
-        return rel
+        return repo_rel_by_node.get(node, "")
 
     def target_ref_for_node(node: str) -> str:
         project, _rel = node.split("::", 1) if "::" in node else ("", node)
         repo_rel = repo_rel_for_node(node)
-        return f"{project}::{repo_rel}" if project else repo_rel
+        return f"{project}::{repo_rel}" if project and repo_rel else node
 
-    target_ref = target_ref_for_node(resolved_node)
-    target_file = context.get("repo_relative_path") or repo_rel_for_node(resolved_node)
+    target_ref = _target_ref_from_context(resolved_node, context)
+    target_file = str(context.get("repo_relative_path") or "")
     nodes, _edges, reverse = _dependency_graph_from_raw(raw_dir)
     radius_depth = max(0, int(depth or 0))
     if resolved_node not in nodes and resolved_node not in reverse:
@@ -5056,7 +5364,7 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
             "analysis_root": _analysis_root_display(target_root),
             "target_project": _project_from_ref(target_ref),
             "target_file": target_file,
-            "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
+            "target_path_status": _target_path_status(raw_dir, target_node, target_root=target_root),
             "radius_depth": radius_depth,
             "scope_kind": "target_reachable_dependents",
             "scope_completeness": "unavailable",
@@ -5077,12 +5385,20 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
             "direct_dependent_refs": [],
             "transitive_dependents": [],
             "transitive_dependent_refs": [],
+            "path_projection_status": "resolved",
+            "unresolved_dependent_refs": [],
         }
     direct_nodes = sorted(reverse.get(resolved_node, []))
     transitive_nodes = _reachable_dependents_limited(resolved_node, reverse, radius_depth)
     precomputed_counts = _precomputed_blast_counts(raw_dir, resolved_node)
     total_transitive_count = len(transitive_nodes) if radius_depth == 0 else int(precomputed_counts.get("transitive") or len(transitive_nodes))
     total_direct_count = len(direct_nodes) if radius_depth == 0 else int(precomputed_counts.get("direct") or len(direct_nodes))
+    # Projection never changes graph traversal or counts. Unknown graph identities
+    # remain explicit refs, not guessed filenames or empty path/ref list entries.
+    direct_projected = [node for node in direct_nodes if repo_rel_for_node(node)]
+    transitive_projected = [node for node in transitive_nodes if repo_rel_for_node(node)]
+    unresolved_refs = list(dict.fromkeys(
+        node for node in [*direct_nodes, *transitive_nodes] if not repo_rel_for_node(node)))
     duration_ms = round((time.perf_counter() - started) * 1000, 2)
     graph_source = _dependency_graph_source(raw_dir)
     return {
@@ -5091,15 +5407,20 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
         "analysis_root": _analysis_root_display(target_root),
         "target_project": _project_from_ref(target_ref),
         "target_file": target_file,
-        "target_path_status": _target_path_status(raw_dir, target_file, target_root=target_root),
+        "target_path_status": _target_path_status(raw_dir, target_node, target_root=target_root),
         "radius_depth": radius_depth,
         "scope_kind": "target_reachable_dependents",
         "scope_completeness": "complete_within_loaded_graph" if radius_depth == 0 else "bounded",
         "scope_limits": {} if radius_depth == 0 else {"traversal_depth_limit": radius_depth},
         "dependency_graph_source": graph_source,
+        "path_projection_status": "partial" if unresolved_refs else "resolved",
+        "unresolved_dependent_refs": unresolved_refs,
         "evidence_limits": [
-            "Atlas import fallback was used; cycle classification may require circular_deps.json."
-        ] if graph_source == "atlas_imports_fallback" else [],
+            *(["Atlas import fallback was used; cycle classification may require circular_deps.json."]
+              if graph_source == "atlas_imports_fallback" else []),
+            *(["Some graph dependents have unresolved workspace paths; graph counts retain them but file lists omit them. Canonical unresolved references do not authorize filesystem access."]
+              if unresolved_refs else []),
+        ],
         "duration_ms": duration_ms,
         "slow_warning": "impact_radius_resolution_exceeded_2s" if duration_ms > 2000 else "",
         "status": "ok",
@@ -5109,15 +5430,36 @@ def _impact_radius_from_raw(raw_dir: Path, target_node: str, target_root: str = 
         "direct_dependents_omitted": max(0, total_direct_count - len(direct_nodes)),
         "transitive_dependents_omitted": max(0, total_transitive_count - len(transitive_nodes)),
         "next_depth_hint": "Use depth=3 first when needed; depth=0 reaches only dependents in the loaded graph, not the whole repository graph." if radius_depth > 0 and total_transitive_count > len(transitive_nodes) else "",
-        "direct_dependents": [repo_rel_for_node(node) for node in direct_nodes],
-        "direct_dependent_refs": [target_ref_for_node(node) for node in direct_nodes],
-        "transitive_dependents": [repo_rel_for_node(node) for node in transitive_nodes],
-        "transitive_dependent_refs": [target_ref_for_node(node) for node in transitive_nodes],
+        "direct_dependents": [repo_rel_for_node(node) for node in direct_projected],
+        "direct_dependent_refs": [target_ref_for_node(node) for node in direct_projected],
+        "transitive_dependents": [repo_rel_for_node(node) for node in transitive_projected],
+        "transitive_dependent_refs": [target_ref_for_node(node) for node in transitive_projected],
     }
 
 
 def _render_test_impact_brief(payload: dict[str, Any]) -> str:
-    visible_test_limit = 8
+    """Fit whole test candidates; never truncate evidence or its qualifiers."""
+    for visible_limit in range(8, 0, -1):
+        body = _render_test_impact_page(payload, visible_test_limit=visible_limit)
+        if context_budget_profile(body, budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)["status"] == "pass":
+            return body
+    tests = payload.get("impacted_tests") if isinstance(payload.get("impacted_tests"), list) else []
+    return "\n".join([
+        "# Test Impact Brief", "", "```yaml",
+        'status: "context_budget_exceeded"',
+        "safe_to_apply: false", "mutation_authority: not_granted",
+        f"impacted_test_count: {len(tests)}", "impacted_tests_shown: 0",
+        f"impacted_tests_omitted: {len(tests)}", "impacted_tests: []",
+        'next_action: "Request get_test_impact for the same target with format=machine before making a test decision."',
+        'claim_boundary: "No visible brief test is not proof that no tests matter; full evidence remains in machine output."',
+        "do:", "  - Request the complete candidate evidence before finalizing.",
+        "do_not:", "  - Do not infer absence of relevant tests or successful execution from this fallback.",
+        "```", "",
+    ])
+
+
+def _render_test_impact_page(payload: dict[str, Any], *, visible_test_limit: int) -> str:
+    payload = _normalize_test_impact_payload_for_agent(payload)
     tests = payload.get("impacted_tests") if isinstance(payload.get("impacted_tests"), list) else []
     has_error = bool(payload.get("error"))
     target_exists = bool(payload.get("target_exists", True))
@@ -5153,6 +5495,8 @@ def _render_test_impact_brief(payload: dict[str, Any]) -> str:
         f"  target_file: {json.dumps(payload.get('target_file') or payload.get('target') or '', ensure_ascii=False)}",
         f"  target_ref: {json.dumps(payload.get('target_ref') or payload.get('target') or '', ensure_ascii=False)}",
         f"  impacted_test_count: {len(tests)}",
+        f"  impacted_tests_shown: {min(len(tests), visible_test_limit)}",
+        f"  impacted_tests_omitted: {max(0, len(tests) - visible_test_limit)}",
         f"  test_source_snippet_limit: {int(payload.get('test_source_snippet_limit') or 0)}",
         f"  test_source_snippets_attached: {int(payload.get('test_source_snippets_attached') or 0)}",
         f"  test_source_snippets_omitted: {int(payload.get('test_source_snippets_omitted') or 0)}",
@@ -5169,6 +5513,7 @@ def _render_test_impact_brief(payload: dict[str, Any]) -> str:
         "  inspect_first:",
         "    - " + json.dumps(payload.get("target_file") or payload.get("target") or "", ensure_ascii=False),
         "  confidence_note: " + json.dumps("An empty impacted_tests list is not proof that no tests matter.", ensure_ascii=False),
+        "  evidence_boundary: " + json.dumps(payload["evidence_boundary"], ensure_ascii=False),
         "validation:",
         "  commands:",
     ]
@@ -5209,9 +5554,25 @@ def _render_test_impact_brief(payload: dict[str, Any]) -> str:
     )
     if tests:
         for row in tests[:visible_test_limit]:
-            yaml_lines.append("  - file: " + json.dumps(row.get("repo_relative_path") or row.get("file") or "", ensure_ascii=False))
+            candidate_file = str(row.get("repo_relative_path") or row.get("file") or "")
+            candidate_project = test_candidate_project(row)
+            candidate_ref = (
+                _target_ref_from_context(f"{candidate_project}::{candidate_file}",
+                                         {"repo_relative_path": candidate_file})
+                if candidate_project and candidate_file else None
+            )
+            yaml_lines.append("  - file: " + json.dumps(candidate_file, ensure_ascii=False))
+            yaml_lines.append("    project: " + json.dumps(candidate_project or None, ensure_ascii=False))
+            yaml_lines.append("    target_ref: " + json.dumps(candidate_ref, ensure_ascii=False))
             yaml_lines.append("    confidence: " + json.dumps(row.get("confidence") or "", ensure_ascii=False))
             yaml_lines.append("    reason: " + json.dumps(row.get("type") or row.get("reason") or "", ensure_ascii=False))
+            yaml_lines.append("    candidate_evidence: " + json.dumps(row["candidate_evidence"], ensure_ascii=False))
+            if isinstance(row.get("mock_declaration_evidence"), dict):
+                observed = row["mock_declaration_evidence"]
+                compact = {key: observed[key] for key in
+                           ("status", "reason", "runtime_binding", "source_hash", "declarations")
+                           if key in observed}
+                yaml_lines.append("    mock_declaration_evidence: " + json.dumps(compact, ensure_ascii=False))
             yaml_lines.append("    run: " + json.dumps(row.get("run_command") or "", ensure_ascii=False))
             snippets = row.get("source_snippets") if isinstance(row.get("source_snippets"), list) else []
             snippet_status = str(row.get("source_snippet_status") or ("included" if snippets else "not_available")).strip()
@@ -5265,12 +5626,14 @@ def _normalize_test_impact_payload_for_agent(payload: dict[str, Any]) -> dict[st
     if not isinstance(payload, dict):
         return payload
     normalized = dict(payload)
+    normalized["evidence_boundary"] = static_test_evidence_policy()["proof_boundary"]
     tests = payload.get("impacted_tests") if isinstance(payload.get("impacted_tests"), list) else []
     normalized_tests: list[dict[str, Any]] = []
     for row in tests:
         if not isinstance(row, dict):
             continue
         item = dict(row)
+        item["candidate_evidence"] = static_candidate_evidence(item)
         repo_path = str(item.get("repo_relative_path") or item.get("file") or "").replace("\\", "/").strip("/")
         old_file = str(item.get("file") or "").replace("\\", "/").strip("/")
         if repo_path:
@@ -5355,77 +5718,75 @@ def _merge_live_direct_test_candidates(
     """Merge stronger live direct-import evidence into any test-impact projection."""
 
     existing = result.get("impacted_tests") if isinstance(result.get("impacted_tests"), list) else []
-    tests = {
-        str(row.get("repo_relative_path") or row.get("file") or ""): dict(row)
-        for row in existing
-        if isinstance(row, dict) and str(row.get("repo_relative_path") or row.get("file") or "")
-    }
-    for row in _direct_colocated_test_candidates(analysis_root, target_file_rel):
-        tests[str(row["repo_relative_path"])] = row
+    tests: dict[tuple[str, str], dict[str, Any]] = {}
+    for index, row in enumerate(existing):
+        if not isinstance(row, dict):
+            continue
+        path = str(row.get("repo_relative_path") or row.get("file") or "").replace("\\", "/")
+        if not path:
+            continue
+        project = test_candidate_project(row)
+        # Legacy or conflicting identities remain separate, not silently MAIN.
+        node = str(row.get("atlas_node") or "")
+        key = (project, f"node:{node}" if node else f"path:{path}") if project else ("", f"existing:{index}")
+        tests[key] = dict(row)
+    project = str(result.get("target_project") or _project_from_ref(str(result.get("target_ref") or result.get("target") or "")))
+    for index, candidate in enumerate(_direct_colocated_test_candidates(analysis_root, target_file_rel)):
+        row = dict(candidate)
+        path = str(row["repo_relative_path"]).replace("\\", "/")
+        if project:
+            row["project"] = project
+        matching = [key for key, old in tests.items()
+                    if project and test_candidate_project(old) == project
+                    and str(old.get("repo_relative_path") or old.get("file") or "").replace("\\", "/") == path]
+        key = matching[0] if len(matching) == 1 else ((project, f"path:{path}") if project else ("", f"live:{index}"))
+        # Only one exact project/path may transfer an indexed canonical node.
+        row = {**tests.get(key, {}), **row} if len(matching) <= 1 else row
+        row["static_relation"] = "direct_import"
+        tests[key] = row
     result["impacted_tests"] = sorted(
         tests.values(),
-        key=lambda row: (-float(row.get("confidence") or 0), str(row.get("file") or "")),
+        key=lambda row: (-float(row.get("confidence") or 0), str(row.get("file") or ""), test_candidate_project(row), str(row.get("atlas_node") or "")),
     )
     return result
 
 
 def _test_impact_from_raw(raw_dir: Path, target_file: str, target_root: str = "") -> dict[str, Any] | None:
-    if not load_atlas_data(raw_dir):
+    atlas = load_atlas_data(raw_dir)
+    if not atlas:
         return None
+    from tools.engines.test_impact_matcher import find_impacted_tests
+
     resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_file)
     target_status = _target_path_status(raw_dir, target_file, target_root=target_root)
     target_file_rel = str(context.get("repo_relative_path") or target_file).replace("\\", "/")
-    target_base = _base_without_test_suffix(target_file_rel)
-    tests: dict[str, dict[str, Any]] = {}
-
     deps_payload = _load_json(raw_dir / "circular_deps.json")
-    nodes, _edges, reverse = _dependency_graph_from_raw(raw_dir) if isinstance(deps_payload, dict) and deps_payload else ({}, [], {})
-    if reverse:
-        for dep_node in reverse.get(resolved_node, []):
-            dep_rel = _repo_relative_from_node(raw_dir, dep_node)
-            if _is_likely_test_path(dep_rel):
-                tests[dep_rel] = {
-                    "file": dep_rel,
-                    "repo_relative_path": dep_rel,
-                    "type": "Direct Static Import",
-                    "confidence": 1.0,
-                    "run_command": command_for_test(dep_rel),
-                }
-
-    atlas = _atlas(raw_dir=raw_dir)
-    for project_key, project_data in atlas.items():
-        files = project_data.get("files") or {}
-        if not isinstance(files, dict):
-            continue
-        for rel_path, file_info in files.items():
-            repo_rel = str((file_info or {}).get("workspace_rel") or rel_path).replace("\\", "/") if isinstance(file_info, dict) else str(rel_path)
-            if not _is_likely_test_path(repo_rel):
-                continue
-            if _base_without_test_suffix(repo_rel) == target_base:
-                tests.setdefault(
-                    repo_rel,
-                    {
-                        "file": repo_rel,
-                        "repo_relative_path": repo_rel,
-                        "type": "Semantic Convention Match",
-                        "confidence": 0.8,
-                        "run_command": command_for_test(repo_rel),
-                    },
-                )
-
-    result = {
-        "target": resolved_node,
+    # Explicit empty input prevents the shared matcher from reading the host
+    # graph. Preserve the existing naming/live-only lane when this target has
+    # no dependency artifact; do not activate an implicit Atlas graph fallback.
+    result = find_impacted_tests(
+        resolved_node,
+        atlas=atlas,
+        circular_deps=deps_payload if isinstance(deps_payload, dict) else {},
+    )
+    # Keep external repo-relative display/commands while matching by canonical
+    # project-node identity. All ranking/relation decisions belong to the engine.
+    for row in result.get("impacted_tests", []):
+        repo_rel = _repo_relative_from_node(raw_dir, row["atlas_node"])
+        row["file"] = repo_rel
+        row["repo_relative_path"] = repo_rel
+        row["run_command"] = command_for_test(repo_rel)
+    result.update({
         "target_ref": _target_ref_from_node(raw_dir, resolved_node),
         "analysis_root": _analysis_root_display(target_root),
-        "target_project": _project_from_ref(_target_ref_from_node(raw_dir, resolved_node)),
+        "target_project": _project_from_ref(resolved_node),
         "target_file": target_file_rel,
         "target_file_context": context,
         "target_path_status": target_status,
         "target_exists": bool(target_status.get("exists")),
         "target_indexed": bool(target_status.get("indexed")),
         "target_grounding_status": "grounded" if target_status.get("exists") and target_status.get("indexed") else "missing_or_unindexed",
-        "impacted_tests": sorted(tests.values(), key=lambda row: (-float(row.get("confidence") or 0), str(row.get("file") or ""))),
-    }
+    })
     return _merge_live_direct_test_candidates(
         result,
         Path(_analysis_root_display(target_root)),
@@ -5643,6 +6004,9 @@ def _render_upstream_trace_brief(payload: dict[str, Any]) -> str:
         direct_dependent_files = payload.get("direct_dependents") or []
     else:
         direct_dependent_files = []
+    target_project = str(payload.get("target_project") or _project_from_ref(str(payload.get("target_ref") or payload.get("target") or "")))
+    upstream_entries = _upstream_file_entries(payload, "upstream_dependency_files", "upstream_dependency_context", target_project)
+    direct_entries = _upstream_file_entries(payload, "direct_dependent_files", "direct_dependent_context", target_project)
     direct_dependent_path_set = {
         str(path or "").replace("\\", "/").strip("/")
         for path in direct_dependent_files
@@ -5654,34 +6018,35 @@ def _render_upstream_trace_brief(payload: dict[str, Any]) -> str:
     target_exists = bool(target_status.get("exists", True))
     target_indexed = bool(target_status.get("indexed", True))
     target_grounded = target_exists and target_indexed
-    has_upstream_evidence = bool(traces or upstream_files or changed_sources)
+    upstream_count = int(payload.get("upstream_dependency_count", len(upstream_files)))
+    dependent_count = int(payload.get("direct_dependents_count", len(direct_dependent_files)))
+    has_upstream_evidence = bool(traces or upstream_count or changed_sources)
     upstream_shown = (
         min(len(traces), upstream_dependency_limit)
         if traces
         else min(len(upstream_files), upstream_dependency_limit) + min(len(changed_sources), changed_source_limit)
     )
-    upstream_total = len(traces) + len(upstream_files) + len(changed_sources)
+    upstream_total = len(traces) + upstream_count + len(changed_sources)
     direct_shown = min(len(direct_dependent_files), direct_dependent_limit)
     target_ref = str(payload.get("target_ref") or target)
-    target_project = str(payload.get("target_project") or _project_from_ref(str(payload.get("target_ref") or target)))
     yaml_lines = [
         "mission:",
         "  - Use this trace to look upstream before fixing a symptom locally.",
         "task:",
         f"  analysis_root: {json.dumps(payload.get('analysis_root') or '', ensure_ascii=False)}",
         f"  target_project: {json.dumps(target_project, ensure_ascii=False)}",
-        f"  target_file: {json.dumps(payload.get('target_file') or target, ensure_ascii=False)}",
+        f"  target_file: {json.dumps(payload.get('target_file', target), ensure_ascii=False)}",
         f"  target_ref: {json.dumps(target_ref, ensure_ascii=False)}",
         "  evidence_basis: \"static dependency graph plus active change signals when available\"",
         f"  target_exists: {str(target_exists).lower()}",
         f"  target_indexed: {str(target_indexed).lower()}",
         f"  target_grounding_status: {json.dumps('grounded' if target_grounded else 'missing_or_unindexed', ensure_ascii=False)}",
         *_source_grounding_yaml_lines(target_status, max_spans=1),
-        f"  upstream_candidate_count: {len(traces) + len(upstream_files) + len(changed_sources)}",
+        f"  upstream_candidate_count: {upstream_total}",
         f"  upstream_candidates_shown: {upstream_shown}",
         f"  upstream_candidates_omitted: {max(0, upstream_total - upstream_shown)}",
-        f"  upstream_dependency_count: {len(upstream_files)}",
-        f"  direct_dependent_count: {len(direct_dependent_files)}",
+        f"  upstream_dependency_count: {upstream_count}",
+        f"  direct_dependent_count: {dependent_count}",
         f"  direct_dependents_shown: {direct_shown}",
         f"  candidate_changed_source_count: {len(changed_sources)}",
         "path_contract:",
@@ -5695,11 +6060,13 @@ def _render_upstream_trace_brief(payload: dict[str, Any]) -> str:
         "directive:",
         "  next_action: " + json.dumps("refresh_target_analysis_before_upstream_decision" if not target_grounded else ("inspect_upstream_candidates_before_local_patch" if has_upstream_evidence else "patch_target_only_after_local_evidence"), ensure_ascii=False),
         "  inspect_first:",
-        "    - " + json.dumps(payload.get("target_file") or target, ensure_ascii=False),
+        "    - " + json.dumps(payload.get("target_file", target), ensure_ascii=False),
         "upstream_candidates:",
     ]
     if payload.get("dependency_graph_source"):
         yaml_lines.insert(8, f"  dependency_graph_source: {json.dumps(payload.get('dependency_graph_source'), ensure_ascii=False)}")
+    if payload.get("dependency_count_semantics"):
+        yaml_lines.insert(9, f"  dependency_count_semantics: {json.dumps(payload['dependency_count_semantics'])}")
     if traces:
         for item in traces[:upstream_dependency_limit]:
             file_path, item_ref = _agent_file_ref(str(item), target_project)
@@ -5710,8 +6077,7 @@ def _render_upstream_trace_brief(payload: dict[str, Any]) -> str:
                 yaml_lines.append("    bidirectional_dependency: true")
                 yaml_lines.append("    agent_note: \"This candidate is also a direct dependent; inspect both import directions before editing.\"")
     elif upstream_files or changed_sources:
-        for path in upstream_files[:upstream_dependency_limit]:
-            file_path, item_ref = _agent_file_ref(str(path), target_project)
+        for file_path, item_ref in upstream_entries[:upstream_dependency_limit]:
             yaml_lines.append("  - file: " + json.dumps(file_path, ensure_ascii=False))
             yaml_lines.append("    target_ref: " + json.dumps(item_ref, ensure_ascii=False))
             yaml_lines.append("    relation: \"upstream_dependency\"")
@@ -5761,12 +6127,15 @@ def _render_upstream_trace_brief(payload: dict[str, Any]) -> str:
     yaml_lines.append(f"dependency_evidence_snippets_omitted: {int(payload.get('upstream_dependency_evidence_omitted') or 0)}")
     yaml_lines.append("direct_dependents_sample:")
     if direct_dependent_files:
-        for path in direct_dependent_files[:direct_dependent_limit]:
-            file_path, item_ref = _agent_file_ref(str(path), target_project)
+        for file_path, item_ref in direct_entries[:direct_dependent_limit]:
             yaml_lines.append("  - file: " + json.dumps(file_path, ensure_ascii=False))
             yaml_lines.append("    target_ref: " + json.dumps(item_ref, ensure_ascii=False))
     else:
         yaml_lines.append("  []")
+    if payload.get("path_projection_status"):
+        yaml_lines.append("path_projection_status: " + json.dumps(payload["path_projection_status"]))
+        yaml_lines.append("unresolved_upstream_refs: " + json.dumps(payload.get("unresolved_upstream_refs", [])[:upstream_dependency_limit]))
+        yaml_lines.append("unresolved_dependent_refs: " + json.dumps(payload.get("unresolved_dependent_refs", [])[:direct_dependent_limit]))
     limits = payload.get("evidence_limits") if isinstance(payload.get("evidence_limits"), list) else []
     if limits:
         yaml_lines.append("evidence_limits:")
@@ -6060,6 +6429,7 @@ def _render_module_integrity_brief(payload: dict[str, Any]) -> str:
         "  target_ref_usage: \"SAGE/MCP reference only; not a filesystem path\"",
         "  target_ref_format: \"<project>::<repo_relative_path>; MAIN is the primary analyzed project scope\"",
         "  refs_are_not_paths: true",
+        '  graph_ref_usage: "Graph identity only; not a filesystem path or edit authority"',
         "items:",
     ]
     if items:
@@ -6068,6 +6438,9 @@ def _render_module_integrity_brief(payload: dict[str, Any]) -> str:
             yaml_lines.append("    target_file: " + json.dumps(row.get("target_file") or row.get("file") or "", ensure_ascii=False))
             yaml_lines.append("    target_ref: " + json.dumps(row.get("target_ref") or "", ensure_ascii=False))
             yaml_lines.append("    target_status: " + json.dumps(row.get("target_status") or {}, ensure_ascii=False))
+            if row.get("path_projection_status"):
+                yaml_lines.append("    graph_ref: " + json.dumps(row.get("atlas_node") or "", ensure_ascii=False))
+                yaml_lines.append("    path_projection_status: " + json.dumps(row["path_projection_status"]))
             yaml_lines.append("    rule: " + json.dumps(row.get("rule") or "", ensure_ascii=False))
             yaml_lines.append("    label: " + json.dumps(row.get("label") or "", ensure_ascii=False))
             yaml_lines.append("    priority: " + json.dumps(row.get("priority") or "", ensure_ascii=False))
@@ -6085,6 +6458,7 @@ def _render_module_integrity_brief(payload: dict[str, Any]) -> str:
             "  - Treat this as context, not as permission to broaden the patch.",
             "do_not:",
             "  - Do not treat this module summary as permission for broad cleanup.",
+            "  - Unresolved target refs identify findings only; do not open or guess a file from them.",
             "  - Do not add suppressions or allowlists without explicit human approval.",
         ]
     )
@@ -6360,14 +6734,16 @@ def _module_integrity_items_from_sqlite(
     db_path = raw_dir / "codemaps.db"
     if not Path(native_filesystem_path(db_path)).exists():
         return [], 0, False
-    module_filter = str(module_path or "").replace("\\", "/").strip("/").lower()
+    module_text = str(module_path or "").replace("\\", "/").strip("/")
+    qualified = "::" in module_text
+    module_filter = module_text.lower()
     default_main_scope = not target_root and not _is_variation_workspace_text(module_path) and "::" not in str(module_path or "")
     where = ["fi.engine_name = ?"]
     params: list[Any] = ["audit_report"]
     if default_main_scope:
         where.append("p.project_key = ?")
         params.append("MAIN")
-    if module_filter:
+    if module_filter and not qualified:
         where.append(
             """
             (
@@ -6378,10 +6754,39 @@ def _module_integrity_items_from_sqlite(
             """
         )
         params.extend([module_filter, module_filter, module_filter])
-    where_clause = " AND ".join(where)
     try:
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
+            if qualified:
+                project_key, requested_path = module_text.split("::", 1)
+                if (not project_key or not requested_path or requested_path.startswith("/")
+                        or re.match(r"^[A-Za-z]:", requested_path) or ".." in requested_path.split("/")):
+                    return [], 0, True
+                # Indexed keys win before workspace aliases, including when
+                # their openable path is unknown. Path projection cannot erase
+                # a canonical finding or redirect it to another project.
+                exact = conn.execute(
+                    "SELECT file_id FROM files WHERE project_key = ? AND rel_path = ? LIMIT 1;",
+                    (project_key, requested_path),
+                ).fetchone()
+                selected_path = requested_path
+                if not exact:
+                    resolved = _sqlite_file_context_from_raw(raw_dir, module_text)
+                    if resolved is None:
+                        return [], 0, True
+                    node, context = resolved
+                    # This resolver also serves inspect_file's shorthand. A
+                    # finding selector accepts exact file identities only,
+                    # not extension, index-file or directory guesses.
+                    if context.get("source") != "sqlite_files" or requested_path not in {
+                        context.get("atlas_relative_path"), context.get("repo_relative_path"),
+                    }:
+                        return [], 0, True
+                    project_key = node.split("::", 1)[0]
+                    selected_path = context["atlas_relative_path"]
+                where.extend(["p.project_key = ?", "f.rel_path = ?"])
+                params.extend([project_key, selected_path])
+            where_clause = " AND ".join(where)
             total = int(
                 conn.execute(
                     f"""
@@ -6426,7 +6831,17 @@ def _module_integrity_items_from_sqlite(
     for row in rows:
         project_key = str(row["project_key"] or "")
         rel_path = str(row["rel_path"] or "").replace("\\", "/").strip("/")
-        repo_rel = _repo_relative_from_sqlite_row(str(row["path"] or ""), rel_path)
+        repo_rel = _symbol_search_repo_relative(
+            str(row["path"] or ""), rel_path, project_key=project_key, raw_dir=raw_dir,
+        )
+        canonical_ref = f"{project_key}::{rel_path}"
+        target_ref = f"{project_key}::{repo_rel}" if repo_rel else canonical_ref
+        # The indexed identity owns status; a workspace alias alone can select
+        # the wrong project. Unresolved paths are not delegated to a fallback.
+        status = _target_path_status(raw_dir, canonical_ref, target_root=target_root) if repo_rel else {}
+        target_status = {
+            key: bool(status.get(key)) for key in ("exists", "inside_root", "indexed")
+        } if repo_rel else {}
         violation: dict[str, Any] = {}
         try:
             parsed = json.loads(row["message"])
@@ -6437,18 +6852,19 @@ def _module_integrity_items_from_sqlite(
         rule_id = str(row["code"] or violation.get("rule") or "architecture_violation")
         guidance = _rule_guidance(rule_id, doctrine)
         detail = str(violation.get("detail") or violation.get("message") or row["message"] or "").strip()
-        target_context = _target_context_from_project_file(raw_dir, project_key, repo_rel, target_root=target_root)
         filtered.append(
             {
                 "file": repo_rel,
-                "target_file": target_context.get("target_file") or repo_rel,
-                "target_ref": target_context.get("target_ref") or f"{project_key}::{repo_rel}",
-                "target_status": target_context.get("target_status") or {},
+                "target_file": repo_rel,
+                "target_ref": target_ref,
+                "atlas_node": canonical_ref,
+                "path_projection_status": "resolved" if repo_rel else "unresolved",
+                "target_status": target_status,
                 "rule": rule_id,
                 "label": guidance.get("label"),
                 "why_it_matters": guidance.get("why_it_matters"),
                 "fix_strategy": guidance.get("fix_strategy"),
-                "inspect_first": [target_context.get("target_file") or repo_rel],
+                "inspect_first": [repo_rel] if repo_rel else [],
                 "remediation_action": guidance.get("recommended_action"),
                 "priority": guidance.get("priority"),
                 "evidence": detail[:900],
@@ -6846,6 +7262,7 @@ def _render_violation_work_queue_page(payload: dict[str, Any], *, visible_limit:
         "  open_files_with: \"analysis_root + target_file or inspect_first item\"",
         "  target_ref_usage: \"SAGE/MCP reference only; not a filesystem path\"",
         "  target_ref_format: \"<project>::<repo_relative_path>; MAIN is the primary analyzed project scope\"",
+        '  graph_ref_usage: "Graph identity only; not a filesystem path or edit authority"',
         "items:",
     ])
     if visible_items:
@@ -6854,6 +7271,11 @@ def _render_violation_work_queue_page(payload: dict[str, Any], *, visible_limit:
             yaml_lines.append("    target_project: " + json.dumps(item.get("target_project") or "", ensure_ascii=False))
             yaml_lines.append("    target_file: " + json.dumps(item.get("target_file") or "", ensure_ascii=False))
             yaml_lines.append("    target_ref: " + json.dumps(item.get("target_ref") or "", ensure_ascii=False))
+            if item.get("path_projection_status"):
+                yaml_lines.append("    graph_ref: " + json.dumps(item.get("atlas_node") or "", ensure_ascii=False))
+                yaml_lines.append("    path_projection_status: " + json.dumps(item["path_projection_status"], ensure_ascii=False))
+                if item["path_projection_status"] == "unresolved":
+                    yaml_lines.append('    path_resolution_rule: "Retain this finding; resolve its canonical SAGE reference before editing. Do not guess a filesystem path."')
             yaml_lines.append("    rule: " + json.dumps(item.get("rule") or "", ensure_ascii=False))
             yaml_lines.append("    label: " + json.dumps(item.get("label") or "", ensure_ascii=False))
             if item.get("governance_mode"):
@@ -6991,19 +7413,48 @@ def _resolve_work_item_paths_for_agent(raw_dir: Path, items: list[dict[str, Any]
         clone = dict(item)
         project_key = str(clone.get("target_project") or "")
         file_path = str(clone.get("target_file") or "").replace("\\", "/")
+        canonical_ref = f"{project_key}::{file_path}" if project_key else file_path
+        clone.update(
+            atlas_node=canonical_ref,
+            target_file="",
+            target_ref=canonical_ref,
+            inspect_first=[],
+            path_projection_status="unresolved",
+            source_grounding=_public_target_path_status({
+                "target_ref": canonical_ref, "target_project": project_key,
+                "source_snapshot_status": "not_available",
+                "drift_check_status": "not_available",
+            }),
+        )
         if file_path:
             try:
                 resolved_node, context = _resolve_target_node_from_raw(
                     raw_dir,
-                    f"{project_key}::{file_path}" if project_key and project_key != "UNKNOWN" else file_path,
+                    canonical_ref,
+                    allow_atlas_fallback=False,
                 )
-                resolved_file = str(context.get("repo_relative_path") or resolved_node.split("::", 1)[-1] or file_path).replace("\\", "/")
-                resolved_project = project_key if project_key and project_key != "UNKNOWN" else _project_from_ref(resolved_node)
+                # Queue rows already carry exact indexed identities. A missing
+                # SQLite workspace mapping must not fall back to a basename,
+                # an Atlas guess or a different project's similarly named file.
+                if context.get("source") != "sqlite_files" or resolved_node != canonical_ref:
+                    resolved_items.append(clone)
+                    continue
+                resolved_file = str(context.get("repo_relative_path") or "").replace("\\", "/")
+                resolved_project = _project_from_ref(resolved_node)
+                target_status = _target_path_status(raw_dir, resolved_node, target_root=target_root)
+                public_status = _public_target_path_status(target_status)
+                if not (resolved_file and all(
+                    target_status.get(key) is True for key in ("exists", "inside_root", "indexed")
+                )):
+                    public_status.update(target_file="", target_ref=canonical_ref,
+                                         target_source_snippets=[], target_spans=[], target_span_count=0)
+                    clone["source_grounding"] = public_status
+                    resolved_items.append(clone)
+                    continue
                 clone["target_project"] = resolved_project or project_key
                 clone["target_file"] = resolved_file
                 clone["target_ref"] = f"{resolved_project}::{resolved_file}" if resolved_project else resolved_file
-                target_status = _target_path_status(raw_dir, clone["target_ref"], target_root=target_root)
-                public_status = _public_target_path_status(target_status)
+                clone["path_projection_status"] = "resolved"
                 evidence_for_snippets = [
                     str(value or "").strip()
                     for value in clone.get("evidence_items") or [clone.get("evidence") or ""]
@@ -7014,7 +7465,7 @@ def _resolve_work_item_paths_for_agent(raw_dir: Path, items: list[dict[str, Any]
                     and public_status.get("drift_check_status") == "match"
                     and evidence_for_snippets
                 ):
-                    snapshot_content = _source_snapshot_content_for_ref(raw_dir, clone["target_ref"])
+                    snapshot_content = _source_snapshot_content_for_ref(raw_dir, resolved_node)
                     public_status["evidence_source_snippets"] = _evidence_source_snippets(
                         snapshot_content,
                         evidence_for_snippets,
@@ -7035,14 +7486,15 @@ def _resolve_work_item_paths_for_agent(raw_dir: Path, items: list[dict[str, Any]
                                 _resolved_import_node, import_context = _resolve_target_node_from_raw(
                                     raw_dir,
                                     f"{resolved_project}::{candidate}" if resolved_project else candidate,
+                                    allow_atlas_fallback=False,
                                 )
-                                import_file = str(import_context.get("repo_relative_path") or candidate).replace("\\", "/")
-                                import_status = _target_path_status(raw_dir, _resolved_import_node, target_root=target_root)
+                                import_file = str(import_context.get("repo_relative_path") or "").replace("\\", "/")
                                 if (import_file and import_file not in inspect_first
-                                        and import_status.get("exists") is True
-                                        and import_status.get("inside_root") is True
-                                        and import_status.get("indexed") is True):
-                                    inspect_first.append(import_file)
+                                        and import_context.get("source") == "sqlite_files"
+                                        and _project_from_ref(_resolved_import_node) == resolved_project):
+                                    import_status = _target_path_status(raw_dir, _resolved_import_node, target_root=target_root)
+                                    if all(import_status.get(key) is True for key in ("exists", "inside_root", "indexed")):
+                                        inspect_first.append(import_file)
                             except Exception:
                                 pass
                 clone["inspect_first"] = inspect_first
@@ -7112,6 +7564,8 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
                                            class_method_search=method_coverage, store_action_search=action_coverage,
                                            import_binding_search=binding_coverage,
                                            qualified_import_call_search=qualified_coverage)
+    matches = [{**row, "path_projection_status": "resolved" if row.get("repo_relative_path") else "unresolved"}
+               for row in matches]
     if requested_format in {"json", "machine"}:
         visible, counts = _symbol_search_display(matches, limit=_symbol_search_policy()["machine_max_visible_items"])
         return json.dumps([{**row, **counts, "class_method_search": method_coverage,
@@ -10867,18 +11321,29 @@ def get_test_impact(target_file: str, target_root: str = "", format: str = "brie
 
     requested_format = str(format or "brief").strip().lower()
     try:
+        static_test_evidence_policy()
+    except ValueError as exc:
+        # Do not run target matching or invoke a renderer that requires the
+        # same unavailable policy. This is an error, never an empty-test verdict.
+        unavailable = {"target": target_file, "impacted_tests": [], "error": str(exc)}
+        return _done(
+            json.dumps(unavailable, indent=2, ensure_ascii=False),
+            status="fail_closed",
+            fail_closed_reason="test_impact_evidence_policy_unavailable",
+        )
+    try:
         raw_dir = _raw_dir_for_target(target_root)
     except ValueError as exc:
         return _done(_invalid_external_target_brief("get_test_impact", target_root), status="fail_closed", fail_closed_reason="invalid_external_target")
-    if target_root:
-        result = _test_impact_from_raw(raw_dir, target_file, target_root=target_root)
-        if result is None:
-            return _done(_missing_target_artifact_brief("get_test_impact", target_file, target_root, ["atlas.json"]), status="fail_closed", fail_closed_reason="missing_target_artifact")
-        result = _normalize_test_impact_payload_for_agent(result)
-        result = _attach_test_source_snippets(raw_dir, result)
-        response = json.dumps(result, indent=2, ensure_ascii=False) if requested_format in {"json", "machine"} else _render_test_impact_brief(result)
-        return _done(response)
     try:
+        if target_root:
+            result = _test_impact_from_raw(raw_dir, target_file, target_root=target_root)
+            if result is None:
+                return _done(_missing_target_artifact_brief("get_test_impact", target_file, target_root, ["atlas.json"]), status="fail_closed", fail_closed_reason="missing_target_artifact")
+            result = _normalize_test_impact_payload_for_agent(result)
+            result = _attach_test_source_snippets(raw_dir, result)
+            response = json.dumps(result, indent=2, ensure_ascii=False) if requested_format in {"json", "machine"} else _render_test_impact_brief(result)
+            return _done(response)
         from tools.engines.test_impact_matcher import find_impacted_tests
         result = find_impacted_tests(target_file)
         resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_file)
@@ -11175,6 +11640,7 @@ def trace_upstream_cause(target_node: str, target_root: str = "", format: str = 
             return _done(_missing_target_artifact_brief("trace_upstream_cause", target_node, target_root, ["codemaps.db", "atlas.json"]), status="fail_closed", fail_closed_reason="missing_target_artifact")
         signals = _load_json(raw_dir / "signals.json") or {}
         result = _sqlite_upstream_trace_from_raw(raw_dir, target_node, target_root=target_root, signals_data=signals)
+        sqlite_trace = result is not None
         circular_deps = _dependency_graph_payload_from_raw(raw_dir)
         if result is None:
             resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_node)
@@ -11184,14 +11650,21 @@ def trace_upstream_cause(target_node: str, target_root: str = "", format: str = 
             resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_node)
         if isinstance(result, dict):
             target_ref = _target_ref_from_context(resolved_node, context)
-            target_file = context.get("repo_relative_path") or _repo_relative_from_node(raw_dir, resolved_node)
+            target_file = ("" if context.get("path_projection_status") == "unresolved" else
+                           context.get("repo_relative_path") or _repo_relative_from_node(raw_dir, resolved_node))
             meta = circular_deps.get("meta") if isinstance(circular_deps.get("meta"), dict) else {}
             result.setdefault("target", resolved_node)
             result.setdefault("target_ref", target_ref)
             result.setdefault("analysis_root", _analysis_root_display(target_root))
             result.setdefault("target_project", _project_from_ref(target_ref))
             result.setdefault("target_file", target_file)
-            result.setdefault("target_path_status", _target_path_status(raw_dir, target_file, target_root=target_root))
+            if not sqlite_trace:
+                # The graph builder's project-relative default is not a path
+                # authority. Preserve the resolved (including empty) workspace.
+                result.update(target_ref=target_ref, target_file=target_file,
+                              target_project=_project_from_ref(target_ref))
+            if "target_path_status" not in result:
+                result["target_path_status"] = _target_path_status(raw_dir, target_ref if sqlite_trace else target_node, target_root=target_root)
             result.setdefault("dependency_graph_source", meta.get("dependency_graph_source") or "unknown")
             result.setdefault("evidence_limits", meta.get("limits") if isinstance(meta.get("limits"), list) else [])
             result = _attach_upstream_dependency_snippets(raw_dir, result)

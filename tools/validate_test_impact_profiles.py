@@ -11,6 +11,7 @@ if str(CODE_MAPS_DIR_FOR_IMPORT) not in sys.path:
 
 from tools.core.artifact_validator import ensure_against_schema
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.test_impact_profiles import snapshot_mock_declaration_evidence, static_candidate_evidence
 
 
 PROFILE_PATH = CONFIG_DIR / "test_impact_profiles.json"
@@ -34,6 +35,31 @@ def run_validation() -> dict[str, Any]:
     except Exception as exc:
         schema_errors = [str(exc)]
     checks.append(_check("test_impact_profile_schema_valid", not schema_errors, schema_errors or "schema ok"))
+    try:
+        sample = static_candidate_evidence({
+            "type": "Dual Vector Match",
+            "confidence": 1.0,
+            "candidate_evidence": {"test_execution": "passed", "changed_behavior": "confirmed"},
+        })
+        evidence_policy = profile.get("evidence_policy", {})
+        expected = {"relation": evidence_policy.get("unknown_relation"), **evidence_policy.get("unexecuted_evidence", {})}
+        evidence_ok = not schema_errors and sample == expected
+        evidence_details = sample
+    except (TypeError, ValueError) as exc:
+        evidence_ok = False
+        evidence_details = str(exc)
+    checks.append(_check("static_candidate_rank_cannot_borrow_runtime_proof", evidence_ok, evidence_details))
+    try:
+        missing_snapshot = snapshot_mock_declaration_evidence(
+            {}, "", test_ref="MAIN::load.test.ts", target_ref="MAIN::load.ts")
+        mock_boundary_ok = (not schema_errors and missing_snapshot["status"] == "unknown"
+                            and missing_snapshot["runtime_binding"] == "not_established"
+                            and missing_snapshot["declarations"] == [])
+        mock_details = missing_snapshot
+    except (TypeError, ValueError) as exc:
+        mock_boundary_ok = False
+        mock_details = str(exc)
+    checks.append(_check("missing_mock_snapshot_cannot_borrow_runtime_binding", mock_boundary_ok, mock_details))
 
     languages = profile.get("languages", {}) if isinstance(profile.get("languages"), dict) else {}
     required = {"typescript", "python", "go", "java", "csharp"}

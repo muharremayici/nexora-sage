@@ -1,10 +1,116 @@
 from __future__ import annotations
 
+import copy
 import json
 import sqlite3
 
+import pytest
+
 from tools.generate_agent_surface_quality_review import _review_named_sample
 from tools.mcp import server
+
+
+def _compact_status():
+    spans = [{'symbol': 'meta', 'start_line': 0, 'end_line': 0, 'source_lines': '',
+              'line_status': 'not_available'}]
+    spans.extend({'symbol': symbol, 'start_line': line, 'end_line': line,
+                  'source_lines': f'L{line}-L{line}', 'line_status': 'available'}
+                 for symbol, line in [('First', 2), ('Alias', 2), ('Second', 4)])
+    return {'exists': True, 'indexed': True, 'target_ref': 'MAIN::sample.ts',
+            'source_snapshot_status': 'ok', 'drift_check_status': 'match',
+            'target_span_count': len(spans), 'target_spans': spans,
+            'target_source_snippets': server._bounded_source_snippets('header\nfirst\ngap\nsecond', spans)}
+
+
+@pytest.mark.parametrize('cap', [0, 1, 2])
+def test_compact_selection_uses_one_scope_with_deduplicated_ranges(cap):
+    status = _compact_status()
+    before = copy.deepcopy(status)
+    compact = server._bounded_source_grounding_for_agent(status, max_spans=cap)
+    expected = ['First', 'Second'][:cap]
+    assert [row['symbol'] for row in compact['target_spans']] == expected
+    assert [row['symbol'] for row in compact['target_source_snippets']] == expected
+    assert compact['target_spans_shown'] == compact['target_source_snippets_shown'] == cap
+    assert compact['target_spans_omitted'] == len(status['target_spans']) - cap
+    assert compact['target_source_snippets_omitted'] == len(status['target_source_snippets']) - cap
+    body = '\n'.join(server._source_grounding_yaml_lines(status, max_spans=cap))
+    assert f'target_spans_shown: {cap}' in body
+    assert f'target_source_snippets_shown: {cap}' in body
+    assert 'symbol: "meta"' not in body and 'symbol: "Alias"' not in body
+    for symbol in expected:
+        assert body.count(f'symbol: "{symbol}"') == 2
+    assert status == before
+
+
+@pytest.mark.parametrize('case', ['wrong_range', 'wrong_symbol', 'reordered', 'missing', 'no_span',
+                                'later_pair', 'alias_pair'])
+def test_compact_selection_does_not_pair_unrelated_source(case):
+    status = _compact_status()
+    if case == 'wrong_range':
+        status['target_source_snippets'] = [{**status['target_source_snippets'][0], 'source_lines': 'L9-L9'}]
+    elif case == 'wrong_symbol':
+        status['target_source_snippets'] = [{**status['target_source_snippets'][0], 'symbol': 'Other'}]
+    elif case == 'reordered':
+        status['target_source_snippets'].reverse()
+    elif case == 'missing':
+        status.update(source_snapshot_status='missing', drift_check_status='not_available', target_source_snippets=[])
+    elif case == 'later_pair':
+        status['target_source_snippets'] = status['target_source_snippets'][1:]
+    elif case == 'alias_pair':
+        status['target_source_snippets'] = [{**status['target_source_snippets'][0], 'symbol': 'Alias'}]
+    else:
+        status.update(target_spans=[], target_span_count=0,
+                      target_source_snippets=server._bounded_source_snippets('header\nfirst', []))
+    compact = server._bounded_source_grounding_for_agent(status, max_spans=1)
+    if case in {'wrong_range', 'wrong_symbol', 'missing'}:
+        assert compact['target_source_snippets'] == []
+        assert compact['target_source_snippets_omitted'] == len(status['target_source_snippets'])
+        assert compact['target_spans'][0]['symbol'] == 'First'
+    elif case == 'reordered':
+        assert compact['target_spans'][0]['symbol'] == compact['target_source_snippets'][0]['symbol'] == 'First'
+    elif case in {'later_pair', 'alias_pair'}:
+        expected = 'Second' if case == 'later_pair' else 'Alias'
+        assert compact['target_spans'][0]['symbol'] == compact['target_source_snippets'][0]['symbol'] == expected
+    else:
+        assert compact['target_spans'] == []
+        assert compact['target_source_snippets'][0]['snippet_status'] == 'included_no_symbol_span'
+    assert compact['source_snapshot_status'] == status['source_snapshot_status']
+    assert compact['drift_check_status'] == status['drift_check_status']
+
+
+@pytest.mark.parametrize('budget', [20, 4000])
+def test_compact_selection_preserves_partial_and_omitted_context(budget):
+    span = {'symbol': 'Large', 'start_line': 1, 'end_line': 160, 'source_lines': 'L1-L160',
+            'line_status': 'available', 'target_ref': 'MAIN::sample.ts'}
+    snippets = server._bounded_source_snippets('\n'.join('body' for _ in range(160)),
+                                               [span], max_total_chars=budget)
+    status = {**_compact_status(), 'target_spans': [span], 'target_span_count': 1,
+              'target_source_snippets': snippets}
+    compact = server._bounded_source_grounding_for_agent(status)
+    assert compact['target_spans'] == [span] and compact['target_source_snippets'] == snippets
+    body = '\n'.join(server._source_grounding_yaml_lines(status, max_spans=1))
+    if budget == 20:
+        assert snippets[0]['snippet_status'] == 'omitted_context_budget' and 'code' not in snippets[0]
+        assert 'omitted_context_budget' in body
+    else:
+        assert snippets[0]['one_shot_edit_ready'] is False
+        assert snippets[0]['shown_lines'] == 40 and snippets[0]['omitted_lines'] == 120
+        assert 'one_shot_edit_ready: false' in body and 'do_not_edit_omitted_lines_without_follow_up' in body
+
+
+@pytest.mark.parametrize('end,expected_status', [(3, 'available'), (999, 'clamped_to_file_bounds')])
+def test_compact_selection_preserves_explicit_inspection_range(tmp_path, monkeypatch, end, expected_status):
+    from tools.tests.test_target_absolute_root_workspace_projection import _sample
+    _sample(tmp_path, monkeypatch, True)
+    payload = json.loads(server.inspect_file('OTHER::consumer.ts', target_root=str(tmp_path),
+                        line_start=3, line_end=end, format='machine'))
+    status = payload['target_path_status']
+    compact = server._bounded_source_grounding_for_agent(status)
+    assert compact['target_spans'] == status['target_spans']
+    assert compact['target_spans'][0]['symbol'] == 'requested_line_range'
+    assert compact['target_spans'][0]['line_status'] == expected_status
+    assert compact['target_source_snippets'] == status['target_source_snippets']
+    assert payload['one_shot_edit_ready'] is (expected_status == 'available')
 
 
 def _sqlite_star(raw_dir, dependent_count: int) -> None:

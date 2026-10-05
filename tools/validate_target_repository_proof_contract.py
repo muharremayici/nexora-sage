@@ -106,12 +106,27 @@ def _producer_lineage_declarations(lineage_contract: dict[str, object]) -> dict[
             results[str(artifact_id)] = False
             continue
         tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+        # Declaration evidence only: accept the two canonical writer APIs and
+        # their explicit import aliases, never an unrelated same-named method.
+        writer_module = "tools.core.analysis_snapshot_lineage"
+        writer_names = {"write_current_atlas_lineage", "write_lineage_receipt"}
+        imported_calls: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == writer_module:
+                imported_calls.update(alias.asname or alias.name for alias in node.names if alias.name in writer_names)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == writer_module:
+                        imported_calls.update((alias.asname or alias.name) + "." + name for name in writer_names)
+            elif isinstance(node, ast.ImportFrom) and node.module == "tools.core":
+                for alias in node.names:
+                    if alias.name == "analysis_snapshot_lineage":
+                        imported_calls.update((alias.asname or alias.name) + "." + name for name in writer_names)
         matched = False
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            function_name = node.func.id if isinstance(node.func, ast.Name) else node.func.attr if isinstance(node.func, ast.Attribute) else ""
-            if function_name != "write_current_atlas_lineage":
+            if ast.unparse(node.func) not in imported_calls:
                 continue
             keywords = {
                 keyword.arg: keyword.value.value

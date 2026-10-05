@@ -21,6 +21,13 @@
     "dependency_rule": "Every declared lineage dependency must have a COMPLETE content-matching receipt for the same Atlas snapshot; otherwise the new receipt is BLOCKED."
   },
   "artifacts": {
+    "native_run_log_receipt": {
+      "producer": "tools.ingest_native_run_logs",
+      "receipt_artifact_id": "native_run_log_receipt_analysis_snapshot_lineage",
+      "lineage_dependencies": [],
+      "source_binding": "native_declared_source_text_v1",
+      "claim_boundary": "Optional analysis-time correspondence for every caller-declared source input to one validated Atlas project and exact payload. No historical run/input attestation, config binding, complete compiler inputs, native diagnostic causality, import edges, runtime proof or gate authority. Missing/stale/mismatched source or wrong lexical target/project identity blocks lineage."
+    },
     "ts_diagnostics": {
       "producer": "tools.engines.react_frontier_intelligence",
       "receipt_artifact_id": "ts_diagnostics_analysis_snapshot_lineage",

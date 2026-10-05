@@ -20,6 +20,8 @@ from tools.core.test_impact_profiles import (
     confidence_value,
     extract_logical_base_name,
     is_test_path,
+    static_candidate_evidence,
+    static_test_evidence_policy,
 )
 
 def is_test_file(path_str: str) -> bool:
@@ -76,6 +78,19 @@ def _resolve_target(atlas: dict[str, Any], target_path_or_node: str) -> tuple[st
     project_key = "MAIN"
     if "::" in target_node:
         project_key, target_rel = target_node.split("::", 1)
+        project_data = atlas.get(project_key, {})
+        files = project_data.get("files", {}) if isinstance(project_data, dict) else {}
+        if isinstance(files, dict) and target_rel not in files:
+            # Public refs are repo-relative; graph nodes are project-relative.
+            # Resolve only one indexed record in the explicitly named project.
+            matches = [
+                str(path).replace("\\", "/") for path, meta in files.items()
+                if isinstance(meta, dict)
+                and str(meta.get("workspace_rel") or "").replace("\\", "/") == target_rel
+            ]
+            if len(matches) == 1:
+                target_rel = matches[0]
+                target_node = f"{project_key}::{target_rel}"
     else:
         for pkey, pdata in atlas.items():
             files = pdata.get("files", {}) if isinstance(pdata, dict) else {}
@@ -160,7 +175,7 @@ def find_impacted_tests(
             _, dep_rel = dep.split("::", 1) if "::" in dep else ("UNKNOWN", dep)
             if is_test_file(dep_rel):
                 dep_context = _file_context(atlas, dep.split("::", 1)[0] if "::" in dep else project_key, dep_rel)
-                impacted_tests_dict[dep_rel] = {
+                impacted_tests_dict[dep] = {
                     "file": dep_rel,
                     "project": dep.split("::", 1)[0] if "::" in dep else project_key,
                     "repo_relative_path": dep_context.get("repo_relative_path"),
@@ -173,9 +188,9 @@ def find_impacted_tests(
         # Check transitive dependents (Confidence: 0.6)
         for dep in all_dependents:
             _, dep_rel = dep.split("::", 1) if "::" in dep else ("UNKNOWN", dep)
-            if dep_rel not in impacted_tests_dict and is_test_file(dep_rel):
+            if dep not in impacted_tests_dict and is_test_file(dep_rel):
                 dep_context = _file_context(atlas, dep.split("::", 1)[0] if "::" in dep else project_key, dep_rel)
-                impacted_tests_dict[dep_rel] = {
+                impacted_tests_dict[dep] = {
                     "file": dep_rel,
                     "project": dep.split("::", 1)[0] if "::" in dep else project_key,
                     "repo_relative_path": dep_context.get("repo_relative_path"),
@@ -185,6 +200,11 @@ def find_impacted_tests(
                     "run_command": _test_command_for_context(dep_context, dep_rel)
                 }
                 
+    # Preserve the graph relation before a naming match promotes its ranking.
+    # Dual-vector ranking alone cannot distinguish direct from transitive imports.
+    for item in impacted_tests_dict.values():
+        item["static_relation"] = static_candidate_evidence(item)["relation"]
+
     # --- Vector B: Semantic Convention Match ---
     # Naming-convention matches are scoped to the target project; cross-project
     # matches require a real static graph edge rather than name similarity.
@@ -196,14 +216,15 @@ def find_impacted_tests(
                 test_base = extract_base_name(rel_path)
                 if test_base == target_base:
                     # Found naming match!
-                    if rel_path in impacted_tests_dict:
+                    test_node = f"{pkey}::{rel_path}"
+                    if test_node in impacted_tests_dict:
                         # Promote to Dual Vector Match if already statically matching
-                        existing = impacted_tests_dict[rel_path]
+                        existing = impacted_tests_dict[test_node]
                         existing["type"] = "Dual Vector Match"
                         existing["confidence"] = confidence_value("dual_vector_match")
                     else:
                         rel_context = _file_context(atlas, pkey, rel_path)
-                        impacted_tests_dict[rel_path] = {
+                        impacted_tests_dict[test_node] = {
                             "file": rel_path,
                             "project": pkey,
                             "repo_relative_path": rel_context.get("repo_relative_path"),
@@ -216,11 +237,14 @@ def find_impacted_tests(
     # Sort matched tests by confidence (descending) and path name
     sorted_tests = sorted(
         impacted_tests_dict.values(),
-        key=lambda item: (-item["confidence"], item["file"])
+        key=lambda item: (-item["confidence"], item["file"], item["atlas_node"])
     )
+    for item in sorted_tests:
+        item["candidate_evidence"] = static_candidate_evidence(item)
     
     return {
         "target": target_node,
+        "evidence_boundary": static_test_evidence_policy()["proof_boundary"],
         "target_ref": f"{target_context.get('project')}::{target_context.get('repo_relative_path')}"
         if target_context.get("project") and target_context.get("repo_relative_path")
         else target_node,
@@ -275,6 +299,7 @@ def run_test_impact_matcher(target_path_or_node: str = None):
     print("\n" + "=" * 60)
     print(f"=== TEST-IMPACT MATCH REPORT: {result['target']} ===")
     print("=" * 60)
+    print(result["evidence_boundary"])
     
     tests = result.get("impacted_tests", [])
     if not tests:
@@ -282,7 +307,7 @@ def run_test_impact_matcher(target_path_or_node: str = None):
         print("    Ensure test naming conventions or imports are correctly configured.")
     else:
         print(f"[+] Found {len(tests)} impacted test candidates:\n")
-        print(f"{'CONFIDENCE':<12} | {'TYPE':<30} | {'TEST FILE'}")
+        print(f"{'RANK SCORE':<12} | {'TYPE':<30} | {'TEST FILE'}")
         print("-" * 80)
         for t in tests:
             conf_str = f"{t['confidence'] * 100:.0f}%"

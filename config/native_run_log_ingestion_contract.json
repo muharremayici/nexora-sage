@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "kind": "native_run_log_ingestion_contract",
+    "version": "v1",
+    "purpose": "Bounded identity ingestion of externally produced existing native logs, never command execution or diagnostic correctness."
+  },
+  "artifact_id": "native_run_log_receipt",
+  "manifest_schema": "config/schemas/native_run_log_manifest.schema.json",
+  "atlas_source_correspondence": {
+    "scope": "analysis_time_declared_source_text_only",
+    "opt_in": "--atlas-raw-dir and --atlas-project together",
+    "source_binding": "config/analysis_snapshot_lineage_contract.json:artifacts.native_run_log_receipt",
+    "text_identity": "Reuse the original bounded source byte read, strict UTF-8 text with BOM/newlines preserved, and source_snapshot_store_policy content identity. No target reread, timestamp fallback or sampled hash.",
+    "boundary": "The raw native-run authority remains unestablished. COMPLETE lineage establishes only exact receipt and declared source text correspondence with the consumed Atlas snapshot. All source rows must MATCH; no config, full-input, historical execution or diagnostic causal claim."
+  },
+  "normalization": {
+    "limits": {
+      "line_characters": 16384,
+      "lines": 200000,
+      "occurrences": 256
+    },
+    "formats": {
+      "vite_5_4_21_mixed_import_console_v1": {
+        "tool": {
+          "name": "vite",
+          "version": "5.4.21"
+        },
+        "parser": "vite_mixed_import_console_v1",
+        "code": "vite_mixed_static_dynamic_import",
+        "reported_severity": "warning",
+        "coverage": "single_warning_family_only",
+        "source": "https://github.com/vitejs/vite/blob/v5.4.21/packages/vite/src/node/plugins/reporter.ts",
+        "source_correspondence": {
+          "matching": "exact_declared_canonical_absolute_identifier_only",
+          "roles": [
+            "module",
+            "dynamic_importers",
+            "static_importers"
+          ],
+          "references": "zero_based_inputs.source_index_in_the_same_receipt",
+          "normalization": "Windows host case and separators only; no relative, alias, URL, query, fragment or filesystem resolution",
+          "ambiguous_lists": "Comma-space importer fields remain AMBIGUOUS_LIST even if a declared filename matches the whole field",
+          "boundary": "Reported identifier correspondence only. Read current MATCH/MISMATCH/UNAVAILABLE from the referenced input row; this does not prove historical bytes, import edges, causal production faults or Atlas lineage."
+        },
+        "boundary": "Exact single-line reporter warning with optional SGR colors and CRLF. Wrapped, translated or changed formats are not inferred. Tool/run metadata remains caller-reported; warning bytes do not prove source edges, production faults or performance impact."
+      }
+    }
+  },
+  "limits": {
+    "manifest_bytes": 262144,
+    "stream_bytes": 8388608,
+    "input_bytes": 4194304,
+    "total_bytes": 33554432,
+    "input_files": 128,
+    "argv_items": 128
+  },
+  "authority": {
+    "run_attestation": "caller_reported_unverified",
+    "historical_execution": "not_verified",
+    "atlas_binding": "not_established",
+    "complete_inputs": "not_established",
+    "diagnostics": "not_normalized",
+    "source_attribution": "unknown",
+    "changed_behavior": "not_established",
+    "release_or_gate_authority": "none"
+  },
+  "claim_boundary": "INGESTED means the supplied stream bytes match their caller-reported hashes. Tool, command, timestamps and exit code remain unverified declarations. Current source/config byte correspondence is not historical run proof, complete compiler inputs, Atlas lineage, clean diagnostics, changed-effect coverage or production attribution. Raw command, source and log content is not persisted in this receipt. Ordinary bounded local input only; no hostile-input isolation or confidentiality guarantee."
+}

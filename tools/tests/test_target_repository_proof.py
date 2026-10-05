@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from tools.core.artifact_validator import validate_payload
 from tools.core.artifact_registry import artifact_path_for_storage_root
 from tools.core.analysis_snapshot_lineage import write_lineage_receipt
@@ -14,6 +16,32 @@ from tools.core.analysis_scope_authority import (
 from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.json_io import load_json_file
 from tools.core.target_repository_proof import build_target_repository_proof
+
+
+@pytest.mark.parametrize("declaration,expected", [
+    ("from tools.core.analysis_snapshot_lineage import write_current_atlas_lineage\nwrite_current_atlas_lineage(artifact_id='sample', producer='tools.producer')", True),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt\nwrite_lineage_receipt(artifact_id='sample', producer='tools.producer')", True),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt as receipt\nreceipt(artifact_id='sample', producer='tools.producer')", True),
+    ("import tools.core.analysis_snapshot_lineage as lineage\nlineage.write_lineage_receipt(artifact_id='sample', producer='tools.producer')", True),
+    ("from tools.core import analysis_snapshot_lineage as lineage\nlineage.write_lineage_receipt(artifact_id='sample', producer='tools.producer')", True),
+    ("import tools.core.analysis_snapshot_lineage\ntools.core.analysis_snapshot_lineage.write_lineage_receipt(artifact_id='sample', producer='tools.producer')", True),
+    ("write_current_atlas_lineage(artifact_id='sample', producer='tools.producer')", False),
+    ("from unrelated import write_lineage_receipt\nwrite_lineage_receipt(artifact_id='sample', producer='tools.producer')", False),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt\nwrite_lineage_receipt(artifact_id='wrong', producer='tools.producer')", False),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt\nwrite_lineage_receipt(artifact_id='sample', producer='tools.other')", False),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt\nwrite_lineage_receipt(artifact_id=unknown, producer='tools.producer')", False),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt\nwrite_lineage_receipt(artifact_id=_contract()['artifact_id'], producer='tools.producer')", False),
+    ("from tools.core.analysis_snapshot_lineage import write_lineage_receipt\nwrite_lineage_receipt(artifact_id='sample')", False),
+    ("from unrelated import api\napi.write_current_atlas_lineage(artifact_id='sample', producer='tools.producer')", False),
+])
+def test_producer_lineage_declaration_is_canonical_and_literal(tmp_path, monkeypatch, declaration, expected):
+    from tools import validate_target_repository_proof_contract as validator
+    source = tmp_path / "tools" / "producer.py"
+    source.parent.mkdir()
+    source.write_text(declaration, encoding="utf-8")
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+    contract = {"artifacts": {"sample": {"producer": "tools.producer"}}}
+    assert validator._producer_lineage_declarations(contract) == {"sample": expected}
 
 
 def _raw_dir(target_root: Path) -> Path:

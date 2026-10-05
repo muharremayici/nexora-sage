@@ -29,6 +29,20 @@
   },
   "artifacts": [
     {
+      "id": "native_run_log_receipt_analysis_snapshot_lineage",
+      "schema": "config/schemas/analysis_snapshot_lineage.schema.json",
+      "path": "output/.raw/native_run_log_receipt_analysis_snapshot_lineage.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
+      "id": "native_run_log_receipt",
+      "schema": "config/schemas/native_run_log_receipt.schema.json",
+      "path": "output/reports/native_run_log_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_report_artifact"
+    },
+    {
       "id": "a11y_i18n_contracts",
       "schema": "config/schemas/a11y_i18n_contracts.schema.json",
       "path": "output/.raw/a11y_i18n_contracts.json",
