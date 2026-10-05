@@ -156,9 +156,24 @@ def test_reviewed_fixture_references_use_exact_existing_policy_admission() -> No
         "tools/tests/test_structured_export_advisory.py",
         "tools/tests/test_target_runtime_repository_direct_read_advisory.py",
         "tools/tests/test_target_runtime_repository_override_advisory.py",
+        "tools/tests/test_native_run_log_ingestion.py",
     }
     reasons = sqlite_first_allowed_references("atlas")
     assert admitted <= reasons.keys()
     assert all("isolated" in reasons[name] for name in admitted)
     assert not admitted & sqlite_first_hot_consumers("atlas")
     assert "tools/tests/*" not in reasons
+
+
+def test_declared_native_atlas_reader_has_exact_sqlite_first_policy_reason() -> None:
+    from tools.core.sqlite_first_access_policy import (
+        sqlite_first_allowed_references, sqlite_first_hot_consumers,
+    )
+
+    reader = "tools/ingest_native_run_logs.py"
+    reasons = sqlite_first_allowed_references("atlas")
+    assert reader in reasons
+    assert "SQLite-first" in reasons[reader]
+    assert "explicit" in reasons[reader]
+    assert reader not in sqlite_first_hot_consumers("atlas")
+    assert "tools/*" not in reasons

@@ -216,6 +216,22 @@ def _raw_state_payload_row(json_path: Path) -> tuple[str, str | None] | None:
         return b"".join(chunks).decode("utf-8"), expected_sha
 
 
+def raw_artifact_primary_content_fingerprint(path: str | Path) -> str | None:
+    """Hash validated SQLite primary content; never certify a compatibility shadow."""
+    json_path = Path(path)
+    if not is_raw_artifact_path(json_path):
+        raise ValueError("Primary content identity requires a raw JSON artifact path.")
+    row = _raw_state_payload_row(json_path)
+    if row is None:
+        return None
+    serialized, stored_sha = row
+    actual_sha = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    if stored_sha is not None and stored_sha != actual_sha:
+        raise ValueError("Raw primary payload checksum mismatch.")
+    loads_json_strict(serialized)
+    return f"sqlite:{actual_sha}"
+
+
 def _raw_state_payload_fingerprint(json_path: Path) -> str | None:
     connection = _raw_state_connection(json_path)
     if connection is None:

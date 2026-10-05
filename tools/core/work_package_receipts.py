@@ -14,7 +14,11 @@ from typing import Any
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, RAW_DIR
 from tools.core.distribution_policy import is_clean_install_root
 from tools.core.governance_trace import UNKNOWN_VALUE, fingerprint, record_trace_event
-from tools.core.json_io import load_json_object_strict
+from tools.core.json_io import (
+    is_raw_artifact_path,
+    load_json_object_strict,
+    raw_artifact_primary_content_fingerprint,
+)
 from tools.core.work_package_state import active_work_package, inherited_dirty_file_identity
 from tools.core.source_layer_classifier import classify_source_layer
 
@@ -27,6 +31,8 @@ def _receipt_contract() -> dict[str, Any]:
     value = contract.get("work_package_receipts")
     if not isinstance(value, dict):
         raise ValueError("governance_trace_contract.work_package_receipts must be an object")
+    if value.get("evidence_identity") != "raw_primary_content_v1":
+        raise ValueError("Unsupported work-package receipt evidence identity policy")
     return value
 
 
@@ -85,7 +91,23 @@ def _artifact_fingerprint(relative: str) -> str:
     if not relative or relative == UNKNOWN_VALUE or relative == "not_available":
         return UNKNOWN_VALUE
     path = _safe_source_path(relative)
-    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else UNKNOWN_VALUE
+    try:
+        if is_raw_artifact_path(path):
+            from tools.core.artifact_store import STORE
+
+            # Follow the same backend that committed managed validator output.
+            # A JSON-only workspace may also have a trace database beside it.
+            sqlite_primary = (
+                bool(STORE.use_sqlite)
+                if path.parent == RAW_DIR.resolve()
+                else (path.parent / "codemaps.db").is_file()
+            )
+            if sqlite_primary:
+                return raw_artifact_primary_content_fingerprint(path) or UNKNOWN_VALUE
+        return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else UNKNOWN_VALUE
+    except (OSError, ValueError, sqlite3.Error):
+        # Unknown required identity is rejected by both writer and projection.
+        return UNKNOWN_VALUE
 
 
 def record_work_package_operation(
@@ -102,6 +124,13 @@ def record_work_package_operation(
     status = str(result_status or UNKNOWN_VALUE)
     artifact = str(evidence_artifact or profile.get("evidence_artifact") or UNKNOWN_VALUE)
     outcome = "success" if status in accepted else "failure"
+    evidence_fingerprint = _artifact_fingerprint(artifact)
+    if (
+        outcome == "success"
+        and profile.get("evidence_artifact") != "not_available"
+        and evidence_fingerprint == UNKNOWN_VALUE
+    ):
+        raise ValueError("Required work-package evidence content identity is unavailable")
     return record_trace_event(
         event_type="work_package_operation",
         principal="sage_development_loop",
@@ -119,7 +148,7 @@ def record_work_package_operation(
             "operation_id": operation_id,
             "result_status": status,
             "evidence_artifact": artifact,
-            "evidence_fingerprint": _artifact_fingerprint(artifact),
+            "evidence_fingerprint": evidence_fingerprint,
             "authority": _receipt_contract().get("authority"),
         },
         db_path=db_path,
@@ -193,9 +222,15 @@ def propose_work_package_evidence(*, db_path: Path | None = None) -> dict[str, A
         if artifact != expected_artifact:
             stale_or_mismatched_receipts += 1
             continue
-        if artifact != "not_available" and stored_artifact_fingerprint != _artifact_fingerprint(artifact):
-            stale_or_mismatched_receipts += 1
-            continue
+        if artifact != "not_available":
+            current_artifact_fingerprint = _artifact_fingerprint(artifact)
+            if (
+                stored_artifact_fingerprint == UNKNOWN_VALUE
+                or current_artifact_fingerprint == UNKNOWN_VALUE
+                or stored_artifact_fingerprint != current_artifact_fingerprint
+            ):
+                stale_or_mismatched_receipts += 1
+                continue
         observed_operations[operation_id] = {
             "operation_id": operation_id,
             "trace_id": event.get("trace_id"),

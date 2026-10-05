@@ -15,6 +15,7 @@ if str(CODE_MAPS_DIR) not in sys.path:
 from tools.core.atlas_io import load_atlas_data
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, SOURCE_EXTENSIONS, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
+from tools.core.test_impact_profiles import confidence_value, static_candidate_evidence, static_test_evidence_policy
 from tools.engines.test_impact_matcher import extract_base_name, generate_test_command, is_test_file
 
 
@@ -108,9 +109,10 @@ def _reachable_tests(start_node: str, reverse: dict[str, list[str]], test_nodes:
                 "project": project,
                 "file": rel_path,
                 "type": "Direct Static Import" if depth == 1 else "Transitive Static Dependency",
-                "confidence": 1.0 if depth == 1 else 0.6,
+                "confidence": confidence_value("direct_static_import" if depth == 1 else "transitive_static_dependency"),
                 "run_command": generate_test_command(rel_path),
             }
+            found[node]["static_relation"] = static_candidate_evidence(found[node])["relation"]
         if depth < 8:
             for parent in sorted(set(reverse.get(node, []))):
                 if parent not in visited:
@@ -216,7 +218,7 @@ def build_test_gap_report() -> dict[str, Any]:
                 "project": test["project"],
                 "file": test["relative_path"],
                 "type": "Semantic Convention Match",
-                "confidence": 0.8,
+                "confidence": confidence_value("semantic_convention_match"),
                 "run_command": generate_test_command(test["relative_path"]),
             }
             for test in convention_tests
@@ -226,10 +228,12 @@ def build_test_gap_report() -> dict[str, Any]:
             existing = candidates_by_node.get(entry["node_key"])
             if existing:
                 existing["type"] = "Dual Vector Match"
-                existing["confidence"] = 1.0
+                existing["confidence"] = confidence_value("dual_vector_match")
             else:
                 candidates_by_node[entry["node_key"]] = entry
         candidates = sorted(candidates_by_node.values(), key=lambda item: (-float(item["confidence"]), item["file"]))
+        for candidate in candidates:
+            candidate["candidate_evidence"] = static_candidate_evidence(candidate)
         impact_score = float(blast.get(source["node_key"], 0.0))
         active = source["node_key"] in active_nodes
         risk_score = impact_score + (40.0 if active else 0.0)
@@ -286,6 +290,7 @@ def build_test_gap_report() -> dict[str, Any]:
             "generated_at": _utc_now(),
             "generator": "tools.generate_test_gap_report",
         },
+        "evidence_boundary": static_test_evidence_policy()["proof_boundary"],
         "scope": {
             "default_agent_project_scope": default_project_scope,
             "agent_visible_scope": "default_agent_read_scope",
@@ -341,6 +346,7 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- critical_without_tests: `{summary.get('critical_without_tests')}`",
         f"- changed_files_without_impacted_tests: `{summary.get('changed_files_without_impacted_tests')}`",
         f"- coverage_candidate_ratio: `{summary.get('coverage_candidate_ratio')}`",
+        "- evidence_boundary: " + str(payload.get("evidence_boundary") or static_test_evidence_policy()["proof_boundary"]),
         f"- top_surgical_priorities: `{summary.get('top_surgical_priorities')}`",
         "",
         "## Top Surgical Priorities",

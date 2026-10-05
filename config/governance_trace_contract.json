@@ -193,6 +193,8 @@
     "closure_mutation_allowed": false,
     "write_scope": "development_workspace_only",
     "clean_mirror_behavior": "skip_with_explicit_notice",
+    "evidence_identity": "raw_primary_content_v1",
+    "evidence_identity_boundary": "Managed raw evidence follows the active ArtifactStore backend. SQLite-primary receipts hash validated serialized state_payloads content, with no JSON shadow fallback on missing or corrupt primary evidence. JSON-primary and standalone JSON evidence retain exact file-byte hashes. Unknown required identity is rejected; shadow completion, semantic correctness, human seal and release authority are not proven by this identity.",
     "source_fingerprint_excluded_paths": [
       "config/sage_active_work_package.json",
       "config/sage_work_item_registry.json"

@@ -401,6 +401,10 @@
           "callsite_scope": {
             "const": "module_root"
           },
+          "literal_argument_evidence_version": {
+            "type": "integer",
+            "const": 1
+          },
           "omitted": {
             "type": "integer",
             "minimum": 0

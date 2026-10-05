@@ -506,6 +506,7 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
         if (moduleRoot) {
             result.callsite_scope = 'module_root';
             result.omitted = 0;
+            result.literal_argument_evidence_version = 1;
         }
         function propertyEventEvidence() {
             if (!result.property_event_evidence) {
@@ -597,8 +598,8 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                         || ts.isNoSubstitutionTemplateLiteral(inner.arguments[0]));
                 if (binding && (!nestedDepth || literalEventMember)
                     && (ts.isIdentifier(callee) || binding.kind === 'namespace'
-                    || binding.kind === 'named' && ts.isPropertyAccessExpression(callee)
-                    && literalEventMember)) {
+                    || binding.kind === 'named' && staticMember !== null
+                    && (moduleRoot || literalEventMember))) {
                     const declarations = symbolAt(root)?.declarations || [];
                     const declaration = declarations.length === 1 ? declarations[0] : null;
                     const clause = declaration && (ts.isImportClause(declaration) ? declaration
@@ -612,7 +613,7 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                         || clause.parent.moduleSpecifier.text !== binding.source
                         || declaration.name?.text !== binding.localName) {
                         limitations.add('import_declaration_identity_mismatch');
-                    } else if (moduleRoot && (binding.kind !== 'namespace'
+                    } else if (moduleRoot && (!['namespace', 'named'].includes(binding.kind)
                         || staticMember === null
                         || inner.questionDotToken || callee.questionDotToken)) {
                         limitations.add('unsupported_module_root_call_form');
@@ -626,9 +627,11 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                             limitations.add('module_root_call_cap_exceeded');
                         } else {
                             result.calls.push({...binding, member: staticMember,
-                                ...(binding.kind === 'named' && ts.isPropertyAccessExpression(callee)
-                                    ? {first_literal_argument: first.text,
-                                        nested_callable_depth: nestedDepth} : {}),
+                                ...(first && (ts.isStringLiteral(first)
+                                    || ts.isNoSubstitutionTemplateLiteral(first))
+                                    ? {first_literal_argument: first.text} : {}),
+                                ...(binding.kind === 'named' && literalEventMember
+                                    ? {nested_callable_depth: nestedDepth} : {}),
                                 line, end_line: endLine, optional: !!inner.questionDotToken || !!callee.questionDotToken});
                         }
                     }

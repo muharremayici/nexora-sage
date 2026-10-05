@@ -131,6 +131,109 @@ public profiles even when an agent guesses their names.
   tests from the target repository only when the command is clearly a
   target-repository package script; SAGE validation commands run from the SAGE
   workspace or through MCP.
+- Test Impact confidence is a static candidate ranking, not behavioral coverage
+  or a passing result. Read `candidate_evidence`: direct imports, transitive
+  dependencies and naming-only matches remain recommendations. A legacy
+  dual-vector match without its original graph relation stays unknown.
+  `not_run_by_sage`, `not_established` and `not_assessed` do not certify
+  execution of the edited symbol/effect or absence of mocks; inspect and run
+  the target's focused native tests before making a behavioral claim.
+- Default and external targets use the same static graph matcher with their
+  own Atlas/dependency inputs. Missing external dependency artifacts retain
+  naming/live-only candidates; SAGE does not borrow the host graph or silently
+  derive another graph. An empty or failed result is not proof of irrelevance.
+- Static impact follows tests that depend on the changed target, not tests
+  that merely share its dependency. For `Provider -> Hook <- Hook.test`,
+  the Hook test is not a Provider-impact candidate on that fork alone.
+  A directed `Test -> Provider` or `Test -> Consumer -> Provider` path
+  is different. Naming candidates remain independent recommendations;
+  none of these relations certifies Provider integration or runtime behavior.
+- Test candidates retain their own `project` and, when indexed, canonical
+  `atlas_node`. Equal paths in different projects are distinct candidates;
+  naming matches do not cross project boundaries. A legacy row without a
+  consistent project identity cannot borrow the target project's source snapshot.
+- Test Impact accepts the public `<project>::<repo_relative_path>` reference
+  as well as the canonical Atlas node. When project roots differ from the repo
+  root, SAGE resolves the public path through one indexed workspace record in
+  that exact project before following graph edges. Exact Atlas keys take
+  precedence; ambiguous, missing or other-project paths are not guessed.
+- A configured absolute project root is a physical location, not a prefix for
+  Test Impact files or commands. SQLite file contexts use that same artifact's
+  declared `workspace_rel` for such roots; canonical project/node identity is
+  preserved when a live sibling supplements an indexed test. Missing, escaping
+  or ambiguous path metadata stays unresolved, not a guessed relative path.
+- Search and SQLite impact-radius dependents use the same declared workspace
+  path owner for absolute project roots. Search keeps an unresolved candidate's
+  canonical `atlas_node` but exposes no openable path. Radius keeps graph counts,
+  omits unresolved file paths and reports `unresolved_dependent_refs`; those refs
+  are not filesystem paths. Path projection does not add graph edges or runtime proof.
+- SQLite upstream traces use that same workspace owner. File context retains its
+  canonical node and project-qualified reference through brief rendering and
+  import-line attachment; a cross-project file cannot borrow the target project.
+  Unresolved refs remain visible without openable paths or guessed snippets.
+  Dependency counts describe bounded returned rows, not whole-graph totals;
+  captured import lines are static evidence, not proof of runtime causality.
+- Upstream import snippets join a captured file's `import_records.raw_source`
+  and parser-recorded top-level binding span to the exact graph target. A
+  resolved dependency key is not the source import's spelling. Missing,
+  conflicting, type-only, unsupported or stale evidence stays omitted while
+  the graph edge remains visible. Multiline snippets may show only the recorded
+  binding, not the whole import statement; neither proves runtime execution.
+- SQLite target source status retains the exact file context that established
+  indexing, including its project and captured-source identity. Upstream and
+  impact-radius consumers pass project-qualified references, not display paths.
+  Snapshot availability alone does not authorize edits: live drift, missing or
+  tampered content, ambiguous paths and confinement remain separate checks.
+- Compact MCP source grounding co-selects a symbol span and its existing snippet
+  by exact symbol/range before applying display caps. Useful paired coordinates
+  precede unavailable metadata; duplicate coordinates are shown once. Full machine
+  evidence is unchanged, and shown/omitted counts describe the compact selection.
+  File-start orientation with no symbol spans stays explicitly unpaired. Partial,
+  omitted or stale context never gains edit authority from this presentation.
+- With JSON-only Atlas artifacts, target paths still belong to the exact indexed
+  project/file. Explicit missing, malformed, escaping or ambiguous workspace
+  metadata yields no openable target path in upstream/radius machine or brief
+  output. Legacy metadata that omits `workspace_rel` can use its declared relative
+  project root, but never a physical absolute root or an unknown file. Unqualified
+  exact host keys keep their legacy priority; workspace aliases must be unique.
+  Without SQLite, source snapshots and verified snippets remain unavailable:
+  a live indexed file is not captured-source or edit authorization. JSON-only
+  search and impact-radius dependents now reuse that same owner. Rejected paths
+  keep canonical search candidates and unresolved graph refs, not guessed files.
+  Search file names come from indexed keys, not display metadata. Radius graph
+  counts, returned graph scope and traversal omissions retain unresolved nodes;
+  omitted file paths are explained separately by `unresolved_dependent_refs`.
+  This is a bounded path contract, not full JSON/SQLite search or graph parity.
+- SQLite module-integrity findings use the same workspace path owner. Each row
+  retains its canonical `atlas_node`; path status comes from that exact project,
+  not an unqualified workspace alias. An unresolved path keeps the finding,
+  rule and count, with empty `target_file`/`inspect_first` and explicit
+  `path_projection_status: unresolved`. Do not infer an openable file from its
+  canonical ref. This does not change Audit rules or generation/trust gates.
+- Module-integrity selectors accept exact `<project>::<atlas_relative_path>`
+  or `<project>::<repo_relative_path>` file references. Exact indexed keys win
+  over workspace aliases; aliases resolve only inside that project. Missing,
+  ambiguous, other-project or shorthand paths are not guessed. Unqualified
+  input remains a literal path/module fragment, with the existing default MAIN
+  scope. A zero result describes only the selected matches, not repository health.
+- Violation queue rows retain their canonical `atlas_node` and finding identity.
+  Only an exact SQLite workspace mapping with a present, confined, indexed file
+  yields an openable `target_file` or `inspect_first`. An unresolved or rejected
+  path retains the finding, count and approval decision, with empty file/inspect
+  fields and `path_projection_status: unresolved`; resolve the canonical SAGE
+  reference before editing, never guess a basename. Source snippets require
+  verified captured bytes and matching live source, not a path suggestion.
+- For a production change, query the changed production file rather than the
+  hoped-for test filename. Compare `analysis_root`, target grounding and snapshot
+  identity before diagnosing a missing candidate; another checkout's test is
+  not part of this Atlas.
+- When present, `mock_declaration_evidence` reports only snapshot-bound,
+  module-root literal declarations with an observed framework import binding
+  and an exact Atlas module resolution. It does not prove runtime substitution,
+  execution order or absence of mocks. Missing/legacy/stale snapshots, global
+  test-framework names, dynamic paths, setup files and evidence beyond the
+  bounded source budget remain unknown. Use the listed test/source span to
+  inspect the declaration and the target's native test runner to verify behavior.
 - When a brief includes `validation_command_contracts` or
   `validation.command_contracts`, read them before running commands. Treat
   `focused_validator` as narrow evidence, `target_package_script` as target
@@ -292,8 +395,54 @@ repository-specific command.
 - Treat `React Runtime Intelligence` as broad static repository analysis. It
   does not run target tests or ingest their stderr; runtime warnings require
   target-native execution and source corroboration before a production edit is proposed.
+- Test Impact also declares `native_diagnostics: not_ingested`; it does not
+  inspect a target test run. Check both native output streams separately from
+  the exit code. Nonempty stderr is not automatically failure, empty stderr is
+  not proof of clean execution, and a warning near a component may come from
+  its test double or provider setup rather than production code.
 
 ## Safety Guidance
+
+Existing native logs may be identity-ingested with
+`python -B tools/ingest_native_run_logs.py --target-root <repo> --bundle-root <logs> --manifest <relative-json> --output <receipt-outside-input-roots>`.
+The input format is `config/schemas/native_run_log_manifest.schema.json`.
+Supply both streams and their hashes, reported run/tool/argv/cwd/times/exit code,
+and declared source/config hashes. Target and bundle paths are bounded; nothing
+is executed. `INGESTED` establishes stream-byte correspondence only. Matching
+current source/config bytes by itself does not authenticate a historical run or establish
+Atlas lineage, full input capture, clean diagnostics or changed-effect coverage.
+The receipt persists hashes and bounded metadata, not raw logs/source/argv.
+Missing metadata is not synthesized for legacy logs. Optional
+`--diagnostic-format vite_5_4_21_mixed_import_console_v1` recognizes only the
+declared Vite 5.4.21 single-line mixed static/dynamic import warning. It consumes
+the same captured matching bytes, deduplicates exact warning messages across
+both streams and reports hashes plus log line locations, not raw messages or
+inferred source paths. Unsupported versions, unreadable input and budget limits
+are explicit; zero observations never means clean diagnostics. Reported warning
+severity is independent of exit code. Source attribution, historical execution,
+bundle performance and runtime coverage remain unproven; Test Impact stays static.
+For this format, optional `source_correspondence` compares only exact canonical
+absolute identifiers with already declared source inputs. References are zero-based
+indices into `inputs.source` in the same receipt, bound to its input-observation
+identity; read current `MATCH`/`MISMATCH`/`UNAVAILABLE` from that input row.
+Log paths are never resolved, opened or added to the input set. Unknown, relative,
+virtual and query/fragment identifiers remain unresolved. Unescaped comma-space
+importer lists and repeated reporter separators remain explicitly ambiguous.
+
+Optional `--atlas-raw-dir <existing-storage-root> --atlas-project <exact-key>`
+corroborates every declared source input against one validated Atlas snapshot.
+The storage root must be `.raw`; receipt output must remain outside it.
+It reuses the original bounded byte read and exact UTF-8 text hash; it never
+refreshes Atlas or reopens a log-reported path. The project root must match the
+recorded target identity. Missing/stale/mismatched source, unsupported identity,
+empty scope or invalid Atlas yields unavailable/blocked evidence, never a
+timestamp fallback. The existing analysis lineage writer binds the exact receipt
+content to that consumed snapshot; opt-in CLI exits nonzero if lineage is blocked.
+`COMPLETE` means only analysis-time declared-source text correspondence. The
+raw receipt's run/Atlas authority stays unestablished: config, complete compiler
+inputs, historical execution, diagnostic causality and runtime coverage are not
+attested. No automatic Audit, Test Impact or Quality Gate enforcement is added.
+A matching identifier is not an import edge, historical execution or source fault.
 
 - Do not edit `codemaps.discovery.json` directly.
 - Prefer editing `codemaps.overrides.json` for human policy decisions.

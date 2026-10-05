@@ -14,6 +14,7 @@ from tools.core.logger import logger
 from tools.core.react_evidence import atlas_evidence_kinds, attach_react_evidence_contract
 from tools.core.report_surface_limits import report_surface_limit
 from tools.core.source_evidence import read_atlas_bound_source
+from tools.core.test_impact_profiles import extract_logical_base_name, is_test_path, nearby_test_candidate_paths
 
 
 REACT_EXTENSIONS = (".tsx", ".jsx", ".ts", ".js")
@@ -477,15 +478,23 @@ def _class_count(content: str) -> tuple[int, int]:
 def _has_nearby_test(project: str, rel_path: str, atlas_file: dict[str, Any] | None = None) -> bool:
     if isinstance(atlas_file, dict) and atlas_file.get("test_link"):
         return True
-    path = (_project_root(project) / rel_path).resolve()
-    stem = path.stem
-    candidates = [
-        path.with_name(f"{stem}.test{path.suffix}"),
-        path.with_name(f"{stem}.spec{path.suffix}"),
-        path.parent / "__tests__" / f"{stem}.test{path.suffix}",
-        path.parent / "__tests__" / f"{stem}.spec{path.suffix}",
-    ]
-    return any(candidate.exists() for candidate in candidates)
+    root = _project_root(project).resolve()
+    path = (root / rel_path).resolve()
+    if not path.is_relative_to(root):
+        return False
+    source = path.relative_to(root)
+    base = extract_logical_base_name(str(source))
+    parent_presence: dict[Path, bool] = {}
+    for relative in nearby_test_candidate_paths(str(source)):
+        candidate = root / relative
+        if candidate.parent not in parent_presence:
+            parent_presence[candidate.parent] = candidate.parent.is_dir()
+        if (parent_presence[candidate.parent] and candidate.is_file()
+                and candidate.resolve().is_relative_to(root)
+                and is_test_path(str(relative))
+                and extract_logical_base_name(str(relative)) == base):
+            return True
+    return False
 
 
 def _ui_smoke_execution_index() -> dict[tuple[str, str], list[dict[str, Any]]]:

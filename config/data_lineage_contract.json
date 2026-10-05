@@ -53,6 +53,8 @@
   },
   "terminal_outputs": {
     "artifacts": [
+      "native_run_log_receipt",
+      "native_run_log_receipt_analysis_snapshot_lineage",
       "analysis_scope_authority_analysis_snapshot_lineage",
       "adapter_registry",
       "ai_context",
@@ -102,6 +104,14 @@
     ],
     "reason": "These are public reports, validation ledgers, compatibility exports, or human/operator surfaces that may be consumed outside the pipeline graph.",
     "classifications": {
+      "native_run_log_receipt": {
+        "category": "public_report",
+        "reason": "Optional standalone native-log intake report consumed by operators, not automatic pipeline or runtime authority."
+      },
+      "native_run_log_receipt_analysis_snapshot_lineage": {
+        "category": "provenance_receipt",
+        "reason": "Opt-in standalone producer binds exact declared-source analysis-time correspondence; on-demand shared receipt_binding consumes it outside the static pipeline. No historical run or gate authority."
+      },
       "analysis_scope_authority_analysis_snapshot_lineage": {
         "category": "provenance_receipt",
         "reason": "The immutable post-Atlas scope receipt is consumed on demand by target-repository proof and artifact-trust construction outside the static pipeline step graph."

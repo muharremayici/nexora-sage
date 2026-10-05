@@ -118,6 +118,7 @@ from tools.engines.react_runtime_intelligence import analyze_runtime_intelligenc
 from tools.engines.react_runtime_intelligence import _calibrate_with_ecosystem
 from tools.engines.react_runtime_intelligence import _load_runtime_policy
 from tools.engines.react_runtime_intelligence import _react_mutation_contexts
+from tools.engines import react_runtime_intelligence as react_runtime_engine
 from tools.engines.react_compiler_readiness import _normalize_finding as normalize_compiler_finding
 from tools.engines.react_frontier_intelligence import analyze_frontier_file
 from tools.engines.react_frontier_intelligence import _evidence_readiness, _hot_profiler_entries, _large_assets
@@ -8294,6 +8295,121 @@ class ReactEcosystemAnalyzerTests(unittest.TestCase):
 
 
 class ReactRuntimeIntelligenceTests(unittest.TestCase):
+    def test_nearby_inventory_recognizes_cross_extension_test_intent(self):
+        cases = [
+            ("src/controller.ts", "src/__tests__/controller.test.tsx"),
+            ("src/card.js", "src/card.spec.jsx"),
+            ("src/card.tsx", "src/__tests__/card.test.tsx"),
+            ("src/card.tsx", "src/tests/card.spec.ts"),
+            ("src/card.ts", "src/__test__/card.tsx"),
+            ("src/card.ts", "src/card.test.mts"),
+        ]
+        for source, test in cases:
+            with self.subTest(source=source, test=test), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                target = root / test
+                target.parent.mkdir(parents=True)
+                target.write_text("// Static test inventory fixture; never executed.\n", encoding="utf-8")
+                with patch.object(react_runtime_engine, "_project_root", return_value=root):
+                    self.assertTrue(react_runtime_engine._has_nearby_test("APP", source))
+
+    def test_nearby_inventory_does_not_borrow_false_or_outside_presence(self):
+        cases = [
+            ("APP/src/controller.ts", "APP/src/__tests__/other.test.tsx", False),
+            ("APP/src/controller.ts", "APP/src/__typetest__/controller.test-d.ts", False),
+            ("APP/src/controller.ts", "OTHER/src/__tests__/controller.test.tsx", False),
+            ("APP/src/controller.ts", "APP/src/controller.test.ts", True),
+            ("APP/src/controller.ts", "APP/src/controller.test.ts.txt", False),
+            ("APP/node_modules/controller.ts", "APP/node_modules/controller.test.tsx", False),
+            ("OTHER/src/controller.ts", "OTHER/src/controller.test.ts", False),
+        ]
+        for source, test, directory in cases:
+            with self.subTest(source=source, test=test), tempfile.TemporaryDirectory() as tmp:
+                workspace = Path(tmp)
+                root = workspace / "APP"
+                root.mkdir()
+                target = workspace / test
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if directory:
+                    target.mkdir()
+                else:
+                    target.write_text("// Unexecuted inventory fixture.\n", encoding="utf-8")
+                relative_source = os.path.relpath(workspace / source, root)
+                with patch.object(react_runtime_engine, "_project_root", return_value=root):
+                    self.assertFalse(react_runtime_engine._has_nearby_test("APP", relative_source))
+
+    def test_nearby_inventory_consumes_central_naming_profile(self):
+        profile = {
+            "ignored_path_fragments": [],
+            "languages": {"typescript": {
+                "extensions": [".ts", ".tsx"],
+                "filename_contains": [".probe."],
+                "path_fragments": ["/checks/"],
+                "base_cleanup": [{"pattern": r"\.probe$", "replacement": ""}],
+            }},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src/checks").mkdir(parents=True)
+            (root / "src/checks/controller.probe.tsx").write_text("", encoding="utf-8")
+            with (
+                patch.object(react_runtime_engine, "_project_root", return_value=root),
+                patch.object(test_impact_profile_core, "load_test_impact_profiles", return_value=profile),
+            ):
+                self.assertTrue(react_runtime_engine._has_nearby_test("APP", "src/controller.ts"))
+                profile["languages"]["typescript"]["extensions"] = [".ts"]
+                self.assertFalse(react_runtime_engine._has_nearby_test("APP", "src/controller.ts"))
+
+    def test_nearby_inventory_rejects_redirected_test_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            root = workspace / "APP"
+            target = root / "src/controller.test.tsx"
+            target.parent.mkdir(parents=True)
+            target.write_text("// Static inventory fixture.\n", encoding="utf-8")
+            real_resolve = Path.resolve
+
+            def resolve_with_redirect(path, *args, **kwargs):
+                if path == target:
+                    return workspace / "OTHER/controller.test.tsx"
+                return real_resolve(path, *args, **kwargs)
+
+            with (
+                patch.object(react_runtime_engine, "_project_root", return_value=root),
+                patch.object(Path, "resolve", new=resolve_with_redirect),
+            ):
+                self.assertFalse(react_runtime_engine._has_nearby_test("APP", "src/controller.ts"))
+
+    def test_nearby_inventory_preserves_atlas_intent_and_absent_control(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(react_runtime_engine, "_project_root", return_value=root):
+                self.assertTrue(react_runtime_engine._has_nearby_test(
+                    "APP", "src/controller.ts", {"test_link": "tests/controller.test.tsx"},
+                ))
+                self.assertFalse(react_runtime_engine._has_nearby_test("APP", "src/controller.ts"))
+
+    def test_cross_extension_intent_suppresses_only_missing_test_finding(self):
+        content = "'use client'; import fs from 'fs'; export function useCard() { return useQuery({queryKey: ['card'], queryFn: loadCard}); }"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "src/__tests__/useCard.test.tsx"
+            target.parent.mkdir(parents=True)
+            with patch.object(react_runtime_engine, "_project_root", return_value=root):
+                absent = analyze_runtime_intelligence_file("APP", "src/useCard.ts", content)
+                target.write_text("// Presence only, not behavioral proof.\n", encoding="utf-8")
+                present = analyze_runtime_intelligence_file("APP", "src/useCard.ts", content)
+            self.assertFalse(absent["signals"]["has_nearby_test"])
+            self.assertTrue(present["signals"]["has_nearby_test"])
+            absent_risks = {item["risk"] for item in absent["findings"]}
+            present_risks = {item["risk"] for item in present["findings"]}
+            self.assertEqual(absent_risks - present_risks, {"risk_surface_without_nearby_test_intent"})
+            self.assertEqual(present_risks - absent_risks, set())
+            self.assertTrue(present_risks)
+            for finding in present["findings"]:
+                self.assertNotEqual(finding["runtime_proof_status"], "runtime_confirmed")
+                self.assertNotIn("runtime_smoke", finding["evidence_kinds"])
+
     def test_client_bundle_server_import_and_compiler_risks_are_detected(self):
         row = analyze_runtime_intelligence_file(
             "APP",
@@ -10260,6 +10376,8 @@ class ArchitectureBlueprintRegistryContractTests(unittest.TestCase):
     def test_symbol_search_orders_exact_names_before_fuzzy_limit(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            raw_dir = root / ".raw"
+            raw_dir.mkdir()
             for rel_path in ("noise.py", "first.py", "second.py"):
                 (root / rel_path).write_text("# source\n", encoding="utf-8")
             noise_symbols = [
@@ -10271,28 +10389,39 @@ class ArchitectureBlueprintRegistryContractTests(unittest.TestCase):
                     "root_path": str(root),
                     "project_type": "python",
                     "files": {
-                        "noise.py": {"language": "python", "size": 9, "hash": "noise", "symbols": noise_symbols},
-                        "first.py": {"language": "python", "size": 9, "hash": "first", "symbols": [{"name": "cli", "type": "Function", "line": 1, "end_line": 1}]},
-                        "second.py": {"language": "python", "size": 9, "hash": "second", "symbols": [{"name": "cli", "type": "Function", "line": 2, "end_line": 2}]},
+                        "noise.py": {"language": "python", "size": 9, "hash": "noise", "workspace_rel": "noise.py", "symbols": noise_symbols},
+                        "first.py": {"language": "python", "size": 9, "hash": "first", "workspace_rel": "first.py", "symbols": [{"name": "cli", "type": "Function", "line": 1, "end_line": 1}]},
+                        "second.py": {"language": "python", "size": 9, "hash": "second", "workspace_rel": "second.py", "symbols": [{"name": "cli", "type": "Function", "line": 2, "end_line": 2}]},
                     },
                     "dependencies": {"noise.py": [], "first.py": [], "second.py": []},
                     "symbols": [],
                 }
             }
-            store = ArtifactStore()
+            store = ArtifactStore(raw_dir=raw_dir)
             store.use_sqlite = True
             store.backend = "hybrid_sqlite"
-            store.db_manager = SQLiteManager(root / "codemaps.db")
+            store.db_manager = SQLiteManager(raw_dir / "codemaps.db")
             store._schema_initialized = False
             store._ensure_schema()
-            store._save_atlas_to_sqlite(atlas)
+            with patch.dict("os.environ", {"SAGE_SYNC_SHADOW_WRITES": "1"}):
+                store.save_raw("atlas", atlas)
 
-            matches = _find_symbol_matches("cli", project="MAIN", raw_dir=root)
+            with patch("tools.core.honesty_telemetry.record_honesty_event") as honesty:
+                matches = _find_symbol_matches("cli", project="MAIN", raw_dir=raw_dir)
+            self.assertFalse(any(
+                call.kwargs.get("operation") == "sqlite_symbol_search" for call in honesty.call_args_list
+            ))
 
         exact_files = [row["file"] for row in matches if row.get("name") == "cli"]
         self.assertEqual(exact_files, ["first.py", "second.py"])
         self.assertEqual([row["name"] for row in matches[:2]], ["cli", "cli"])
+        self.assertEqual([row["repo_relative_path"] for row in matches[:2]], ["first.py", "second.py"])
         self.assertTrue(all(row.get("search_truncated") is True for row in matches))
+
+    def test_symbol_search_refuses_non_raw_atlas_cache_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, r"\.raw JSON file"):
+                _find_symbol_matches("cli", project="MAIN", raw_dir=Path(tmp))
 
     def test_surgical_context_discloses_bounded_candidate_count(self):
         with tempfile.TemporaryDirectory() as tmp:
