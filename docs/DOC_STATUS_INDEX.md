@@ -59,6 +59,24 @@ distribution.
 - `REACT_VALIDATION_CORPUS_V1_EVIDENCE.md`
 - `SECURITY_CAPABILITY_MATRIX.md`
 
+## Landing And Reviewed Examples
+
+- `index.html` — landing entry at `landing/index.html`.
+- `CORPUS_DEVELOPER_DECISION_SHOWCASE.md`
+- `corpus_developer_decision_showcase_evidence.json`
+- `ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md`
+- `ZUSTAND_CHANGE_IMPACT_DEMO.md`
+- `zustand_change_impact_evidence.json`
+- `NEXT_DYNAMIC_ROUTE_CASE_STUDY.md`
+- `NEXT_DYNAMIC_ROUTE_DEMO.md`
+- `next_dynamic_route_evidence.json`
+
+The case documents and selected evidence JSON live under `case-studies/`.
+They preserve each example's analyzer version, source scope and limits;
+inclusion in the public distribution does not turn static evidence into
+runtime proof or a clean-repository verdict. Raw runs and private reviews
+remain outside this maintained surface.
+
 ## Authority Rule
 
 These documents explain product behavior and evidence. Machine-readable

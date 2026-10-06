@@ -419,6 +419,82 @@ def test_cache_walk_shares_nested_project_ownership(tmp_path, monkeypatch, decla
     assert cache_manager.get_project_source_fingerprints({"MAIN": tmp_path}) == before
 
 
+@pytest.mark.parametrize("use_alias", [False, True])
+def test_allowed_compiler_main_remap_reaches_real_atlas_and_cache(atlas_run, monkeypatch, use_alias):
+    from tools import config_compiler
+    from tools.core.repository_topology import configured_project_ownership_exclusions
+
+    root, _, calls, run = atlas_run
+    workspace = root.parent
+    other = workspace / "other"
+    embedded = root / "embedded"
+    other.mkdir()
+    embedded.mkdir()
+    (other / "config.json").write_text("old")
+    (embedded / "config.json").write_text("old")
+    (embedded / "hidden.ts").write_text("export const hidden = 1;")
+    discovery = {
+        "workspace_root": str(workspace), "source_extensions": [".ts"], "skip_dirs": [],
+        "variations": {"MAIN": ".", "APP": "repo", "OTHER": "other"},
+        "project_roles": {"MAIN": "host", "APP": "companion", "OTHER": "companion"},
+        "_repository_topology": {"project_ownership_exclusions": {
+            "MAIN": ["repo", "other"], "APP": ["repo/embedded"], "OTHER": [],
+        }},
+    }
+    overrides = {key: deepcopy(discovery[key]) for key in (
+        "workspace_root", "source_extensions", "skip_dirs", "project_roles",
+    )}
+    if use_alias:
+        overrides["variation_aliases"] = {"MAIN": {"discovery_key": "APP", "path": "repo"}}
+    else:
+        overrides["variations"] = {"MAIN": "repo"}
+    for name, payload in (("DISCOVERY_PATH", discovery), ("OVERRIDES_PATH", overrides), ("CONFIG_PATH", {})):
+        path = workspace / (name + ".json")
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setattr(config_compiler, name, path)
+    compiled = config_compiler.compile_runtime_config()
+    assert compiled["_provenance"]["workspace_scoped_overrides"] is True
+    assert compiled["variations"] == {"MAIN": "repo", "OTHER": "other"}
+    assert compiled["project_roles"] == {"MAIN": "host", "OTHER": "companion"}
+    projects = {key: workspace / path for key, path in compiled["variations"].items()}
+    monkeypatch.setattr(generator, "ROOT", workspace)
+    monkeypatch.setattr(generator, "DYNAMIC_CONFIG", compiled)
+    monkeypatch.setattr(generator, "configured_project_ownership_exclusions", configured_project_ownership_exclusions)
+    monkeypatch.setattr(generator, "resolve_runtime_projects", lambda *a, **kw: projects)
+    monkeypatch.setattr(cache_manager, "ROOT", workspace)
+    monkeypatch.setattr(cache_manager.runtime_config, "DYNAMIC_CONFIG", compiled)
+    monkeypatch.setattr(cache_manager, "resolve_projects", lambda *a, **kw: projects)
+
+    atlas = run()  # Real two-project ingestion/SQLite; only the AST subprocess is a fixture.
+    assert set(atlas["MAIN"]["files"]) == {"a.ts"}
+    assert atlas["OTHER"]["files"] == {}
+    assert len(calls) == 1
+    stale_empty = deepcopy(atlas)
+    stale_empty["MAIN"]["files"] = {}
+    assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=stale_empty) == {"MAIN": ""}
+    before = cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=atlas)
+    assert before["MAIN"]
+    (embedded / "hidden.ts").write_text("export const hidden = 2;")
+    (embedded / "config.json").write_text("new")
+    (other / "config.json").write_text("new")
+    assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=atlas) == before
+    (root / "a.ts").write_text("export const x = 2;")
+    assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=atlas) == {"MAIN": ""}
+
+
+def test_generator_fingerprint_tracks_shared_ownership_source(tmp_path, monkeypatch):
+    from tools.core import atlas_integrity
+
+    source = tmp_path / "tools/core/repository_topology.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("# old ownership\n")
+    monkeypatch.setattr(atlas_integrity, "__file__", str(tmp_path / "tools/core/atlas_integrity.py"))
+    before = atlas_integrity.generator_fingerprint()
+    assert atlas_integrity.generator_fingerprint() == before
+    source.write_text("# repaired ownership\n")
+    assert atlas_integrity.generator_fingerprint() != before
+
+
 @pytest.mark.parametrize("unselected", ["unchanged", "changed_atlas", "absent_atlas"])
 def test_scoped_completion_carries_only_unchanged_atlas_evidence(completed_atlas_cache, monkeypatch, unselected):
     from tools.core import artifact_store

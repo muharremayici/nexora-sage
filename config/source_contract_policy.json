@@ -155,6 +155,7 @@
     "tools/tests/test_sage_active_work_package_lifecycle.py": "cohesive work-package validation, successor selection and atomic transition regression suite; the accepted-risk final-byte drift control shares the transition fixture and must remain adjacent to its writer checks",
     "tools/tests/test_sage_work_item_registry_validation.py": "cohesive work-item registry, release-scope successor selection and historical/current/future phase guard regression suite; shared roadmap and wave fixtures keep positive and fail-closed selection assertions directly comparable",
     "tools/tests/test_typescript_source_binding.py": "cohesive real Node TypeScript collector, source identity, producer-lineage and Merge fail-closed regression suite; split only when a separate semantic evidence owner can retain the cross-consumer proof",
+    "tools/tests/test_work_package_receipts.py": "cohesive private work-package receipt and governance evaluator regression suite sharing the same active-package, source-identity and fail-closed authority contracts; public runtime telemetry remains separately owned by test_governance_trace.py, and the canonical distribution runner retains the complete private cohort",
     "tools/tests/test_release_proof_dispatch_cadence.py": "cohesive dispatch, append-only history, source-stability and external-blocker propagation regression suite; split only along an independently owned contract boundary",
     "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist"
   }

@@ -458,7 +458,7 @@ def project_ownership_exclusions(
 def configured_project_ownership_exclusions(
     projects: dict[str, str | Path], *, root: Path, dynamic_config: dict,
 ) -> dict[str, list[Path]]:
-    """Share the Atlas traversal boundary with its cache consumer."""
+    """Rebind declared boundaries to current roots for both Atlas and cache."""
     exclusions = project_ownership_exclusions(projects)
     topology = (
         dynamic_config.get("_target_root_override")
@@ -467,10 +467,16 @@ def configured_project_ownership_exclusions(
         if isinstance(dynamic_config.get("_repository_topology"), dict)
         else {}
     )
-    for key, paths in (topology.get("project_ownership_exclusions", {}) or {}).items():
-        if key in projects and isinstance(paths, list):
-            exclusions[key] = sorted({(root / str(path)).resolve() for path in paths})
-    return exclusions
+    # Discovery keys/roots can be replaced by compiler overrides or aliases.
+    # Preserve their path boundaries, not their stale owner assignment: a root
+    # must never exclude itself, and selected nested roots must remain excluded.
+    declared_paths = (
+        (root / str(path)).resolve()
+        for paths in (topology.get("project_ownership_exclusions", {}) or {}).values()
+        if isinstance(paths, list)
+        for path in paths
+    )
+    return attach_declared_exclusions_to_nearest_owner(projects, exclusions, declared_paths)
 
 
 def attach_declared_exclusions_to_nearest_owner(

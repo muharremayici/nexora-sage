@@ -173,6 +173,7 @@ def save_package_transition(
     # live proposal cannot be turned into a closed package by changing adapters.
     from tools.core.work_package_receipts import (
         build_closed_package_activation_proposal,
+        build_published_package_activation_proposal,
         build_work_package_closeout_proposal,
         propose_work_package_evidence,
     )
@@ -207,6 +208,14 @@ def save_package_transition(
         activation_policy = receipt_contract.get("closed_package_activation", {})
         if not activation.get("ready") or activation["status"] != activation_policy.get("ready_status"):
             raise ValueError(f"Closed package activation is blocked: {activation['errors']}")
+    elif "published_completion_reference" in ledger["active_package"]:
+        activation = build_published_package_activation_proposal(
+            package=ledger["active_package"], successor=successor,
+            successor_selection=successor_selection,
+            receipt_projection=receipt_projection, closeout=closeout,
+        )
+        if not activation.get("ready"):
+            raise ValueError(f"Published package activation is blocked: {activation['errors']}")
     elif closeout["status"] not in ready_statuses:
         raise ValueError("Current work package closeout proposal is blocked")
     live_diff = closeout.get("live_diff")
@@ -229,6 +238,12 @@ def save_package_transition(
     updated["active_package"]["inherited_dirty_baseline"] = capture_inherited_dirty_baseline(
         successor, changed_files, trace_contract=trace_contract
     )
+    publication_reference = ledger["active_package"].get("published_completion_reference")
+    if publication_reference is not None and (
+        inherited_dirty_file_identity(publication_reference["path"], root=CODE_MAPS_DIR)
+        != publication_reference["sha256"]
+    ):
+        raise ValueError("Publication completion changed before transition")
     if load_json_object_strict(ledger_path, label="SAGE active work package ledger") != ledger:
         raise ValueError("Work package ledger changed during transition")
     save_json_atomic(ledger_path, updated)

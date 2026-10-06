@@ -1,0 +1,99 @@
+{
+  "kind": "public_editorial_case_evidence",
+  "case": "zustand_store_core_change_orientation",
+  "observed_on": "2026-10-05",
+  "target": {
+    "repository": "https://github.com/pmndrs/zustand",
+    "commit": "b57db4f86ef179285da216eeb291266da82c361c",
+    "tree": "b6e553438d47e555433acce49e55bd96f5881d10",
+    "selected_file": "src/vanilla.ts",
+    "source_sha256": "63e1620140c1d43229440e91681a077d97314ed628042e379f4d6096e8faba7b",
+    "whole_target_integrity_file_count": 144,
+    "integrity_algorithm": "sha256_sorted_relative_path_to_content_hash_json_v1",
+    "integrity_sha256": "9eea7879f33fa892deabc7d0fc249023a5d0f71f7146bdce4a78c800536a90c4",
+    "integrity_exclusion": [
+      ".git"
+    ],
+    "target_files_unchanged": true,
+    "git_status_before_and_after": "clean"
+  },
+  "analyzer": {
+    "version": "1.4.0",
+    "source": "local archive of public v1.4.0 tag",
+    "public_tag_commit": "9aecd7827682bbcc82230c085b1f29c4fc6ae772",
+    "installation": "separate local experiment; setup-only with existing SAGE dependencies",
+    "ast_typescript_version": "5.9.3",
+    "native_target_compiler": "not_run",
+    "node_release_reference_equivalence": "not_proven; setup reported outside_reference_attention",
+    "analysis_source_and_configuration_unchanged_after_setup": true
+  },
+  "run": {
+    "id": "sage-run-115fb60e78b647dd",
+    "generation_state": "VALIDATED",
+    "generation_manifest_sha256": "5e0f915e56f762faf0dba9ba614a055c00a7bcbc05869b369e952bfed6957822",
+    "atlas_primary_payload_sha256": "dcdee6b3776cf2e0a6fdc404f4172feb665fa637c8b27ad6e025310b4459d1f8",
+    "command": "python -B sage.py run --target-root TARGET --profile daily --projects MAIN --step 'AI Context Generator' --ai-context",
+    "command_exit_code": 0,
+    "governance_verdict": "FAIL",
+    "quality_failed_enforced_checks": [
+      "min_react_detected_present_ratio",
+      "max_react_partial_capabilities",
+      "min_proof_obligation_ratio",
+      "max_proof_required_failures"
+    ],
+    "quality_failures_adjudicated_as_target_defects": false,
+    "scope": "MAIN=src; explicit project selection",
+    "indexed_source_files": 15,
+    "full_repository_claim_eligible": false,
+    "target_code_execution": "not_run",
+    "target_dependency_installation": "not_run"
+  },
+  "verified_output": {
+    "impact_query": "MAIN::vanilla.ts; depth=2",
+    "public_target_ref": "MAIN::src/vanilla.ts",
+    "dependency_source": "sqlite_dependencies",
+    "direct_dependents": [
+      "src/index.ts",
+      "src/react.ts",
+      "src/traditional.ts"
+    ],
+    "completeness": "bounded_recorded_graph_not_every_consumer_or_type_contract",
+    "symbol": {
+      "name": "createStore",
+      "file": "src/vanilla.ts",
+      "start_line": 99,
+      "end_line": 100
+    },
+    "file_inspection_authority": "orientation_only",
+    "test_impact_candidate_count": 0,
+    "test_grounding_status": "grounded",
+    "missing_target_control_grounding_status": "missing_or_unindexed"
+  },
+  "manual_verification": {
+    "source_checked_dependents": {
+      "src/index.ts": "a06cf5d99f60bcb6c5069227cebeef644fd5715a706e22d22c94e5c1b40c85dd",
+      "src/react.ts": "1ef7c9f68f4099de4ea57e3145d478203c02b2647b2a3bc4ab42280e3a5b3e91",
+      "src/traditional.ts": "98400a863c52b53df2c77524dec36d4322b6c72e2c2b4a9267db037217aef185"
+    },
+    "tests_found_by_reviewer_not_sage": {
+      "tests/vanilla/basic.test.ts": "015f002583b6f35d1611b5c7c7a57b0c62f55b903f4332207554ef50004e311f",
+      "tests/vanilla/subscribe.test.tsx": "96ad22e7221a4199ccb9719274cc0ac29dc2beae0a22d2a2cd805eba336f0eea"
+    },
+    "alias_and_runner_sources": {
+      "tsconfig.json": "c545733df5a803abaa80ed4898d725743c0147798a6fc24a9d73223d5fc0d7a1",
+      "vitest.config.mts": "e32a3b93b535be9f7447546d8f9cbd16e5e564e96a347f8dab32d0bd2544ebff"
+    },
+    "test_acquisition_limit": "Atlas selected src, not tests; live sibling fallback does not acquire this separate alias-bound suite"
+  },
+  "private_capture_fingerprints": {
+    "impact_response_sha256": "cf49998bc3024f1527ab85ba92130e463630aedc02d5160718c112385d83c922",
+    "symbol_response_sha256": "e404d15bb9184cd338c6b9ad89e0eb5de48e3d38e853b9122f6de6e6b8a2d068"
+  },
+  "limits": [
+    "Current analyzer on a preserved target commit, not a current-upstream or historical-version comparison",
+    "One verified orientation example, not an accuracy, coverage, time-saving or token-saving measurement",
+    "No code change, native lint/compiler/test execution, runtime proof or merge approval",
+    "No whole-repository clean verdict, third-party endorsement or new release authority",
+    "Private raw captures and third-party source are not redistributed in this editorial projection"
+  ]
+}

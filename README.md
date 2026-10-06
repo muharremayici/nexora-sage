@@ -1,11 +1,23 @@
 # Nexora SAGE
 
-Current version: **1.4.0**.
+Current version: **1.4.1**.
 
 AI made code generation cheap.
 It did not make architecture cheap.
 
-**Nexora SAGE** is a local-first verification and governance layer for AI coding workflows. It helps AI agents work inside a closed loop: understand the repository, select focused context, respect architectural rules, validate changes, produce evidence, and keep humans in control.
+**Nexora SAGE** gives developers and AI coding agents local-first architecture context and evidence-backed analysis for React/TypeScript repositories. It helps you understand dependencies, focus a change, review applicable rules and keep humans in control.
+
+Start with the [Quickstart](docs/QUICKSTART.md), read the [evidence and limitations](docs/EVIDENCE.md), or connect an agent through the [AI Agent HITL Runbook](docs/AI_AGENT_HITL_RUNBOOK.md).
+
+## Three Ways To Use SAGE
+
+- **Understand a repository:** inspect its architecture Atlas, project ownership, symbols and dependencies before editing.
+- **Focus an AI-assisted change:** obtain bounded repository context and static impact/test-impact candidates instead of passing an undifferentiated codebase to an agent.
+- **Review findings honestly:** separate actionable static evidence from policy choices, incomplete evidence and behavior that still needs runtime proof.
+
+Static test-impact candidates are not executed tests. A successful process is not a clean repository or approval to change it.
+
+See SAGE answer a real change question: [before changing Zustand's store core, find its consumers](docs/case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md). The [short demo](docs/case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md) shows actual dependency/symbol output, source checks and explicit limits. For a separate calibration example, see [why a Next.js dynamic route is not a DDD layer](docs/case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md).
 
 ## Why It Exists
 
@@ -77,6 +89,8 @@ remaining machine and repository requirements.
 
 V1 is distributed as a GitHub source checkout. Run `python sage.py` from the
 repository root; wheel/PyPI installation is not a current release claim.
+
+First acquire the public source using the [Quickstart source-download instructions](docs/QUICKSTART.md#1-plan-the-installation). Use an explicit target root for the repository you intend to analyze; the SAGE checkout is the installation root.
 
 Inspect the machine and target without installing packages or running analysis:
 
@@ -227,7 +241,7 @@ SAGE is also built by the same principles it gives to AI agents: scoped intent, 
 
 ## License
 
-This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.4.0 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
+This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.4.1 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
 
 `NOTICE.md` states the SAGE-specific release-status, evidence, certification and
 human-review boundaries. In particular, a SAGE `PASS` or release-proof is

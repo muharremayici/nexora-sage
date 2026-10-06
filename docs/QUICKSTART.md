@@ -12,6 +12,25 @@ The v1 installation contract is a source checkout. Wheel/PyPI packaging is not
 currently supported; commands run from the repository root through
 `python sage.py`.
 
+Acquire the public source before running the commands below. With Git:
+
+```powershell
+git clone https://github.com/muharremayici/nexora-sage.git
+cd nexora-sage
+```
+
+For an exact published version, use the matching tag or source archive from
+[Nexora SAGE releases](https://github.com/muharremayici/nexora-sage/releases).
+If using an archive, extract it and open a terminal in the directory containing
+`sage.py`. This is a source distribution, not a claimed wheel/PyPI installation.
+
+Treat the installation root and analysis target as distinct authorities. Replace
+`C:\path\to\repository` below with that target's actual path; do not point it at
+the SAGE checkout merely because it is the current directory. An embedded
+installation is supported: when SAGE lives inside the target repository, use
+that repository's root, not the SAGE subdirectory, as explained in
+[Choose The Repository Model](#2-choose-the-repository-model).
+
 Before dependency installation, discovery or analysis, inspect the target and
 machine:
 

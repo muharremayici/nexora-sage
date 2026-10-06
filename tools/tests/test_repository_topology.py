@@ -4,8 +4,11 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 from tools.core.repository_topology import (
     attach_declared_exclusions_to_nearest_owner,
+    configured_project_ownership_exclusions,
     classify_project_system_kind,
     is_project_owned_path,
     project_ownership_exclusions,
@@ -654,3 +657,44 @@ def test_resolved_topology_preserves_generator_exclusions_for_downstream_ownersh
 
     assert topology["project_candidates"] == {"MAIN": "."}
     assert topology["project_ownership_exclusions"] == {"MAIN": ["SAGE"]}
+
+
+@pytest.mark.parametrize("topology_key", ["_repository_topology", "_target_root_override"])
+@pytest.mark.parametrize("owner_key", ["MAIN", "RENAMED"])
+def test_configured_ownership_rebinds_declared_boundaries_after_root_or_key_remap(
+    tmp_path, topology_key, owner_key,
+):
+    web = tmp_path / "apps" / "web"
+    embedded = web / "embedded"
+    selected_child = web / "selected"
+    sibling = tmp_path / "apps" / "other"
+    projects = {owner_key: web, "CHILD": selected_child, "OTHER": sibling}
+    config = {topology_key: {"project_ownership_exclusions": {
+        "MAIN": ["apps/web", "apps/other"],
+        # The removed discovery key still owns a real excluded child boundary.
+        "WEB": ["apps/web/embedded", "apps/web/selected", "../outside"],
+        "CHILD": [],
+    }}}
+    original = json.loads(json.dumps(config))
+
+    exclusions = configured_project_ownership_exclusions(projects, root=tmp_path, dynamic_config=config)
+
+    assert exclusions[owner_key] == [embedded.resolve(), selected_child.resolve()]
+    assert exclusions["CHILD"] == []
+    assert exclusions["OTHER"] == []
+    assert is_project_owned_path(web, "src/app.ts", excluded_roots=exclusions[owner_key])
+    assert not is_project_owned_path(web, "embedded/code.ts", excluded_roots=exclusions[owner_key])
+    assert not is_project_owned_path(web, "selected/code.ts", excluded_roots=exclusions[owner_key])
+    assert config == original  # Discovery evidence is not rewritten as runtime truth.
+
+
+def test_configured_ownership_does_not_erase_current_nested_roots_or_mix_target_modes(tmp_path):
+    child = tmp_path / "child"
+    projects = {"MAIN": tmp_path, "CHILD": child}
+    config = {
+        "_target_root_override": {"project_ownership_exclusions": {"MAIN": []}},
+        "_repository_topology": {"project_ownership_exclusions": {"MAIN": ["local-only"]}},
+    }
+    assert configured_project_ownership_exclusions(projects, root=tmp_path, dynamic_config=config) == {
+        "MAIN": [child.resolve()], "CHILD": [],
+    }
