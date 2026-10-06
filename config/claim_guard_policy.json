@@ -15,7 +15,13 @@
     "docs/REACT_RUNTIME_GAP_MATRIX.md",
     "docs/PYTHON_CAPABILITY_BOUNDARY.md",
     "docs/ARCHITECTURE_ORACLE_BLUEPRINT_COVERAGE.md",
-    "docs/EXTERNAL_REPOSITORY_EVALUATION.md"
+    "docs/EXTERNAL_REPOSITORY_EVALUATION.md",
+    "docs/case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md",
+    "docs/case-studies/NEXT_DYNAMIC_ROUTE_DEMO.md",
+    "docs/case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md",
+    "docs/case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md",
+    "docs/landing/index.html",
+    "docs/case-studies/CORPUS_DEVELOPER_DECISION_SHOWCASE.md"
   ],
   "negated_claim_hints": [
     "not",

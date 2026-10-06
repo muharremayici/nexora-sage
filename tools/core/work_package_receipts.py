@@ -19,7 +19,7 @@ from tools.core.json_io import (
     load_json_object_strict,
     raw_artifact_primary_content_fingerprint,
 )
-from tools.core.work_package_state import active_work_package, inherited_dirty_file_identity
+from tools.core.work_package_state import active_work_package, inherited_dirty_file_identity, _inherited_dirty_source_path
 from tools.core.source_layer_classifier import classify_source_layer
 
 
@@ -618,6 +618,132 @@ def build_work_package_closeout_proposal(
             "next_action": "Review proposed machine evidence, complete manual evidence records, then update closure and transition ledgers as an authorized actor.",
         },
         "claim_boundary": "This command composes current evidence into a closeout proposal. A scoped accepted-risk legacy exception does not reconstruct activation-time bytes or prove unchanged history. This command does not edit ledgers, close a package, activate another package, push Git state, approve a mutation or issue a human seal.",
+    }
+
+
+def build_published_package_activation_proposal(
+    *,
+    package: dict[str, Any],
+    successor: dict[str, Any],
+    successor_selection: dict[str, Any],
+    receipt_projection: dict[str, Any],
+    closeout: dict[str, Any],
+) -> dict[str, Any]:
+    """Separate completed delivery from current accounting and pending successor edits."""
+    from tools.core.work_package_state import successor_matches_selection
+    from tools.core.governance_trace_contract import evaluate_governance_trace_contract as validate_trace_contract
+
+    policy = _receipt_contract().get("published_package_activation", {})
+    policy = policy if isinstance(policy, dict) else {}
+    errors: list[str] = []
+    if validate_trace_contract().get("status") != "PASS":
+        errors.append("governance_trace_policy_invalid")
+    if policy.get("version") != "v1" or not policy.get("ready_status"):
+        errors.append("published_activation_policy_invalid")
+    scope = package.get("release_scope", {})
+    release = scope.get("concrete_release")
+    if (
+        package.get("status") != "in_progress"
+        or scope.get("mode") not in policy.get("accepted_release_modes", [])
+        or not release or scope.get("does_not_expand_current_release_claims") is not True
+    ):
+        errors.append("published_predecessor_scope_invalid")
+    if not successor_matches_selection(successor, successor_selection):
+        errors.append("exact_successor_selection_required")
+    reference = package.get(policy.get("reference_field", ""))
+    publication: dict[str, Any] = {}
+    try:
+        if not isinstance(reference, dict) or not isinstance(reference.get("path"), str):
+            raise ValueError("missing completion reference")
+        path = _inherited_dirty_source_path(reference["path"], CODE_MAPS_DIR)
+        completion_bytes = path.read_bytes()
+        digest = hashlib.sha256(completion_bytes).hexdigest()
+        if digest != reference.get("sha256"):
+            raise ValueError("completion content changed")
+        checkpoint = json.loads(completion_bytes.decode("utf-8"))
+        if not isinstance(checkpoint, dict):
+            raise ValueError("publication checkpoint must be an object")
+        registry = load_json_object_strict(
+            _safe_source_path(policy["publication_registry"]), label="Publication registry"
+        )
+        records = registry.get("publication_reconciliations", [])
+        matches = [row for row in records if isinstance(row, dict) and row.get("release") == release]
+        if len(matches) != 1:
+            raise ValueError("one reconciled publication required")
+        publication = matches[0]
+        completion = checkpoint.get("completion", {})
+        if not isinstance(completion, dict):
+            raise ValueError("publication completion must be an object")
+        for key, actual in (
+            ("release", completion.get("release")),
+            ("status", completion.get("status")),
+            ("public_commit", completion.get("public_commit")),
+            ("canonical_source_commit", checkpoint.get("canonical_source")),
+            ("clean_delivery_commit", checkpoint.get("clean_delivery")),
+            ("completion_observation_sha256", completion.get("observation_sha256")),
+        ):
+            if not publication.get(key) or publication[key] != actual:
+                raise ValueError(f"publication completion mismatch: {key}")
+        if publication.get("status") != "published":
+            raise ValueError("publication incomplete")
+        observation = publication.get("completion_observation_sha256")
+        if not isinstance(observation, str) or len(observation) != 64 or any(c not in "0123456789abcdef" for c in observation):
+            raise ValueError("publication observation identity invalid")
+        for key in ("canonical_source_commit", "clean_delivery_commit", "public_commit", "source_registry_git_blob"):
+            value = publication.get(key)
+            if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value):
+                raise ValueError("publication identity invalid")
+        ids = publication.get("reconciled_work_item_ids")
+        if not isinstance(ids, list) or not ids or any(not isinstance(x, str) for x in ids) or len(ids) != len(set(ids)):
+            raise ValueError("publication delivery scope invalid")
+        item_rows = registry.get("work_items", [])
+        if not isinstance(item_rows, list):
+            raise ValueError("publication work registry invalid")
+        items = {row.get("id"): row for row in item_rows if isinstance(row, dict) and isinstance(row.get("id"), str)}
+        if len(items) != len(item_rows):
+            raise ValueError("publication work identities invalid or duplicated")
+        if any(items.get(x, {}).get("status") != "closed" or items[x].get("delivered_release") != release for x in ids):
+            raise ValueError("publication delivery not reconciled")
+    except (OSError, ValueError, KeyError, TypeError):
+        errors.append("published_completion_missing_changed_or_unreconciled")
+    projected = receipt_projection.get("package", {})
+    if (
+        projected.get("id") != package.get("id")
+        or projected.get("status") != package.get("status")
+        or projected.get("identity") != work_package_identity(package)
+        or projected.get("source_identity") != work_package_source_identity(package)
+        or receipt_projection.get("mutation_preflight", {}).get("ready") is not True
+        or receipt_projection.get("summary", {}).get("stale_or_mismatched_receipts") != 0
+    ):
+        errors.append("current_bootstrap_or_source_invalid")
+    if closeout.get("closure_validation", {}).get("status") != "PASS" or closeout.get("applicability", {}).get("status") != "VALID":
+        errors.append("live_closure_or_release_scope_invalid")
+    groups = policy.get("required_current_evidence_groups", [])
+    proposals = receipt_projection.get("proposals", {})
+    if not groups or any(proposals.get(x, {}).get("readiness") != "receipt_group_complete_review_required" for x in groups):
+        errors.append("current_validation_or_review_missing")
+    diff = closeout.get("live_diff", {})
+    if (
+        diff.get("invalid_changed_files") or diff.get("unknown_source_files")
+        or diff.get("inherited_dirty_baseline_status") == "INVALID"
+        or diff.get("legacy_accepted_unknown_changed_files")
+    ):
+        errors.append("live_diff_invalid_or_accepted_risk")
+    allowed = set(policy.get("accounting_paths", [])) | set(successor.get("affected_contracts", []))
+    inherited = set(diff.get("inherited_unchanged_changed_files", []))
+    pending = sorted(row["path"] for row in diff.get("governed_changed_files", []) if row["path"] not in inherited)
+    unowned = sorted(set(pending) - allowed)
+    if unowned:
+        errors.append("new_source_outside_accounting_and_exact_successor")
+    return {
+        "meta": {"kind": "published_work_package_activation_proposal", "version": "v1"},
+        "status": policy.get("ready_status") if not errors else policy.get("blocked_status", "BLOCKED"),
+        "ready": not errors, "errors": errors,
+        "published_release": release, "publication_reference": reference,
+        "successor_id": successor.get("id"), "unowned_changed_files": unowned,
+        "pending_successor_changed_files": sorted(set(pending) - set(policy.get("accounting_paths", []))),
+        "historical_clean_evidence": "published_delivery_only_not_current_source_proof",
+        "claim_boundary": policy.get("claim_boundary"),
     }
 
 

@@ -1,33 +1,33 @@
 {
   "meta": {
     "kind": "nexora_sage_public_release_manifest",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "authority": "human_authorized_public_release_projection"
   },
   "release": {
-    "version": "1.4.0",
-    "kind": "minor_release",
-    "scope": "nexora-sage:v1.4.0:minor-release",
-    "previous_version": "1.3.1"
+    "version": "1.4.1",
+    "kind": "patch_release",
+    "scope": "nexora-sage:v1.4.1:patch-release",
+    "previous_version": "1.4.0"
   },
   "source": {
     "role": "clean_install_delivery_repository",
     "lineage_contract": "development_to_clean_install_to_public_candidate",
-    "canonical_source_git_commit": "2cf8cd9123757fcf93b217829ffd0c0e6bc34962",
+    "canonical_source_git_commit": "89111e4d6aca06d0032851059e0c154d088c6735",
     "clean_delivery_identity": {
       "authority": "generated_by_clean_distribution_sync",
-      "canonical_source_git_commit": "2cf8cd9123757fcf93b217829ffd0c0e6bc34962",
-      "projection_files": 1133,
-      "projection_sha256": "3ff61e9eb115f029a6c5fb3013d968c242fda05758a8bc3bc2a1158ad28f7ae3"
+      "canonical_source_git_commit": "89111e4d6aca06d0032851059e0c154d088c6735",
+      "projection_files": 1144,
+      "projection_sha256": "6e48c66df20de04b3fdfd5c44b2c9d5ffb3be63ca47b9e23b91594e72fc33e76"
     },
-    "source_files_considered": 930,
-    "projection_input_files": 930,
-    "projection_input_sha256": "c12439b3f559a8d524df6039b160240549d0cf18ebd3ae922505d92c02490aec",
-    "git_commit": "3cbc0bb1c0ab1c39872acb33d06dc82ff22febcd",
+    "source_files_considered": 940,
+    "projection_input_files": 940,
+    "projection_input_sha256": "e9d17485d958f5248cf6df0acf34abe58869dc9488770a9454e821b0bb0ec7db",
+    "git_commit": "676f03324de139968ed61ad8aa7b1f66d2e3dae3",
     "git_dirty": false
   },
   "projection": {
-    "destination_name": "Nexora SAGE - v1.4.0-public-candidate",
+    "destination_name": "Nexora SAGE - v1.4.1-public-candidate",
     "git_metadata_included": false,
     "private_legal_drafts_included": false,
     "internal_work_memory_included": false,
@@ -270,6 +270,9 @@
       "config/universal_proof_gate.json",
       "config/validator_policy_registry.json",
       "config/workload_profile.json",
+      "docs/case-studies/corpus_developer_decision_showcase_evidence.json",
+      "docs/case-studies/next_dynamic_route_evidence.json",
+      "docs/case-studies/zustand_change_impact_evidence.json",
       "tools/engines/package-lock.json",
       "tools/engines/package.json",
       "tools/tests/fixtures/react_v11/package.json"
@@ -280,23 +283,23 @@
     ],
     "claim_and_controller_identity": {
       "schema": "nexora_sage_public_claim_projection_identity_v1",
-      "source_release_identity_sha256": "d58e9059778c730e6f1510d176e77c3d8bfa7fb11ae4919b50a0e4e99d925609",
+      "source_release_identity_sha256": "0d9a0c1f9d54c214fbc561fc8188bc5c9537b21048221d25d8bf7ebde8b487f2",
       "source_release_claim_sha256": "6379e2759563e7e7594eeb3a01de0487cb81fcc844282b12c215ecf7ee7043f1",
-      "source_claim_profiles_sha256": "be29cf029efc7831095ae96fed8f2b213bf3c8c07150bf5d2ab86dc9929815b7",
+      "source_claim_profiles_sha256": "14448e7c93841963271e4348fc33e8bd7323fbef57284afd6d05fe99f50c277a",
       "active_profile_id": "v1_react_architecture_governance",
-      "active_profile_sha256": "56e76776beaff6a923134a5051d7d3154aba4cf2245ce7928d74f391a754d6de",
-      "public_release_identity_contract_sha256": "c352e9088fd7925d47252a06e0f8b452e6ccef9328753a1bd2a9b4030fc21e04",
+      "active_profile_sha256": "582b7760e1e650f06ba710a9694c17ebb8800894d9f5fb2d50999292474dc6c8",
+      "public_release_identity_contract_sha256": "91ab7fe4af3965cf1724343c3505389677dff71ffdcc290e2a96063f6b936308",
       "controller": {
         "schema": "nexora_sage_public_projection_controller_identity_v1",
         "files": {
-          "CONTROL_CONTRACT.json": "4bdfdfca828706c1c6cec4d32e67721c33c18100640acfb877b964afc1e00466",
+          "CONTROL_CONTRACT.json": "26d325b60b1822157cedece384e756c0a078c39afb55db6ba4a90a8ee14a233f",
           "distribution_test_partition.py": "b68882d9200333707111c630ee4ebd39b608ec6467f60e99e205d01a96834906",
-          "public_release_builder.py": "036a61fc4f24d44f486c6628e02dca2959fe3ea33a5fd7f1bb96a6c5515c4ff6",
-          "public_release_validator.py": "6c12d278ecff30795a5e7c32fafde761272773ce8817b606ed16ed82d9be86e0",
+          "public_release_builder.py": "e0b476e2ca5f42bb679ee8c23a7d20bc819c124d226952839d2f0782279ace9b",
+          "public_release_validator.py": "d4ec644d34774d88f7253d05718f0441ae91a4d571f6f03e7caaa15408c8ddc6",
           "release_projection_pipeline.py": "9d435d234afbb8c9545932dad20538801b0101daad95191c754674097997c591"
         },
-        "aggregate_sha256": "3fcab93cc3f3ff1bbf68319f986466470935c939f497fd270cf43b06de685f50",
-        "policy_sha256": "4bdfdfca828706c1c6cec4d32e67721c33c18100640acfb877b964afc1e00466"
+        "aggregate_sha256": "39d0a50c1bd691f8b76001452f67a0daf3f92fe389626c01b6855ccf5f1f5b56",
+        "policy_sha256": "26d325b60b1822157cedece384e756c0a078c39afb55db6ba4a90a8ee14a233f"
       }
     },
     "projected_public_text_surfaces": [
@@ -330,7 +333,7 @@
       "bytes": 360
     },
     "CLEAN_INSTALL_NOTES.md": {
-      "sha256": "7bc61cd47e2e28480dacd843e9ec2684772e0e3a5ba394d27a356e118a5b9d5d",
+      "sha256": "0374692ccca0ba5819357cd09a7ad3e4e5c3c1ddc399433c38b080b811e72021",
       "bytes": 1582
     },
     "codemaps.py": {
@@ -394,12 +397,12 @@
       "bytes": 3372
     },
     "config/capability_registry.json": {
-      "sha256": "8f164e848d076a9c14076317a7a52a3548e7d944f0dc2c982058cb0f85a665eb",
+      "sha256": "20c574882ce888c9d8a2f3d619eb79aa4bff61ffb158951bb764e005346fd2fd",
       "bytes": 71206
     },
     "config/claim_guard_policy.json": {
-      "sha256": "dc469442616f1907429931abd9fbcb05ad8785803b3a01c14c2065c7f35d297e",
-      "bytes": 1260
+      "sha256": "c9a359cd611bc8a1fea19891fc62f6b77f606881879b0b2194c29792a00a5661",
+      "bytes": 1586
     },
     "config/cli_command_contract.json": {
       "sha256": "29e3299a42515e2a99866d1a34f6d2b6da5ad0c43ef388fac168eb36f08fe5e2",
@@ -578,8 +581,8 @@
       "bytes": 27933
     },
     "config/governance_trace_contract.json": {
-      "sha256": "b0e67bb5702344b5bcbccf9a2e5d5b3844305100ca794914863d59aa45d04a37",
-      "bytes": 15177
+      "sha256": "a1519275c82d7a3a233dd1643d4b09a3c0381fc1d25c2deb729e939587bc3450",
+      "bytes": 16499
     },
     "config/hitl_decision_request_contract.json": {
       "sha256": "6869973fc477efa913911515abaf463187936bfab8d0fba56fcfd0fb1f5d20f4",
@@ -762,7 +765,7 @@
       "bytes": 2838
     },
     "config/release_claim_profiles.json": {
-      "sha256": "4e18ffa2e344625b1422b5e398075e4696859a3832dfbce31252b9567aa86d16",
+      "sha256": "3d4855c0fc697592b183666198d5e9196c52bc4adc0e76b4376fac05b8c95a2d",
       "bytes": 16689
     },
     "config/release_evidence_cadence_contract.json": {
@@ -770,7 +773,7 @@
       "bytes": 30853
     },
     "config/release_identity.json": {
-      "sha256": "a9745a16ad54dcfab639f02f201d7e954c5f5a3e649c4cc7d9c181d97f529092",
+      "sha256": "fa7bf5ffa4b27e6d22d4a5ac8dc1307e621764b0ff0952ecc6c902db00092547",
       "bytes": 2616
     },
     "config/release_validation_dependency_contract.json": {
@@ -1186,8 +1189,8 @@
       "bytes": 1837
     },
     "config/source_contract_policy.json": {
-      "sha256": "1d74ae34872ec82406b6e7e24ced31ba93c8a4ac8e4edb9e302850e834632b83",
-      "bytes": 12499
+      "sha256": "e423c98da2a855b68e49d07c236c51fe397f85e063d438a44fc65aae7cc512ae",
+      "bytes": 12871
     },
     "config/source_layer_taxonomy.json": {
       "sha256": "35122a14f96420b6b7e5d9c8b5099774524f5f9c8c51879ff026a0045da1431e",
@@ -1317,6 +1320,38 @@
       "sha256": "ed61681b28a3cff26844a4ab8982899a774c7fd984ceb9a11dda5695c2010771",
       "bytes": 5843
     },
+    "docs/case-studies/CORPUS_DEVELOPER_DECISION_SHOWCASE.md": {
+      "sha256": "b177bdc9e260cbd2fa7264e4a69b3ba075ffce96f6739d13b23b543502c11278",
+      "bytes": 6582
+    },
+    "docs/case-studies/corpus_developer_decision_showcase_evidence.json": {
+      "sha256": "a8265348ce608d2fc34847bfd858113534502a25a310a545e6db663159690d2c",
+      "bytes": 7629
+    },
+    "docs/case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md": {
+      "sha256": "3d30198e53a18961628114c0591a62f5cde2adeca18b103d05eeee26c25ada07",
+      "bytes": 3982
+    },
+    "docs/case-studies/NEXT_DYNAMIC_ROUTE_DEMO.md": {
+      "sha256": "37f7daddd95028b9349052060fd97c7142568208c2b6567287f2629444b4737d",
+      "bytes": 2824
+    },
+    "docs/case-studies/next_dynamic_route_evidence.json": {
+      "sha256": "12cdfaa96eedb36170f3d2101f012f1b7cb2c1e6ad0b27fd76def10a7e5459d0",
+      "bytes": 3573
+    },
+    "docs/case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md": {
+      "sha256": "58cd23c2a728dc82305639957201b1be05fa1ce241af360e4a9b1b3ee708c02c",
+      "bytes": 4771
+    },
+    "docs/case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md": {
+      "sha256": "d3e6ce0cf9e129e33c7ea1cfbc63c11e0e4015771b891c30ea489cd5d1539fc9",
+      "bytes": 3793
+    },
+    "docs/case-studies/zustand_change_impact_evidence.json": {
+      "sha256": "6a65046c91f832f5cea52e150f2d329030f03c8f996185f192c4ece6c4ae4a73",
+      "bytes": 4797
+    },
     "docs/CI_GITHUB_ACTIONS.md": {
       "sha256": "f28e2e4ace199e1b0854f827ad783fa5068e2ef426d47334f19299a9d2a816a1",
       "bytes": 5187
@@ -1342,16 +1377,16 @@
       "bytes": 1454
     },
     "docs/DOC_STATUS_INDEX.md": {
-      "sha256": "b61ec34a5cd1f19ce501f1ea8363e04694a5a0c7034575ccda6e1a457da39f84",
-      "bytes": 2033
+      "sha256": "c9b60be10de073e7276726250a6e73d016366d576ef0e1f94b038d6727ab5910",
+      "bytes": 2791
     },
     "docs/ENGINE_PLUGIN_CONTRACT_MANIFEST.md": {
       "sha256": "8820f5e400f9b497988d36372c6c35aa41587373e88b796188d6b92758cc7401",
       "bytes": 2852
     },
     "docs/EVIDENCE.md": {
-      "sha256": "13bfaa20f50eeb7b732c52beadae20467d552cd3289e3616e9da724005987c6c",
-      "bytes": 5195
+      "sha256": "762b046ef50373cee04e269dae98bef8a101d2d7678e249cc4fba0799097d61e",
+      "bytes": 5963
     },
     "docs/EXTERNAL_REPOSITORY_EVALUATION.md": {
       "sha256": "8a397d718a7b4141c4e5c41f3f03cf9fb93f3560e7cf36ebd3b7774a6ea3554a",
@@ -1372,6 +1407,10 @@
     "docs/GENERATED_SCRIPT_SAFETY_RUNBOOK.md": {
       "sha256": "b93b5c49bd00790606c63957431b44e44f1d3d5d821ad4402de8b19eb006a746",
       "bytes": 3463
+    },
+    "docs/landing/index.html": {
+      "sha256": "9d0509a124df94995208edd6d30761152cdc47b4fa5174ab2188e45f209aa59a",
+      "bytes": 21092
     },
     "docs/LANGUAGE_AGNOSTIC_SYMBOL_SCHEMA.md": {
       "sha256": "d90892a8c949ac500aad7c64cb6b5d8a4398fc7823261d45237fec5b2e57175f",
@@ -1410,8 +1449,8 @@
       "bytes": 1352
     },
     "docs/QUICKSTART.md": {
-      "sha256": "db1c027a2ca145f8b6921c56297fea976451dd0cefaeb9a1ca74fb06fd74e119",
-      "bytes": 11704
+      "sha256": "e714b2090ae5683a59c242226256868a5d1c0f102c692b12fe883916081eae69",
+      "bytes": 12627
     },
     "docs/REACT_EDGE_CASE_COVERAGE.md": {
       "sha256": "553a01566fae3e5d62b70697da0faaa36f6437eafb8704c2acd71bfc16f2e99a",
@@ -1474,7 +1513,7 @@
       "bytes": 4694
     },
     "LICENSING.md": {
-      "sha256": "6469ce59803f6ae5a6c07b20f31a138d0da18b7d8c6d6c03fa208f3cbfa15054",
+      "sha256": "cca5f74ca397cf0b379732f0875175a56b4b53b69f02bb25783e6ccc276d9af5",
       "bytes": 2006
     },
     "NOTICE.md": {
@@ -1482,16 +1521,16 @@
       "bytes": 2310
     },
     "PUBLICATION_STATUS.md": {
-      "sha256": "2cc152a1113c2a0f6d7db056e90cafeaae4cf3051b56b1c163b94f2549332ec8",
+      "sha256": "184e8a7e38ae936751cb924b1bc7de3813f9b3a0e805199d48646ccc9ae2513d",
       "bytes": 577
     },
     "pyproject.toml": {
-      "sha256": "ae5279dea50dd2d44b222dc1e9dd8246bb8961ab1c81a8db13d31e97e1031335",
+      "sha256": "4dca3a8ad2a0ecc9af9edff328b82f49064d26bd3a4d48da1d6257041341abaa",
       "bytes": 1636
     },
     "README.md": {
-      "sha256": "bf62f5ef2fe38806ea4a1f019ab988319b2f747ba2e54b388387b0b03506e730",
-      "bytes": 11816
+      "sha256": "6ef6a92e1c7989f3285704773183ed76065ebdd5033701daac37dd3ef64e13d9",
+      "bytes": 13266
     },
     "requirements.txt": {
       "sha256": "971031f512b8349e78ee9f2d03d0596ae894e9e37d91884f14438b282888c132",
@@ -1761,6 +1800,10 @@
       "sha256": "037cbd053b1c9c7588eb1df77fd496b880b90ae9b9aa2e1299906c06051f1bb0",
       "bytes": 19584
     },
+    "tools/core/governance_trace_contract.py": {
+      "sha256": "1c8aa8d09ef259c2f713550ac14dab0c0c311847907ef03811594a667517bcd5",
+      "bytes": 23087
+    },
     "tools/core/heartbeat_cadence.py": {
       "sha256": "d5b246db28f1892097103b3633aacca16a63f3fe58e042b64e58f1a026091522",
       "bytes": 8067
@@ -1994,8 +2037,8 @@
       "bytes": 1093
     },
     "tools/core/repository_topology.py": {
-      "sha256": "010ac534e965c1659cd683c61e9d4e2d0120907aeb0f4d1627cc7cd49c8ace46",
-      "bytes": 35803
+      "sha256": "8057f55b51387fb224acd08c24565c9ba8fc30990919f9445bfde6251c18f4bc",
+      "bytes": 36104
     },
     "tools/core/roadmap_phase_registry.py": {
       "sha256": "ca4f67187e2b1210e8750cddbe501979ee0bd5d56478062033648bbced626607",
@@ -2010,8 +2053,8 @@
       "bytes": 1891
     },
     "tools/core/sage_active_work_package.py": {
-      "sha256": "d85712ba4107af55f1fb2476bb5cd65bb80f464a8faf9894a3cdf591e0bc1f83",
-      "bytes": 10985
+      "sha256": "d95e6a0953754f419b0815adbbc5922e7be0725c1760a243867e273f72b2c5fb",
+      "bytes": 11866
     },
     "tools/core/sage_self_development_validation_profiles.py": {
       "sha256": "125eb0e913634347a79a3b3aa902a625606352edcd5466c2649d6a6a6f5cc53b",
@@ -2198,8 +2241,8 @@
       "bytes": 3402
     },
     "tools/core/work_package_receipts.py": {
-      "sha256": "dec9241081bc95875d7d2120e7536e72e8bc2310610925cdc96dd67711c068cc",
-      "bytes": 36052
+      "sha256": "f1ba684314b9b2cc37df29d25ea5a3418659b30d2892b33d7b6c0b3d7258be86",
+      "bytes": 43644
     },
     "tools/core/work_package_state.py": {
       "sha256": "ba9c943349ad9adc4c0987df28c2a7fbfd5b162642bb1fa67e3a2c9631439a40",
@@ -2894,8 +2937,8 @@
       "bytes": 13831
     },
     "tools/tests/test_atlas_cache_input_identity.py": {
-      "sha256": "0aa1487c7f4bccb9821752060109e191e2edf42392df899b87ba6970267e8446",
-      "bytes": 24577
+      "sha256": "3a72a4bf47447b983a633e9a6f333f64bc360e9500c2364514acb8877e134083",
+      "bytes": 28681
     },
     "tools/tests/test_atlas_materialization_profile.py": {
       "sha256": "5fdd160058b2408b36ab30c9296fb5a7ce3184c4ed5c64b362dcc89506de5d05",
@@ -3018,8 +3061,8 @@
       "bytes": 2034
     },
     "tools/tests/test_governance_trace.py": {
-      "sha256": "7ae6fe122565f2e2b595640efb2778b77f5ec50cb75e5fd2d845fd1f4a03e118",
-      "bytes": 14802
+      "sha256": "af14fa3ed102e0e84b8ada5e6d86db4c8c97f42fdc699c5f08e1bf2a8713dfc4",
+      "bytes": 14800
     },
     "tools/tests/test_heartbeat_cadence.py": {
       "sha256": "44a0576e1892be61a012dac37741a4be077cbe2296a9f8c7a1447d1187e07ea3",
@@ -3178,8 +3221,8 @@
       "bytes": 13753
     },
     "tools/tests/test_repository_topology.py": {
-      "sha256": "6dee3392c8323dfe82f73820bda0448754b2517a72f227e1e70a0101f910c7b8",
-      "bytes": 23659
+      "sha256": "94557fbfe40862f2f54f59d20bcb9a83c05050554df3a2b0014a71906047ee48",
+      "bytes": 25721
     },
     "tools/tests/test_runtime_config_content_identity.py": {
       "sha256": "239947508979953e844ba6d1f4b05cca732655c7b66db0b13d0b562a47befd6d",
@@ -3666,8 +3709,8 @@
       "bytes": 16673
     },
     "tools/validate_governance_trace_contract.py": {
-      "sha256": "4e5e88ee0c9401560de24b4a645c2ffb9d59d02f933900283df96ea856f3e8aa",
-      "bytes": 22151
+      "sha256": "acf0469d97b633569f0b78f78f269cc3884d608d14874f71f5798edbd606cf31",
+      "bytes": 1949
     },
     "tools/validate_hardcoded_decision_inventory.py": {
       "sha256": "fe21d5095f6f32e3baf10e33573a702884528a21f5580bcb02ca02e39635d335",
@@ -4035,12 +4078,12 @@
     }
   },
   "publication": {
-    "release_kind": "minor_release",
-    "previous_version": "1.3.1",
-    "release_date": "2026-10-05",
-    "scope": "nexora-sage:v1.4.0:minor-release",
-    "request_sha256": "4c450b1cbcef97718dd6259122285d446aa8cc941247b113eb49c359390b9ebe",
-    "authority_receipt_sha256": "7f68c7e29e4193df233379111501270eeb3ece37fdcd7770c1159785b5c03117",
+    "release_kind": "patch_release",
+    "previous_version": "1.4.0",
+    "release_date": "2026-10-06",
+    "scope": "nexora-sage:v1.4.1:patch-release",
+    "request_sha256": "24d71e7a5466b20c3feb657197527255c9bb3987d2aa03700cc6b261d6d36dcf",
+    "authority_receipt_sha256": "8d117d961360450033f6dd0a7ea5aa79a00c1a6c479ed6ea72a0af60b854776a",
     "public_notice_identity": "Nexora SAGE Project",
     "license_boundary": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
     "public_git_release_authorized": true,

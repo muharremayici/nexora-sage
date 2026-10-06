@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nexora SAGE — Architecture before action</title>
+  <meta name="description" content="Local-first architecture context and evidence-backed analysis for React/TypeScript repositories and AI coding agents, with MCP tools.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Nexora SAGE — Architecture before action">
+  <meta property="og:description" content="Architecture Atlas, React analysis, State Flow and focused MCP context for AI-assisted repository work.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23121c25'/%3E%3Cpath d='M23 8H10v8h12v8H9' fill='none' stroke='%23b7ee74' stroke-width='4'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: light; --ink:#15232a; --muted:#52616a; --paper:#f4f6f4; --line:#ccd6d0; --dark:#12241f; --lime:#c1f08b; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:2rem; }
+    body { margin:0; font:1.0625rem/1.65 system-ui,sans-serif; color:var(--ink); background:var(--paper); overflow-wrap:anywhere; }
+    a { color:inherit; text-underline-offset:.22em; }
+    a:hover { text-decoration-thickness:.14em; }
+    a:focus-visible, summary:focus-visible { outline:3px solid #2876b0; outline-offset:5px; }
+    .skip { position:absolute; left:1rem; top:-6rem; background:white; padding:.6rem 1rem; z-index:2; }
+    .skip:focus { top:.5rem; }
+    .wrap { width:min(76rem,calc(100% - 3rem)); margin-inline:auto; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:1.5rem; padding-block:1.4rem; border-bottom:1px solid var(--line); }
+    .brand { text-decoration:none; font-weight:850; letter-spacing:-.045em; font-size:1.65rem; }
+    .brand small { font-size:.875rem; font-weight:600; letter-spacing:.13em; margin-right:.6rem; }
+    nav { display:flex; flex-wrap:wrap; gap:1.5rem; font-size:.9375rem; }
+    nav a { text-decoration:none; }
+    .hero { display:grid; grid-template-columns:1.1fr 1fr; gap:3.2rem; align-items:center; padding-block:5rem; }
+    .hero > *, .grid > *, .cases > * { min-width:0; }
+    .eyebrow { font:600 .875rem/1.5 ui-monospace,monospace; letter-spacing:.07em; text-transform:uppercase; }
+    h1 { font-size:clamp(2.6rem,5.5vw,4.8rem); line-height:1.02; letter-spacing:-.055em; font-weight:820; margin:1.2rem 0 1.6rem; overflow-wrap:anywhere; }
+    .intro { max-width:42ch; color:var(--muted); font-size:1.2rem; }
+    .actions { display:flex; gap:.8rem; flex-wrap:wrap; margin-top:2rem; }
+    .button { display:inline-block; padding:.85rem 1.1rem; background:var(--ink); color:white; border:1px solid var(--ink); border-radius:.25rem; text-decoration:none; font-weight:650; overflow-wrap:anywhere; }
+    .button.secondary { background:transparent; color:var(--ink); }
+    .note { font-size:.9375rem; color:var(--muted); }
+    .map { background:var(--dark); color:#f2f6f3; border-radius:.65rem; padding:1.7rem; box-shadow:0 1.2rem 2rem #14202a14; }
+    .map .eyebrow { color:var(--lime); }
+    .map h2 { font-size:1.5rem; line-height:1.3; margin:.7rem 0 1.4rem; letter-spacing:-.025em; }
+    .map-source, .map-atlas, .map-packet { border:1px solid #546b5e; padding:.85rem 1rem; border-radius:.3rem; }
+    .map-source { font-size:.9375rem; color:#cedbd2; }
+    .map-atlas { margin-top:1rem; background:#c1f08b; color:#13271d; }
+    .map-atlas strong { display:block; font-size:1.6rem; line-height:1.3; }
+    .map-atlas span, .map-packet span { display:block; font-size:.9375rem; }
+    .map-lanes { list-style:none; margin:0; padding:.2rem 0 .5rem 1.05rem; }
+    .map-lanes li { border-left:1px solid #799d7d; padding:.55rem .8rem; margin-left:.3rem; font-size:.9375rem; }
+    .map-packet strong { color:var(--lime); }
+    .map-caption { color:#c2d2c7; font-size:.875rem; margin:1rem 0 0; }
+    .strip { display:flex; flex-wrap:wrap; gap:.75rem 2rem; padding:1rem 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); font:600 .875rem/1.5 ui-monospace,monospace; color:var(--muted); }
+    section { padding-block:4rem; }
+    section + section { border-top:1px solid var(--line); }
+    section h2 { margin:.5rem 0 1rem; font-size:clamp(1.9rem,3.1vw,2.8rem); line-height:1.2; letter-spacing:-.04em; overflow-wrap:anywhere; }
+    .section-intro { color:var(--muted); max-width:68ch; margin:0 0 2.2rem; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
+    .capability { border:1px solid var(--line); background:#fbfcfa; padding:1.45rem; border-radius:.3rem; }
+    .capability .number { font:600 .875rem ui-monospace,monospace; color:#49674e; }
+    h3 { font-size:1.25rem; line-height:1.35; margin:.7rem 0; letter-spacing:-.02em; }
+    .capability p { margin:0 0 1rem; color:var(--muted); }
+    .capability a { font-size:.9375rem; }
+    .agent { display:grid; grid-template-columns:1fr 1.1fr; gap:3rem; }
+    .steps { list-style:none; counter-reset:flow; padding:0; margin:0; }
+    .steps li { counter-increment:flow; position:relative; padding:.9rem 0 .9rem 2.8rem; border-bottom:1px solid var(--line); }
+    .steps li::before { content:"0" counter(flow); position:absolute; left:0; color:#49674e; font:600 .875rem/1.65 ui-monospace,monospace; }
+    .steps strong { display:block; }
+    .steps span { color:var(--muted); }
+    .cases { display:grid; grid-template-columns:1.1fr 1fr; gap:1rem; }
+    .case { padding:1.6rem; border:1px solid var(--line); background:#fbfcfa; border-radius:.3rem; }
+    .case-lead { grid-column:1 / -1; }
+    .case p { color:var(--muted); }
+    .case .eyebrow { color:#49674e; }
+    code { font-family:ui-monospace,monospace; overflow-wrap:anywhere; }
+    details { margin-top:1.2rem; padding-top:1rem; border-top:1px solid var(--line); font-size:.9375rem; }
+    summary { cursor:pointer; font-weight:600; }
+    details p { margin:.8rem 0; }
+    .start { display:flex; justify-content:space-between; align-items:center; gap:2rem; }
+    .start p { color:var(--muted); max-width:57ch; }
+    footer { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding-block:2rem; border-top:1px solid var(--line); font-size:.9375rem; color:var(--muted); }
+    footer a { margin-left:1rem; }
+    @media(max-width:60rem) { .hero,.agent { grid-template-columns:minmax(0,1fr); gap:2rem; } .hero { padding-block:3rem; } .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:42rem) { .wrap { width:calc(100% - 2rem); } header { align-items:flex-start; flex-direction:column; } nav { gap:1rem; } .grid,.cases { grid-template-columns:minmax(0,1fr); } section { padding-block:2.8rem; } .start { align-items:flex-start; flex-direction:column; } footer a { margin-left:0; margin-right:1rem; } .map,.capability,.case { padding:1.2rem; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="#main"><small>NEXORA</small>SAGE</a>
+      <nav aria-label="Main navigation">
+        <a href="#use">What it does</a><a href="#agents">For agents</a><a href="#evidence">Examples</a>
+        <a href="https://github.com/muharremayici/nexora-sage">GitHub</a>
+      </nav>
+    </header>
+    <main id="main">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">React / TypeScript · Local-first · MCP</div>
+          <h1>Architecture<br>before action.</h1>
+          <p class="intro">Understand a repository, investigate React risks, compare code and review a component before bringing it into your project. SAGE turns that evidence into focused context for developers and AI coding agents.</p>
+          <div class="actions">
+            <a class="button" href="../QUICKSTART.md">Start with the Quickstart</a>
+            <a class="button secondary" href="https://github.com/muharremayici/nexora-sage/releases/latest">Get the latest source</a>
+          </div>
+          <p class="note">Local analysis. CLI and MCP. No hosted code upload required.</p>
+        </div>
+        <aside class="map" aria-labelledby="map-title">
+          <div class="eyebrow">Workflow overview · Not a live result</div>
+          <h2 id="map-title">Repository context, connected.</h2>
+          <div class="map-source">Source · project structure · declared configuration</div>
+          <div class="map-atlas"><strong>Atlas + Genome</strong><span>Indexed structure, symbol fingerprints and source evidence</span></div>
+          <ul class="map-lanes">
+            <li>Oracle → blueprint and policy context</li>
+            <li>React analysis → contracts and evidence levels</li>
+            <li>State Flow → static state/data relationships</li>
+            <li>Merge Intelligence → adoption risks and review plans</li>
+          </ul>
+          <div class="map-packet"><strong>ContextOS + MCP</strong><span>Focused context, impact and upstream traces for human-reviewed work</span></div>
+          <p class="map-caption">A simplified architecture view, not a promise that every repository activates every analysis. Scope and supported surfaces remain explicit.</p>
+        </aside>
+      </div>
+      <div class="strip" aria-label="Product surfaces"><span>ATLAS / GENOME</span><span>MERGE INTELLIGENCE</span><span>REACT + STATE FLOW</span><span>CONTEXTOS / MCP</span><span>PROGRESSIVE HITL</span></div>
+      <section id="use" aria-labelledby="use-title">
+        <div class="eyebrow">More than a dependency graph</div>
+        <h2 id="use-title">See structure. Follow behavior.<br>Review the rules that apply.</h2>
+        <p class="section-intro">Existing analysis and governance surfaces work from repository evidence. Their results help you choose where to inspect and what to verify before a change.</p>
+        <div class="grid">
+          <article class="capability"><span class="number">MERGE INTELLIGENCE</span><h3>Review what comes with the code</h3><p>Build bounded dependency packages, inspect missing files and target conflicts, and review static adoption recommendations in a decision cockpit. AI task packs carry verification and rollback requirements.</p><a href="#merge">Explore component adoption review</a></article>
+          <article class="capability"><span class="number">GENOME + COMPARISON</span><h3>Compare structure, not just filenames</h3><p>Use symbol DNA and structural fingerprints for clone discovery, variation comparison and nanometric structural diff. Similar structure is review evidence, not proof of identical behavior.</p><a href="../ARCHITECTURE.md">Explore the structural model</a></article>
+          <article class="capability"><span class="number">01 / ATLAS</span><h3>Architecture and source context</h3><p>Map projects, symbols, imports and routes. Inspect indexed source context and dependency relationships through the same architecture model.</p><a href="../ARCHITECTURE.md">Explore the architecture</a></article>
+          <article class="capability"><span class="number">02 / ORACLE + POLICY</span><h3>Blueprints without blind enforcement</h3><p>Post-Atlas Oracle proposes an architectural blueprint. Applicable policy and HITL govern enforcement; a guessed folder name is not enough.</p><a href="../POST_ATLAS_ARCHITECTURE_ORACLE.md">How Oracle works</a></article>
+          <article class="capability"><span class="number">03 / REACT</span><h3>Contracts beyond syntax</h3><p>Inspect React Compiler readiness, hook and render-risk signals, and Next.js server/client boundaries. Static findings keep their confidence and runtime-proof needs.</p><a href="../CLAIMS_EVIDENCE_MATRIX.md">React capability evidence</a></article>
+          <article class="capability"><span class="number">04 / STATE FLOW</span><h3>Follow state and data relationships</h3><p>Review static state/data flow in a project or focus the query on a file or symbol. Recorded transitions are evidence to inspect, not executed runtime behavior.</p><a href="../AI_AGENT_HITL_RUNBOOK.md">Agent inspection workflow</a></article>
+          <article class="capability"><span class="number">05 / CONTEXTOS + MCP</span><h3>Give an agent a focused starting point</h3><p>Request scoped context, change signals, dependency impact, static test-impact candidates and upstream cause traces instead of an undifferentiated code dump.</p><a href="../EXTERNAL_TARGET_RUNBOOK.md">Connect a target-safe agent</a></article>
+          <article class="capability"><span class="number">06 / EVIDENCE + HITL</span><h3>Keep findings separate from permission</h3><p>Review architecture drift, circular dependencies and unreferenced-code candidates with their evidence. A finding does not authorize deletion, a patch or a merge.</p><a href="../EVIDENCE.md">Read the evidence model</a></article>
+          <article class="capability"><span class="number">WATCHDOG + FRESHNESS</span><h3>Follow a change without hiding stale evidence</h3><p>Watchdog refreshes bounded changed-source evidence and exposes active signals. Test-impact candidates, deferred proof and source drift stay explicit rather than becoming a false all-clear.</p><a href="../CONTEXTOS.md">Follow the live focus loop</a></article>
+        </div>
+      </section>
+      <section id="merge" class="agent" aria-labelledby="merge-title">
+        <div>
+          <div class="eyebrow">Merge and variation intelligence</div>
+          <h2 id="merge-title">A component brings<br>more than its source file.</h2>
+          <p class="section-intro">Before adopting code from a declared variation or companion, review its dependency closure and target fit. SAGE's Merge layer assembles static evidence and an actionable review plan; it does not blindly copy code or resolve Git conflicts.</p>
+          <a href="../CLAIMS_EVIDENCE_MATRIX.md">Check Merge evidence and scope</a>
+        </div>
+        <ol class="steps">
+          <li><strong>Package the dependency surface.</strong><span>Identify required files, unresolved internal paths and external packages within the declared closure bound.</span></li>
+          <li><strong>Inspect integration requirements.</strong><span>Review target conflicts and available provider, router, i18n and browser-API harness needs.</span></li>
+          <li><strong>Review the recommendation and its reasons.</strong><span>The cockpit distinguishes Import Now, Import With Review and Do Not Import Yet. Missing compiler or runtime evidence remains missing.</span></li>
+          <li><strong>Carry a verification and rollback plan.</strong><span>Generated task packs support human-reviewed adoption; a recommendation is not mutation approval or proven runtime compatibility.</span></li>
+        </ol>
+      </section>
+      <section id="agents" class="agent" aria-labelledby="agent-title">
+        <div>
+          <div class="eyebrow">For AI-assisted engineering</div>
+          <h2 id="agent-title">Context is useful.<br>Unbounded authority is not.</h2>
+          <p class="section-intro">SAGE is not another coding agent. It supplies repository context and static evidence to the developer or agent already doing the work.</p>
+          <a href="../AI_AGENT_HITL_RUNBOOK.md">Read the progressive HITL runbook</a>
+        </div>
+        <ol class="steps">
+          <li><strong>Name the target.</strong><span>Keep the repository, selected projects and acquired evidence explicit.</span></li>
+          <li><strong>Focus the investigation.</strong><span>Inspect a file or symbol, follow state/dependencies and ask which rules apply.</span></li>
+          <li><strong>Review the change context.</strong><span>Use existing impact, test-impact and upstream-trace tools. Missing evidence stays visible.</span></li>
+          <li><strong>Verify before action.</strong><span>Static candidates are not executed tests. Follow applicable human approval and native verification requirements.</span></li>
+        </ol>
+      </section>
+      <section id="evidence" aria-labelledby="evidence-title">
+        <div class="eyebrow">Reproducible, bounded examples</div>
+        <h2 id="evidence-title">Check the source behind the result.</h2>
+        <p class="section-intro">Start with a real refactoring decision, then inspect the source and the evidence behind it. These cases demonstrate selected capabilities, not a repository-wide score.</p>
+        <div class="cases">
+          <article class="case case-lead">
+            <div class="eyebrow">Clone discovery + source context + focused state orientation</div>
+            <h3>Share the profile code. Preserve the behavior contract.</h3>
+            <p>In Bulletproof React's Next Pages and React/Vite applications, SAGE grouped matching profile components, mutation hooks and input schemas. Symbol search and source-bound inspection located the consumer; focused State Flow orientation exposed the hook's recorded references and unresolved calls.</p>
+            <p>Source review turns those candidates into a concrete checklist: retain user-data refresh, caller success feedback and pending/completion bindings. Auth and API integration still differ. This supports a sharing decision; it does not approve a merge.</p>
+            <a href="../case-studies/CORPUS_DEVELOPER_DECISION_SHOWCASE.md">Explore the profile-sharing decision</a>
+            <details><summary>Run scope and verification</summary><p>This SAGE v1.4.0 case uses two actually indexed applications from a frozen checkout. The configured MAIN application was not acquired; the run's quality gate was FAIL. Those results remain in the full case, not a target-defect verdict. No target tests or components were executed. Merge had zero candidates, and static orientation did not resolve the complete state chain.</p><a href="../case-studies/corpus_developer_decision_showcase_evidence.json">Inspect the selected evidence and limits</a></details>
+          </article>
+          <article class="case">
+            <div class="eyebrow">Dependency + symbol orientation</div>
+            <h3>Before changing a store, find its consumers.</h3>
+            <p>On a frozen Zustand checkout, SAGE located <code>createStore</code> in <code>src/vanilla.ts</code> and returned <code>src/index.ts</code>, <code>src/react.ts</code> and <code>src/traditional.ts</code> as dependents. Each was checked against the source.</p>
+            <a href="../case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md">Follow the actual demo</a>
+            <details><summary>What this example proves — and does not</summary><p>This SAGE v1.4.0 example demonstrates dependency and symbol orientation in the selected source scope. The full case retains unsuccessful checks and missing test coverage. No target tests or components were executed, and an empty candidate list does not prove no tests exist.</p><a href="../case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md">Read the scope, checks and unresolved results</a></details>
+          </article>
+          <article class="case">
+            <div class="eyebrow">Architecture + policy calibration</div>
+            <h3>A dynamic route is not a domain layer.</h3>
+            <p>The preserved Dub example separates a Next.js <code>[domain]</code> route from a DDD layer. Current static controls check generalized layer matching and policy applicability before recommending a refactor.</p>
+            <a href="../case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md">Read the source-checked case</a>
+            <details><summary>Historical evidence, current controls</summary><p>The case distinguishes the old v1.0.4 finding from current v1.4.0 static checks. It is not a fresh full Dub scan, a clean-repository verdict or a precision measurement.</p><a href="../case-studies/NEXT_DYNAMIC_ROUTE_DEMO.md">Reproduce the static controls</a></details>
+          </article>
+        </div>
+        <p class="note">For the wider product boundary, see the <a href="../CLAIMS_EVIDENCE_MATRIX.md">claims/evidence matrix</a>. Runtime-only behavior, equal-depth polyglot analysis and full SAST replacement are not current claims.</p>
+      </section>
+      <section id="start" class="start" aria-labelledby="start-title">
+        <div><div class="eyebrow">Try it on your repository</div><h2 id="start-title">Start with an explicit target.</h2><p>Acquire the public source and inspect prerequisites. The Quickstart explains local setup, analysis scope, outputs and connecting an agent.</p></div>
+        <a class="button" href="../QUICKSTART.md">Open the Quickstart</a>
+      </section>
+    </main>
+    <footer>
+      <span>Nexora SAGE · Source-available · PolyForm Noncommercial / Free Trial</span>
+      <div><a href="https://github.com/muharremayici/nexora-sage/blob/main/LICENSE">License</a><a href="https://github.com/muharremayici/nexora-sage/blob/main/NOTICE.md">Product notice</a><a href="https://github.com/muharremayici/nexora-sage">Repository</a></div>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+{
+  "kind": "sage_public_case_study_evidence_projection",
+  "version": "v1",
+  "review_date": "2026-10-05",
+  "authority": "editorial_static_evidence_only_not_runtime_policy_or_release_authority",
+  "case": "next_dynamic_route_is_not_ddd_domain",
+  "target": {
+    "repository": "https://github.com/dubinc/dub",
+    "commit": "c3b5d4975e47982149469797b268a39322230af6",
+    "tree": "37288d938b92f3ad4d2c4d6d842734d8dc2888a9",
+    "project": "WEB",
+    "sample": "apps/web/app/[domain]/[key]/inspect/card.tsx",
+    "sample_source_sha256": "5f05e4b0b8a344d19bdc00b906decf30710f62affbb46bf632d3d20fcd9522ac",
+    "source_reference": "https://github.com/dubinc/dub/blob/c3b5d4975e47982149469797b268a39322230af6/apps/web/app/%5Bdomain%5D/%5Bkey%5D/inspect/card.tsx",
+    "identity_method": "Preserved Git freeze corroborated by local checkout HEAD and selected file bytes; web retrieval of the pinned blob was unavailable during review."
+  },
+  "historical_observation": {
+    "sage_version": "1.0.4",
+    "run_label": "v104-dub-current-001",
+    "audit_report_sha256": "5122b2333b155cb8b26dc23fb73f2e8802b9f2247ff259f804723a6aa5a0dbfc",
+    "architecture_oracle_sha256": "767ff3ff5b732ad7d0f2250a0ee0a4f24a9a5ea48e2c32887ee4fff6be300cdb",
+    "sample_rule": "domain_ui_leaks",
+    "observed_project_profile": "NEXTJS_APP_ROUTER",
+    "candidate_counts": {
+      "domain_ui_leaks": 131,
+      "hexagonal_layer_violation": 79,
+      "combined": 210,
+      "candidate_rows_with_dynamic_domain_segment": 53,
+      "unique_files_with_dynamic_domain_segment": 18
+    },
+    "adjudication": "The selected route-name-derived DDD conclusion is unsupported by its source context; aggregate counts are not manually adjudicated false positives."
+  },
+  "historical_acceptance": {
+    "sage_target_version": "1.0.5",
+    "review_date": "2026-09-09",
+    "mode": "preserved_v104_candidates_bounded_resolver_and_exact_policy_check",
+    "result": "ACCEPTED_BOUNDED",
+    "not_a_fresh_end_to_end_pipeline": true
+  },
+  "executed_static_demo": {
+    "sage_release_baseline": "1.4.0",
+    "execution_surface": "released_public_candidate_checkout",
+    "helper": "tools.core.layer_resolver.resolve_layer",
+    "helper_source_sha256": "700f24353777172820c33c84362ce8b66989508440526a656867e347b2359594",
+    "outputs": [
+      {
+        "path": "app/[domain]/[key]/inspect/card.tsx",
+        "layer": "unknown",
+        "input_kind": "preserved_corpus_path"
+      },
+      {
+        "path": "src/domain/model.ts",
+        "layer": "domain/logic",
+        "input_kind": "synthetic_control"
+      }
+    ],
+    "test_class": "tools.tests.test_engine_contracts.AuditRuleProfileContractTests",
+    "executed_tests": [
+      "test_layer_resolution_matches_segments_not_dynamic_route_tokens",
+      "test_effective_policy_requires_exact_active_project_before_architecture_rules",
+      "test_project_policy_filter_does_not_cross_promote_architecture_findings"
+    ],
+    "result": "OK",
+    "tests": 3,
+    "real_target_approval_or_execution": false
+  },
+  "limitations": [
+    "No fresh Dub pipeline, target-native lint or target tests",
+    "No runtime or application correctness proof",
+    "No aggregate precision, recall, speed or token-savings measurement",
+    "No endorsement or current upstream verdict",
+    "Historical raw run exports are not distributed; this projection alone does not reproduce the original full analysis",
+    "No third-party source redistribution, mutation, release or publication authority"
+  ]
+}

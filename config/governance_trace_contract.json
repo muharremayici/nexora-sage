@@ -359,6 +359,29 @@
       "explicit_not_applicable_closure_status": "not_applicable",
       "unknown_release_mode_behavior": "block"
     },
+    "published_package_activation": {
+      "version": "v1",
+      "accepted_release_modes": [
+        "active_product_release",
+        "active_release_closure"
+      ],
+      "reference_field": "published_completion_reference",
+      "publication_registry": "config/sage_work_item_registry.json",
+      "required_current_evidence_groups": [
+        "targeted_validators_pass",
+        "semantic_git_diff_review_completed"
+      ],
+      "accounting_paths": [
+        "config/sage_active_work_package.json",
+        "config/sage_work_item_registry.json",
+        "config/sage_execution_wave_registry.json"
+      ],
+      "ready_status": "PUBLISHED_PACKAGE_ACTIVATION_READY",
+      "blocked_status": "BLOCKED",
+      "historical_evidence_rule": "content_bound_completion_matches_reconciled_publication",
+      "changed_file_scope": "accounting_or_exact_successor_or_verified_unchanged_inherited",
+      "claim_boundary": "Only the existing atomic close-and-activate writer may consume this gate. Historical publication proves the old delivery only; current source-bound bootstrap, live validation and exact successor remain required. Successor changes stay pending and are not certified as shipped. This gate cannot synchronize a mirror, issue a seal, select a release, push Git or publish."
+    },
     "closed_package_activation": {
       "version": "v1",
       "accepted_package_statuses": [

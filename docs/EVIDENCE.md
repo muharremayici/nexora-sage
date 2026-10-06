@@ -34,6 +34,10 @@ This claim is deliberately narrower than:
 
 ## Machine-Readable Proof Artifacts
 
+For direct user value, read [Before changing a store, find its consumers](case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md), its [actual bounded demo](case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md) and [evidence projection](case-studies/zustand_change_impact_evidence.json). This current-version analysis demonstrates dependency/symbol orientation, not a clean repository or complete test selection.
+
+For secondary calibration evidence, read [A dynamic route is not a domain layer](case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md), its [static contract demo](case-studies/NEXT_DYNAMIC_ROUTE_DEMO.md) and [evidence projection](case-studies/next_dynamic_route_evidence.json). Historical observations and current checks remain distinct; neither case is a precision measurement.
+
 The most important generated artifacts are:
 
 | Artifact                                                | Purpose                                   |
