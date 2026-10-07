@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,12 +10,127 @@ from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.audit_finding_generation import finding_scope_sha256
 from tools.core.contextos_mcp import build_surgical_operation_packet, render_surgical_operation_brief
 from tools.core.contextos_signal_limits import contextos_signal_limit
+from tools.core import capability_activation
 from tools.core.surgical_packet_inputs import evaluate_surgical_packet_inputs
 from tools.engines import clone_detector, live_surface_analyzer
 from tools.mcp import server
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+def _activation_plan(project: str) -> dict:
+    return {
+        "meta": {"kind": "capability_activation_plan"},
+        "summary": {"status": "PASS", "projects": 1},
+        "projects": [{"project": project, "enabled_capabilities": []}],
+    }
+
+
+def test_target_activation_context_never_regenerates_or_reads_installation_plan(tmp_path: Path) -> None:
+    installation = tmp_path / "installation"
+    installation.mkdir()
+    (installation / "capability_activation_plan.json").write_text(
+        json.dumps(_activation_plan("PRIVATE_MAIN")), encoding="utf-8",
+    )
+    target = tmp_path / "target" / ".raw"
+    target.mkdir(parents=True)
+    with (
+        patch.object(capability_activation, "RAW_DIR", installation),
+        patch.object(capability_activation, "build_capability_activation_plan", side_effect=AssertionError("private planner called")),
+    ):
+        result = capability_activation.load_capability_activation_plan(raw_dir=target)
+    assert result["summary"]["status"] == "UNAVAILABLE"
+    assert result["projects"] == []
+    assert result["input_evidence"]["regenerated"] is False
+    assert result["input_evidence"]["source_artifact"] == str(target / "capability_activation_plan.json")
+    assert list(target.iterdir()) == []
+
+
+def test_target_activation_context_isolated_across_targets_and_not_freshness_proof(tmp_path: Path) -> None:
+    for project in ("TARGET_A", "TARGET_B"):
+        raw = tmp_path / project / ".raw"
+        raw.mkdir(parents=True)
+        (raw / "capability_activation_plan.json").write_text(
+            json.dumps(_activation_plan(project)), encoding="utf-8",
+        )
+        result = capability_activation.load_capability_activation_plan(raw_dir=raw)
+        context = capability_activation.relevant_activation_context(result)
+        assert [row["project"] for row in context["projects"]] == [project]
+        assert context["input_evidence"]["status"] == "UNVERIFIED"
+        assert context["input_evidence"]["decision_use"] == "orientation_only"
+        assert context["input_evidence"]["snapshot_binding"] == "not_verified"
+
+
+def test_target_activation_context_omits_corrupt_and_wrong_kind_plans(tmp_path: Path) -> None:
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    path = raw / "capability_activation_plan.json"
+    for content in ("{broken", "null", "[]", '{"meta": null}', '{"meta":{"kind":"other"}}',
+                    '{"meta":{"kind":"capability_activation_plan"},"summary":null,"projects":[]}',
+                    '{"meta":{"kind":"capability_activation_plan"},"summary":{"enabled_capability_ids":1},"projects":[]}',
+                    '{"meta":{"kind":"capability_activation_plan"},"summary":{},"projects":[null]}',
+                    '{"meta":{"kind":"capability_activation_plan"},"summary":{},"projects":[{"enabled_capabilities":1}]}'):
+        path.write_text(content, encoding="utf-8")
+        result = capability_activation.load_capability_activation_plan(raw_dir=raw)
+        assert result["summary"]["status"] == "UNAVAILABLE"
+        assert result["projects"] == []
+
+
+def test_target_activation_context_reads_sqlite_primary_not_conflicting_shadow(tmp_path: Path) -> None:
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    with sqlite3.connect(raw / "codemaps.db") as db:
+        db.execute("CREATE TABLE state_payloads (name TEXT PRIMARY KEY, payload TEXT, payload_sha TEXT)")
+        db.execute("INSERT INTO state_payloads VALUES (?, ?, ?)", (
+            "capability_activation_plan", json.dumps(_activation_plan("PRIMARY")), None,
+        ))
+    (raw / "capability_activation_plan.json").write_text(
+        json.dumps(_activation_plan("STALE_SHADOW")), encoding="utf-8",
+    )
+    result = capability_activation.load_capability_activation_plan(raw_dir=raw)
+    assert result["projects"][0]["project"] == "PRIMARY"
+
+
+def test_target_activation_regeneration_rejected_but_private_operator_retained(tmp_path: Path) -> None:
+    with patch.object(capability_activation, "build_capability_activation_plan", return_value=_activation_plan("OPERATOR")) as planner:
+        try:
+            capability_activation.load_capability_activation_plan(raw_dir=tmp_path, regenerate=True)
+        except ValueError as exc:
+            assert "read-only" in str(exc)
+        else:
+            raise AssertionError("Target consumer regenerated a private plan")
+        planner.assert_not_called()
+        assert capability_activation.load_capability_activation_plan(regenerate=True)["projects"][0]["project"] == "OPERATOR"
+        planner.assert_called_once_with()
+
+
+def test_documented_first_call_without_activation_plan_keeps_real_packet_builder(tmp_path: Path) -> None:
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    atlas, commit = _atlas(tmp_path)
+    signals = {"active_signals": []}
+    _write(raw, "signals", "tools.engines.quant_engine", signals, atlas, commit)
+    (raw / "signals.json").write_text(json.dumps(signals), encoding="utf-8")
+    (raw / "atlas_commit.json").write_text(json.dumps(commit), encoding="utf-8")
+    with (
+        patch.object(server, "_raw_dir_for_target", return_value=raw),
+        patch.object(server, "_ensure_agent_artifact_chain_current", return_value={
+            "status": "PASS",
+            "checks": [
+                {"name": "artifact_present:atlas", "passed": True, "severity": "error"},
+                {"name": "sqlite_primary:atlas", "passed": True, "severity": "warning"},
+            ],
+        }),
+        patch.object(server, "_enrich_surgical_packet_with_sqlite_impact", side_effect=lambda _raw, result, **_kwargs: result),
+        patch.object(server, "_record_mcp_call_result", side_effect=lambda _name, _started, result, **_kwargs: result),
+        patch.object(capability_activation, "build_capability_activation_plan", side_effect=AssertionError("Private roadmap path reached")),
+    ):
+        packet = json.loads(server.get_surgical_operation_packet(target_root=str(tmp_path), format="json"))
+    assert "error" not in packet
+    assert packet["status"] == "INCOMPLETE_EVIDENCE", packet
+    assert packet["capability_activation"]["summary"]["status"] == "UNAVAILABLE"
+    assert packet["capability_activation"]["input_evidence"]["regenerated"] is False
+    assert not (raw / "capability_activation_plan.json").exists()
 
 
 def test_surgical_packet_filters_companion_signals_before_focus_projection(tmp_path: Path) -> None:

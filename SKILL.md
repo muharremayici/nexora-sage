@@ -38,6 +38,10 @@ the target-repository role and does not redefine authority or validation semanti
   private self-release and debug/provenance tools are not part of this profile.
 - Treat missing or empty ContextOS active signals as an idle/fail-closed state,
   not as proof that the analyzed repository has no risk.
+- Capability activation context is a read-only view of the selected target's
+  artifacts. Missing or invalid plans are explicitly unavailable; plan presence
+  alone does not prove snapshot freshness, enable rules or authorize mutation.
+  Do not substitute installation-wide context or private development planning.
 - Treat active signals as current-turn scope only when the response declares
   `current_change_scope=bounded` and `current_turn_claim=supported`. Broad or
   persisted signals with unknown scope are orientation; confirm the current

@@ -873,7 +873,7 @@ def build_surgical_operation_packet(
         for signal in visible:
             upstream_traces.append(build_upstream_trace(signal.get("node_key", ""), circular_deps_data, signals_data))
     registry = load_capability_registry()
-    activation_plan = load_capability_activation_plan()
+    activation_plan = load_capability_activation_plan(raw_dir=packet_raw_dir)
     execution_contract = load_json_file(packet_raw_dir / "pipeline_execution_contract_validation.json", {})
     execution_summary = execution_contract.get("summary", {}) if isinstance(execution_contract, dict) else {}
     execution_modes = execution_contract.get("execution_modes", {}) if isinstance(execution_contract, dict) else {}
@@ -980,7 +980,7 @@ def build_surgical_operation_packet(
         "recommended_next_steps": [
             "Read relevant_capabilities before deciding which artifacts or validators to trust.",
             "Read architecture_governance_context before interpreting architecture rules or claiming a human seal.",
-            "Read capability_activation before deciding which capability family should guide this AI turn.",
+            "Capability activation context is orientation only; unavailable or unverified context cannot enable rules or authorize mutation.",
             "Read pipeline_execution_contract before changing scheduling or running release-style validations in parallel.",
             "Read engine_signal_contract before treating focus signals as verdicts or action plans.",
             "Read reasoning_breadcrumbs for every L1 focus file.",
