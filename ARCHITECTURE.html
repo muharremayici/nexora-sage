@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexora SAGE Architecture — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/ARCHITECTURE.md">View source document</a></header>
+<main><h1 id="nexora-sage-architecture">Nexora SAGE Architecture</h1>
+<p>This document is the current architecture reference for Nexora SAGE.
+It describes the runtime truth model, execution flow, and artifact contracts
+for repository-agnostic React/TypeScript analysis.</p>
+<h2 id="1-product-surface">1. Product Surface</h2>
+<p>Primary operator entrypoint:</p>
+<ul>
+<li><code>python sage.py &lt;command&gt;</code></li>
+</ul>
+<p>Internal implementation:</p>
+<ul>
+<li><code>codemaps.py</code> backs the public CLI but is not a documented user command.</li>
+</ul>
+<p>Top-level command visibility is exhaustive and contract-owned by
+<code>config/cli_command_contract.json</code>. The public package exposes target-repository
+operation plus local state administration; development and maintainer commands
+remain in the private development distribution.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Public</th>
+<th>System scope</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init</code>, <code>install-proof</code>, <code>run</code>, <code>watch</code>, <code>doctor</code>, <code>mcp</code>, <code>purge</code>, <code>external-targets</code></td>
+<td>yes</td>
+<td><code>SAGE_ON_REPOSITORY</code></td>
+<td>Target setup, analysis, live updates, health, AI access and target-output lifecycle</td>
+</tr>
+<tr>
+<td><code>show-config</code>, <code>backup</code>, <code>restore</code></td>
+<td>yes</td>
+<td>local administration</td>
+<td>Inspect or preserve the user's local SAGE runtime state; no release or seal authority</td>
+</tr>
+<tr>
+<td><code>target_repository_default</code></td>
+<td>yes</td>
+<td><code>SAGE_ON_REPOSITORY</code></td>
+<td>Narrow primary MCP tool window</td>
+</tr>
+<tr>
+<td><code>target_repository_followup</code></td>
+<td>yes</td>
+<td><code>SAGE_ON_REPOSITORY</code></td>
+<td>Bounded supporting-context and HITL MCP window</td>
+</tr>
+<tr>
+<td>unbound report/ledger CLI compatibility commands</td>
+<td>no</td>
+<td>private development compatibility</td>
+<td>Not yet target-root complete; hidden rather than overclaimed</td>
+</tr>
+<tr>
+<td><code>validate</code>, <code>setup</code>, <code>mapping</code></td>
+<td>no</td>
+<td>private development support</td>
+<td>Product development and legacy configuration surfaces</td>
+</tr>
+<tr>
+<td>release, self-audit, work-package, fixture, truth-sync and CI commands</td>
+<td>no</td>
+<td><code>SAGE_ON_SAGE</code> maintainer governance</td>
+<td>Private product proof, institutional memory and publication control</td>
+</tr>
+<tr>
+<td><code>sage_operator_debug</code> + <code>sage_self</code></td>
+<td>no</td>
+<td><code>SAGE_ON_SAGE</code></td>
+<td>Exact private actor/reality pair for maintainer self-governance</td>
+</tr>
+</tbody>
+</table>
+<h3 id="11-execution-profiles-and-authority">1.1 Execution Profiles And Authority</h3>
+<p>Execution identity has two independent axes:</p>
+<ul>
+<li>subject scope: <code>SAGE_ON_REPOSITORY</code> or private maintainer <code>SAGE_ON_SAGE</code></li>
+<li>acquisition mode: configured <code>DEFAULT_WORKSPACE</code> or isolated <code>EXPLICIT_TARGET</code></li>
+</ul>
+<p>Default-workspace and explicit-target repository analysis use the same canonical
+repository ontology, engines, applicability rules and claim semantics. The
+acquisition mode may change root routing, storage namespace, freshness and
+provenance; it may not change what a finding means.</p>
+<p>The public distribution exposes <code>target_repository_default</code> for narrow primary
+agent work and <code>target_repository_followup</code> for bounded supporting/HITL work.
+It exposes only <code>SAGE_ON_REPOSITORY</code>. Pointing SAGE at its own source tree does
+not grant product-release, lesson, debt, roadmap, seal or publication authority.
+Private <code>SAGE_ON_SAGE</code> operation requires both the explicitly authorized
+<code>sage_operator_debug</code> actor/tool profile and the <code>sage_self</code> reality profile;
+folder names, source markers and installation-root equality are never authority.
+Public users may inspect, modify, fork and test SAGE source as permitted by the
+applicable license, using a target-repository profile. That is source development,
+not inheritance of Nexora SAGE's private lesson/debt registries, roadmap, release
+proof, human seal or publication authority.</p>
+<p>The complete execution and acquisition contract is maintained in
+<code>docs/EXTERNAL_TARGET_RUNBOOK.md</code>.</p>
+<h2 id="2-layered-truth-model">2. Layered Truth Model</h2>
+<p>Nexora SAGE uses four truth layers:</p>
+<ol>
+<li>Declared truth</li>
+</ol>
+<ul>
+<li>Sources: <code>package.json</code>, workspace/bundler config files, tsconfig aliases.</li>
+<li>Generated proposal: <code>config/codemaps.discovery.json</code>.</li>
+</ul>
+<ol start="2">
+<li>Governed truth</li>
+</ol>
+<ul>
+<li>Human policy and overrides: <code>config/codemaps.overrides.json</code>.</li>
+</ul>
+<ol start="3">
+<li>Runtime compiled truth</li>
+</ol>
+<ul>
+<li>Effective runtime contract: <code>config/codemaps.config.json</code>.</li>
+<li>Built by <code>tools/config_compiler.py</code>.</li>
+</ul>
+<ol start="4">
+<li>Structural truth</li>
+</ol>
+<ul>
+<li>AST extraction via <code>tools/engines/ast_sequencer.cjs</code>.</li>
+<li>Combined structural payload: <code>atlas</code>, published first in SQLite <code>output/.raw/codemaps.db</code> when <code>use_sqlite</code> is enabled. Small documents remain inline in <code>state_payloads</code>; larger documents use a bounded manifest plus ordered <code>state_payload_parts</code>. The Atlas document identity and its relational project/file/symbol/dependency/source-snapshot projection commit in one transaction. <code>output/.raw/atlas.json</code> remains a compatibility/debug shadow export.</li>
+</ul>
+<p>Downstream engines should consume Atlas-backed truth, not re-infer structure
+from ad-hoc file heuristics.</p>
+<h2 id="21-artifact-storage-model">2.1 Artifact Storage Model</h2>
+<p>When <code>config/codemaps.config.json</code> enables <code>use_sqlite</code>, all JSON artifacts
+directly under <code>output/.raw/</code> are managed through the transparent artifact
+proxy:</p>
+<ul>
+<li>reads: <code>load_json_file(RAW_DIR / &quot;&lt;artifact&gt;.json&quot;)</code> resolves from SQLite
+<code>state_payloads</code>. If the SQLite row exists, the shadow JSON file is not read
+on the runtime path. Shadow JSON is read only for missing-row recovery or a
+SQLite failure path, and that fallback is honesty-telemetry visible.</li>
+<li>writes: <code>save_json_atomic(RAW_DIR / &quot;&lt;artifact&gt;.json&quot;, payload)</code> writes the
+SQLite payload first, using bounded parts above the governed inline limit,
+then writes a full JSON shadow export for compatibility. Atlas generation also
+checkpoints producer-bound sequencer batches and completed file documents in
+non-canonical staging rows; only a complete document/relational transaction is
+visible as the current Atlas.</li>
+<li>bypass: <code>bypass_proxy=True</code> is reserved for shadow export, backup/restore and
+explicit disk-recovery paths.</li>
+</ul>
+<p>The JSON files are still intentionally present. They are not the primary runtime
+store in SQLite mode; they are human-readable exports, validator compatibility
+surfaces and disaster-recovery material.</p>
+<h2 id="3-core-execution-flow">3. Core Execution Flow</h2>
+<h3 id="31-setup-discovery-and-refresh-routes">3.1 Setup, Discovery And Refresh Routes</h3>
+<p>Preflight, Discovery and post-Atlas Oracle are different evidence phases:</p>
+<ul>
+<li>Preflight establishes target identity, admissibility, bounded inventory,
+topology proposal, capability ceiling and repository-declared policy evidence
+before an explicit target run.</li>
+<li>Discovery converts repository evidence into the declared configuration
+proposal, governance override seed, compiled runtime configuration and
+project-truth projection.</li>
+<li>Architecture Oracle consumes the committed Atlas and may refine an
+architecture proposal. An unsealed Oracle proposal is advisory until the
+applicable HITL and policy contracts authorize downstream enforcement.</li>
+</ul>
+<p>They must not be collapsed into one authority. Expensive observations should
+instead cross phase boundaries through identity-bound receipts so later phases
+reuse the same evidence without silently producing a second topology.</p>
+<p>The current entry routes are:</p>
+<table>
+<thead>
+<tr>
+<th>Entry route</th>
+<th>Configuration/discovery behavior</th>
+<th>Analysis behavior</th>
+<th>Authority boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sage.py init --plan-only --target-root ...</code></td>
+<td>target-aware installation plan and Preflight only</td>
+<td>none</td>
+<td>read-only setup plan; no adoption</td>
+</tr>
+<tr>
+<td><code>sage.py init</code></td>
+<td>dependency check, Discovery, auto-doctrine proposal, governance sync, config compile and project-truth prune</td>
+<td>none by default</td>
+<td>configured-default maintenance/adoption; no freshness claim</td>
+</tr>
+<tr>
+<td><code>sage.py init --full</code></td>
+<td>same configured-default maintenance/adoption chain</td>
+<td>forced <code>release-deep</code> pipeline</td>
+<td>heavyweight truth build, not release proof</td>
+</tr>
+<tr>
+<td>the private refresh command</td>
+<td>reruns the setup refresh chain</td>
+<td>none</td>
+<td>configuration refresh only</td>
+</tr>
+<tr>
+<td><code>sage.py run ...</code></td>
+<td>consumes existing compiled truth; explicit targets first create and transport an immutable Preflight receipt</td>
+<td>selected pipeline profile</td>
+<td>profile-specific claim boundary</td>
+</tr>
+<tr>
+<td><code>sage.py run --refresh ...</code></td>
+<td>does <strong>not</strong> rerun Discovery/governance/config compilation</td>
+<td>invalidates project/Atlas cache for the selected normal profile</td>
+<td>freshness request, not profile escalation</td>
+</tr>
+<tr>
+<td><code>sage.py watch ...</code></td>
+<td>consumes runtime truth</td>
+<td>reuses the canonical orchestrator with a surgical changed-file scope</td>
+<td>save pulse; not repository-wide proof</td>
+</tr>
+<tr>
+<td><code>sage.py doctor</code></td>
+<td>behavior comes from <code>config/cli_command_contract.json</code> validation profiles</td>
+<td>bounded refresh only when the selected profile declares it</td>
+<td>validator result; not release proof</td>
+</tr>
+<tr>
+<td><code>sage.py install-proof</code></td>
+<td>setup-only init for daily/release levels; transports its immutable Preflight receipt across the subprocess boundary and reuses it only after a current target-observation identity match</td>
+<td>daily profile plus installation/surface checks</td>
+<td>machine-local installation proof</td>
+</tr>
+<tr>
+<td><code>sage.py mcp</code></td>
+<td>resolves actor/tool profile and starts one MCP composition root</td>
+<td>heavy target analysis delegates to the public CLI; a current packet from the primary full run satisfies context closure, otherwise one dependency-correct Quality Gates recovery runs</td>
+<td>tool profile never grants subject authority</td>
+</tr>
+<tr>
+<td>the private self-audit command</td>
+<td>private SAGE governance context</td>
+<td>contract-owned release-proof subset</td>
+<td>neither target-repository analysis nor full release proof</td>
+</tr>
+</tbody>
+</table>
+<p>The private interactive <code>setup</code> surface is legacy development support, not the
+canonical public onboarding route. It preserves confirmation, progress,
+subprocess telemetry, timeout and stop-on-failure behavior, but its centrally
+owned plan now references the canonical <code>init_setup_only</code> and <code>run_full</code> CLI
+command identities. It does not own or directly sequence analysis engines.</p>
+<p>The lifecycle distinction is contract-owned rather than inferred from entrypoint
+names. An explicit-target <code>init</code> is <code>configured_default_adoption</code>: it may rewrite
+shared Discovery, governance and compiled project truth. An explicit-target
+<code>run</code> or <code>watch</code> is <code>isolated_target_acquisition</code>: it uses process-local runtime
+truth and does not adopt the target. Installation proof composes the two public
+commands but does not repeat the expensive Preflight observation: the init
+receipt crosses the subprocess boundary, its lightweight target-observation
+identity is rechecked, and the validated payload is rebound into the daily run's
+new atomic external generation. A mismatch fails closed instead of silently
+using stale evidence or performing a second hidden topology discovery.</p>
+<h3 id="32-pipeline-chain">3.2 Pipeline Chain</h3>
+<p><code>sage.py run --full --force</code> calls:</p>
+<ul>
+<li><code>tools/orchestrators/orchestrator.py</code></li>
+</ul>
+<p>Pipeline produces Atlas/Genome/core and derived artifacts under:</p>
+<ul>
+<li><code>output/.raw/</code></li>
+<li><code>output/reports/</code></li>
+<li><code>output/logs/</code></li>
+<li><code>output/.snapshots/</code></li>
+<li><code>output/scripts/</code></li>
+</ul>
+<h3 id="33-validation-chain">3.3 Validation Chain</h3>
+<p>The public validation entrypoint is <code>sage.py doctor --include-validate</code>.
+Quick snapshot validation is the default; <code>--heavy</code> explicitly requests the
+full heavyweight validator chain. The selected contract-owned profile decides
+whether validation-critical artifacts are refreshed and which optional
+ecosystem or stress validators apply. Private development distributions retain
+additional direct validator orchestration, but those commands are not part of
+the public CLI.</p>
+<h2 id="4-main-runtime-components">4. Main Runtime Components</h2>
+<h3 id="41-orchestrators">4.1 Orchestrators</h3>
+<ul>
+<li><code>tools/orchestrators/discovery.py</code></li>
+<li><code>tools/orchestrators/orchestrator.py</code></li>
+<li><code>tools/orchestrators/watchdog.py</code></li>
+</ul>
+<h3 id="42-core-utilities">4.2 Core Utilities</h3>
+<ul>
+<li><code>tools/core/config.py</code> (paths, output contract, runtime config load)</li>
+<li><code>tools/core/bootstrap_env.py</code> (env/bootstrap entry)</li>
+<li><code>tools/core/cache_manager.py</code> (incremental cache and stale detection)</li>
+<li><code>tools/core/projects_registry.py</code> (project identity and aliases)</li>
+<li><code>tools/core/vendor_bootstrap.py</code> (vendor path injection)</li>
+</ul>
+<h3 id="43-engines">4.3 Engines</h3>
+<p>Representative high-signal engines:</p>
+<ul>
+<li><code>generate_atlas.py</code>, <code>nuclear_processor.py</code>, <code>fractal_mapper.py</code></li>
+<li><code>audit.py</code> (Architectural Audit), <code>quality_gate.py</code>, <code>health_score.py</code></li>
+<li><code>state_flow_scanner.py</code>, <code>dead_code_detector.py</code>, <code>blast_radius_engine.py</code></li>
+<li><code>module_risk_matrix.py</code>, <code>decision_evidence.py</code>, <code>ai_context_generator.py</code></li>
+</ul>
+<h2 id="5-artifact-contracts">5. Artifact Contracts</h2>
+<p>Critical contract artifacts:</p>
+<ul>
+<li><code>output/.raw/codemaps.db</code></li>
+<li><code>output/.raw/atlas.json</code> (shadow export of SQLite <code>atlas</code> payload)</li>
+<li><code>output/.raw/genome.json</code> (shadow export of SQLite <code>genome</code> payload)</li>
+<li><code>output/.raw/surgical_discovery.json</code></li>
+<li><code>output/.raw/quality_gate.json</code></li>
+<li><code>output/.raw/react_support_matrix.json</code></li>
+<li><code>output/.raw/health_score.json</code></li>
+</ul>
+<p>Validation and run consumers should treat these as contract sources, then map
+to human-readable reports under <code>output/reports/</code>.</p>
+<h2 id="6-workspace-and-project-semantics">6. Workspace and Project Semantics</h2>
+<p>Nexora SAGE supports single-project and multi-project workspaces.</p>
+<ul>
+<li>MAIN and variations are resolved through compiled runtime config.</li>
+<li>Project-level outputs are preferred to prevent workspace-only ambiguity.</li>
+<li>Aggregate workspace summaries are allowed as secondary views.</li>
+</ul>
+<h2 id="7-performance-model">7. Performance Model</h2>
+<p>Performance relies on:</p>
+<ul>
+<li>cache-aware Atlas incremental behavior</li>
+<li>project stale detection</li>
+<li>selective downstream step execution</li>
+<li>force mode for deterministic full rebuilds</li>
+</ul>
+<p>Release hardening must track run times and regressions via the universal
+checklist performance ledger.</p>
+<h2 id="8-release-hardening-reference">8. Release Hardening Reference</h2>
+<p>Public release boundary and exit evidence:</p>
+<ul>
+<li><code>docs/V1_RELEASE_BOUNDARY.md</code></li>
+<li><code>docs/EVIDENCE.md</code></li>
+<li><code>docs/CLAIMS_EVIDENCE_MATRIX.md</code></li>
+</ul>
+<p>Validation matrix reference:</p>
+<ul>
+<li><code>docs/VALIDATION_MATRIX.md</code></li>
+</ul>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

@@ -1,0 +1,199 @@
+{
+  "kind": "source_adjudicated_editorial_case",
+  "version": "v1",
+  "decision": "Review sharing the profile-update contract between two acquired applications",
+  "status": "BOUNDED_TWO_APPLICATION_EXAMPLE_NOT_RUNTIME_OR_MERGE_PROOF",
+  "analyzer": {
+    "version": "1.4.0",
+    "public_tag_commit": "9aecd7827682bbcc82230c085b1f29c4fc6ae772",
+    "repository": "https://github.com/muharremayici/nexora-sage"
+  },
+  "target": {
+    "repository": "https://github.com/alan2207/bulletproof-react",
+    "commit": "9506629ed003a561c6627735480cce4994244bb4",
+    "license": "MIT",
+    "indexed_files_by_project": {
+      "MAIN": 0,
+      "NEXTJS_PAGES": 149,
+      "REACT_VITE": 143
+    },
+    "selected_projects": [
+      "NEXTJS_PAGES",
+      "REACT_VITE"
+    ],
+    "roots": {
+      "NEXTJS_PAGES": "apps/nextjs-pages",
+      "REACT_VITE": "apps/react-vite"
+    }
+  },
+  "run": {
+    "id": "sage-run-ab527ab7-83fc-4cbe-adff-937be2cb8bc3",
+    "command": "python -B sage.py run --profile deep --projects MAIN,NEXTJS_PAGES,REACT_VITE --ai-context",
+    "completed_steps": 56,
+    "failed_steps": 0,
+    "atlas_snapshot_id": "956c096d85175452fa008437574803285a2b1ea510c2b3e8e4acec8dced29e70",
+    "governance_verdict": "FAIL",
+    "failed_checks": [
+      {
+        "name": "min_proof_obligation_ratio",
+        "actual": 0.9,
+        "expected": 0.95,
+        "enforced": true
+      },
+      {
+        "name": "max_proof_required_failures",
+        "actual": 1,
+        "expected": 0,
+        "enforced": true
+      },
+      {
+        "name": "max_manual_review",
+        "actual": 230,
+        "expected": 82,
+        "enforced": false
+      }
+    ],
+    "target_defect_adjudication": "not_established",
+    "target_runtime_execution": "not_performed",
+    "target_test_execution": "not_performed",
+    "merge_candidates": 0,
+    "nanometric_diff": "not_applicable"
+  },
+  "clone_pairs": [
+    {
+      "cluster_id": 118,
+      "symbol": "updateProfileInputSchema",
+      "file": "src/features/users/api/update-profile.ts",
+      "line_start": 8,
+      "line_end": 13,
+      "normalized_hash": "8283fb295d4720a566f6f50c6999f34afd5ec61e079e3089b7ad3db48ae65bfd"
+    },
+    {
+      "cluster_id": 52,
+      "symbol": "useUpdateProfile",
+      "file": "src/features/users/api/update-profile.ts",
+      "line_start": 25,
+      "line_end": 40,
+      "normalized_hash": "157fe20f13297d9d5a1144c6149b1bd65d4b4fc40f31d4f54345bcb85d5491c5"
+    },
+    {
+      "cluster_id": 3,
+      "symbol": "UpdateProfile",
+      "file": "src/features/users/components/update-profile.tsx",
+      "line_start": 13,
+      "line_end": 91,
+      "normalized_hash": "a0a4816fa727acfbc6b3726a1e2ee8352204f2437d54266affb936a3071396d2"
+    }
+  ],
+  "source_files": [
+    {
+      "file": "apps/nextjs-pages/src/features/users/api/update-profile.ts",
+      "sha256": "dba4c7a5b3d32fd69f513050820e188867df0be0139572e5f7e8e8ccffe4efde"
+    },
+    {
+      "file": "apps/react-vite/src/features/users/api/update-profile.ts",
+      "sha256": "dba4c7a5b3d32fd69f513050820e188867df0be0139572e5f7e8e8ccffe4efde"
+    },
+    {
+      "file": "apps/nextjs-pages/src/features/users/components/update-profile.tsx",
+      "sha256": "5124d3ee7011ef9231ae7661228cdc0ade980db0cb79409bdebe463dc7bcdc41"
+    },
+    {
+      "file": "apps/react-vite/src/features/users/components/update-profile.tsx",
+      "sha256": "5124d3ee7011ef9231ae7661228cdc0ade980db0cb79409bdebe463dc7bcdc41"
+    },
+    {
+      "file": "apps/nextjs-pages/src/lib/auth.tsx",
+      "sha256": "107124ddd00fe37a8fdbe2a6d233d5e0d738a3e777278b33590b8da1f7d9bb57"
+    },
+    {
+      "file": "apps/react-vite/src/lib/auth.tsx",
+      "sha256": "f355726db15fb62e82088537d3aa42e8bbbf729497e9e48b65e8d900cb8cd114"
+    },
+    {
+      "file": "apps/nextjs-pages/src/lib/api-client.ts",
+      "sha256": "512e534c89b9f82be31d6d1dea309c4b08a440727aef54b2cca8899055ac6215"
+    },
+    {
+      "file": "apps/react-vite/src/lib/api-client.ts",
+      "sha256": "78d83b5c9db7a56fb0a6f6d69e902029514dbeabb50e7dca785d4797ea82a103"
+    }
+  ],
+  "focused_outputs": {
+    "symbol_search": {
+      "hook_definitions": 2,
+      "consumer_import_bindings": 2,
+      "source_tree_complete": false
+    },
+    "state_orientation": {
+      "symbol": "useUpdateProfile",
+      "source_binding": "snapshot_and_live_match",
+      "relation": "import_bound_call_syntax_not_execution",
+      "unresolved_callees": [
+        "useUser",
+        "useMutation"
+      ],
+      "upstream_downstream_trace": "unavailable",
+      "state_flow_artifact_join": "not_source_bound",
+      "file_level_mutation_context_is_symbol_proof": false
+    },
+    "component_inspection": {
+      "project": "NEXTJS_PAGES",
+      "file": "src/features/users/components/update-profile.tsx",
+      "source_drift": "match",
+      "shown_range": [
+        13,
+        52
+      ],
+      "omitted_range": [
+        53,
+        91
+      ],
+      "safe_to_edit_from_inspection": false,
+      "authority": "orientation_only"
+    },
+    "test_impact": {
+      "returned_tests": 0,
+      "absence_claim": "not_established"
+    }
+  },
+  "manual_source_confirmation": {
+    "api_and_component_pair": "byte_identical",
+    "hook_success_handler": "calls_user_refetch_then_optional_caller_onSuccess; completion_order_not_verified",
+    "consumer_contracts": [
+      "success_notification",
+      "pending_submit_indicator",
+      "success_drawer_completion",
+      "user_field_defaults",
+      "input_schema"
+    ],
+    "auth": "both_selected_apps_use_configureAuth; platform_route_handling_differs",
+    "api_client": "Next_Pages_has_browser_guard_and_server_cookie_helper_absent_from_Vite_client",
+    "attribution": "manual_source_review_not_resolved_analyzer_callees"
+  },
+  "retained_artifact_sha256": {
+    "atlas_commit.json": "13bf7404d6222322d028a7fdfb985797679125ba1050c4093407ee5ee5b74c30",
+    "clone_detector.json": "3f8d59d0f8cb2bd5b38ce09746502abfe3ecf4f61932433d91e5cf4014ab6f3e",
+    "quality_gate.json": "5a1fae69be637762bc3dfd19cbcd1a030e99012d5b9b248c0c9cc6f88533ff40",
+    "merge_decision_cockpit.json": "473bc55e498fc3c4d36c5c0328a817957e4f7a40f8b5e3fc9543af5f1eca49dc",
+    "nanometric_diff.json": "e3aa646754001a9d08051e25b595b258b34275c820753741fe6ddd1a7c43f85d",
+    "pipeline_run_receipt.json": "5e085e951f2d056e9ee97e2fe52d08af32577bd5d5719a0d9889691927e4f270"
+  },
+  "retained_query_sha256": {
+    "search_update_profile.json": "70ff7e7c713055fa5b7a04f44796b49e568ed54c7ea4727df974f99d7e61d4bf",
+    "state_next_pages.json": "029147560efcdfbe1b3f97eaea61aa37d89df455938d3371e4bc11fc18a709c8",
+    "inspect_profile_consumer.json": "125d90dae201c6e917db6e721e4787e0c77ba53364f25785ffc7f401ac31ea66",
+    "test_impact_profile.json": "d9774cd540350d35be20109bc49663bff65da11fb338cb7de9c30b85ac4e2777"
+  },
+  "reproduction_boundary": "Pinned source permits independent source checks. Hashes identify retained outputs; the full local run is not bundled. A future rerun is new evidence, not a guaranteed identical full report.",
+  "limits": [
+    "MAIN_not_acquired; later_development_repair_not_retroactive",
+    "clone_candidates_not_safe_merge_approval",
+    "manual_confirmation_not_analyzer_proven_state_chain",
+    "runtime_and_test_execution_not_performed",
+    "empty_Test_Impact_not_proof_of_no_tests",
+    "governance_FAIL_not_adjudicated_target_defects",
+    "no_measured_accuracy_time_or_token_savings",
+    "no_target_mutation_or_maintainer_endorsement"
+  ]
+}

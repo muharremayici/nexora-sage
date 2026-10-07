@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Before changing a store, find its consumers — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="../landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md">View source document</a></header>
+<main><h1 id="before-changing-a-store-find-its-consumers">Before changing a store, find its consumers</h1>
+<p><strong>Question:</strong> If we change Zustand's store core, where should a developer or
+coding agent look next?</p>
+<p>In a real, frozen Zustand checkout, SAGE located the <code>createStore</code> definition
+and returned three dependent modules from its indexed dependency graph. We
+checked those connections against the source. The result is a concrete review
+starting point: inspect the public entry point and both React bindings before
+changing the store implementation.</p>
+<h2 id="repository---output---decision">Repository -&gt; output -&gt; decision</h2>
+<p>The target was <a href="https://github.com/pmndrs/zustand/tree/b57db4f86ef179285da216eeb291266da82c361c">Zustand at commit b57db4f</a>,
+not today's upstream state. The analyzer was the published Nexora SAGE
+<strong>v1.4.0</strong> source, used in a separate local installation. The question concerned
+<a href="https://github.com/pmndrs/zustand/blob/b57db4f86ef179285da216eeb291266da82c361c/src/vanilla.ts"><code>src/vanilla.ts</code></a>.</p>
+<table>
+<thead>
+<tr>
+<th>Actual SAGE observation</th>
+<th>Source check</th>
+<th>Useful next decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>createStore</code>, lines 99-100 in <code>src/vanilla.ts</code></td>
+<td>The exported definition exists at that span.</td>
+<td>Start at the definition, then read the implementation it delegates to.</td>
+</tr>
+<tr>
+<td><code>src/index.ts</code> depends on <code>vanilla.ts</code></td>
+<td>The entry point re-exports it.</td>
+<td>Review the public export surface.</td>
+</tr>
+<tr>
+<td><code>src/react.ts</code> depends on <code>vanilla.ts</code></td>
+<td>The React binding imports <code>createStore</code>.</td>
+<td>Review effects on the React-facing binding.</td>
+</tr>
+<tr>
+<td><code>src/traditional.ts</code> depends on <code>vanilla.ts</code></td>
+<td>The traditional binding also imports <code>createStore</code>.</td>
+<td>Review the other binding rather than assuming one consumer.</td>
+</tr>
+</tbody>
+</table>
+<p>The query used SQLite-backed dependencies with depth <strong>2</strong>. These are three
+returned graph dependents, not a promise that every affected consumer, type
+contract, dynamic reference or downstream application has been found.
+Middleware also imports types from the core; changing <code>StoreApi</code> requires
+additional type-contract review, not just this three-file list.</p>
+<p>This is orientation for a proposed change. We did not edit Zustand or claim
+that its store is defective. SAGE supplied grounded information; the developer
+still owns scope, compatibility checks and the decision to change code.</p>
+<h2 id="what-ran">What ran</h2>
+<p>An explicit <code>MAIN</code> analysis selected the <code>src</code> project and indexed <strong>15</strong>
+TypeScript source files. The complete target integrity inventory contained
+<strong>144</strong> files. Those denominators describe different scopes: this was not a
+whole-repository assessment. The demo, starter and repository-root test suites
+were outside the selected Atlas scope.</p>
+<p>SAGE's analysis process completed, but its <strong>quality gate was FAIL</strong>. The four
+enforced failures concerned React capability detection/partial capability and
+proof-obligation completeness. They were not adjudicated as Zustand defects in
+this case study. A successful command does not turn that gate green.</p>
+<p>The target's files and clean Git status were unchanged after analysis and
+queries. No target dependencies were installed, no target configuration was
+executed, and no native tests, React component or browser were run. SAGE's AST
+parser used TypeScript 5.9.3; this was not the target's native TypeScript 6.x
+compiler check. The local Node runtime was outside the release CI reference
+major, which setup disclosed rather than treating as equivalent CI coverage.</p>
+<h2 id="a-test-boundary-worth-knowing">A test boundary worth knowing</h2>
+<p><code>get_test_impact</code> returned an empty candidate list for this file. That is <strong>not</strong>
+evidence that Zustand has no relevant tests. Source inspection found
+<code>tests/vanilla/basic.test.ts</code> and <code>tests/vanilla/subscribe.test.tsx</code>, importing
+<code>zustand/vanilla</code>. The repository's TypeScript/Vitest configuration maps that
+package alias to <code>src/vanilla.ts</code>; the Vitest configuration names <code>tests</code> as its
+test directory.</p>
+<p>Those tests were found during manual verification, <strong>not returned by SAGE</strong>.
+The selected Atlas excludes that directory, and the live fallback inspects
+co-located siblings rather than this separate alias-bound suite. We retained
+this acquisition limitation for follow-up instead of presenting an empty list
+as complete test coverage. Review native suites before relying on a change.</p>
+<h2 id="try-the-same-question">Try the same question</h2>
+<p>The <a href="ZUSTAND_CHANGE_IMPACT_DEMO.html">short demo</a> shows the actual bounded output
+and the commands/tools used. The <a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/zustand_change_impact_evidence.json">public-safe evidence projection</a>
+records the exact target, analyzer, generation, selected file hashes and limits.
+It is an editorial projection, not a new product artifact or release gate.</p>
+<p>One verified example does not measure accuracy, time saved, token savings or
+runtime correctness. It demonstrates a practical use: <strong>turn a proposed core
+change into a source-grounded list of places to inspect next</strong>. Zustand does
+not endorse SAGE through this evaluation.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

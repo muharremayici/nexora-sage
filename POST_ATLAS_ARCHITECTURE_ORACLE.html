@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post-Atlas Architecture Oracle — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/POST_ATLAS_ARCHITECTURE_ORACLE.md">View source document</a></header>
+<main><h1 id="post-atlas-architecture-oracle">Post-Atlas Architecture Oracle</h1>
+<p>Date: 2026-05-22</p>
+<h2 id="purpose">Purpose</h2>
+<p>Architecture Oracle moves doctrine selection from pre-Atlas guessing toward post-Atlas evidence.</p>
+<p>The 1.0.0 rule is conservative:</p>
+<pre><code class="language-text">Discovery scopes.
+Atlas observes.
+Architecture Oracle proposes.
+Human seals.
+Audit and Quality Gates continue to run even when a project is not sealed.
+</code></pre>
+<h2 id="why-advisory-first">Why Advisory First</h2>
+<p>The system already has a working audit and quality pipeline. Blocking those engines before a seal would make onboarding fragile, especially for external repositories and large legacy codebases.</p>
+<p>Therefore 1.0.0 emits:</p>
+<pre><code class="language-text">output/.raw/architecture_oracle.json
+output/reports/architecture_oracle.md
+</code></pre>
+<p>but does not rewrite <code>architecture_doctrine.json</code>.</p>
+<h2 id="evidence-model">Evidence Model</h2>
+<p>The Oracle reads Atlas dependency geometry and computes:</p>
+<pre><code class="language-text">FSD layer coverage
+FSD directional flow
+FSD encapsulation ratio
+Next App Router route/boundary signals
+Clean/Hexagonal layer coverage
+Domain-to-infrastructure leak pressure
+</code></pre>
+<p>It then proposes one of:</p>
+<pre><code class="language-text">FSD_STRICT
+NEXTJS_APP_ROUTER
+CLEAN_ARCHITECTURE
+SOVEREIGN_ELITE
+MODULAR_FLAT
+MINIMAL
+MONOREPO_PACKAGE_LIBRARY
+TURBOREPO_SAAS
+PLUGIN_PLATFORM
+MIXED_ARCHITECTURE
+</code></pre>
+<h2 id="seal-policy">Seal Policy</h2>
+<p><code>seal_ready=true</code> means:</p>
+<pre><code class="language-text">The evidence is strong enough to ask a human to seal this doctrine.
+</code></pre>
+<p>It does not mean:</p>
+<pre><code class="language-text">The doctrine has already been applied.
+The audit should block unsealed repositories.
+The AI agent can modify architecture_doctrine.json without HITL approval.
+</code></pre>
+<h2 id="mcp-surface">MCP Surface</h2>
+<p>The Oracle is exposed through:</p>
+<pre><code class="language-text">architecture://oracle
+get_architecture_oracle(project=&quot;&quot;)
+</code></pre>
+<p>Agents should read this proposal before interpreting architecture violations on newly onboarded external repositories.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

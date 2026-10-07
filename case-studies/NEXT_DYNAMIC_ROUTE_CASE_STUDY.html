@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A dynamic route is not a domain layer — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="../landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md">View source document</a></header>
+<main><h1 id="a-dynamic-route-is-not-a-domain-layer">A dynamic route is not a domain layer</h1>
+<p>An architecture analyzer should help you avoid an unnecessary change, not just
+produce more warnings. This source-checked Corpus example shows a naming
+collision that previously produced a misleading SAGE architecture finding.</p>
+<h2 id="the-example">The example</h2>
+<p>The preserved subject is <a href="https://github.com/dubinc/dub">Dub</a> at commit
+<code>c3b5d4975e47982149469797b268a39322230af6</code>, not today's upstream repository.
+Its <code>WEB</code> project contains
+<code>app/[domain]/[key]/inspect/card.tsx</code>; the repository-relative path is
+<code>apps/web/app/[domain]/[key]/inspect/card.tsx</code>.</p>
+<p>The file renders a link-inspector card and imports UI components. The preserved
+SAGE v1.0.4 Audit labeled that import <code>domain_ui_leaks</code> and suggested an
+architecture-boundary refactor.</p>
+<p>The conclusion was not justified by the path. In Next.js, a bracketed folder is
+a <a href="https://nextjs.org/docs/app/api-reference/file-conventions/dynamic-routes">dynamic route segment</a>.
+The word <code>domain</code> in <code>[domain]</code> is not evidence of a Domain-Driven Design
+business-logic layer. The source inspection corroborates this particular
+misclassification; it does not certify every import in the file as correct.</p>
+<h2 id="what-changed-in-sage">What changed in SAGE</h2>
+<p>The bounded v1.0.5 acceptance checked two independent protections:</p>
+<ul>
+<li>Layer hints match complete path segments. <code>[domain]</code> does not match <code>domain</code>.</li>
+<li>Architecture rules consume the exact project's applicable policy. A Next.js
+profile does not acquire Clean/FSD enforcement from a competing heuristic
+score. Oracle recognition alone does not grant enforcement authority.</li>
+</ul>
+<p>The v1.4.0 static demonstration retains these protections. On the released
+candidate, the existing resolver produced:</p>
+<pre><code class="language-text">app/[domain]/[key]/inspect/card.tsx -&gt; unknown
+src/domain/model.ts -&gt; domain/logic
+</code></pre>
+<p><code>unknown</code> means this path does not establish a doctrine layer. It is not a
+clean-repository verdict. The second path is a synthetic positive control;
+its classification alone would still not authorize a violation or a refactor.</p>
+<p>Three existing contract tests also check Next/Clean policy separation,
+preservation of applicable checks, and rejection of waiting or stale policy.
+See the <a href="NEXT_DYNAMIC_ROUTE_DEMO.html">reproducible static demo</a>.</p>
+<h2 id="evidence-and-scope">Evidence and scope</h2>
+<p>The preserved v1.0.4 <code>WEB</code> Audit contains 210 candidates in the two reviewed
+architecture-rule families: 131 <code>domain_ui_leaks</code> and 79
+<code>hexagonal_layer_violation</code>. Of these, 53 candidate rows refer to 18 unique
+files whose paths contain a <code>[domain]</code> segment.
+Those are candidate counts, <strong>not 210 manually confirmed false positives</strong>.</p>
+<p>The historical bounded acceptance checked those paths against the generalized
+resolver and applicable Next policy. The current editorial review independently
+rechecked the preserved report identities, counts, selected source file and
+bounded static behavior. It did not refresh Atlas or rerun the Dub pipeline.</p>
+<p>The <a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/next_dynamic_route_evidence.json">evidence projection</a> records the pinned
+target, one source fingerprint, preserved run fingerprints and current demo
+scope. Aggregate run exports are not bundled; this projection alone does not
+independently reproduce the original full analysis. No third-party source code
+or raw target report is redistributed here.</p>
+<h2 id="what-this-example-does-not-prove">What this example does not prove</h2>
+<p>It does not measure Corpus-wide precision or recall, prove a runtime defect,
+execute Dub's tests, verify effective native lint policy, assert that Dub is
+clean, or assess its current upstream release. It implies no endorsement by
+Dub's maintainers. The current static smoke is not a fresh end-to-end scan.</p>
+<p>The practical lesson is narrow: keep the finding, its source context and rule
+applicability together before asking an agent to change code.</p>
+<p>To analyze your own repository, use the <a href="../QUICKSTART.html">Quickstart</a> and the
+<a href="../AI_AGENT_HITL_RUNBOOK.html">AI Agent HITL Runbook</a>. SAGE remains a context and
+evidence provider, not an agent or a substitute for your linter and test runner.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

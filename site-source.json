@@ -1,0 +1,22 @@
+{
+  "repository": "muharremayici/nexora-sage",
+  "public_commit": "0a4ad42c5ee7b5150faced1626603711e904e326",
+  "public_tree": "2c953a299c27dd014ebe331b45bf887c6e71de64",
+  "inputs_sha256": {
+    "docs/AI_AGENT_HITL_RUNBOOK.md": "30d671837056474b61bb92b1da18c0285f548cda585168473c8d03401df21221",
+    "docs/ARCHITECTURE.md": "92cb603a6ec5e4bb35d13e9355075d6750bd076ac95211de473e368762de7884",
+    "docs/CLAIMS_EVIDENCE_MATRIX.md": "681b089d78c9cfec860abbf5c1d4f27289ad27118d8638076cd7b9a09da16abc",
+    "docs/CONTEXTOS.md": "c049406f080981e4bbc25f674ed00ab0823b63b93070e39541739d3c8df17eea",
+    "docs/EVIDENCE.md": "762b046ef50373cee04e269dae98bef8a101d2d7678e249cc4fba0799097d61e",
+    "docs/EXTERNAL_TARGET_RUNBOOK.md": "bb3c5fcac81b399a4ffc4c27c0b504487d5e2ca009786f926d953bde8af1d3ba",
+    "docs/POST_ATLAS_ARCHITECTURE_ORACLE.md": "e6a4fe625b98d39f1cac1452363c7d86eaf38115c68a72b575481b126dec6332",
+    "docs/QUICKSTART.md": "e714b2090ae5683a59c242226256868a5d1c0f102c692b12fe883916081eae69",
+    "docs/case-studies/CORPUS_DEVELOPER_DECISION_SHOWCASE.md": "b177bdc9e260cbd2fa7264e4a69b3ba075ffce96f6739d13b23b543502c11278",
+    "docs/case-studies/NEXT_DYNAMIC_ROUTE_CASE_STUDY.md": "3d30198e53a18961628114c0591a62f5cde2adeca18b103d05eeee26c25ada07",
+    "docs/case-studies/NEXT_DYNAMIC_ROUTE_DEMO.md": "37f7daddd95028b9349052060fd97c7142568208c2b6567287f2629444b4737d",
+    "docs/case-studies/ZUSTAND_CHANGE_IMPACT_CASE_STUDY.md": "58cd23c2a728dc82305639957201b1be05fa1ce241af360e4a9b1b3ee708c02c",
+    "docs/case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md": "d3e6ce0cf9e129e33c7ea1cfbc63c11e0e4015771b891c30ea489cd5d1539fc9",
+    "docs/case-studies/corpus_developer_decision_showcase_evidence.json": "a8265348ce608d2fc34847bfd858113534502a25a310a545e6db663159690d2c",
+    "docs/landing/index.html": "9d0509a124df94995208edd6d30761152cdc47b4fa5174ab2188e45f209aa59a"
+  }
+}

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexora SAGE Claims Evidence Matrix — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/CLAIMS_EVIDENCE_MATRIX.md">View source document</a></header>
+<main><h1 id="nexora-sage-claims-evidence-matrix">Nexora SAGE Claims Evidence Matrix</h1>
+<table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Status</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.0.0 public release claim is scoped and evidence-guarded</td>
+<td>Proven</td>
+<td><code>output/.raw/release_readiness.json</code>, <code>output/.raw/claim_guard_validation.json</code>, <code>tools/validate_claim_guard.py</code>; current allowed claim is <code>evidence_backed_universal_react_web_static_governance</code></td>
+</tr>
+<tr>
+<td>Final release proof is bound to the published source identity</td>
+<td>Proven</td>
+<td><code>PUBLIC_DISTRIBUTION_MANIFEST.json</code>, <code>config/release_identity.json</code>, <code>docs/EVIDENCE.md</code>; the maintainer proof receipt and live workspace output are intentionally not shipped in the public source projection</td>
+</tr>
+<tr>
+<td>Post-Atlas Architecture Oracle proposes blueprints without hard-blocking unsealed repositories</td>
+<td>Proven</td>
+<td><code>tools/engines/architecture_oracle.py</code>, <code>output/.raw/architecture_oracle.json</code>, <code>tools/validate_architecture_oracle.py</code>, <code>docs/POST_ATLAS_ARCHITECTURE_ORACLE.md</code></td>
+</tr>
+<tr>
+<td>Architecture Oracle blueprint matching is externally calibrated</td>
+<td>Proven</td>
+<td><code>docs/ARCHITECTURE_ORACLE_BLUEPRINT_COVERAGE.md</code>, <code>docs/EXTERNAL_REPOSITORY_EVALUATION.md</code>, <code>tools/validate_architecture_oracle.py</code>, existing <code>output/external_targets/*/.raw/atlas.json</code> evidence</td>
+</tr>
+<tr>
+<td>Nexora SAGE is AI-native, not dashboard-first</td>
+<td>Proven</td>
+<td><code>docs/AI_AGENT_HITL_RUNBOOK.md</code>, <code>tools/mcp/server.py</code>, <code>output/.raw/nexora_surface_inventory.json</code></td>
+</tr>
+<tr>
+<td>React findings carry evidence ladder fields</td>
+<td>Proven</td>
+<td><code>tools/core/react_evidence.py</code>, <code>output/.raw/react_runtime_intelligence.json</code>, <code>python tools/validate_react_fixtures.py</code></td>
+</tr>
+<tr>
+<td>React edge-case coverage is explicitly matrixed and fixture-gated</td>
+<td>Proven</td>
+<td><code>config/react_edge_case_matrix.json</code>, <code>docs/REACT_EDGE_CASE_COVERAGE.md</code>, <code>tools/validate_react_edge_cases.py</code>, <code>output/.raw/react_edge_case_validation.json</code></td>
+</tr>
+<tr>
+<td>React Compiler readiness is a first-class gate</td>
+<td>Proven</td>
+<td><code>tools/engines/react_compiler_readiness.py</code>, <code>output/.raw/react_compiler_readiness.json</code></td>
+</tr>
+<tr>
+<td>RSC and Server Actions contracts are analyzed</td>
+<td>Proven</td>
+<td><code>tools/engines/next_boundary_analyzer.py</code>, <code>output/.raw/next_boundary_analysis.json</code></td>
+</tr>
+<tr>
+<td>A11y/i18n contracts go beyond raw key counts</td>
+<td>Proven</td>
+<td><code>tools/engines/a11y_i18n_contract_analyzer.py</code>, <code>output/.raw/a11y_i18n_contracts.json</code></td>
+</tr>
+<tr>
+<td>Merge decisions include confidence components</td>
+<td>Proven</td>
+<td><code>tools/engines/merge_simulation_engine.py</code>, <code>output/.raw/merge_simulation.json</code></td>
+</tr>
+<tr>
+<td>AI task packs are verifiable and rollback-aware</td>
+<td>Proven</td>
+<td><code>tools/engines/ai_task_pack_generator.py</code>, <code>output/.raw/ai_task_packs.json</code></td>
+</tr>
+<tr>
+<td>Runtime config carries provenance</td>
+<td>Proven</td>
+<td><code>tools/config_compiler.py</code>, <code>config/codemaps.config.json</code></td>
+</tr>
+<tr>
+<td>Signal regression baseline requires intentional-change provenance</td>
+<td>Proven</td>
+<td><code>tools/validate_signal_regression.py</code>, <code>output/.raw/signal_regression_validation.json</code></td>
+</tr>
+<tr>
+<td>Vendored TypeScript runtime is controlled dependency</td>
+<td>Proven</td>
+<td><code>docs/VENDORED_TYPESCRIPT_RUNTIME.md</code>, <code>tools/engines/package-lock.json</code></td>
+</tr>
+<tr>
+<td>Security-adjacent capability claims are explicitly bounded</td>
+<td>Proven</td>
+<td><code>docs/SECURITY_CAPABILITY_MATRIX.md</code>, <code>docs/V1_RELEASE_BOUNDARY.md</code>; SAGE does not claim to replace SAST, dependency-vulnerability scanning, runtime taint analysis or penetration testing</td>
+</tr>
+<tr>
+<td>Polyglot governance substrate exists</td>
+<td>Proven</td>
+<td><code>config/language_registry.json</code>, <code>tools/core/language_registry.py</code>, <code>tools/orchestrators/discovery.py</code>, <code>tools/core/source_files.py</code>, <code>tools/core/polyglot_imports.py</code>, <code>tools/core/path_engine.py</code>, <code>tools/engines/generate_atlas.py</code>, <code>tools/engines/mcp_governance_engine.py</code>, <code>tools/tests/test_polyglot_atlas.py</code></td>
+</tr>
+<tr>
+<td>Atlas/Genome carry language-agnostic symbol identity</td>
+<td>Proven</td>
+<td><code>config/language_agnostic_symbols.json</code>, <code>tools/core/language_agnostic_symbols.py</code>, <code>tools/validate_language_agnostic_symbols.py</code>, <code>output/.raw/language_agnostic_symbol_validation.json</code></td>
+</tr>
+<tr>
+<td>TypeScript/React symbols carry logic-first DNA beside raw DNA</td>
+<td>Proven</td>
+<td><code>tools/engines/ast_sequencer.cjs</code>, <code>tools/engines/generate_atlas.py</code>, <code>tools/engines/nuclear_processor.py</code>, <code>output/.raw/atlas.json</code>, <code>output/.raw/genome.json</code></td>
+</tr>
+<tr>
+<td>Polyglot source extensions and legacy path shims are config-governed</td>
+<td>Proven</td>
+<td><code>config/language_registry.json</code>, <code>config/schemas/language_registry.schema.json</code>, <code>tools/core/language_registry.py</code>, <code>tools/config_compiler.py</code>, <code>tools/validate_config_driven_governance.py</code>, <code>output/.raw/config_driven_governance_validation.json</code></td>
+</tr>
+<tr>
+<td>Polyglot capability claims are conservatively bounded</td>
+<td>Proven</td>
+<td><code>config/polyglot_capabilities.json</code>, <code>docs/POLYGLOT_CAPABILITY_MATRIX.md</code>, <code>tools/validate_polyglot_capabilities.py</code>, <code>output/.raw/polyglot_capability_validation.json</code></td>
+</tr>
+<tr>
+<td>Framework adapter claim boundaries are manifest-governed</td>
+<td>Proven</td>
+<td><code>config/framework_capabilities.json</code>, <code>docs/FRAMEWORK_ADAPTER_BOUNDARY.md</code>, <code>tools/core/framework_capabilities.py</code>, <code>tools/validate_framework_capabilities.py</code>, <code>output/.raw/framework_capability_validation.json</code></td>
+</tr>
+<tr>
+<td>ContextOS provides watchdog-first surgical AI focus</td>
+<td>Proven</td>
+<td><code>tools/engines/quant_engine.py</code>, <code>tools/core/contextos_mcp.py</code>, <code>tools/validate_contextos_signals.py</code>, <code>tools/validate_contextos_contracts.py</code>, <code>output/.raw/signals.json</code></td>
+</tr>
+<tr>
+<td>ContextOS explains why files are hot and expands first-ring halo context</td>
+<td>Proven</td>
+<td><code>output/.raw/signals.json</code>, <code>tools/engines/quant_engine.py</code>, <code>tools/core/contextos_mcp.py</code>, <code>tools/validate_contextos_contracts.py</code></td>
+</tr>
+<tr>
+<td>AI agents can request one surgical operation packet and reverse upstream trace</td>
+<td>Proven</td>
+<td><code>tools/mcp/server.py</code>, <code>tools/core/contextos_mcp.py</code>, <code>tools/validate_mcp_agent_surface.py</code>, <code>tools/validate_contextos_contracts.py</code></td>
+</tr>
+<tr>
+<td>React expertise is externally smoke-tested without host workspace dependency</td>
+<td>Proven</td>
+<td><code>tools/validate_external_react_smoke.py</code>, <code>tools/validate_external_target_smoke.py</code>, <code>output/.raw/external_react_smoke_validation.json</code>, <code>output/.raw/external_target_smoke_validation.json</code>; includes isolated target-root Atlas/React capability detection plus MCP Markdown/YAML surgical, inspection, search, impact, test-impact, confidence, active-signal, patch-validation, and upstream-trace briefs/fail-closed checks</td>
+</tr>
+<tr>
+<td>React v1 fixture evidence covers multiple required surfaces</td>
+<td>Proven</td>
+<td><code>config/react_fixture_matrix.json</code>, <code>tools/validate_react_fixtures.py</code>, <code>output/.raw/react_fixture_matrix_validation.json</code>; required fixtures include current workspace, Vite, Next/App Router and router-oriented fixture artifacts</td>
+</tr>
+<tr>
+<td>Test Gap Report prioritizes surgical test risks for agents</td>
+<td>Proven</td>
+<td><code>tools/generate_test_gap_report.py</code>, <code>config/artifact_registry.json</code>, and the target-bound <code>test_gap_report</code> artifact contract</td>
+</tr>
+<tr>
+<td>AI-Agent Readiness Report summarizes MCP, ContextOS, HITL and patch-safety readiness</td>
+<td>Proven</td>
+<td><code>tools/generate_ai_agent_readiness_report.py</code>, <code>config/agent_surface_contract.json</code>, and the target-bound <code>ai_agent_readiness_report</code> artifact contract</td>
+</tr>
+<tr>
+<td>v1 release boundary is explicit and conservative</td>
+<td>Proven</td>
+<td><code>docs/V1_RELEASE_BOUNDARY.md</code>, <code>docs/ANALYSIS_FAMILIES_MATRIX.md</code>, <code>README.md</code></td>
+</tr>
+<tr>
+<td>Polyglot substrate is externally smoke-tested without host workspace dependency</td>
+<td>Proven</td>
+<td><code>tools/validate_external_polyglot_smoke.py</code>, <code>output/.raw/external_polyglot_smoke_validation.json</code></td>
+</tr>
+<tr>
+<td>Python support uses real AST sequencing</td>
+<td>Proven</td>
+<td><code>tools/engines/ast_sequencer_python.py</code>, <code>tools/tests/test_polyglot_atlas.py</code></td>
+</tr>
+<tr>
+<td>Java/Go/C# structural symbol extraction exists</td>
+<td>Proven</td>
+<td><code>tools/engines/ast_sequencer_java.py</code>, <code>tools/engines/ast_sequencer_go.py</code>, <code>tools/engines/ast_sequencer_cs.py</code></td>
+</tr>
+<tr>
+<td>Java/Go/C# compiler-grade semantic analysis exists</td>
+<td>Roadmap</td>
+<td>current sequencers are structural extractors, not javac/go/types/Roslyn integrations</td>
+</tr>
+<tr>
+<td>Auto-doctrine supports multiple project families</td>
+<td>Partially Proven</td>
+<td><code>tools/auto_doctrine.py</code>, <code>config/architecture_profiles.json</code>; needs external fixture demos per profile</td>
+</tr>
+<tr>
+<td>Local Dev Telemetry exists for explicit local traces</td>
+<td>Partially Proven</td>
+<td><code>tools/engines/local_telemetry_engine.py</code>, <code>config/schemas/local_telemetry_analysis.schema.json</code>; production framework probes are not built yet</td>
+</tr>
+<tr>
+<td>Public 5-minute onboarding is smooth</td>
+<td>Partially Proven</td>
+<td>README/Quickstart and independent clean-machine installation proof exist; unfamiliar-user time-to-value, comprehension and repeat use remain unproven</td>
+</tr>
+<tr>
+<td>GitHub Actions integration is product-ready</td>
+<td>Roadmap</td>
+<td>planned workflow docs; first-class action is not built yet</td>
+</tr>
+<tr>
+<td>VS Code extension / LSP exists</td>
+<td>Roadmap</td>
+<td>not built</td>
+</tr>
+<tr>
+<td>Production runtime tracing exists</td>
+<td>Roadmap</td>
+<td>Vite/Rollup/browser probe not built yet</td>
+</tr>
+</tbody>
+</table>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

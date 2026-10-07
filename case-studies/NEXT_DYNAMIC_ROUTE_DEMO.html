@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Short static demo: route name versus doctrine layer — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="../landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/NEXT_DYNAMIC_ROUTE_DEMO.md">View source document</a></header>
+<main><h1 id="short-static-demo-route-name-versus-doctrine-layer">Short static demo: route name versus doctrine layer</h1>
+<p>This small, executed <strong>static contract demonstration</strong> complements the
+<a href="NEXT_DYNAMIC_ROUTE_CASE_STUDY.html">Dub case study</a>. It does not analyze a
+repository, execute a React component or start a server. No Dub checkout or
+target dependency installation is needed.</p>
+<h2 id="prerequisite">Prerequisite</h2>
+<p>Use a Nexora SAGE v1.4.0 source checkout and its installed Python prerequisites
+from the <a href="../QUICKSTART.html">Quickstart</a>. Run the commands from the directory
+containing <code>sage.py</code>, not from the target repository. This demonstration calls
+an existing internal Python helper; it is not a new public CLI command or a
+general-purpose scanner. Custom doctrine can change classification, so the
+captured result belongs to the released v1.4.0 default doctrine.</p>
+<h2 id="1-see-the-distinction">1. See the distinction</h2>
+<pre><code class="language-powershell">python -B -c &quot;from tools.core.layer_resolver import resolve_layer; print('app/[domain]/[key]/inspect/card.tsx -&gt;',resolve_layer('app/[domain]/[key]/inspect/card.tsx')); print('src/domain/model.ts -&gt;',resolve_layer('src/domain/model.ts'))&quot;
+</code></pre>
+<p>Captured semantic output on the v1.4.0 public candidate:</p>
+<pre><code class="language-text">app/[domain]/[key]/inspect/card.tsx -&gt; unknown
+src/domain/model.ts -&gt; domain/logic
+</code></pre>
+<p>The first path comes from the preserved Corpus sample. The second is an
+original synthetic control, not a claim about a Dub source file. Neither
+result establishes rule activation or permission to change code.</p>
+<h2 id="2-check-the-policy-boundary">2. Check the policy boundary</h2>
+<p>Run these three existing tests; they use synthetic project/snapshot fixtures,
+not a real project's approval ledger:</p>
+<pre><code class="language-powershell">python -B -m unittest tools.tests.test_engine_contracts.AuditRuleProfileContractTests.test_layer_resolution_matches_segments_not_dynamic_route_tokens tools.tests.test_engine_contracts.AuditRuleProfileContractTests.test_effective_policy_requires_exact_active_project_before_architecture_rules tools.tests.test_engine_contracts.AuditRuleProfileContractTests.test_project_policy_filter_does_not_cross_promote_architecture_findings
+</code></pre>
+<p>The executed command reported <code>Ran 3 tests</code> and <code>OK</code>. Startup logs and duration
+may differ. The controls preserve genuine segment recognition, applicable
+Next checks and Clean-specific enforcement, while rejecting an unactivated
+project or a mismatched snapshot. Passing them is static contract evidence,
+not runtime proof, an architecture seal or a repository-clean verdict.</p>
+<h2 id="for-real-work">For real work</h2>
+<p>Follow the <a href="../QUICKSTART.html">Quickstart</a> with an explicit target root. Then use
+the <a href="../AI_AGENT_HITL_RUNBOOK.html">agent runbook</a> to search and inspect a concrete
+file, review current impact and applicable policy, and request focused native
+validation before changing it. Do not run the maintainer release proof merely
+to try SAGE or assume that this smoke reproduces a whole-repository scan.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

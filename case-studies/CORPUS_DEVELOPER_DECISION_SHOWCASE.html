@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reviewing shared profile code in two React applications — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="../landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/CORPUS_DEVELOPER_DECISION_SHOWCASE.md">View source document</a></header>
+<main><h1 id="reviewing-shared-profile-code-in-two-react-applications">Reviewing shared profile code in two React applications</h1>
+<p>Should the profile-update code in Bulletproof React's Next Pages and React/Vite
+applications move into a shared package? SAGE found matching schema, mutation
+hook and component records. Its focused tools located the consumer and exposed
+the available source context. Reviewing that source produces a practical
+sharing checklist, not an automatic approval to merge.</p>
+<p>This case combines clone discovery, symbol search, source-bound inspection and
+focused State Flow orientation. It uses SAGE v1.4.0 and Bulletproof React commit
+<a href="https://github.com/alan2207/bulletproof-react/tree/9506629ed003a561c6627735480cce4994244bb4"><code>9506629</code></a>.
+The <a href="corpus_developer_decision_showcase_evidence.json">selected evidence</a>
+records the exact analyzer, target, snapshot, source hashes and limits.</p>
+<h2 id="from-matching-code-to-a-review-checklist">From matching code to a review checklist</h2>
+<p>The preserved Clone Detector output contains these pairs in the two acquired
+applications. Manual source comparison confirms that both the API file and the
+component file are byte-identical across this pair.</p>
+<table>
+<thead>
+<tr>
+<th>Recorded pair</th>
+<th>Source range in each application</th>
+<th>Question before sharing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>updateProfileInputSchema</code>, cluster 118</td>
+<td>API file, lines 8–13</td>
+<td>Will both callers keep the same input validation?</td>
+</tr>
+<tr>
+<td><code>useUpdateProfile</code>, cluster 52</td>
+<td>API file, lines 25–40</td>
+<td>Will refreshing user data and forwarding the caller's success callback both remain?</td>
+</tr>
+<tr>
+<td><code>UpdateProfile</code>, cluster 3</td>
+<td>Component file, lines 13–91</td>
+<td>Will notification, submit-pending and drawer-completion bindings remain?</td>
+</tr>
+</tbody>
+</table>
+<p>The pinned sources are the
+<a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/nextjs-pages/src/features/users/api/update-profile.ts#L8-L40">Next Pages API</a>
+and <a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/nextjs-pages/src/features/users/components/update-profile.tsx#L13-L91">component</a>,
+with their <a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/react-vite/src/features/users/api/update-profile.ts#L8-L40">React/Vite API</a>
+and <a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/react-vite/src/features/users/components/update-profile.tsx#L13-L91">component</a>
+counterparts. Matching records suggest a sharing candidate; they do not establish
+that extracting it is appropriate or behavior-preserving.</p>
+<h2 id="what-the-focused-tools-add">What the focused tools add</h2>
+<p>Symbol search returned two hook definitions and two consumer import-binding
+candidates, not four implementations. Focused State Flow orientation selected
+<code>useUpdateProfile</code> with matching snapshot/live source identity. It recorded
+references and import-bound call syntax, but could not resolve the <code>useUser</code>
+export or the external <code>useMutation</code> target. A complete upstream/downstream
+state trace was unavailable. File-level mutation context was not promoted to a
+symbol-level or executed relationship.</p>
+<p><code>inspect_file</code> grounded the Next Pages component in Atlas and returned lines
+13–52, explicitly marking lines 53–91 as omitted. It supplied a precise
+follow-up range and kept <code>safe_to_edit_from_inspection</code> false. The compact
+packet supports orientation without pretending that partial source is sufficient
+to edit the whole component. Full source was then reviewed separately for the
+checklist below.</p>
+<h2 id="contracts-the-source-review-identifies">Contracts the source review identifies</h2>
+<p>The API patches <code>/users/profile</code>. Its success handler calls the <code>useUser</code>
+refetch result before forwarding the caller's optional success callback. That
+call order is visible in source; completion ordering or cache correctness was
+not tested. The component provides a success notification, binds <code>isPending</code>
+to its submit indicator and <code>isSuccess</code> to drawer completion, supplies existing
+user fields as defaults and uses the shared input schema.</p>
+<p>Sharing those files also requires preserving their surrounding integration.
+Both apps obtain <code>useUser</code> through <code>configureAuth</code>, but their route handling is
+different. The Next Pages API client has a browser guard and a server-cookie
+helper that the Vite client does not contain. These distinctions come from
+manual source review, not resolved State Flow callees. Compare the
+<a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/nextjs-pages/src/lib/auth.tsx">Next Pages auth</a>,
+<a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/react-vite/src/lib/auth.tsx">Vite auth</a>,
+<a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/nextjs-pages/src/lib/api-client.ts">Next Pages API client</a>
+and <a href="https://github.com/alan2207/bulletproof-react/blob/9506629ed003a561c6627735480cce4994244bb4/apps/react-vite/src/lib/api-client.ts">Vite API client</a>.</p>
+<p>The resulting decision is to review a shared profile contract with explicit
+auth/API integration boundaries, then verify it in each app's native test
+environment. No extraction or target-code mutation was performed here.</p>
+<h2 id="run-scope-and-unresolved-results">Run scope and unresolved results</h2>
+<p>The analysis process completed: 56 steps completed, none failed. Acquisition
+was narrower than configured: <code>NEXTJS_PAGES</code> indexed 149 files and <code>REACT_VITE</code>
+143; configured <code>MAIN</code> indexed zero. A generic ownership-remap defect in SAGE
+was subsequently repaired in development, but no second run was performed.
+This remains a two-application case, not a successful three-project comparison.</p>
+<p>The same run's quality gate was <strong>FAIL</strong>: proof-obligation verification was 0.9
+against a 0.95 threshold, and one required proof failed against an allowance of
+zero. A manual-review-count check also failed but was not enforced in the
+non-comparative workspace. These are retained governance results, not
+adjudicated Bulletproof React defects.</p>
+<p>Merge reported zero candidates and Nanometric Diff was not applicable; this is
+not a non-empty Merge demonstration. Test Impact returned no tests in the
+selected scope, which does not prove that relevant tests do not exist. No target
+tests, components or runtime probes were executed. There is no measured
+accuracy, time saving or verified behavior-preservation claim.</p>
+<p>Bulletproof React is an independent MIT-licensed project. This case links to
+pinned source rather than redistributing its implementation and does not imply
+maintainer endorsement. See the wider <a href="../CLAIMS_EVIDENCE_MATRIX.html">claims/evidence matrix</a>
+for the distinction between current product capabilities and roadmap work.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

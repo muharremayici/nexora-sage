@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContextOS — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/CONTEXTOS.md">View source document</a></header>
+<main><h1 id="contextos">ContextOS</h1>
+<p>ContextOS is Nexora SAGE's evidence-backed active context layer. It distills repository truth for human and AI workflows; it is not a generic RAG store or an autonomous decision maker.</p>
+<h2 id="context-contract">Context Contract</h2>
+<p>Every agent-facing context packet should optimize five properties:</p>
+<ul>
+<li><strong>Relevance:</strong> include evidence connected to the active task, changed scope or dependency halo.</li>
+<li><strong>Sufficiency:</strong> include enough upstream and downstream proof to avoid a locally plausible but architecturally unsafe edit.</li>
+<li><strong>Isolation:</strong> exclude restricted, unrelated and cross-project context unless an explicit relationship justifies it.</li>
+<li><strong>Economy:</strong> prefer the smallest evidence set that preserves the decision boundary.</li>
+<li><strong>Provenance:</strong> identify the source artifact, confidence/proof status and reason each signal is present.</li>
+</ul>
+<p>ContextOS ranks and packages evidence. Engines produce signals, the evidence layer calibrates truth, governance decides action, and humans retain sealing authority.</p>
+<h2 id="semantic-directive-principle">Semantic Directive Principle</h2>
+<p>Repository truth is not enough by itself. An agent-facing packet must translate
+that truth into the smallest useful operation surface:</p>
+<ul>
+<li>Target span: the target file, symbol or line span to inspect first</li>
+<li>the violated rule or active risk</li>
+<li>why the evidence matters</li>
+<li>Smallest safe fix strategy: the narrowest known repair path when one is known</li>
+<li>what not to touch</li>
+<li>which validation command or proof surface should run next</li>
+</ul>
+<p>Atlas and SQLite preserve reality. ContextOS turns that reality into focused
+directives that an AI coding agent can act on without reading raw artifacts.</p>
+<h2 id="long-term-boundary">Long-Term Boundary</h2>
+<p>Historical cognition, external evidence adapters and runtime traces may later enrich ContextOS. Their roadmap presence does not make them current v1 capabilities.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

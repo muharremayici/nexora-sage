@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A real repository, one focused change question — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="../landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/case-studies/ZUSTAND_CHANGE_IMPACT_DEMO.md">View source document</a></header>
+<main><h1 id="a-real-repository-one-focused-change-question">A real repository, one focused change question</h1>
+<p>This demo asks where to look before changing Zustand's <code>createStore</code> core.
+It uses existing SAGE analysis and MCP tools, not a new scanner or synthetic
+success fixture. Read the <a href="ZUSTAND_CHANGE_IMPACT_CASE_STUDY.html">case study</a> for
+source checks, the failed quality gate and the test-acquisition limitation.</p>
+<h2 id="1-prepare-the-two-separate-roots">1. Prepare the two separate roots</h2>
+<p>Acquire SAGE v1.4.0 and install its prerequisites using the
+<a href="../QUICKSTART.html">Quickstart</a>. Separately acquire the Zustand checkout at
+<code>b57db4f86ef179285da216eeb291266da82c361c</code>. Run SAGE commands from the directory
+containing <code>sage.py</code>; the Zustand checkout is the explicit target, not the
+installation directory.</p>
+<p>The captured run reused already installed SAGE Python/TypeScript dependencies
+and therefore used <code>--skip-deps</code>. Do not use that option to skip missing SAGE
+prerequisites. It did not install or execute Zustand dependencies.</p>
+<pre><code class="language-powershell">$sageDemoTarget = '&lt;absolute path to the frozen Zustand checkout&gt;'
+python -B sage.py init --skip-deps --setup-only --target-root $sageDemoTarget --projects MAIN
+python -B sage.py run --target-root $sageDemoTarget --profile daily --projects MAIN --step &quot;AI Context Generator&quot; --ai-context
+</code></pre>
+<p><code>--step</code> requests that producer's dependency closure; the command is more than
+a single-file scan. Here <code>MAIN</code> resolves to <code>src</code>, with 15 indexed source files.
+Setup does not itself establish fresh analysis. The actual analysis completed
+with process exit <strong>0</strong> and governance verdict <strong>FAIL</strong>, not a clean verdict.</p>
+<h2 id="2-ask-the-existing-mcp-tools">2. Ask the existing MCP tools</h2>
+<p>Connect this installation using the <a href="../AI_AGENT_HITL_RUNBOOK.html">agent runbook</a>.
+Use the same absolute <code>target_root</code> in every call:</p>
+<p>The evidence capture called these canonical server functions locally. It did
+not retest an IDE client's MCP transport or grant target-edit authority.</p>
+<pre><code class="language-text">search_symbols(query=&quot;createStore&quot;, project=&quot;MAIN&quot;, target_root=TARGET, format=&quot;json&quot;)
+get_impact_radius(target_node=&quot;MAIN::vanilla.ts&quot;, target_root=TARGET, format=&quot;json&quot;, depth=2)
+inspect_file(target=&quot;MAIN::vanilla.ts&quot;, target_root=TARGET, format=&quot;json&quot;)
+</code></pre>
+<p><code>TARGET</code> is the checkout path, not a literal argument. <code>MAIN::vanilla.ts</code> is
+the indexed project-relative node; the returned public reference is
+<code>MAIN::src/vanilla.ts</code>. These are tool arguments, not shell commands.</p>
+<p>Selected fields from the <strong>actual</strong> impact response, with machine-local paths
+and source snippets omitted:</p>
+<pre><code class="language-json">{
+  &quot;target_ref&quot;: &quot;MAIN::src/vanilla.ts&quot;,
+  &quot;radius_depth&quot;: 2,
+  &quot;scope_completeness&quot;: &quot;bounded&quot;,
+  &quot;dependency_graph_source&quot;: &quot;sqlite_dependencies&quot;,
+  &quot;direct_dependents_count&quot;: 3,
+  &quot;direct_dependents&quot;: [&quot;src/index.ts&quot;, &quot;src/react.ts&quot;, &quot;src/traditional.ts&quot;]
+}
+</code></pre>
+<p>Symbol search also returned the <code>createStore</code> definition at lines <strong>99-100</strong>,
+plus its recorded direct import bindings in <code>react.ts</code> and <code>traditional.ts</code>.
+File inspection was source-grounded and explicitly <strong>orientation-only</strong>, not
+permission to edit. Read the core implementation and returned consumers before
+proposing a change; seek the native compiler/lint/test proof appropriate to it.</p>
+<h2 id="3-do-not-turn-an-empty-result-into-proof">3. Do not turn an empty result into proof</h2>
+<pre><code class="language-text">get_test_impact(target_file=&quot;MAIN::vanilla.ts&quot;, target_root=TARGET, format=&quot;json&quot;)
+</code></pre>
+<p>The captured result had <code>target_grounding_status=&quot;grounded&quot;</code> and
+<code>impacted_tests=[]</code>. Relevant alias-bound tests exist outside the selected
+<code>src</code> scope, as the case study explains. No target tests were executed or
+automatically selected by this query. Missing-target control queries remained
+<code>missing_or_unindexed</code>; they did not become grounded empty-test success.</p>
+<p>The outcome is a bounded dependency/symbol review starting point, not a
+complete impact set, passing suite, merge approval or runtime assurance.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>

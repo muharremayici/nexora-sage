@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexora SAGE Quickstart — Nexora SAGE</title>
+<style>
+*{box-sizing:border-box} body{margin:0;color:#182325;background:#f5f7f6;font:17px/1.65 system-ui,sans-serif}
+header,main,footer{max-width:1080px;margin:auto;padding:24px} header,footer{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+main{background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:clamp(20px,5vw,56px);overflow-wrap:anywhere}
+a{color:#096950} a:focus-visible{outline:3px solid #d39726;outline-offset:4px}
+h1,h2,h3{line-height:1.25;scroll-margin-top:24px} h1{font-size:clamp(1.7rem,4vw,2.6rem)} h2{margin-top:2rem}
+pre{overflow:auto;background:#122b28;color:#e7f3eb;padding:20px;border-radius:8px} code{font-size:.88em}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse} td,th{border:1px solid #d9e1dc;padding:10px;vertical-align:top;text-align:left}
+blockquote{border-left:4px solid #22785e;padding-left:20px;margin-left:0} img{max-width:100%;height:auto}
+footer{font-size:14px;color:#465b50}
+</style></head><body><header><a href="landing/index.html">Nexora SAGE</a><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/docs/QUICKSTART.md">View source document</a></header>
+<main><h1 id="nexora-sage-quickstart">Nexora SAGE Quickstart</h1>
+<p>The tested v1 Python runtime matrix is 3.11, 3.12, 3.13 and 3.14. Python
+3.11 is the minimum supported version; unlisted newer versions are not
+release-proven. Python is the only bootstrap prerequisite because SAGE cannot
+install the interpreter needed to start itself. Install a tested Python runtime
+and reopen the terminal before continuing.</p>
+<h2 id="1-plan-the-installation">1. Plan The Installation</h2>
+<p>The v1 installation contract is a source checkout. Wheel/PyPI packaging is not
+currently supported; commands run from the repository root through
+<code>python sage.py</code>.</p>
+<p>Acquire the public source before running the commands below. With Git:</p>
+<pre><code class="language-powershell">git clone https://github.com/muharremayici/nexora-sage.git
+cd nexora-sage
+</code></pre>
+<p>For an exact published version, use the matching tag or source archive from
+<a href="https://github.com/muharremayici/nexora-sage/releases">Nexora SAGE releases</a>.
+If using an archive, extract it and open a terminal in the directory containing
+<code>sage.py</code>. This is a source distribution, not a claimed wheel/PyPI installation.</p>
+<p>Treat the installation root and analysis target as distinct authorities. Replace
+<code>C:\path\to\repository</code> below with that target's actual path; do not point it at
+the SAGE checkout merely because it is the current directory. An embedded
+installation is supported: when SAGE lives inside the target repository, use
+that repository's root, not the SAGE subdirectory, as explained in
+<a href="#2-choose-the-repository-model">Choose The Repository Model</a>.</p>
+<p>Before dependency installation, discovery or analysis, inspect the target and
+machine:</p>
+<pre><code class="language-powershell">python sage.py init --plan-only --target-root &quot;C:\path\to\repository&quot;
+</code></pre>
+<p>The default <code>human_and_ai_full</code> profile includes the CLI, Rich output, Watchdog
+save-time operation and MCP agent access. These are one product profile, not
+optional feature tiers. SAGE installs missing declared Python packages locally
+when normal <code>init</code> runs.</p>
+<p>Node.js is target-conditional. Canonical target preflight requires it for
+JavaScript, TypeScript or React analysis when the Node-backed AST sequencer is
+needed; a Python-only target does not require Node. Git is needed to acquire a
+source checkout, but is not a runtime blocker after both SAGE and the target are
+already present. SAGE does not silently install system runtimes. A missing
+required Python or Node runtime produces <code>BLOCKED</code> with an explicit next action. Release CI currently references Node.js 20.
+Another available Node major is reported as attention: it is not rejected solely
+for differing, but it is not silently promoted to equivalent release-tested
+coverage.</p>
+<p>The plan is written to <code>output/.raw/installation_preflight.json</code> and
+<code>output/reports/installation_preflight.md</code>. It may write this evidence inside
+the SAGE installation, but it does not install packages, run discovery/analysis
+or mutate the target repository.</p>
+<p>SAGE-owned Python child processes run with UTF-8 mode and UTF-8 standard I/O,
+including on Windows. Repository paths with Turkish or other Unicode characters
+must not turn an otherwise completed initialization into a console-encoding
+failure. If that happens, preserve the transcript and treat it as a SAGE runtime
+defect rather than renaming the repository as the primary remedy.</p>
+<p>Preflight, discovery and Oracle have separate authority. Preflight observes the
+machine and target prerequisites and determines whether initialization may
+proceed. Discovery produces canonical repository topology, project ownership
+and runtime scope. Oracle validates selected analysis or change evidence after
+those boundaries exist. They may reuse the same observations, but a preflight
+exclusion is not complete unless canonical discovery carries it to every
+downstream consumer.</p>
+<p>A manifest-owned <code>src</code>, <code>app</code>, or other architecture marker remains part of
+its parent project unless it declares its own project identity or workspace
+edge. Internal folder shape alone does not remove the source tree from <code>MAIN</code>.</p>
+<p>Initialization progress is emitted to the terminal/transcript and its structured
+preflight artifacts. <code>pipeline.log</code> begins when the analysis pipeline begins; an
+empty pipeline log during preflight is not proof that initialization is silent.</p>
+<h2 id="2-choose-the-repository-model">2. Choose The Repository Model</h2>
+<p>SAGE supports two first-class repository acquisition models:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Use when</th>
+<th>Initialization</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Embedded/default repository</td>
+<td>One SAGE checkout is kept with one repository</td>
+<td>Initialize that repository explicitly once, then use the compiled default <code>MAIN</code> workspace</td>
+</tr>
+<tr>
+<td>Central/external target</td>
+<td>One SAGE installation analyzes several independent repositories</td>
+<td>Supply <code>--target-root</code> for each isolated target run</td>
+</tr>
+</tbody>
+</table>
+<p>Repository acquisition does not change SAGE's canonical discovery, project
+ontology or analysis semantics. External targets add isolated runtime/output
+namespaces; they do not define a second analysis engine.</p>
+<p>Even in an embedded layout, the initial repository authority remains explicit.
+If the SAGE checkout is directly inside the target repository, use its parent:</p>
+<pre><code class="language-powershell">python sage.py init --target-root &quot;..&quot;
+</code></pre>
+<p>For a central installation:</p>
+<pre><code class="language-powershell">python sage.py init --target-root &quot;C:\path\to\repository&quot;
+</code></pre>
+<p>Initialization defaults to setup-only: dependency preparation, discovery,
+governance sync and config compilation without an analysis-freshness claim.
+For the explicitly configured embedded/default repository, run a bounded
+initial analysis:</p>
+<pre><code class="language-powershell">python sage.py run --profile daily --projects MAIN
+</code></pre>
+<p>For a central installation, preserve explicit repository authority and the
+isolated output namespace on every repository-specific run:</p>
+<pre><code class="language-powershell">python sage.py run --target-root &quot;C:\path\to\repository&quot; --profile daily --projects MAIN
+</code></pre>
+<p>For one exact changed source file or a file just deleted from the current Atlas,
+use the watchdog surgical pulse:</p>
+<pre><code class="language-powershell">python sage.py watch --once --target-root &quot;C:\path\to\repository&quot; --path &quot;&lt;repository-relative-source-file&gt;&quot;
+</code></pre>
+<p>The configured embedded/default repository may omit <code>--target-root</code> after its
+initial explicit setup.</p>
+<p>An exact missing path is accepted only when the previous canonical Atlas proves
+that it was indexed; it is then processed as a deletion tombstone. When
+<code>--path</code> names a directory, watch-once compares previous indexed membership
+with the current filesystem before selecting a deterministic smoke sample.
+Tombstones are selected before existing files, and the receipt reports selected
+and omitted counts for both classes. Any omitted tombstone forces <code>UNKNOWN</code>;
+the pulse does not claim freshness for omitted files.</p>
+<p><code>run --scope &lt;directory&gt;</code> is only a directory filter for the Scoped Host
+Analyzer report. It does not bound Atlas generation, snapshots, AST parsing or
+the rest of the pipeline. Exact files are rejected on that option; use the
+watch-once command above instead.</p>
+<p>The heavyweight release-deep forced bootstrap is explicit:</p>
+<pre><code class="language-powershell">python sage.py init --target-root &quot;C:\path\to\repository&quot; --full
+</code></pre>
+<p>Public product projections never treat the installation parent as implicit
+repository authority.</p>
+<h2 id="3-confirm-health">3. Confirm Health</h2>
+<pre><code class="language-powershell">python sage.py doctor --include-validate --quick --max-seconds 180
+</code></pre>
+<p>Expected result:</p>
+<pre><code class="language-text">- validators: PASS
+- overall: OK
+</code></pre>
+<p>The default quick doctor uses the <code>SAGE_ON_REPOSITORY</code> validator profile. It
+checks the installed entrypoint and bundled analyzer contracts without requiring
+SAGE's own product-report evidence. The target repository's engineering verdict
+still comes from the pipeline and quality gate; doctor does not replace either.</p>
+<p>A machine remains a clean-machine target when Python, Node.js or Git are newly
+installed immediately before SAGE. Record that case as
+<code>fresh_prerequisites</code>, not as a <code>bare_os</code> bootstrap. Preserve the exact public
+package identity, target identity, commands, stdout, stderr and native exit
+codes in the evaluation transcript. Private maintainer transcript-generation
+tools are not part of the public distribution. The transcript should separate
+two results:</p>
+<ul>
+<li><code>CLEAN_MACHINE_INSTALLATION_VERDICT</code> records whether the public package
+installed and executed its bounded installation proof correctly.</li>
+<li><code>TARGET_REPOSITORY_GOVERNANCE_VERDICT</code> records the target's independent
+engineering result. A target <code>FAIL</code>, <code>INCOMPLETE_EVIDENCE</code>, or
+<code>NOT_EVALUATED</code> result does not turn a successful installation into a failed
+installation.</li>
+</ul>
+<p>For the canonical machine-local installation proof, run:</p>
+<pre><code class="language-powershell">python sage.py install-proof --level release --skip-deps --target-root &quot;C:\path\to\repository&quot; --projects MAIN
+</code></pre>
+<p>The installation proof runs a dependency-closed daily repository analysis but
+does not claim a final target governance verdict. Use a complete full or
+explicit Quality Gate run when that separate verdict is required.</p>
+<p>The <code>smoke</code> level is an internal check for an already initialized SAGE
+workspace. In a fresh public package it exits before running proof steps and
+points to the target-aware <code>release</code> command above instead of emitting a chain
+of missing-runtime-configuration failures.</p>
+<p>Installation validation is authority-scoped. A public package selects the
+<code>public_target_repository</code> profile from <code>PUBLIC_DISTRIBUTION_MANIFEST.json</code> and
+validates only shipped installation and target-repository surfaces. Canonical
+source checkouts select <code>private_maintainer</code> and additionally validate clean and
+public projection machinery plus SAGE release-proof integration. The selected
+profile and any omitted maintainer-only checks are recorded in both JSON and
+Markdown validation artifacts.</p>
+<p>The release-level installation proof uses the same authority profile. A public
+package does not invoke the intentionally unshipped private final-consistency
+validator; its proof records that maintainer-only omission. Canonical maintainer
+proof retains the step, and any unknown profile omission fails closed.</p>
+<h2 id="4-connect-ai-ides">4. Connect AI IDEs</h2>
+<p>For Cursor, Codex, Antigravity or another AI-assisted IDE, add the root <code>SKILL.md</code>
+to the agent's project context/rules and use the MCP preview when the IDE supports
+MCP servers:</p>
+<pre><code class="language-powershell">python sage.py mcp --print-config --profile target_repository_default
+</code></pre>
+<p>Start ordinary coding turns in <code>target_repository_default</code>. Reconnect with
+<code>target_repository_followup</code> only after a concrete supporting-context or HITL
+need exists. Both profiles govern <code>SAGE_ON_REPOSITORY</code>; the public distribution
+does not expose the private SAGE maintainer/self profile.</p>
+<p>The installer does not silently copy files into IDE-specific configuration
+folders. <code>SKILL.md</code> is the portable contract; IDE placement remains an explicit
+operator action.</p>
+<h2 id="5-run-common-analysis">5. Run Common Analysis</h2>
+<pre><code class="language-powershell">python sage.py run --list-steps
+python sage.py run --target-root &quot;C:\path\to\repository&quot; --profile daily --projects MAIN
+python sage.py run --target-root &quot;C:\path\to\repository&quot; --step qualitygates --projects MAIN
+python sage.py doctor --include-validate --quick --max-seconds 180
+</code></pre>
+<h2 id="6-review-product-evidence">6. Review Product Evidence</h2>
+<p>Release proof is a maintainer boundary, not a normal onboarding step. Users do
+not need to rerun SAGE's complete self-release proof to analyze a repository.
+See <code>EVIDENCE.md</code>, <code>CLAIMS_EVIDENCE_MATRIX.md</code> and
+<code>V1_RELEASE_BOUNDARY.md</code> for the published v1 evidence and its limits.</p>
+<h2 id="external-target-mode">External Target Mode</h2>
+<p>Analyze another repository without copying Nexora SAGE into it:</p>
+<pre><code class="language-powershell">python sage.py run --target-root C:\path\to\repo --step qualitygates
+</code></pre>
+<p>See <code>docs/EXTERNAL_TARGET_RUNBOOK.md</code>.</p>
+<h2 id="cli-boundary">CLI Boundary</h2>
+<p>Use <code>python sage.py ...</code> for public commands. <code>codemaps.py</code> is an internal implementation file, not an onboarding surface.</p>
+<h2 id="v1-claim-boundary">v1 Claim Boundary</h2>
+<p>For v1, Nexora SAGE should be positioned as a React/TypeScript surgical governance platform on a polyglot substrate. Runtime-only React behavior is confidence-ranked and routed toward proof; it is not overstated as statically settled. See <code>docs/V1_RELEASE_BOUNDARY.md</code>.</p>
+</main><footer><span>Documentation from the published source. Case evidence keeps its own analyzer baseline.</span><a href="https://github.com/muharremayici/nexora-sage/blob/0a4ad42c5ee7b5150faced1626603711e904e326/LICENSE">License</a></footer></body></html>
