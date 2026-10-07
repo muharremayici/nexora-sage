@@ -569,7 +569,13 @@ def project_successor_selection(
     reason_codes: list[str] = []
     pool: list[dict[str, Any]] = []
     if interrupt:
-        if any(not row["automatic_release_scope"] for row in interrupt):
+        if all(row["human_choice_release_scope"] for row in interrupt):
+            # Urgency does not create another authority contract. A wholly
+            # published interrupt pool uses the existing exact-phase choice;
+            # mixed or unknown scopes still require separate scope correction.
+            reason_codes = ["published_carryover_requires_human_scope"]
+            pool = interrupt
+        elif any(not row["automatic_release_scope"] for row in interrupt):
             reason_codes = ["interrupt_candidate_requires_release_scope_choice"]
             pool = interrupt
         else:

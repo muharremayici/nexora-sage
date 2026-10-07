@@ -1,14 +1,57 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from tools.core.config import RAW_DIR
-from tools.core.json_io import load_json_file
+from tools.core.json_io import is_raw_artifact_path, load_json_file, load_raw_artifact_path
 from tools.core.reality_scope import capability_scope
 from tools.engines.capability_activation_planner import build_capability_activation_plan
 
 
-def load_capability_activation_plan(*, regenerate: bool = False) -> dict[str, Any]:
+def load_capability_activation_plan(
+    *, regenerate: bool = False, raw_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Read target context without invoking the private development planner."""
+    if raw_dir is not None:
+        if regenerate:
+            raise ValueError("Target activation context is read-only; use its pipeline producer.")
+        path = Path(raw_dir) / "capability_activation_plan.json"
+        reader = load_raw_artifact_path if is_raw_artifact_path(path) else load_json_file
+        payload = reader(path, {})
+        valid = (
+            isinstance(payload, dict)
+            and isinstance(payload.get("meta"), dict)
+            and payload["meta"].get("kind") == "capability_activation_plan"
+            and isinstance(payload.get("summary"), dict)
+            and isinstance(payload.get("projects"), list)
+            and all(isinstance(row, dict) for row in payload["projects"])
+            and all(
+                isinstance(payload["summary"].get(key, []), list)
+                for key in ("enabled_capability_ids", "disabled_capability_ids")
+            )
+            and all(
+                isinstance(row.get(key, []), list)
+                for row in payload["projects"]
+                for key in ("enabled_capabilities", "disabled_capabilities")
+            )
+        )
+        result = dict(payload) if valid else {
+            "summary": {"status": "UNAVAILABLE", "projects": 0},
+            "projects": [],
+        }
+        result["input_evidence"] = {
+            "status": "UNVERIFIED" if valid else "UNAVAILABLE",
+            "reason": (
+                "target_namespace_plan_without_snapshot_binding"
+                if valid else "target_activation_plan_missing_or_invalid"
+            ),
+            "source_artifact": str(path),
+            "snapshot_binding": "not_verified",
+            "decision_use": "orientation_only",
+            "regenerated": False,
+        }
+        return result
     if not regenerate:
         payload = load_json_file(RAW_DIR / "capability_activation_plan.json", {})
         if isinstance(payload, dict) and payload.get("meta", {}).get("kind") == "capability_activation_plan":
@@ -108,6 +151,7 @@ def relevant_activation_context(
     summary["project_ids"] = [str(row.get("project") or "") for row in rows]
     return {
         "summary": summary,
+        "input_evidence": plan.get("input_evidence", {}),
         "surface_policy": {
             "detail": "bounded_context_projection",
             "full_plan_artifact": "output/.raw/capability_activation_plan.json",
