@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import ast
+from copy import deepcopy
+import inspect
 from pathlib import Path
 
+import pytest
+
 from tools import validate_agent_semantic_contract_smoke as smoke
+from tools.core import contextos_mcp
 
 
 def _clean_queue_payload() -> dict:
@@ -211,3 +217,90 @@ def test_bidirectional_dependency_target_fails_closed_without_semantic_candidate
     }
 
     assert smoke._select_bidirectional_dependency_target(payload) == ""
+
+
+def _semantic_smoke_predicate(name: str, **context: dict) -> bool:
+    """Exercise one actual guard without running unrelated live release consumers."""
+    tree = ast.parse(inspect.getsource(smoke.validate_agent_semantic_contract_smoke))
+    calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        and node.func.id == "_check" and node.args
+        and isinstance(node.args[0], ast.Constant) and node.args[0].value == name
+    ]
+    assert len(calls) == 1, "The named guard must exist exactly once."
+    predicate = compile(ast.Expression(calls[0].args[1]), smoke.__file__, "eval")
+    return bool(eval(predicate, {"__builtins__": {"str": str}}, context))
+
+
+def _target_signal_packet(tmp_path: Path, monkeypatch, *, state: str = "present") -> dict:
+    payload = {} if state == "missing" else {
+        "summary": {"status": "FAIL" if state == "failed" else "PASS", "contracts": 1},
+        "contract_summary": [{"capability_id": "contextos", "emits": "context_packet"}],
+    }
+    with monkeypatch.context() as scoped:
+        scoped.setattr(contextos_mcp, "load_json_file", lambda path, _default: (
+            deepcopy(payload) if path.name == "engine_signal_contract_validation.json" else {}
+        ))
+        return contextos_mcp.build_surgical_operation_packet(
+            {"active_signals": []}, project_scope="MAIN", raw_dir=tmp_path,
+        )
+
+
+@pytest.mark.parametrize("state", ["missing", "present", "failed"])
+def test_semantic_target_followup_accepts_real_orientation_not_an_artifact_verdict(tmp_path: Path, monkeypatch, state: str):
+    packet = _target_signal_packet(tmp_path, monkeypatch, state=state)
+    expected_status = {"missing": None, "present": "PASS", "failed": "FAIL"}[state]
+    assert packet["engine_signal_contract"]["summary"]["status"] == expected_status
+    assert _semantic_smoke_predicate(
+        "surgical_packet_marks_contextos_as_focus_not_verdict",
+        surgical_packet=packet, contextos_contract=smoke._config_contract_map()["contextos"],
+    )
+
+
+@pytest.mark.parametrize("mutation", [
+    "private_tool", "null_tool", "missing_followup", "available", "wrong_reason",
+    "missing_boundary", "missing_rule", "verdict_emission", "blocking_gate", "missing_contract",
+])
+def test_semantic_target_followup_rejects_authority_drift(tmp_path: Path, monkeypatch, mutation: str):
+    packet = _target_signal_packet(tmp_path, monkeypatch)
+    context = packet["engine_signal_contract"]
+    contract = deepcopy(smoke._config_contract_map()["contextos"])
+    if mutation == "private_tool":
+        context["mcp_tool"] = "get_engine_signal_contracts"
+    elif mutation == "null_tool":
+        context["mcp_tool"] = None
+    elif mutation == "missing_followup":
+        context.pop("followup")
+    elif mutation == "available":
+        context["followup"]["availability"] = "available"
+    elif mutation == "wrong_reason":
+        context["followup"]["reason"] = "not_generated"
+    elif mutation == "missing_boundary":
+        context["followup"]["claim_boundary"] = ""
+    elif mutation == "missing_rule":
+        context["agent_rule"] = ""
+    elif mutation == "verdict_emission":
+        contract["emits"] = "verdict"
+    elif mutation == "blocking_gate":
+        contract["quality_gate_effect"] = "block"
+    elif mutation == "missing_contract":
+        contract = {}
+    assert not _semantic_smoke_predicate(
+        "surgical_packet_marks_contextos_as_focus_not_verdict",
+        surgical_packet=packet, contextos_contract=contract,
+    )
+
+
+def test_semantic_target_followup_does_not_change_private_operator_guard():
+    from tools.generate_nexora_operator_packet import _engine_signal_contract_context
+
+    context = _engine_signal_contract_context({"summary": {"status": "PASS"}})
+    packet = {"mission_control": {"engine_signal_contract": "PASS"}, "engine_signal_contract": context}
+    assert _semantic_smoke_predicate("operator_packet_exposes_engine_signal_contract", operator_packet=packet)
+    assert not _semantic_smoke_predicate(
+        "surgical_packet_marks_contextos_as_focus_not_verdict",
+        surgical_packet=packet, contextos_contract=smoke._config_contract_map()["contextos"],
+    )
+    context.pop("mcp_tool")
+    assert not _semantic_smoke_predicate("operator_packet_exposes_engine_signal_contract", operator_packet=packet)

@@ -6,10 +6,12 @@ import io
 import json
 import os
 import re
+import sqlite3
 import tempfile
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
@@ -17,11 +19,15 @@ from typing import Any, Iterator
 from tools.core.config import CONFIG_DIR, DYNAMIC_CONFIG, RAW_DIR, REPORTS_DIR, ROOT, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file, load_text_file
 from tools.core.persistence_limits import load_persistence_limits
+from tools.core.json_syntax import JSONSelectionLimitError, loads_json_strict, select_json_object_path, _unique_object_pairs
 from tools.core.db import SQLiteManager
 from tools.core.source_snapshot_integrity import snapshot_hash_algorithms, source_text_hash
 from tools.core.audit_finding_generation import (
     AUDIT_FINDINGS_FACT_ARTIFACT,
     AUDIT_FINDINGS_FACT_KEY,
+    audit_finding_severity,
+    audit_finding_code,
+    canonical_audit_finding_message,
     build_canonical_finding_manifest,
     build_scoped_finding_manifest,
     normalize_finding_scope_refs,
@@ -78,6 +84,19 @@ def _record_store_degradation(operation: str, subject: str, exc: BaseException, 
         )
     except Exception as telemetry_exc:
         logger.error("[HONESTY] Artifact store degradation telemetry failed: %s", telemetry_exc)
+
+
+def _record_atlas_primary_read_failure(subject: Path, exc: BaseException) -> None:
+    """Observe refused source evidence; telemetry failure cannot enable recovery."""
+    try:
+        from tools.core.honesty_telemetry import record_honesty_event
+
+        record_honesty_event(component='atlas_io', category='storage_fallback',
+            operation='load_atlas_data_with_identity', subject=str(subject),
+            reason='Current primary Atlas content could not be verified.',
+            fallback='unavailable_primary_atlas', claim_impact='atlas_source_evidence_unavailable', exception=exc)
+    except Exception as telemetry_exc:
+        logger.error('[HONESTY] Refused Atlas primary read telemetry failed: %s', telemetry_exc)
 
 
 def _record_store_missing_row_event(name: str, details: dict[str, Any]) -> None:
@@ -501,15 +520,19 @@ class ArtifactStore:
         filename = name if name.endswith(suffix) else f"{name}{suffix}"
         return _safe_resolve(base, filename)
 
-    def _load_state_payload_row(self, conn, row) -> Any:
+    @contextmanager
+    def _state_payload_stream(self, conn, row):
+        """Yield exact primary bytes; partition identity is checked before use."""
         row_keys = set(row.keys())
         storage_mode = str(row["storage_mode"] or "inline_json") if "storage_mode" in row_keys else "inline_json"
         if storage_mode == "inline_json":
-            return json.loads(row["payload"])
+            with io.BytesIO(row["payload"].encode("utf-8")) as stream:
+                yield stream
+            return
         if storage_mode != "partitioned_json_v1":
             raise CorruptPartitionedPayloadError(f"Unsupported state payload storage mode: {storage_mode}")
 
-        manifest = json.loads(row["payload"])
+        manifest = loads_json_strict(row["payload"])
         descriptor = manifest.get("__sage_partitioned_payload__") if isinstance(manifest, dict) else None
         if not isinstance(descriptor, dict) or descriptor.get("format") != "partitioned_json_v1":
             raise CorruptPartitionedPayloadError("Partitioned state payload manifest is missing or invalid.")
@@ -519,6 +542,10 @@ class ArtifactStore:
         expected_sha = str(row["payload_sha"] or descriptor.get("payload_sha256") or "")
         if not generation_id or expected_parts < 1 or expected_bytes < 1 or not expected_sha:
             raise CorruptPartitionedPayloadError("Partitioned state payload identity is incomplete.")
+        if any(descriptor.get(key) != value for key, value in (
+                ("generation_id", generation_id), ("part_count", expected_parts),
+                ("payload_bytes", expected_bytes), ("payload_sha256", expected_sha))):
+            raise CorruptPartitionedPayloadError("Partitioned manifest and primary row identity disagree.")
 
         digest = hashlib.sha256()
         actual_bytes = 0
@@ -557,11 +584,96 @@ class ArtifactStore:
             if digest.hexdigest() != expected_sha:
                 raise CorruptPartitionedPayloadError("Partitioned state payload checksum mismatch.")
             spool.seek(0)
-            with io.TextIOWrapper(spool, encoding="utf-8") as text_stream:
-                return json.load(text_stream)
+            yield spool
         finally:
             if not spool.closed:
                 spool.close()
+
+    def _load_state_payload_row(self, conn, row) -> Any:
+        storage_mode = str(row["storage_mode"] or "inline_json") if "storage_mode" in row.keys() else "inline_json"
+        if storage_mode == "inline_json":
+            return json.loads(row["payload"])
+        with self._state_payload_stream(conn, row) as stream:
+            with io.TextIOWrapper(stream, encoding="utf-8") as text_stream:
+                return json.load(text_stream)
+
+    @contextmanager
+    def _verified_atlas_stream(self):
+        """One read snapshot owns the header, validated body and its identity."""
+        if not self.db_manager.db_path.is_file():
+            yield None
+            return
+        with self.db_manager.get_read_only_connection() as conn:
+            # Row, manifest and parts must belong to one SQLite read snapshot.
+            conn.execute("BEGIN;")
+            columns = {row['name'] for row in conn.execute("PRAGMA table_info(state_payloads);")}
+            if not {'payload_sha', 'payload_bytes', 'storage_mode', 'generation_id'}.issubset(columns):
+                yield None  # Legacy storage remains orientation, not verified source evidence.
+                return
+            header = conn.execute("""
+                SELECT payload_sha, payload_bytes, storage_mode, generation_id,
+                       length(CAST(payload AS BLOB)) AS stored_bytes
+                FROM state_payloads WHERE name = 'atlas';
+                """).fetchone()
+            if header is None or not re.fullmatch(r"[0-9a-f]{64}", str(header["payload_sha"] or "")):
+                yield None
+                return
+            if int(header["payload_bytes"] or 0) < 1:
+                yield None
+                return
+            header_limit = (self.state_payload_inline_limit_bytes if header["storage_mode"] == "inline_json"
+                            else self.atlas_staging_file_payload_limit_bytes)
+            if int(header["stored_bytes"] or 0) > header_limit:
+                raise JSONSelectionLimitError("Atlas inline payload/manifest exceeds the current primary read budget.")
+            if header["storage_mode"] == "partitioned_json_v1":
+                largest = conn.execute("""
+                    SELECT MAX(length(payload)) FROM state_payload_parts
+                    WHERE name = 'atlas' AND generation_id = ?;
+                    """, (header["generation_id"],)).fetchone()[0]
+                if largest is not None and int(largest) > self.state_payload_part_size_bytes:
+                    raise JSONSelectionLimitError("Atlas part exceeds the current primary read budget.")
+            row = conn.execute("SELECT * FROM state_payloads WHERE name = 'atlas';").fetchone()
+            if header["storage_mode"] == "inline_json":
+                encoded = row["payload"].encode("utf-8")
+                if len(encoded) != int(row["payload_bytes"]) or _payload_sha(encoded) != row["payload_sha"]:
+                    raise CorruptPartitionedPayloadError("Inline Atlas payload identity mismatch.")
+            with self._state_payload_stream(conn, row) as stream:
+                yield stream, 'sqlite:' + header['payload_sha']
+
+    def load_sqlite_atlas_data_with_identity(self) -> tuple[dict[str, Any], str] | None:
+        """Materialize Atlas with the identity of the exact verified read body.
+
+        No fallback, self-heal or independent header lookup can certify this
+        result. A checksum proves storage integrity, not producer authenticity.
+        """
+        with self._verified_atlas_stream() as verified:
+            if verified is None:
+                return None
+            stream, identity = verified
+            with io.TextIOWrapper(stream, encoding='utf-8', newline='') as text_stream:
+                payload = json.load(text_stream, object_pairs_hook=_unique_object_pairs)
+            if not isinstance(payload, dict):
+                raise ValueError('Verified Atlas root must be an object.')
+            return payload, identity
+
+    def load_sqlite_atlas_file_metadata(self, project: str, rel_path: str) -> dict[str, Any] | None:
+        """Read one exact file from canonical primary bytes, never a shadow.
+
+        Verification may spool the whole payload, but only selected metadata is
+        materialized. Reuse the same read snapshot and existing storage budgets.
+        Missing or legacy unbound identity returns None; corruption/limits raise.
+        """
+        if not project or not rel_path:
+            return None
+        with self._verified_atlas_stream() as verified:
+            if verified is None:
+                return None
+            stream, _ = verified
+            with io.TextIOWrapper(stream, encoding="utf-8", newline="") as text_stream:
+                value = select_json_object_path(text_stream, (project, "files", rel_path),
+                    chunk_size=max(1, self.state_payload_part_size_bytes // 4),
+                    max_value_bytes=self.atlas_staging_file_aggregate_limit_bytes)
+            return value if isinstance(value, dict) else None
 
     def load_raw(self, name: str, default: Any = None) -> Any:
         # Trigger path resolution/validation first to prevent path traversal bypass!
@@ -2498,14 +2610,15 @@ class ArtifactStore:
                 try:
                     source_path = (project_root / normalized_rel).resolve()
                     source_path.relative_to(project_root)
-                    if not source_path.exists() or not source_path.is_file():
+                    physical_source = Path(native_filesystem_path(source_path))
+                    if not physical_source.exists() or not physical_source.is_file():
                         status = "missing"
-                    elif source_path.stat().st_size > max_bytes:
+                    elif physical_source.stat().st_size > max_bytes:
                         status = "too_large"
-                        size_bytes = int(source_path.stat().st_size)
-                        source_mtime = float(source_path.stat().st_mtime)
+                        size_bytes = int(physical_source.stat().st_size)
+                        source_mtime = float(physical_source.stat().st_mtime)
                     else:
-                        with source_path.open("r", encoding="utf-8", errors="replace", newline="") as source_file:
+                        with physical_source.open("r", encoding="utf-8", errors="replace", newline="") as source_file:
                             content = source_file.read()
                         actual_hash = source_text_hash(content, atlas_hash, algorithms=identity_algorithms)
                         content_hash = actual_hash or _payload_sha(content)
@@ -2514,7 +2627,7 @@ class ArtifactStore:
                         elif actual_hash != atlas_hash:
                             status, error = "content_mismatch", "Source changed after Atlas ingestion"
                         size_bytes = len(content.encode("utf-8", errors="replace"))
-                        source_mtime = float(source_path.stat().st_mtime)
+                        source_mtime = float(physical_source.stat().st_mtime)
                 except Exception as exc:
                     status = "error"
                     error = str(exc)
@@ -2670,19 +2783,9 @@ class ArtifactStore:
                 raise ValueError(
                     f"Scoped Audit emitted an out-of-scope finding: {resolved_ref}"
                 )
-            severity = str(
-                violation.get("mode")
-                or violation.get("severity")
-                or violation.get("level")
-                or "unknown"
-            )
-            code = str(violation.get("rule") or "architecture_violation")
-            message = json.dumps(
-                violation,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
+            severity = audit_finding_severity(violation)
+            code = audit_finding_code(violation)
+            message = canonical_audit_finding_message(violation)
             rows.append(("audit_report", file_id, severity, code, message))
         return rows, skipped
 

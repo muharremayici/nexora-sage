@@ -966,11 +966,19 @@ def _review_named_sample(sample: dict[str, Any], *, target_root: str = "") -> di
         )
         review["passed"] = all(review["checks"].values())
     if name == "watchdog_session_missing":
+        try:
+            recovery = json.loads(_yaml_field(body, "recovery"))
+        except (TypeError, ValueError):
+            recovery = {}
         missing_brief = (
             "# Watchdog Session Missing" in body
             and "status: missing_watchdog_session" in body
-            and "run_watchdog_once(path?)" in body
-            and "<file-or-directory>" in body
+            # The missing-session sample calls the primary/default producer.
+            # Its existing owner determines current tool visibility and scope.
+            and recovery == mcp_server._target_recovery_guidance("watchdog_pulse", "", "")
+            and recovery.get("execution_authority") == "not_granted"
+            and recovery.get("refresh_executed") is False
+            and sum(line.strip().startswith("recovery: ") for line in body.splitlines()) == 1
             and "Do not infer that the repository has no active risk" in body
             and "Do not fall back to stale active-signal or unrelated target artifacts." in body
         )

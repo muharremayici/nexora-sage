@@ -484,12 +484,86 @@ function createFileSymbolResolver(sourceFile) {
                 target: ts.ScriptTarget.Latest,
             }, host).getTypeChecker();
         }
-        return checker.getSymbolAtLocation(node);
+        return ts.isShorthandPropertyAssignment(node)
+            ? checker.getShorthandAssignmentValueSymbol(node) : checker.getSymbolAtLocation(node);
     };
 }
 
 function createImportCallCollector(sourceFile, importBindings, symbolAt) {
     const cache = new WeakMap();
+    const sourceHash = crypto.createHash('sha256').update(sourceFile.text, 'utf8').digest('hex');
+    const span = value => {
+        const start = value.getStart(sourceFile), end = value.getEnd();
+        return {start, end, line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(end - 1).line + 1};
+    };
+    function countNames(name, counts) {
+        if (name && ts.isIdentifier(name)) counts.set(name.text, (counts.get(name.text) || 0) + 1);
+        else if (name && (ts.isArrayBindingPattern(name) || ts.isObjectBindingPattern(name))) {
+            for (const value of name.elements) if (ts.isBindingElement(value)) countNames(value.name, counts);
+        }
+    }
+    function scopeNames(statements, parameters = []) {
+        const counts = new Map();
+        for (const parameter of parameters) countNames(parameter.name, counts);
+        for (const statement of statements) {
+            if (ts.isVariableStatement(statement)) {
+                for (const declaration of statement.declarationList.declarations) countNames(declaration.name, counts);
+            } else if (ts.isImportDeclaration(statement)) {
+                const clause = statement.importClause;
+                if (!clause) continue;
+                countNames(clause.name, counts);
+                if (clause.namedBindings) {
+                    if (ts.isNamespaceImport(clause.namedBindings)) countNames(clause.namedBindings.name, counts);
+                    else for (const specifier of clause.namedBindings.elements) countNames(specifier.name, counts);
+                }
+            } else countNames(statement.name, counts);
+        }
+        return counts;
+    }
+    const importNames = scopeNames(sourceFile.statements);
+    function guardedResultUse(owner, call, binding) {
+        const arrow = owner.initializer;
+        if (!arrow.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword)
+            || arrow.body.statements.length !== 2) return null;
+        const [first, guard] = arrow.body.statements;
+        if (!ts.isVariableStatement(first) || !(first.declarationList.flags & ts.NodeFlags.Const)
+            || first.declarationList.declarations.length !== 1 || !ts.isIfStatement(guard)
+            || guard.elseStatement || !ts.isBlock(guard.thenStatement)
+            || guard.thenStatement.statements.length !== 1) return null;
+        const value = first.declarationList.declarations[0];
+        if (!ts.isIdentifier(value.name) || value.type || !value.initializer
+            || !ts.isAwaitExpression(value.initializer) || value.initializer.expression !== call) return null;
+        const valueSymbol = symbolAt(value.name);
+        const counts = scopeNames(arrow.body.statements, arrow.parameters);
+        if (valueSymbol?.declarations?.length !== 1 || valueSymbol.declarations[0] !== value
+            || counts.get(value.name.text) !== 1) return null;
+        const condition = guard.expression;
+        const statement = guard.thenStatement.statements[0];
+        const sink = ts.isExpressionStatement(statement) ? statement.expression : null;
+        const argument = sink && ts.isCallExpression(sink) ? sink.arguments[0] : null;
+        function sameRead(node) {
+            return node && ts.isPropertyAccessExpression(node) && !node.questionDotToken
+                && ts.isIdentifier(node.expression) && ts.isIdentifier(node.name)
+                && symbolAt(node.expression) === valueSymbol;
+        }
+        if (!sameRead(condition) || !sameRead(argument) || condition.name.text !== argument.name.text
+            || !ts.isCallExpression(sink) || sink.questionDotToken || sink.arguments.length !== 1
+            || !ts.isIdentifier(sink.expression)) return null;
+        const sinkSymbol = symbolAt(sink.expression);
+        const sinkDeclarations = sinkSymbol?.declarations || [];
+        const sinkName = sinkDeclarations.length === 1 ? sinkDeclarations[0].name : null;
+        if (!sinkName || !ts.isIdentifier(sinkName) || sinkSymbol === valueSymbol
+            || sinkName.getSourceFile() !== sourceFile) return null;
+        return {...binding, member: null, optional: false,
+            lexical_owner: owner.name.text, lexical_owner_kind: 'const_local_arrow',
+            result_name: value.name.text, selected_property: condition.name.text,
+            sink_name: sink.expression.text,
+            spans: {owner: span(owner), owner_binding: span(owner.name), body: span(arrow.body),
+                call: span(call), callee: span(call.expression), result_binding: span(value.name),
+                initializer: span(value.initializer), condition: span(condition), argument: span(argument),
+                sink_call: span(sink), sink_callee: span(sink.expression), sink_binding: span(sinkName)}};
+    }
     function unwrap(node) {
         while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
             || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)
@@ -503,6 +577,16 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                 ? node.initializer : node);
         const result = {status: 'not_applicable', calls: [], limitations: [],
             binding_scope: 'single_file_lexical_import', runtime_execution: 'not_established'};
+        if (!moduleRoot) {
+            result.local_arrow_import_call_evidence = {status: 'not_applicable',
+                version: 'v1-immediate-const-arrow-named-import-call', offset_unit: 'utf16_code_units',
+                source_hash: sourceHash, records: [], omitted: 0,
+                runtime_execution: 'not_established'};
+            result.local_arrow_result_use_evidence = {status: 'not_applicable',
+                version: 'v1-immediate-async-const-arrow-guarded-result-argument',
+                offset_unit: 'utf16_code_units', source_hash: sourceHash,
+                records: [], omitted: 0, runtime_execution: 'not_established'};
+        }
         if (moduleRoot) {
             result.callsite_scope = 'module_root';
             result.omitted = 0;
@@ -523,17 +607,34 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
         if (sourceFile.parseDiagnostics?.length) {
             result.status = 'unavailable';
             result.limitations = ['source_parse_diagnostics'];
+            if (!moduleRoot) result.local_arrow_import_call_evidence.status = 'unavailable';
+            if (!moduleRoot) result.local_arrow_result_use_evidence.status = 'unavailable';
             return result;
         }
         const limitations = new Set([moduleRoot
             ? 'module_root_outside_nested_callable_and_class'
             : 'body_only_no_parameter_initializers']);
         const eventMethods = new Set(['emit', 'on', 'once', 'off', 'addListener', 'removeListener']);
-        function walk(inner, nestedDepth = 0) {
+        const ownerNames = !moduleRoot && ts.isBlock(fn.body)
+            ? scopeNames(fn.body.statements, fn.parameters) : new Map();
+        function walk(inner, nestedDepth = 0, localOwner = null) {
             if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) {
                 if (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner)) {
                     limitations.add('nested_callable_event_syntax_only');
-                    if (inner.body) walk(inner.body, nestedDepth + 1);
+                    const decl = inner.parent;
+                    const declarations = decl && ts.isVariableDeclaration(decl) && ts.isIdentifier(decl.name)
+                        ? symbolAt(decl.name)?.declarations || [] : [];
+                    const owner = !moduleRoot && nestedDepth === 0 && ts.isArrowFunction(inner)
+                        && ts.isBlock(inner.body) && ts.isVariableDeclaration(decl)
+                        && decl.initializer === inner && ts.isIdentifier(decl.name)
+                        && ts.isVariableDeclarationList(decl.parent)
+                        && (decl.parent.flags & ts.NodeFlags.Const)
+                        && decl.parent.declarations.length === 1
+                        && ts.isVariableStatement(decl.parent.parent)
+                        && decl.parent.parent.parent === fn.body
+                        && declarations.length === 1 && declarations[0] === decl
+                        && ownerNames.get(decl.name.text) === 1 ? decl : null;
+                    if (inner.body) walk(inner.body, nestedDepth + 1, owner);
                 } else {
                     limitations.add('nested_callable_excluded');
                 }
@@ -591,6 +692,34 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                 const root = ts.isIdentifier(callee) ? callee
                     : staticMember !== null ? unwrap(callee.expression) : null;
                 const binding = root && ts.isIdentifier(root) ? importBindings.get(root.text) : null;
+                // Separate syntax lane: never relabel this as an outer/direct call.
+                if (localOwner && nestedDepth === 1 && ts.isIdentifier(inner.expression)
+                    && binding?.kind === 'named' && importNames.get(binding.localName) === 1
+                    && !inner.questionDotToken) {
+                    const declarations = symbolAt(root)?.declarations || [];
+                    const specifier = declarations.length === 1 && ts.isImportSpecifier(declarations[0])
+                        ? declarations[0] : null;
+                    const clause = specifier?.parent?.parent;
+                    if (clause && ts.isImportClause(clause) && !clause.isTypeOnly && !specifier.isTypeOnly
+                        && ts.isImportDeclaration(clause.parent)
+                        && clause.parent.moduleSpecifier.text === binding.source
+                        && specifier.name.text === binding.localName
+                        && (specifier.propertyName?.text || specifier.name.text) === binding.importedName) {
+                        const evidence = result.local_arrow_import_call_evidence;
+                        if (evidence.records.length < 64) {
+                            evidence.records.push({...binding, member: null, optional: false,
+                                lexical_owner: localOwner.name.text, lexical_owner_kind: 'const_local_arrow',
+                                spans: {owner: span(localOwner), owner_binding: span(localOwner.name),
+                                    body: span(localOwner.initializer.body), call: span(inner), callee: span(root)}});
+                        } else evidence.omitted += 1;
+                        const usage = guardedResultUse(localOwner, inner, binding);
+                        if (usage) {
+                            const lane = result.local_arrow_result_use_evidence;
+                            if (lane.records.length < 64) lane.records.push(usage);
+                            else lane.omitted += 1;
+                        }
+                    }
+                }
                 const literalEventMember = binding && binding.kind === 'named'
                     && ts.isPropertyAccessExpression(callee)
                     && ['emit', 'on', 'once', 'off', 'addListener', 'removeListener'].includes(callee.name.text)
@@ -639,11 +768,21 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
                     limitations.add('unsupported_or_non_import_callee');
                 }
             }
-            ts.forEachChild(inner, child => walk(child, nestedDepth));
+            // Branch/loop/exception paths are outside this finite local-owner lane.
+            const deferredOwner = ts.isIfStatement(inner) || ts.isSwitchStatement(inner)
+                || ts.isIterationStatement(inner, false) || ts.isTryStatement(inner)
+                || ts.isConditionalExpression(inner) || ts.isBinaryExpression(inner)
+                && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken,
+                    ts.SyntaxKind.QuestionQuestionToken].includes(inner.operatorToken.kind) ? null : localOwner;
+            ts.forEachChild(inner, child => walk(child, nestedDepth, deferredOwner));
         }
         try {
             walk(moduleRoot ? sourceFile : fn.body);
             result.status = 'observed';
+            if (!moduleRoot) result.local_arrow_import_call_evidence.status =
+                result.local_arrow_import_call_evidence.omitted ? 'incomplete_scan' : 'observed';
+            if (!moduleRoot) result.local_arrow_result_use_evidence.status =
+                result.local_arrow_result_use_evidence.omitted ? 'incomplete_scan' : 'observed';
             if (result.property_event_evidence?.status === 'not_applicable') {
                 result.property_event_evidence.status = result.property_event_evidence.omitted
                     ? 'incomplete_scan' : 'observed';
@@ -653,6 +792,10 @@ function createImportCallCollector(sourceFile, importBindings, symbolAt) {
             // a partially successful lexical claim.
             result.status = 'unavailable';
             result.calls = [];
+            if (!moduleRoot) Object.assign(result.local_arrow_import_call_evidence,
+                {status: 'unavailable', records: [], omitted: 0});
+            if (!moduleRoot) Object.assign(result.local_arrow_result_use_evidence,
+                {status: 'unavailable', records: [], omitted: 0});
             limitations.add('single_file_binding_unavailable');
             if (result.property_event_evidence) {
                 result.property_event_evidence.status = 'unavailable';
@@ -1349,6 +1492,1029 @@ function createSameFileDirectCallCollector(sourceFile, symbolAt) {
             limitations.add('single_file_binding_unavailable');
         }
         result.limitations = [...limitations].sort();
+        return result;
+    };
+}
+
+function createBindingWriteCollector(symbolAt) {
+    const cache = new WeakMap();
+    return function bindingWrites(body) {
+        if (cache.has(body)) return cache.get(body);
+        const written = new Set();
+        // Retain var declaration nodes during this same walk. A checker can
+        // overlook illegal var/const collisions; additive lanes need their scope.
+        written.hoistedVariables = new WeakMap();
+        let visited = 0;
+        function mark(target) {
+            if (ts.isIdentifier(target) || ts.isShorthandPropertyAssignment(target)) {
+                for (const decl of symbolAt(target)?.declarations || []) written.add(decl);
+            } else if (ts.isArrayLiteralExpression(target)) {
+                for (const item of target.elements) mark(item);
+            } else if (ts.isObjectLiteralExpression(target)) {
+                for (const item of target.properties) mark(item);
+            } else if (ts.isPropertyAssignment(target)) mark(target.initializer);
+            else if (ts.isSpreadElement(target) || ts.isSpreadAssignment(target)
+                || ts.isParenthesizedExpression(target) || ts.isAsExpression(target)
+                || ts.isTypeAssertionExpression(target) || ts.isSatisfiesExpression(target)
+                || ts.isNonNullExpression(target)) mark(target.expression);
+            else if (ts.isBinaryExpression(target) && target.operatorToken.kind === ts.SyntaxKind.EqualsToken)
+                mark(target.left);
+        }
+        function walk(inner, lexicalFunction = null) {
+            if (++visited > 10000) throw new Error('binding write scan cap');
+            if (ts.isFunctionLike(inner)) lexicalFunction = inner;
+            else if (ts.isClassDeclaration(inner) || ts.isClassExpression(inner)
+                || inner.kind === ts.SyntaxKind.ClassStaticBlockDeclaration) lexicalFunction = null;
+            if (lexicalFunction && ts.isVariableDeclaration(inner) && ts.isVariableDeclarationList(inner.parent)
+                && !(inner.parent.flags & ts.NodeFlags.BlockScoped)) {
+                if (!written.hoistedVariables.has(lexicalFunction)) written.hoistedVariables.set(lexicalFunction, []);
+                written.hoistedVariables.get(lexicalFunction).push(inner);
+            }
+            const assignment = ts.isBinaryExpression(inner)
+                && inner.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+                && inner.operatorToken.kind <= ts.SyntaxKind.LastAssignment;
+            const update = (ts.isPrefixUnaryExpression(inner) || ts.isPostfixUnaryExpression(inner))
+                && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(inner.operator);
+            const loop = ts.isForOfStatement(inner) || ts.isForInStatement(inner);
+            const target = assignment ? inner.left : update ? inner.operand : loop ? inner.initializer : null;
+            if (target) mark(target);
+            ts.forEachChild(inner, child => walk(child, lexicalFunction));
+        }
+        try { walk(body); cache.set(body, written); }
+        catch (_err) { cache.set(body, null); }
+        return cache.get(body);
+    };
+}
+
+function createLocalSiblingCallCollector(sourceFile, symbolAt, bindingWrites) {
+    const cache = new WeakMap();
+    const sourceHash = crypto.createHash('sha256').update(sourceFile.text, 'utf8').digest('hex');
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    return function collectLocalSiblingCalls(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        const result = {status: 'not_applicable', version: 'v1-immediate-const-arrow-sibling-call',
+            offset_unit: 'utf16_code_units', source_hash: sourceHash, records: [], omitted: 0,
+            runtime_execution: 'not_established'};
+        if (!fn || !ts.isFunctionLike(fn) || !fn.body || !ts.isBlock(fn.body)) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        if (sourceFile.parseDiagnostics?.length) { result.status = 'unavailable'; return result; }
+        try {
+            const names = new Map(), candidates = new Map(), written = bindingWrites(fn);
+            if (!written) throw new Error('binding write scan unavailable');
+            const count = name => { if (name && ts.isIdentifier(name)) names.set(name.text, (names.get(name.text) || 0) + 1); };
+            for (const statement of fn.body.statements) {
+                if (!ts.isVariableStatement(statement)) { count(statement.name); continue; }
+                for (const decl of statement.declarationList.declarations) count(decl.name);
+                if (!(statement.declarationList.flags & ts.NodeFlags.Const)
+                    || statement.declarationList.declarations.length !== 1) continue;
+                const decl = statement.declarationList.declarations[0];
+                if (ts.isIdentifier(decl.name) && decl.initializer && ts.isArrowFunction(decl.initializer)
+                    && ts.isBlock(decl.initializer.body)
+                    && symbolAt(decl.name)?.declarations?.length === 1
+                    && symbolAt(decl.name).declarations[0] === decl) candidates.set(decl, decl.initializer);
+            }
+            for (const [owner, arrow] of candidates) {
+                if (names.get(owner.name.text) !== 1 || written.has(owner)) continue;
+                for (const statement of arrow.body.statements) {
+                    if (!ts.isExpressionStatement(statement)) continue;
+                    const awaited = ts.isAwaitExpression(statement.expression);
+                    const call = awaited ? statement.expression.expression : statement.expression;
+                    if (!ts.isCallExpression(call) || call.questionDotToken || call.typeArguments?.length
+                        || !ts.isIdentifier(call.expression)) continue;
+                    const declarations = symbolAt(call.expression)?.declarations || [];
+                    const target = declarations.length === 1 ? declarations[0] : null;
+                    if (!target || target === owner || !candidates.has(target)
+                        || names.get(target.name.text) !== 1 || written.has(target)) continue;
+                    if (result.records.length >= 64) { result.omitted += 1; continue; }
+                    result.records.push({caller_name: owner.name.text, target_name: target.name.text,
+                        lexical_owner_kind: 'const_local_arrow', target_kind: 'const_local_arrow', awaited,
+                        spans: {owner: span(owner), owner_binding: span(owner.name), body: span(arrow.body),
+                            target: span(target), target_binding: span(target.name), target_body: span(candidates.get(target).body),
+                            statement: span(statement), call: span(call), callee: span(call.expression)}});
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            result.status = 'unavailable'; result.records = []; result.omitted = 0;
+        }
+        return result;
+    };
+}
+
+function createCallResultPropertyBindingCollector(sourceFile, importBindings, symbolAt, bindingWrites, admittedByOwner) {
+    const cache = new WeakMap();
+    const sourceHash = crypto.createHash('sha256').update(sourceFile.text, 'utf8').digest('hex');
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const plain = node => ts.isIdentifier(node) && node.getText(sourceFile) === node.text;
+    const oneDeclaration = node => {
+        const declarations = symbolAt(node)?.declarations || [];
+        return declarations.length === 1 ? declarations[0] : null;
+    };
+    return function collectCallResultPropertyBindings(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        const statement = ts.isVariableDeclaration(node) ? node.parent?.parent : node;
+        const result = {status: 'not_applicable', version: 'v1-direct-named-import-const-object-binding',
+            offset_unit: 'utf16_code_units', source_hash: sourceHash, records: [], omitted: 0,
+            runtime_execution: 'not_established'};
+        if (!fn || !fn.body || !ts.isBlock(fn.body) || statement?.parent !== sourceFile
+            || !node.name || !plain(node.name) || fn.asteriskToken
+            || fn.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword || mod.kind === ts.SyntaxKind.DeclareKeyword)
+            || (!ts.isFunctionDeclaration(fn) && !(ts.isVariableDeclaration(node) && ts.isArrowFunction(fn)
+                && ts.isVariableStatement(statement) && (node.parent.flags & ts.NodeFlags.Const)
+                && node.parent.declarations.length === 1))) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        if (sourceFile.parseDiagnostics?.length) { result.status = 'unavailable'; return result; }
+        try {
+            const written = bindingWrites(fn);
+            const admitted = new Map();
+            if (!written || oneDeclaration(node.name) !== node) throw new Error('owner binding unavailable');
+            // On invalid duplicate const declarations the checker may expose two
+            // separate symbols rather than one merged declaration list.
+            const localNames = new Map();
+            function countBindings(name) {
+                if (ts.isIdentifier(name)) localNames.set(name.text, (localNames.get(name.text) || 0) + 1);
+                else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name))
+                    for (const element of name.elements)
+                        if (ts.isBindingElement(element)) countBindings(element.name);
+            }
+            for (const parameter of fn.parameters) countBindings(parameter.name);
+            for (const statement of fn.body.statements) {
+                if (ts.isVariableStatement(statement))
+                    for (const declaration of statement.declarationList.declarations) countBindings(declaration.name);
+                else if (statement.name && ts.isIdentifier(statement.name)) countBindings(statement.name);
+            }
+            for (const localStatement of fn.body.statements) {
+                if (!ts.isVariableStatement(localStatement) || !(localStatement.declarationList.flags & ts.NodeFlags.Const)
+                    || localStatement.declarationList.declarations.length !== 1) continue;
+                const decl = localStatement.declarationList.declarations[0], call = decl.initializer;
+                if (!ts.isObjectBindingPattern(decl.name) || !call || !ts.isCallExpression(call)
+                    || call.questionDotToken || call.typeArguments?.length || !plain(call.expression)) continue;
+                const imported = oneDeclaration(call.expression);
+                const clause = imported && ts.isImportSpecifier(imported) ? imported.parent?.parent : null;
+                const declaration = clause?.parent, binding = importBindings.get(call.expression.text);
+                if (!clause || !ts.isImportClause(clause) || clause.isTypeOnly || imported.isTypeOnly
+                    || !ts.isImportDeclaration(declaration) || !ts.isStringLiteral(declaration.moduleSpecifier)
+                    || !plain(imported.name) || !plain(imported.propertyName || imported.name)
+                    || !["'" + declaration.moduleSpecifier.text + "'", '"' + declaration.moduleSpecifier.text + '"']
+                        .includes(declaration.moduleSpecifier.getText(sourceFile))
+                    || written.has(imported) || binding?.kind !== 'named' || binding.typeOnly
+                    || !binding.source || binding.source !== declaration.moduleSpecifier.text
+                    || binding.importedName !== (imported.propertyName?.text || imported.name.text)
+                    || binding.localName !== call.expression.text) continue;
+                const keys = new Set(), names = new Set();
+                const elements = decl.name.elements;
+                if (!elements.length || elements.some(element => {
+                    const key = element.propertyName || element.name;
+                    if (element.dotDotDotToken || element.initializer || !plain(key) || !plain(element.name)
+                        || keys.has(key.text) || names.has(element.name.text) || written.has(element)
+                        || localNames.get(element.name.text) !== 1
+                        || oneDeclaration(element.name) !== element) return true;
+                    keys.add(key.text); names.add(element.name.text); return false;
+                })) continue;
+                for (const element of elements) {
+                    if (result.records.length >= 64) { result.omitted += 1; continue; }
+                    const record = {property_name: (element.propertyName || element.name).text,
+                        local_name: element.name.text, source: binding.source, localName: binding.localName,
+                        importedName: binding.importedName, kind: 'named',
+                        spans: {owner: span(node), body: span(fn.body), declaration: span(decl), pattern: span(decl.name),
+                            binding_element: span(element), property_name: span(element.propertyName || element.name),
+                            local_binding: span(element.name), initializer: span(call), callee: span(call.expression),
+                            import_declaration: span(declaration), import_binding: span(imported),
+                            imported_binding: span(imported.propertyName || imported.name),
+                            producer_local_binding: span(imported.name), module_source: span(declaration.moduleSpecifier)}};
+                    result.records.push(record);
+                    admitted.set(element, record);
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+            if (result.status === 'observed') admittedByOwner?.set(node, admitted);
+        } catch (_err) {
+            result.status = 'unavailable'; result.records = []; result.omitted = 0;
+        }
+        return result;
+    };
+}
+
+function createCallResultAliasInvocationCollector(sourceFile, symbolAt, collectBindings, admittedByOwner) {
+    const cache = new WeakMap();
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    return function collectCallResultAliasInvocations(node, optional = false) {
+        if (cache.has(node)) return cache.get(node)[optional ? 'optional' : 'ordinary'];
+        const bindings = collectBindings(node);
+        const base = {status: bindings.status,
+            offset_unit: 'utf16_code_units', source_hash: bindings.source_hash,
+            records: [], omitted: 0, runtime_execution: 'not_established'};
+        const lanes = {
+            ordinary: {...base, records: [], version: 'v1-immediate-const-property-alias-invocation'},
+            optional: {...base, records: [], version: 'v1-immediate-const-property-optional-alias-invocation'}
+        };
+        cache.set(node, lanes);
+        const selected = () => lanes[optional ? 'optional' : 'ordinary'];
+        if (bindings.status !== 'observed') {
+            for (const result of Object.values(lanes)) result.omitted = bindings.omitted;
+            return selected();
+        }
+        const admitted = admittedByOwner.get(node);
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        if (!admitted) {
+            for (const result of Object.values(lanes)) result.status = 'unavailable';
+            return selected();
+        }
+        try {
+            let visited = 0;
+            for (const statement of fn.body.statements) {
+                if (++visited > 10000) throw new Error('alias invocation scan cap');
+                if (!ts.isExpressionStatement(statement)) continue;
+                const call = statement.expression;
+                if (!ts.isCallExpression(call) || call.typeArguments?.length
+                    || !ts.isIdentifier(call.expression) || call.expression.getText(sourceFile) !== call.expression.text
+                    || call.arguments.some(arg => ts.isSpreadElement(arg))) continue;
+                const declarations = symbolAt(call.expression)?.declarations || [];
+                const element = declarations.length === 1 ? declarations[0] : null;
+                // Object identity, not equal spelling or the imported producer's symbol.
+                const binding = admitted.get(element);
+                if (!binding || binding.spans.declaration.end >= statement.getStart(sourceFile)) continue;
+                const result = lanes[call.questionDotToken ? 'optional' : 'ordinary'];
+                if (result.records.length >= 64) { result.omitted += 1; continue; }
+                result.records.push({...binding, ...(call.questionDotToken ? {optional_call: true} : {}),
+                    spans: {...binding.spans, invocation_statement: span(statement), invocation: span(call),
+                        invoked_identifier: span(call.expression),
+                        ...(call.questionDotToken ? {optional_operator: span(call.questionDotToken)} : {})}});
+            }
+            for (const result of Object.values(lanes)) result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            for (const result of Object.values(lanes)) {
+                result.status = 'unavailable'; result.records = []; result.omitted = 0;
+            }
+        }
+        return selected();
+    };
+}
+
+function createNestedCallbackAliasInvocationCollector(sourceFile, symbolAt, collectBindings, admittedByOwner,
+    optionalRest = false, bindingWrites = null) {
+    const cache = new WeakMap();
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const plain = node => ts.isIdentifier(node) && node.getText(sourceFile) === node.text;
+    const plainCall = node => node && ts.isCallExpression(node) && !node.questionDotToken
+        && !node.typeArguments?.length && plain(node.expression);
+    return function collectNestedCallbackAliasInvocations(node) {
+        if (cache.has(node)) return cache.get(node);
+        const bindings = collectBindings(node);
+        const result = {status: bindings.status, version: optionalRest
+            ? 'v1-import-result-object-callback-optional-rest-alias'
+            : 'v1-literal-object-arrow-const-property-alias-invocation',
+            offset_unit: 'utf16_code_units', source_hash: bindings.source_hash,
+            records: [], omitted: 0, runtime_execution: 'not_established'};
+        cache.set(node, result);
+        if (bindings.status !== 'observed') { result.omitted = bindings.omitted; return result; }
+        const admitted = admittedByOwner.get(node);
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        if (!admitted) { result.status = 'unavailable'; return result; }
+        try {
+            const written = optionalRest ? bindingWrites?.(fn) : null;
+            if (optionalRest && !written) throw new Error('optional rest write evidence unavailable');
+            let visited = 0;
+            const visit = () => { if (++visited > 10000) throw new Error('nested alias scan cap'); };
+            const unique = node => {
+                const declarations = symbolAt(node)?.declarations || [];
+                return declarations.length === 1 ? declarations[0] : null;
+            };
+            function countNames(name, counts) {
+                visit();
+                if (ts.isIdentifier(name)) counts.set(name.text, (counts.get(name.text) || 0) + 1);
+                else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name))
+                    for (const element of name.elements) if (ts.isBindingElement(element)) countNames(element.name, counts);
+            }
+            for (const statement of fn.body.statements) {
+                visit();
+                if (!ts.isExpressionStatement(statement)
+                    && !(ts.isReturnStatement(statement) && statement === fn.body.statements.at(-1))) continue;
+                const container = statement.expression;
+                if (!plainCall(container) || container.arguments.length !== 1
+                    || !ts.isObjectLiteralExpression(container.arguments[0])) continue;
+                const object = container.arguments[0], keyCounts = new Map();
+                let spread = false;
+                for (const property of object.properties) {
+                    visit();
+                    if (ts.isSpreadAssignment(property)) spread = true;
+                    const key = property.name;
+                    // Static spelling context only. Computed keys remain unknown;
+                    // neither these flags nor a literal callback establish registration.
+                    if (key && (ts.isIdentifier(key) || ts.isStringLiteral(key) || ts.isNumericLiteral(key)))
+                        keyCounts.set(key.text, (keyCounts.get(key.text) || 0) + 1);
+                }
+                for (const property of object.properties) {
+                    visit();
+                    const callback = property.initializer;
+                    if (!ts.isPropertyAssignment(property) || !plain(property.name) || !callback
+                        || !ts.isArrowFunction(callback) || !ts.isBlock(callback.body)
+                        || callback.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword)) continue;
+                    let rest = null;
+                    if (optionalRest) {
+                        if (callback.parameters.length !== 1) continue;
+                        rest = callback.parameters[0];
+                        if (!rest.dotDotDotToken || !plain(rest.name) || rest.initializer || rest.questionToken
+                            || unique(rest.name) !== rest || written.has(rest)) continue;
+                        // Duplicate invalid declarations may receive distinct checker symbols.
+                        const names = new Map();
+                        countNames(rest.name, names);
+                        for (const local of callback.body.statements) {
+                            visit();
+                            if (ts.isVariableStatement(local))
+                                for (const decl of local.declarationList.declarations) countNames(decl.name, names);
+                            else if (local.name && ts.isIdentifier(local.name)) countNames(local.name, names);
+                        }
+                        if (names.get(rest.name.text) !== 1) continue;
+                    }
+                    for (const invocationStatement of callback.body.statements) {
+                        visit();
+                        if (!ts.isExpressionStatement(invocationStatement)) continue;
+                        const call = invocationStatement.expression;
+                        if (optionalRest) {
+                            if (!ts.isCallExpression(call) || !call.questionDotToken || call.typeArguments?.length
+                                || !plain(call.expression) || call.arguments.length !== 1
+                                || !ts.isSpreadElement(call.arguments[0]) || !plain(call.arguments[0].expression)
+                                || unique(call.arguments[0].expression) !== rest) continue;
+                        } else if (!plainCall(call) || call.arguments.some(arg => ts.isSpreadElement(arg))) continue;
+                        const declarations = symbolAt(call.expression)?.declarations || [];
+                        const binding = admitted.get(declarations.length === 1 ? declarations[0] : null);
+                        if (!binding || binding.spans.declaration.end >= statement.getStart(sourceFile)) continue;
+                        if (result.records.length >= 64) { result.omitted += 1; continue; }
+                        result.records.push({...binding, callback_property_name: property.name.text,
+                            container_callee_spelling: container.expression.text, object_spread_present: spread,
+                            duplicate_callback_property_spelling: keyCounts.get(property.name.text) > 1,
+                            ...(optionalRest ? {rest_name: rest.name.text, optional_call: true} : {}),
+                            spans: {...binding.spans, container_statement: span(statement), container_call: span(container),
+                                container_callee: span(container.expression), container_object: span(object),
+                                callback_property: span(property), callback_property_name: span(property.name),
+                                callback: span(callback), callback_body: span(callback.body),
+                                invocation_statement: span(invocationStatement), invocation: span(call),
+                                invoked_identifier: span(call.expression),
+                                ...(optionalRest ? {rest_parameter: span(rest), rest_binding: span(rest.name),
+                                    spread_argument: span(call.arguments[0]), spread_identifier: span(call.arguments[0].expression)} : {})}});
+                    }
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) { result.status = 'unavailable'; result.records = []; result.omitted = 0; }
+        return result;
+    };
+}
+
+function createParameterConfigCallbackCollector(sourceFile, symbolAt, bindingWrites) {
+    const cache = new WeakMap();
+    const sourceHash = crypto.createHash('sha256').update(sourceFile.text, 'utf8').digest('hex');
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const plain = node => node && ts.isIdentifier(node) && node.getText(sourceFile) === node.text;
+    const emptyObject = node => node && ts.isObjectLiteralExpression(node) && node.properties.length === 0;
+    const unique = node => {
+        const declarations = symbolAt(node)?.declarations || [];
+        return declarations.length === 1 ? declarations[0] : null;
+    };
+    return function collectParameterConfigCallbacks(node) {
+        if (cache.has(node)) return cache.get(node);
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        const statement = ts.isVariableDeclaration(node) ? node.parent?.parent : node;
+        const result = {status: 'not_applicable', version: 'v1-parameter-config-optional-rest-forwarding',
+            offset_unit: 'utf16_code_units', source_hash: sourceHash, records: [], omitted: 0,
+            runtime_execution: 'not_established'};
+        cache.set(node, result);
+        if (!fn || !fn.body || !ts.isBlock(fn.body) || statement?.parent !== sourceFile
+            || !plain(node.name) || fn.asteriskToken
+            || fn.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword || mod.kind === ts.SyntaxKind.DeclareKeyword)
+            || (!ts.isFunctionDeclaration(fn) && !(ts.isVariableDeclaration(node) && ts.isArrowFunction(fn)
+                && ts.isVariableStatement(statement) && (node.parent.flags & ts.NodeFlags.Const)
+                && node.parent.declarations.length === 1))) return result;
+        if (sourceFile.parseDiagnostics?.length) { result.status = 'unavailable'; return result; }
+        try {
+            const written = bindingWrites(fn), localNames = new Map(), admitted = new Map();
+            if (!written || unique(node.name) !== node) throw new Error('parameter owner binding unavailable');
+            let visited = 0;
+            const visit = () => { if (++visited > 10000) throw new Error('parameter callback scan cap'); };
+            function countNames(name, counts = localNames) {
+                visit();
+                if (ts.isIdentifier(name)) counts.set(name.text, (counts.get(name.text) || 0) + 1);
+                else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name))
+                    for (const element of name.elements) if (ts.isBindingElement(element)) countNames(element.name, counts);
+            }
+            for (const parameter of fn.parameters) countNames(parameter.name);
+            for (const local of fn.body.statements) {
+                visit();
+                if (ts.isVariableStatement(local))
+                    for (const decl of local.declarationList.declarations) countNames(decl.name);
+                else if (local.name && ts.isIdentifier(local.name)) countNames(local.name);
+            }
+            for (const local of fn.body.statements) {
+                visit();
+                if (!ts.isVariableStatement(local) || !(local.declarationList.flags & ts.NodeFlags.Const)
+                    || local.declarationList.declarations.length !== 1) continue;
+                const decl = local.declarationList.declarations[0];
+                if (!ts.isObjectBindingPattern(decl.name) || !decl.initializer || !decl.name.elements.length) continue;
+                let input = decl.initializer, fallback = 'none';
+                if (ts.isBinaryExpression(input)
+                    && [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(input.operatorToken.kind)
+                    && emptyObject(input.right)) { fallback = input.operatorToken.getText(sourceFile); input = input.left; }
+                if (!plain(input)) continue;
+                const binding = unique(input);
+                const parameter = binding && ts.isParameter(binding) ? binding :
+                    binding && ts.isBindingElement(binding) && ts.isObjectBindingPattern(binding.parent)
+                    && ts.isParameter(binding.parent.parent) ? binding.parent.parent : null;
+                if (!parameter || !fn.parameters.includes(parameter) || parameter.dotDotDotToken
+                    || localNames.get(input.text) !== 1 || written.has(binding)
+                    || (parameter.initializer && !emptyObject(parameter.initializer))) continue;
+                if (binding !== parameter) {
+                    const keys = new Set();
+                    if (parameter.name.elements.some(element => {
+                        visit();
+                        const key = element.propertyName || element.name;
+                        if (element.dotDotDotToken || element.initializer || !plain(element.name) || !plain(key)
+                            || keys.has(key.text)) return true;
+                        keys.add(key.text); return false;
+                    })) continue;
+                } else if (!plain(parameter.name)) continue;
+                const keys = new Set(), names = new Set();
+                if (decl.name.elements.some((element, index) => {
+                    visit();
+                    if (!plain(element.name) || element.initializer || written.has(element)
+                        || unique(element.name) !== element || localNames.get(element.name.text) !== 1
+                        || names.has(element.name.text)) return true;
+                    names.add(element.name.text);
+                    if (element.dotDotDotToken) return index !== decl.name.elements.length - 1 || !!element.propertyName;
+                    const key = element.propertyName || element.name;
+                    if (!plain(key) || keys.has(key.text)) return true;
+                    keys.add(key.text); return false;
+                })) continue;
+                for (const element of decl.name.elements) if (!element.dotDotDotToken)
+                    admitted.set(element, {decl, input, binding, parameter, fallback,
+                        objectRest: decl.name.elements.some(element => !!element.dotDotDotToken)});
+            }
+            for (const containerStatement of fn.body.statements) {
+                visit();
+                if (!ts.isExpressionStatement(containerStatement)
+                    && !(ts.isReturnStatement(containerStatement) && containerStatement === fn.body.statements.at(-1))) continue;
+                const container = containerStatement.expression;
+                if (!container || !ts.isCallExpression(container) || container.questionDotToken
+                    || container.typeArguments?.length || !plain(container.expression)
+                    || container.arguments.length !== 1 || !ts.isObjectLiteralExpression(container.arguments[0])) continue;
+                const object = container.arguments[0], keyCounts = new Map();
+                let objectSpread = false;
+                for (const property of object.properties) {
+                    visit();
+                    if (ts.isSpreadAssignment(property)) objectSpread = true;
+                    if (property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
+                        || ts.isNumericLiteral(property.name)))
+                        keyCounts.set(property.name.text, (keyCounts.get(property.name.text) || 0) + 1);
+                }
+                for (const property of object.properties) {
+                    visit();
+                    const callback = property.initializer;
+                    if (!ts.isPropertyAssignment(property) || !plain(property.name) || !callback
+                        || !ts.isArrowFunction(callback) || !ts.isBlock(callback.body)
+                        || callback.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword)
+                        || callback.parameters.length !== 1) continue;
+                    const rest = callback.parameters[0];
+                    if (!rest.dotDotDotToken || !plain(rest.name) || rest.initializer || rest.questionToken
+                        || unique(rest.name) !== rest || written.has(rest)) continue;
+                    // Invalid duplicate locals may be separate checker symbols. The
+                    // rest binding must also be unique in this immediate lexical scope.
+                    const callbackNames = new Map();
+                    countNames(rest.name, callbackNames);
+                    for (const local of callback.body.statements) {
+                        visit();
+                        if (ts.isVariableStatement(local))
+                            for (const decl of local.declarationList.declarations) countNames(decl.name, callbackNames);
+                        else if (local.name && ts.isIdentifier(local.name)) countNames(local.name, callbackNames);
+                    }
+                    if (callbackNames.get(rest.name.text) !== 1) continue;
+                    for (const invocationStatement of callback.body.statements) {
+                        visit();
+                        if (!ts.isExpressionStatement(invocationStatement)) continue;
+                        const call = invocationStatement.expression;
+                        if (!ts.isCallExpression(call) || !call.questionDotToken || call.typeArguments?.length
+                            || !plain(call.expression) || call.arguments.length !== 1
+                            || !ts.isSpreadElement(call.arguments[0]) || !plain(call.arguments[0].expression)
+                            || unique(call.arguments[0].expression) !== rest) continue;
+                        const element = unique(call.expression), origin = admitted.get(element);
+                        if (!origin || origin.decl.end >= containerStatement.getStart(sourceFile)) continue;
+                        if (result.records.length >= 64) { result.omitted += 1; continue; }
+                        result.records.push({property_name: (element.propertyName || element.name).text,
+                            local_name: element.name.text, parameter_name: origin.input.text,
+                            parameter_binding_kind: origin.binding === origin.parameter ? 'simple_parameter' : 'object_parameter_property',
+                            parameter_default_empty_object: !!origin.parameter.initializer,
+                            fallback_operator: origin.fallback, object_rest_present: origin.objectRest,
+                            callback_property_name: property.name.text, container_callee_spelling: container.expression.text,
+                            rest_name: rest.name.text, optional_call: true, object_spread_present: objectSpread,
+                            duplicate_callback_property_spelling: keyCounts.get(property.name.text) > 1,
+                            spans: {owner: span(node), body: span(fn.body), parameter: span(origin.parameter),
+                                parameter_binding: span(origin.binding), parameter_name: span(origin.binding.name),
+                                parameter_input: span(origin.input), declaration: span(origin.decl), pattern: span(origin.decl.name),
+                                binding_element: span(element), property_name: span(element.propertyName || element.name),
+                                local_binding: span(element.name), initializer: span(origin.decl.initializer),
+                                container_statement: span(containerStatement), container_call: span(container),
+                                container_callee: span(container.expression), container_object: span(object),
+                                callback_property: span(property), callback_property_name: span(property.name),
+                                callback: span(callback), callback_body: span(callback.body), rest_parameter: span(rest),
+                                rest_binding: span(rest.name), invocation_statement: span(invocationStatement),
+                                invocation: span(call), invoked_identifier: span(call.expression),
+                                spread_argument: span(call.arguments[0]), spread_identifier: span(call.arguments[0].expression)}});
+                    }
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) { result.status = 'unavailable'; result.records = []; result.omitted = 0; }
+        return result;
+    };
+}
+
+function createReturnedLocalCallbackCollector(sourceFile, importBindings, symbolAt, bindingWrites) {
+    const cache = new WeakMap();
+    const anchors = new WeakMap();
+    const sourceHash = crypto.createHash('sha256').update(sourceFile.text, 'utf8').digest('hex');
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const plain = node => ts.isIdentifier(node) && node.getText(sourceFile) === node.text;
+    const oneDeclaration = node => {
+        const declarations = symbolAt(node)?.declarations || [];
+        return declarations.length === 1 ? declarations[0] : null;
+    };
+    const collect = function collectReturnedLocalCallbacks(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        const result = {status: 'not_applicable', version: 'v1-local-react-usecallback-returned-shorthand',
+            offset_unit: 'utf16_code_units', source_hash: sourceHash, records: [], omitted: 0,
+            runtime_execution: 'not_established'};
+        const statement = ts.isVariableDeclaration(node) ? node.parent?.parent : node;
+        if (!/\.tsx?$/i.test(sourceFile.fileName) || !fn || !fn.body || !ts.isBlock(fn.body)
+            || statement?.parent !== sourceFile || !node.name || !plain(node.name)
+            || fn.asteriskToken || fn.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword
+                || mod.kind === ts.SyntaxKind.DeclareKeyword)
+            || (!ts.isFunctionDeclaration(fn) && !(ts.isVariableDeclaration(node) && ts.isArrowFunction(fn)
+                && ts.isVariableStatement(statement) && (node.parent.flags & ts.NodeFlags.Const)
+                && node.parent.declarations.length === 1))) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        anchors.set(fn, []);
+        if (sourceFile.parseDiagnostics?.length) { result.status = 'unavailable'; return result; }
+        try {
+            const written = bindingWrites(fn);
+            if (!written || oneDeclaration(node.name) !== node) throw new Error('owner binding unavailable');
+            result.status = 'observed';
+            const terminal = fn.body.statements.at(-1);
+            if (!terminal || !ts.isReturnStatement(terminal) || !terminal.expression
+                || !ts.isObjectLiteralExpression(terminal.expression)) return result;
+            let visited = 0, returns = 0;
+            function ownReturns(inner) {
+                if (++visited > 10000) throw new Error('returned callback scan cap');
+                if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) return;
+                if (ts.isReturnStatement(inner)) returns += 1;
+                ts.forEachChild(inner, ownReturns);
+            }
+            ownReturns(fn.body);
+            if (returns !== 1) return result;
+            const object = terminal.expression, keys = new Set();
+            for (const property of object.properties) {
+                if ((!ts.isShorthandPropertyAssignment(property) && !ts.isPropertyAssignment(property))
+                    || !plain(property.name) || property.objectAssignmentInitializer
+                    || keys.has(property.name.text)) return result;
+                keys.add(property.name.text);
+            }
+            for (const property of object.properties) {
+                if (!ts.isShorthandPropertyAssignment(property)) continue;
+                // Shorthand's property symbol is not its value binding: pass the whole node.
+                const decl = oneDeclaration(property);
+                const localStatement = decl?.parent?.parent;
+                const call = decl?.initializer;
+                if (!decl || !ts.isVariableDeclaration(decl) || !plain(decl.name)
+                    || decl.name.text !== property.name.text || !ts.isVariableStatement(localStatement)
+                    || localStatement.parent !== fn.body || !(decl.parent.flags & ts.NodeFlags.Const)
+                    || decl.parent.declarations.length !== 1 || decl.end >= terminal.getStart(sourceFile)
+                    || written.has(decl) || !call || !ts.isCallExpression(call) || call.questionDotToken
+                    || call.typeArguments?.length || !plain(call.expression) || call.arguments.length !== 2
+                    || !ts.isArrowFunction(call.arguments[0]) || !ts.isBlock(call.arguments[0].body)
+                    || !ts.isArrayLiteralExpression(call.arguments[1])) continue;
+                const imported = oneDeclaration(call.expression);
+                const clause = imported && ts.isImportSpecifier(imported) ? imported.parent?.parent : null;
+                const declaration = clause?.parent, binding = importBindings.get(call.expression.text);
+                if (!clause || !ts.isImportClause(clause) || clause.isTypeOnly || imported.isTypeOnly
+                    || !ts.isImportDeclaration(declaration) || !ts.isStringLiteral(declaration.moduleSpecifier)
+                    || declaration.moduleSpecifier.text !== 'react'
+                    || !['"react"', "'react'"].includes(declaration.moduleSpecifier.getText(sourceFile))
+                    || !plain(imported.name) || !plain(imported.propertyName || imported.name)
+                    || (imported.propertyName?.text || imported.name.text) !== 'useCallback'
+                    || written.has(imported) || binding?.kind !== 'named'
+                    || binding.typeOnly || binding.source !== 'react' || binding.importedName !== 'useCallback'
+                    || binding.localName !== call.expression.text) continue;
+                if (result.records.length >= 64) { result.omitted += 1; continue; }
+                const row = {callback_name: decl.name.text, property_name: property.name.text,
+                    source: 'react', localName: binding.localName, importedName: 'useCallback', kind: 'named',
+                    spans: {owner: span(node), body: span(fn.body), declaration: span(decl), binding: span(decl.name),
+                        initializer: span(call), callee: span(call.expression), callback: span(call.arguments[0]),
+                        callback_body: span(call.arguments[0].body), dependencies: span(call.arguments[1]),
+                        return_statement: span(terminal), returned_object: span(object), property: span(property),
+                        value: span(property.name), import_declaration: span(declaration), import_binding: span(imported),
+                        imported_binding: span(imported.propertyName || imported.name), local_binding: span(imported.name),
+                        module_source: span(declaration.moduleSpecifier)}};
+                result.records.push(row);
+                anchors.get(fn).push({row, callback: call.arguments[0]});
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            result.status = 'unavailable'; result.records = []; result.omitted = 0;
+            anchors.set(fn, []);
+        }
+        return result;
+    };
+    // Internal AST associations only: never serialized and never reparsed from evidence.
+    collect.anchors = node => anchors.get(ts.isVariableDeclaration(node) ? node.initializer : node) || [];
+    return collect;
+}
+
+function createReturnedCallbackParameterOptionalCollector(sourceFile, symbolAt, bindingWrites, returned) {
+    const cache = new WeakMap();
+    const admitted = new WeakMap(), contextCache = new WeakMap();
+    const plain = node => !!node && ts.isIdentifier(node) && node.getText(sourceFile) === node.text;
+    const oneDeclaration = node => {
+        const declarations = symbolAt(node)?.declarations || [];
+        return declarations.length === 1 ? declarations[0] : null;
+    };
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const literal = node => ts.isStringLiteral(node) || ts.isNumericLiteral(node)
+        || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(node.kind);
+    function collectReturnedCallbackParameterOptional(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        if (fn && cache.has(fn)) return cache.get(fn);
+        const anchor = returned(node);
+        const result = {status: anchor.status === 'observed' ? 'observed' :
+            anchor.status === 'not_applicable' ? 'not_applicable' : 'unavailable',
+            version: 'v1-returned-react-async-parameter-try-awaited-optional-call',
+            offset_unit: 'utf16_code_units', source_hash: anchor.source_hash,
+            records: [], omitted: 0, runtime_execution: 'not_established'};
+        if (fn) cache.set(fn, result);
+        if (anchor.status !== 'observed' || anchor.omitted) return result;
+        const tuples = [];
+        admitted.set(fn, tuples);
+        try {
+            const written = bindingWrites(fn);
+            if (!written) throw new Error('owner write scan unavailable');
+            let visited = 0;
+            const tick = () => { if (++visited > 10000) throw new Error('returned parameter scan cap'); };
+            for (const {row, callback} of returned.anchors(node)) {
+                tick();
+                if (!callback.modifiers?.some(mod => mod.kind === ts.SyntaxKind.AsyncKeyword)) continue;
+                const names = new Set();
+                let validParameters = true;
+                for (const param of callback.parameters) {
+                    tick();
+                    if (!plain(param.name) || param.dotDotDotToken || names.has(param.name.text)
+                        || oneDeclaration(param.name) !== param) validParameters = false;
+                    names.add(param.name.text);
+                }
+                // The checker can keep a parameter's declaration despite an illegal
+                // same-body redeclaration. Reject that lexical collision explicitly.
+                const bodyNames = new Map([...names].map(name => [name, 1]));
+                const hoistedNames = new Set();
+                function collectHoistedName(name) {
+                    tick();
+                    if (ts.isIdentifier(name)) hoistedNames.add(name.text);
+                    else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name))
+                        for (const element of name.elements)
+                            if (ts.isBindingElement(element)) collectHoistedName(element.name);
+                }
+                for (const decl of written.hoistedVariables.get(callback) || []) collectHoistedName(decl.name);
+                function countBodyName(name) {
+                    tick();
+                    if (ts.isIdentifier(name)) bodyNames.set(name.text, (bodyNames.get(name.text) || 0) + 1);
+                    if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name))
+                        for (const element of name.elements)
+                            if (ts.isBindingElement(element)) countBodyName(element.name);
+                }
+                for (const ownStatement of callback.body.statements) {
+                    tick();
+                    if (ts.isVariableStatement(ownStatement))
+                        for (const decl of ownStatement.declarationList.declarations) countBodyName(decl.name);
+                    if ((ts.isFunctionDeclaration(ownStatement) || ts.isClassDeclaration(ownStatement))
+                        && ownStatement.name) countBodyName(ownStatement.name);
+                }
+                if ([...names].some(name => bodyNames.get(name) !== 1 || hoistedNames.has(name))) validParameters = false;
+                if (!validParameters) continue;
+                for (const parameter of callback.parameters) {
+                    tick();
+                    if (written.has(parameter) || (parameter.initializer &&
+                        (!ts.isObjectLiteralExpression(parameter.initializer) || parameter.initializer.properties.length))
+                        || callback.parameters.some(other => other !== parameter && other.initializer)) continue;
+                    for (const statement of callback.body.statements) {
+                        tick();
+                        if (!ts.isVariableStatement(statement) || !(statement.declarationList.flags & ts.NodeFlags.Const)
+                            || statement.declarationList.declarations.length !== 1) continue;
+                        const declaration = statement.declarationList.declarations[0];
+                        if (!ts.isObjectBindingPattern(declaration.name) || !plain(declaration.initializer)
+                            || oneDeclaration(declaration.initializer) !== parameter) continue;
+                        const keys = new Set(), locals = new Set();
+                        let validElements = true, defaults = 0;
+                        for (const element of declaration.name.elements) {
+                            tick();
+                            const key = element.propertyName || element.name;
+                            if (!plain(key) || !plain(element.name) || element.dotDotDotToken
+                                || keys.has(key.text) || locals.has(element.name.text)
+                                || bodyNames.get(element.name.text) !== 1
+                                || hoistedNames.has(element.name.text)
+                                || oneDeclaration(element.name) !== element || written.has(element)
+                                || (element.initializer && !literal(element.initializer))) validElements = false;
+                            keys.add(key.text); locals.add(element.name.text);
+                            if (element.initializer) defaults += 1;
+                        }
+                        if (!validElements) continue;
+                        const selected = new Set(declaration.name.elements.filter(element => !element.initializer));
+                        // Retain native nodes admitted by the original guards. The later
+                        // lane must not reconstruct binding authority from sampled JSON.
+                        tuples.push(Object.freeze({row, callback, parameter, statement, declaration, selected, defaults}));
+                        for (const tryStatement of callback.body.statements) {
+                            tick();
+                            if (!ts.isTryStatement(tryStatement) || tryStatement.getStart(sourceFile) <= statement.end) continue;
+                            for (const invocationStatement of tryStatement.tryBlock.statements) {
+                                tick();
+                                if (!ts.isExpressionStatement(invocationStatement)
+                                    || !ts.isAwaitExpression(invocationStatement.expression)) continue;
+                                const awaited = invocationStatement.expression, call = awaited.expression;
+                                if (!ts.isCallExpression(call) || !call.questionDotToken || call.typeArguments?.length
+                                    || !plain(call.expression) || call.arguments.length !== 1 || !plain(call.arguments[0])) continue;
+                                const element = oneDeclaration(call.expression);
+                                if (!selected.has(element)) continue;
+                                if (result.records.length >= 64) { result.omitted += 1; continue; }
+                                result.records.push({...row, parameter_name: parameter.name.text,
+                                    parameter_default_empty_object: !!parameter.initializer,
+                                    parameter_property_name: (element.propertyName || element.name).text,
+                                    parameter_local_name: element.name.text, argument_name: call.arguments[0].text,
+                                    unselected_literal_default_count: defaults, context_kind: 'immediate_own_try_block',
+                                    awaited: true, optional_call: true, spans: {...row.spans,
+                                        parameter: span(parameter), parameter_name: span(parameter.name),
+                                        parameter_input: span(declaration.initializer), binding_statement: span(statement),
+                                        binding_declaration: span(declaration), binding_pattern: span(declaration.name),
+                                        callback_binding_element: span(element), callback_property_name: span(element.propertyName || element.name),
+                                        callback_local_binding: span(element.name), try_statement: span(tryStatement),
+                                        try_body: span(tryStatement.tryBlock), invocation_statement: span(invocationStatement),
+                                        await_expression: span(awaited), invocation: span(call), invoked_identifier: span(call.expression),
+                                        optional_operator: span(call.questionDotToken), argument: span(call.arguments[0])}});
+                            }
+                        }
+                    }
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            result.status = 'unavailable'; result.records = []; result.omitted = 0;
+        }
+        return result;
+    }
+    collectReturnedCallbackParameterOptional.contexts = function collectContexts(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        if (fn && contextCache.has(fn)) return contextCache.get(fn);
+        const old = collectReturnedCallbackParameterOptional(node); // Settle old first.
+        const result = {status: old.status, version: 'v1-returned-react-async-parameter-own-control-optional-call',
+            offset_unit: old.offset_unit, source_hash: old.source_hash,
+            records: [], omitted: 0, runtime_execution: 'not_established'};
+        if (fn) contextCache.set(fn, result);
+        if (!['observed', 'incomplete_scan'].includes(old.status)) return result;
+        try {
+            let visited = 0;
+            const tick = () => { if (++visited > 10000) throw new Error('context parameter scan cap'); };
+            function calls(tuple, body, kind, branch, contextSpans) {
+                for (const invocationStatement of body.statements) {
+                    tick();
+                    if (!ts.isExpressionStatement(invocationStatement)) continue;
+                    const expression = invocationStatement.expression;
+                    const awaited = ts.isAwaitExpression(expression), call = awaited ? expression.expression : expression;
+                    if (kind === 'immediate_own_try_block' && awaited) continue; // Exclusively old.
+                    if (!ts.isCallExpression(call) || !call.questionDotToken || call.typeArguments?.length
+                        || !plain(call.expression) || call.arguments.length !== 1 || !plain(call.arguments[0])) continue;
+                    const element = oneDeclaration(call.expression);
+                    if (!tuple.selected.has(element)) continue;
+                    if (result.records.length >= 64) { result.omitted += 1; continue; }
+                    const {row, parameter, statement, declaration, defaults} = tuple;
+                    result.records.push({...row, parameter_name: parameter.name.text,
+                        parameter_default_empty_object: !!parameter.initializer,
+                        parameter_property_name: (element.propertyName || element.name).text,
+                        parameter_local_name: element.name.text, argument_name: call.arguments[0].text,
+                        unselected_literal_default_count: defaults, context_kind: kind,
+                        branch_kind: branch, awaited, optional_call: true, spans: {...row.spans,
+                            parameter: span(parameter), parameter_name: span(parameter.name),
+                            parameter_input: span(declaration.initializer), binding_statement: span(statement),
+                            binding_declaration: span(declaration), binding_pattern: span(declaration.name),
+                            callback_binding_element: span(element), callback_property_name: span(element.propertyName || element.name),
+                            callback_local_binding: span(element.name), ...contextSpans,
+                            invocation_statement: span(invocationStatement),
+                            ...(awaited ? {await_expression: span(expression)} : {}),
+                            invocation: span(call), invoked_identifier: span(call.expression),
+                            optional_operator: span(call.questionDotToken), argument: span(call.arguments[0])}});
+                }
+            }
+            function arms(tuple, statement, kind, contextSpans) {
+                // Only direct owning tokens; never a nested else token or text search.
+                const children = statement.getChildren(sourceFile);
+                for (const [branch, body, tokenKind] of [['then', statement.thenStatement, ts.SyntaxKind.IfKeyword],
+                        ['else', statement.elseStatement, ts.SyntaxKind.ElseKeyword]]) {
+                    tick();
+                    if (!body || !ts.isBlock(body)) continue;
+                    const selector = children.find(child => child.kind === tokenKind);
+                    if (!selector) continue;
+                    calls(tuple, body, kind, branch, {...contextSpans, if_statement: span(statement),
+                        if_condition: span(statement.expression), branch_selector: span(selector), branch_body: span(body)});
+                }
+            }
+            for (const tuple of admitted.get(fn) || []) {
+                tick();
+                for (const root of tuple.callback.body.statements) {
+                    tick();
+                    if (root.getStart(sourceFile) <= tuple.statement.end) continue;
+                    if (ts.isIfStatement(root)) arms(tuple, root, 'immediate_callback_if_block', {});
+                    if (!ts.isTryStatement(root)) continue;
+                    const contexts = [
+                        [root.tryBlock, 'try', {try_statement: span(root), try_body: span(root.tryBlock)}],
+                        [root.catchClause?.block, 'catch', root.catchClause ?
+                            {try_statement: span(root), catch_clause: span(root.catchClause), catch_body: span(root.catchClause.block)} : {}],
+                        [root.finallyBlock, 'finally', root.finallyBlock ?
+                            {try_statement: span(root), finally_body: span(root.finallyBlock)} : {}]];
+                    for (const [body, kind, spans] of contexts) {
+                        tick();
+                        if (!body) continue;
+                        calls(tuple, body, `immediate_own_${kind}_block`, 'none', spans);
+                        for (const statement of body.statements) {
+                            tick();
+                            if (ts.isIfStatement(statement)) arms(tuple, statement, `immediate_own_${kind}_if_block`, spans);
+                        }
+                    }
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            result.status = 'unavailable'; result.records = []; result.omitted = 0;
+        }
+        return result;
+    };
+    return collectReturnedCallbackParameterOptional;
+}
+
+function createJsxCallbackCollector(sourceFile, importBindings, symbolAt, bindingWrites) {
+    const cache = new WeakMap();
+    const sourceHash = crypto.createHash('sha256').update(sourceFile.text, 'utf8').digest('hex');
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const oneDeclaration = node => {
+        const declarations = symbolAt(node)?.declarations || [];
+        return declarations.length === 1 ? declarations[0] : null;
+    };
+    const header = version => ({status: 'not_applicable', version, offset_unit: 'utf16_code_units',
+        source_hash: sourceHash, records: [], omitted: 0, runtime_execution: 'not_established'});
+    const append = (lane, row) => {
+        if (lane.records.length >= 64) lane.omitted += 1;
+        else lane.records.push(row);
+    };
+    return function collectJsxCallbacks(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        const result = {jsx_prop_callback_evidence: header('v1-jsx-named-import-const-arrow-prop'),
+            jsx_parameter_callback_call_evidence: header('v1-jsx-object-parameter-inline-call')};
+        if (!fn || (!ts.isFunctionDeclaration(fn) && !ts.isArrowFunction(fn)) || !fn.body) return result;
+        if (cache.has(fn)) return cache.get(fn);
+        cache.set(fn, result);
+        const caller = result.jsx_prop_callback_evidence, child = result.jsx_parameter_callback_call_evidence;
+        if (sourceFile.parseDiagnostics?.length) { caller.status = child.status = 'unavailable'; return result; }
+        try {
+            const written = bindingWrites(fn);
+            if (!written) throw new Error('binding write scan unavailable');
+            const callbacks = new Map();
+            if (ts.isBlock(fn.body)) {
+                for (const statement of fn.body.statements) {
+                    if (!ts.isVariableStatement(statement) || !(statement.declarationList.flags & ts.NodeFlags.Const)
+                        || statement.declarationList.declarations.length !== 1) continue;
+                    const decl = statement.declarationList.declarations[0];
+                    if (ts.isIdentifier(decl.name) && decl.initializer && ts.isArrowFunction(decl.initializer)
+                        && ts.isBlock(decl.initializer.body) && oneDeclaration(decl.name) === decl
+                        && !written.has(decl)) callbacks.set(decl, decl.initializer);
+                }
+            }
+            let visited = 0;
+            function walkCaller(inner) {
+                if (++visited > 10000) throw new Error('JSX caller scan cap');
+                if (ts.isFunctionLike(inner) || ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) return;
+                if ((ts.isJsxOpeningElement(inner) || ts.isJsxSelfClosingElement(inner))
+                    && ts.isIdentifier(inner.tagName)) {
+                    const importDecl = oneDeclaration(inner.tagName);
+                    const clause = importDecl && ts.isImportSpecifier(importDecl) ? importDecl.parent?.parent : null;
+                    const binding = importBindings.get(inner.tagName.text);
+                    const attrs = inner.attributes.properties;
+                    if (clause && ts.isImportClause(clause) && !clause.isTypeOnly && !importDecl.isTypeOnly
+                        && ts.isImportDeclaration(clause.parent) && binding?.kind === 'named'
+                        && binding.localName === inner.tagName.text
+                        && binding.importedName === (importDecl.propertyName?.text || importDecl.name.text)
+                        && binding.source === clause.parent.moduleSpecifier.text
+                        && !attrs.some(attr => ts.isJsxSpreadAttribute(attr))) {
+                        const counts = new Map();
+                        for (const attr of attrs) {
+                            if (ts.isJsxAttribute(attr) && ts.isIdentifier(attr.name))
+                                counts.set(attr.name.text, (counts.get(attr.name.text) || 0) + 1);
+                        }
+                        // Duplicate props make this whole site's assignment order uncertain.
+                        if ([...counts.values()].every(count => count === 1)) {
+                            for (const attr of attrs) {
+                                const value = attr.initializer && ts.isJsxExpression(attr.initializer) ? attr.initializer.expression : null;
+                                const decl = value && ts.isIdentifier(value) ? oneDeclaration(value) : null;
+                                if (!decl || !callbacks.has(decl) || !ts.isIdentifier(attr.name)) continue;
+                                append(caller, {source: binding.source, localName: binding.localName,
+                                    importedName: binding.importedName, kind: 'named', prop: attr.name.text,
+                                    callback_name: decl.name.text, spans: {jsx_site: span(inner), tag: span(inner.tagName),
+                                        attribute: span(attr), prop: span(attr.name), value: span(value),
+                                        import_declaration: span(clause.parent), import_binding: span(importDecl), imported_binding: span(importDecl.propertyName || importDecl.name),
+                                        local_binding: span(importDecl.name), module_source: span(clause.parent.moduleSpecifier), callback: span(decl),
+                                        callback_binding: span(decl.name), callback_body: span(callbacks.get(decl).body)}});
+                            }
+                        }
+                    }
+                }
+                ts.forEachChild(inner, walkCaller);
+            }
+            walkCaller(fn.body);
+            caller.status = caller.omitted ? 'incomplete_scan' : 'observed';
+            const statement = ts.isVariableDeclaration(node) ? node.parent?.parent : node;
+            const directExport = statement?.parent === sourceFile
+                && statement.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword)
+                && !statement.modifiers?.some(mod => mod.kind === ts.SyntaxKind.DefaultKeyword)
+                && (!ts.isVariableDeclaration(node) || (ts.isVariableStatement(statement)
+                    && (node.parent.flags & ts.NodeFlags.Const) && node.parent.declarations.length === 1));
+            const parameter = fn.parameters.length === 1 ? fn.parameters[0] : null;
+            if (!directExport || !parameter || parameter.initializer || parameter.dotDotDotToken
+                || !ts.isObjectBindingPattern(parameter.name)) return result;
+            child.status = 'observed';
+            const elements = parameter.name.elements;
+            if (elements.some(element => element.dotDotDotToken || element.initializer
+                || element.propertyName || !ts.isIdentifier(element.name))) return result;
+            const parameters = new Map();
+            const parameterCounts = new Map();
+            for (const element of elements)
+                parameterCounts.set(element.name.text, (parameterCounts.get(element.name.text) || 0) + 1);
+            for (const element of elements) {
+                if (element.propertyName || element.initializer || !ts.isIdentifier(element.name)
+                    || oneDeclaration(element.name) !== element || written.has(element)) continue;
+                if (parameterCounts.get(element.name.text) === 1)
+                    parameters.set(element, element.name.text);
+            }
+            visited = 0;
+            function walkChild(inner, contexts) {
+                if (++visited > 10000) throw new Error('JSX child scan cap');
+                if (ts.isClassDeclaration(inner) || ts.isClassExpression(inner)) return;
+                if (ts.isFunctionLike(inner)) {
+                    const expression = inner.parent;
+                    const attribute = expression && ts.isJsxExpression(expression) ? expression.parent : null;
+                    if (!ts.isArrowFunction(inner) || expression.expression !== inner || !attribute
+                        || !ts.isJsxAttribute(attribute) || !ts.isIdentifier(attribute.name) || contexts.length >= 2) return;
+                    contexts = [...contexts, {arrow: inner, attribute}];
+                    ts.forEachChild(inner.body, nested => walkChild(nested, contexts));
+                    return;
+                }
+                if (contexts.length && ts.isExpressionStatement(inner)
+                    && ts.isBlock(contexts.at(-1).arrow.body) && inner.parent === contexts.at(-1).arrow.body) {
+                    const awaited = ts.isAwaitExpression(inner.expression);
+                    const call = awaited ? inner.expression.expression : inner.expression;
+                    if (ts.isCallExpression(call) && !call.questionDotToken && !call.typeArguments?.length
+                        && ts.isIdentifier(call.expression)) {
+                        const decl = oneDeclaration(call.expression);
+                        if (parameters.has(decl)) {
+                            const spans = {parameter: span(parameter), property: span(decl.name), binding: span(decl.name),
+                                statement: span(inner), call: span(call), callee: span(call.expression)};
+                            contexts.forEach(({arrow, attribute}, index) => {
+                                spans['context_' + index] = span(arrow);
+                                spans['attribute_' + index] = span(attribute);
+                                spans['attribute_name_' + index] = span(attribute.name);
+                                spans['body_' + index] = span(arrow.body);
+                            });
+                            append(child, {prop: parameters.get(decl), binding_name: decl.name.text, awaited,
+                                context_attributes: contexts.map(context => context.attribute.name.text), spans});
+                        }
+                    }
+                }
+                ts.forEachChild(inner, nested => walkChild(nested, contexts));
+            }
+            // Visit the body itself: an expression-bodied component may be a single JSX element.
+            walkChild(fn.body, []);
+            child.status = child.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            for (const lane of [caller, child]) { lane.status = 'unavailable'; lane.records = []; lane.omitted = 0; }
+        }
         return result;
     };
 }
@@ -3397,16 +4563,25 @@ function collectReactMutationContextFeatures(sourceFile) {
     return fileFeatures;
 }
 
-function collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt) {
+function collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt, fieldRecords, resultRecords, inputRecords, importedRecords) {
     const features = new Set();
     if (sourceFile.parseDiagnostics?.length
         || !sourceCode.includes('useState')
         || !sourceCode.includes('fetch')
         || !/\.json\s*\(/.test(sourceCode)) return features;
 
-    const stateSetters = new Set();
+    const stateSetters = new Map();
     const fetchResponses = new Map();
     const jsonValues = new Map();
+    const declarationCounts = new Map();
+
+    function span(value) {
+        const start = value.getStart(sourceFile);
+        const end = value.getEnd();
+        return {start, end,
+            line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(end - 1).line + 1};
+    }
 
     function blockOf(node) {
         for (let cursor = node.parent; cursor; cursor = cursor.parent) {
@@ -3423,16 +4598,22 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
     function isReactUseState(call) {
         if (!call || !ts.isCallExpression(call)) return false;
         const callee = call.expression;
-        if (ts.isIdentifier(callee)) {
-            const binding = importBindings.get(callee.text);
-            return binding?.source === 'react' && binding.importedName === 'useState';
-        }
-        if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'useState'
-            && ts.isIdentifier(callee.expression)) {
-            const binding = importBindings.get(callee.expression.text);
-            return binding?.source === 'react' && binding.kind === 'namespace';
-        }
-        return false;
+        const local = ts.isIdentifier(callee) ? callee
+            : ts.isPropertyAccessExpression(callee) && callee.name.text === 'useState'
+                && ts.isIdentifier(callee.expression) ? callee.expression : null;
+        if (!local || call.questionDotToken || callee.questionDotToken) return false;
+        const binding = importBindings.get(local.text);
+        if (binding?.source !== 'react'
+            || (ts.isIdentifier(callee) ? binding.importedName !== 'useState'
+                : binding.kind !== 'namespace')) return false;
+        const declarations = symbolAt(local)?.declarations || [];
+        const declaration = declarations.length === 1 ? declarations[0] : null;
+        const clause = declaration && ts.isImportSpecifier(declaration)
+            ? declaration.parent.parent
+            : declaration && ts.isNamespaceImport(declaration) ? declaration.parent : null;
+        return Boolean(clause && ts.isImportClause(clause) && !clause.isTypeOnly
+            && !declaration.isTypeOnly && ts.isImportDeclaration(clause.parent)
+            && clause.parent.moduleSpecifier.text === 'react');
     }
 
     function visit(node, callback) {
@@ -3441,6 +4622,24 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
     }
 
     visit(sourceFile, node => {
+        function countName(name) {
+            if (ts.isIdentifier(name)) {
+                const scope = blockOf(node);
+                if (!declarationCounts.has(scope)) declarationCounts.set(scope, new Map());
+                const counts = declarationCounts.get(scope);
+                counts.set(name.text, (counts.get(name.text) || 0) + 1);
+            } else if (ts.isArrayBindingPattern(name) || ts.isObjectBindingPattern(name)) {
+                for (const element of name.elements) {
+                    if (ts.isBindingElement(element)) countName(element.name);
+                }
+            }
+        }
+        if (ts.isVariableDeclaration(node) || ts.isFunctionDeclaration(node)
+            || ts.isClassDeclaration(node) || ts.isEnumDeclaration(node)
+            || ts.isImportSpecifier(node) || ts.isNamespaceImport(node)
+            || ts.isImportClause(node)) {
+            if (node.name) countName(node.name);
+        }
         if (!ts.isVariableDeclaration(node) || !isConstDeclaration(node)) return;
         const init = unwrapExpression(node.initializer);
         if (ts.isArrayBindingPattern(node.name) && isReactUseState(init)
@@ -3449,7 +4648,7 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
             const setter = node.name.elements[1]?.name;
             if (setter && ts.isIdentifier(setter) && !/\b(?:any|unknown)\b/.test(declaredType)) {
                 const binding = symbolAt(setter);
-                if (binding) stateSetters.add(binding);
+                if (binding) stateSetters.set(binding, setter);
             }
         }
         if (!ts.isIdentifier(node.name) || !init || !ts.isAwaitExpression(init)) return;
@@ -3477,7 +4676,8 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
     visit(sourceFile, node => {
         if (!ts.isVariableDeclaration(node) || !isConstDeclaration(node)
             || !ts.isIdentifier(node.name)) return;
-        if (!responseForJsonAwait(node.initializer, blockOf(node))) return;
+        const response = responseForJsonAwait(node.initializer, blockOf(node));
+        if (!response) return;
         const binding = symbolAt(node.name);
         let initializer = node.initializer;
         while (initializer && ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
@@ -3488,6 +4688,7 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
             block: blockOf(node),
             explicitAny: node.type?.kind === ts.SyntaxKind.AnyKeyword,
             unannotated: !node.type && !initializerCast,
+            response,
         });
     });
 
@@ -3527,14 +4728,219 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
         });
     }
 
+    function literalField(expression) {
+        let value = unwrapExpression(expression);
+        if (value && ts.isBinaryExpression(value)
+            && [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(value.operatorToken.kind)) {
+            const fallback = unwrapExpression(value.right);
+            if (!fallback || !(ts.isLiteralExpression(fallback)
+                || [ts.SyntaxKind.NullKeyword, ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword].includes(fallback.kind))) return null;
+            value = unwrapExpression(value.left);
+        }
+        const path = [];
+        while (value && (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value))) {
+            if (ts.isPropertyAccessExpression(value)) {
+                if (!ts.isIdentifier(value.name)) return null;
+                path.unshift(value.name.text);
+            } else {
+                const key = unwrapExpression(value.argumentExpression);
+                if (!key || !(ts.isStringLiteralLike(key) || ts.isNumericLiteral(key))) return null;
+                path.unshift(key.text);
+            }
+            value = unwrapExpression(value.expression);
+        }
+        return path.length && value && ts.isIdentifier(value)
+            ? {root: symbolAt(value), path} : null;
+    }
+
+    function fieldContextBlocks(raw, sink) {
+        const blocks = [];
+        for (let cursor = sink.parent; cursor; cursor = cursor.parent) {
+            if (cursor === raw.block) return [...blocks, raw.block];
+            // A deferred body or repeated execution needs its own flow proof.
+            if (ts.isFunctionLike(cursor) || ts.isIterationStatement(cursor, false)) return null;
+            if (ts.isBlock(cursor)) blocks.push(cursor);
+        }
+        return null;
+    }
+
+    function fieldHasPriorGuardOrWrite(raw, sink, field, blocks) {
+        const root = symbolAt(raw.node.name);
+        const beforeSink = sink.getStart(sourceFile);
+        let found = false;
+        function affected(expression) {
+            const value = unwrapExpression(expression);
+            if (value && ts.isIdentifier(value)) return symbolAt(value) === root;
+            const candidate = literalField(value);
+            return candidate?.root === root && candidate.path.every((key, index) => field.path[index] === key);
+        }
+        function inspect(node) {
+            if (found || ts.isFunctionLike(node)) return;
+            const start = node.getStart(sourceFile);
+            if (start > raw.node.getStart(sourceFile) && start < beforeSink) {
+                if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+                    && ['parse', 'safeParse'].includes(node.expression.name.text)
+                    && node.arguments.some(affected)) found = true;
+                if (ts.isBinaryExpression(node)
+                    && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+                    && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+                    && affected(node.left)) found = true;
+            }
+            if (!found) ts.forEachChild(node, inspect);
+        }
+        // A parser use is contrary evidence, not proof of its schema or branch.
+        // Preserve conservative omission rather than claiming absent validation.
+        for (const block of blocks) {
+            for (const statement of block.statements || []) inspect(statement);
+        }
+        return found;
+    }
+
+    function localCallResult(node) {
+        if (!/\.tsx?$/i.test(sourceFile.fileName) || node.questionDotToken
+            || !ts.isExpressionStatement(node.parent) || node.parent.expression !== node) return;
+        const block = node.parent.parent;
+        if (!ts.isBlock(block) || !ts.isFunctionDeclaration(block.parent)
+            || !block.parent.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+            || block.statements.length < 4 || block.statements.at(-1) !== node.parent) return;
+        for (let cursor = block.parent.parent; cursor; cursor = cursor.parent) {
+            if (ts.isIterationStatement(cursor, false) || ts.isIfStatement(cursor)
+                || ts.isSwitchStatement(cursor) || ts.isTryStatement(cursor)) return;
+        }
+        const plain = value => {
+            while (value && ts.isParenthesizedExpression(value)) value = value.expression;
+            return value;
+        };
+        function declaration(statement) {
+            if (!ts.isVariableStatement(statement) || statement.declarationList.declarations.length !== 1) return null;
+            const value = statement.declarationList.declarations[0];
+            return isConstDeclaration(value) && ts.isIdentifier(value.name) ? value : null;
+        }
+        function pathOf(expression) {
+            let value = plain(expression);
+            const path = [];
+            while (value && (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value))) {
+                if (value.questionDotToken) return null;
+                if (ts.isPropertyAccessExpression(value)) {
+                    if (!ts.isIdentifier(value.name)) return null;
+                    path.unshift(value.name.text);
+                } else {
+                    const key = plain(value.argumentExpression);
+                    if (!key || !(ts.isStringLiteral(key) || ts.isNumericLiteral(key))) return null;
+                    path.unshift(key.text);
+                }
+                value = plain(value.expression);
+            }
+            return value && ts.isIdentifier(value) ? {root: value, path} : null;
+        }
+        const [fetchStatement, jsonStatement, resultStatement] = block.statements.slice(-4);
+        const fetch = declaration(fetchStatement), json = declaration(jsonStatement), result = declaration(resultStatement);
+        if (!fetch || !json || !result) return;
+        const raw = jsonValues.get(symbolAt(json.name));
+        if (!raw || raw.node !== json || raw.response.node !== fetch || raw.block !== block) return;
+        const fetchAwait = plain(fetch.initializer), jsonAwait = plain(json.initializer);
+        if (!fetchAwait || !jsonAwait || !ts.isAwaitExpression(fetchAwait) || !ts.isAwaitExpression(jsonAwait)) return;
+        const fetchCall = plain(fetchAwait.expression), jsonCall = plain(jsonAwait.expression);
+        if (!ts.isCallExpression(fetchCall) || fetchCall.questionDotToken
+            || !ts.isCallExpression(jsonCall) || jsonCall.questionDotToken
+            || !ts.isPropertyAccessExpression(jsonCall.expression) || jsonCall.expression.questionDotToken) return;
+        const call = plain(result.initializer);
+        if (!call || !ts.isCallExpression(call) || call.questionDotToken || call.arguments.length !== 1
+            || !ts.isPropertyAccessExpression(call.expression) || call.expression.questionDotToken
+            || call.expression.name.text !== 'parse' || !ts.isIdentifier(call.expression.expression)) return;
+        const input = plain(call.arguments[0]), selected = pathOf(node.arguments[0]);
+        if (!input || !ts.isIdentifier(input) || symbolAt(input) !== symbolAt(json.name)
+            || !selected || !symbolAt(result.name)) return;
+        const resultSelected = symbolAt(selected.root) === symbolAt(result.name);
+        const inputSelected = !resultSelected && symbolAt(selected.root) === symbolAt(json.name);
+        if (!resultSelected && !inputSelected) return;
+        const ownerRef = call.expression.expression;
+        const owners = symbolAt(ownerRef)?.declarations || [];
+        const owner = owners.length === 1 ? owners[0] : null;
+        const imported = owner && ts.isImportSpecifier(owner);
+        let ownerSpan = owner, importBinding = null;
+        if (imported) {
+            const clause = owner.parent.parent, binding = importBindings.get(ownerRef.text);
+            if (!ts.isImportClause(clause) || clause.isTypeOnly || owner.isTypeOnly
+                || !ts.isImportDeclaration(clause.parent) || clause.parent.parent !== sourceFile
+                || !ts.isStringLiteral(clause.parent.moduleSpecifier)
+                || binding?.kind !== 'named' || binding.source !== clause.parent.moduleSpecifier.text
+                || binding.localName !== owner.name.text
+                || binding.importedName !== (owner.propertyName || owner.name).text) return;
+            ownerSpan = clause.parent;
+            importBinding = {source: binding.source, kind: 'named',
+                imported_name: binding.importedName, local_name: binding.localName, type_only: false};
+        } else if (!owner || !ts.isVariableDeclaration(owner) || !ts.isIdentifier(owner.name)
+            || !isConstDeclaration(owner) || owner.parent.declarations.length !== 1
+            || !owner.initializer || owner.getSourceFile() !== sourceFile
+            || owner.getEnd() > call.getStart(sourceFile)) return;
+        if (ownerSpan.getEnd() > call.getStart(sourceFile)) return;
+        const setter = stateSetters.get(symbolAt(node.expression));
+        const state = setter?.parent?.parent?.parent;
+        if (!state || !ts.isVariableDeclaration(state)) return;
+        if (inputSelected || imported) {
+            // Parse observation is not semantic diagnostics. Reject ambiguous
+            // declarations rather than borrowing the checker-selected binding.
+            const unique = (identifier, declaration) => {
+                const declarations = symbolAt(identifier)?.declarations || [];
+                return declarations.length === 1 && declarations[0] === declaration
+                    && declarationCounts.get(blockOf(declaration))?.get(identifier.text) === 1;
+            };
+            if (symbolAt(json.name) === symbolAt(result.name)
+                || !unique(fetch.name, fetch) || !unique(json.name, json)
+                || !unique(result.name, result) || !unique(owner.name, owner)
+                || !unique(setter, setter.parent)) return;
+        }
+        const hook = unwrapExpression(state.initializer);
+        const importRoot = ts.isIdentifier(hook.expression) ? hook.expression : hook.expression.expression;
+        let stateImport = symbolAt(importRoot)?.declarations?.[0];
+        while (stateImport && !ts.isImportDeclaration(stateImport)) stateImport = stateImport.parent;
+        if (!stateImport) return;
+        // Syntax provenance only. Selecting the input is not bypass proof:
+        // a parse-named call can reject, mutate its input or return an alias.
+        const records = imported ? importedRecords : resultSelected ? resultRecords : inputRecords;
+        records.push({field_path: selected.path,
+            ...(imported ? {import_binding: importBinding,
+                selected_value_origin: resultSelected ? 'parser_call_result' : 'json_input'} : {}), spans: {
+            body: span(block), fetch: span(fetch), fetch_binding: span(fetch.name),
+            json: span(json), json_binding: span(json.name), parser_owner: span(ownerSpan),
+            parser_owner_binding: span(owner.name), parser_owner_ref: span(ownerRef),
+            parser_call: span(call), parser_input: span(input), result: span(result),
+            result_binding: span(result.name),
+            [resultSelected ? 'result_ref' : 'input_ref']: span(selected.root),
+            state_declaration: span(state), state_import: span(stateImport),
+            setter_binding: span(setter), setter_ref: span(node.expression),
+            sink: span(node), argument: span(node.arguments[0])}});
+    }
+
     visit(sourceFile, node => {
         if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)
             || node.arguments.length !== 1 || !stateSetters.has(symbolAt(node.expression))) return;
+        localCallResult(node);
         let argument = node.arguments[0];
         while (ts.isParenthesizedExpression(argument)) argument = argument.expression;
         const explicitCast = ts.isAsExpression(argument) || ts.isTypeAssertionExpression(argument);
         const value = unwrapExpression(explicitCast ? argument.expression : argument);
         const sinkLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        const field = literalField(argument);
+        const fieldRaw = field && jsonValues.get(field.root);
+        if (fieldRaw) {
+            const blocks = fieldContextBlocks(fieldRaw, node);
+            const producerLine = sourceFile.getLineAndCharacterOfPosition(fieldRaw.node.getStart(sourceFile)).line + 1;
+            if (blocks && producerLine < sinkLine
+                && !fieldHasPriorGuardOrWrite(fieldRaw, node, field, blocks)) {
+                const feature = `React:ExternalResponseFieldState:${sinkLine}:${producerLine}`;
+                features.add(feature);
+                // Preserve only facts from this existing admission. Distinct
+                // same-line calls retain distinct spans, not extra findings.
+                fieldRecords.push({feature, field_path: field.path,
+                    spans: {fetch: span(fieldRaw.response.node), json: span(fieldRaw.node),
+                        sink: span(node), argument: span(node.arguments[0]),
+                        json_binding: span(fieldRaw.node.name),
+                        setter_binding: span(stateSetters.get(symbolAt(node.expression)))}});
+            }
+            return;
+        }
         const directResponse = !explicitCast ? responseForJsonAwait(value, blockOf(node)) : null;
         if (directResponse) {
             const producerLine = sourceFile.getLineAndCharacterOfPosition(
@@ -3554,6 +4960,104 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
         }
     });
     return features;
+}
+
+function collectResponseJsonReturnRecords(sourceFile, targetFile, symbolAt) {
+    // Return-expression provenance, independent of React/advisory admission.
+    // No program diagnostics, dependency reads or target execution.
+    const records = [];
+    if (sourceFile.parseDiagnostics?.length || !/\.tsx?$/i.test(targetFile)) return records;
+    const plain = value => {
+        while (value && ts.isParenthesizedExpression(value)) value = value.expression;
+        return value;
+    };
+    const span = value => {
+        const start = value.getStart(sourceFile), end = value.getEnd();
+        return {start, end, line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(end - 1).line + 1};
+    };
+    function declaration(statement) {
+        if (!ts.isVariableStatement(statement)
+            || !(statement.declarationList.flags & ts.NodeFlags.Const)
+            || statement.declarationList.declarations.length !== 1) return null;
+        const value = statement.declarationList.declarations[0];
+        return ts.isIdentifier(value.name) ? value : null;
+    }
+    function names(name, counts) {
+        if (name && ts.isIdentifier(name)) counts.set(name.text, (counts.get(name.text) || 0) + 1);
+        else if (name && (ts.isArrayBindingPattern(name) || ts.isObjectBindingPattern(name))) {
+            for (const element of name.elements) if (ts.isBindingElement(element)) names(element.name, counts);
+        }
+    }
+    const topNames = new Map();
+    for (const statement of sourceFile.statements) {
+        if (ts.isVariableStatement(statement)) {
+            for (const value of statement.declarationList.declarations) names(value.name, topNames);
+        } else names(statement.name, topNames);
+    }
+    function unique(identifier, declaration, counts) {
+        const declared = symbolAt(identifier)?.declarations || [];
+        return declared.length === 1 && declared[0] === declaration && counts.get(identifier.text) === 1;
+    }
+    for (const statement of sourceFile.statements) {
+        const owner = ts.isFunctionDeclaration(statement) ? statement : declaration(statement);
+        const fn = owner && (ts.isFunctionDeclaration(owner) ? owner : plain(owner.initializer));
+        if (!owner || !ts.isIdentifier(owner.name) || !fn
+            || !(ts.isFunctionDeclaration(fn) || ts.isArrowFunction(fn))
+            || !fn.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+            || fn.asteriskToken || !fn.body || !ts.isBlock(fn.body)
+            || fn.body.statements.length !== 3 || !unique(owner.name, owner, topNames)) continue;
+        const [first, second, last] = fn.body.statements;
+        const fetch = declaration(first), json = declaration(second);
+        if (!fetch || !json || !ts.isReturnStatement(last) || !last.expression) continue;
+        const counts = new Map();
+        for (const parameter of fn.parameters) names(parameter.name, counts);
+        names(fetch.name, counts); names(json.name, counts);
+        if (!unique(fetch.name, fetch, counts) || !unique(json.name, json, counts)
+            || fetch.name.text === json.name.text) continue;
+        const fetchAwait = plain(fetch.initializer), jsonAwait = plain(json.initializer);
+        if (!fetchAwait || !jsonAwait || !ts.isAwaitExpression(fetchAwait) || !ts.isAwaitExpression(jsonAwait)) continue;
+        const fetchCall = plain(fetchAwait.expression), jsonCall = plain(jsonAwait.expression);
+        const fetchCallee = fetchCall && ts.isCallExpression(fetchCall) ? plain(fetchCall.expression) : null;
+        const jsonCallee = jsonCall && ts.isCallExpression(jsonCall) ? plain(jsonCall.expression) : null;
+        const responseRef = jsonCallee && ts.isPropertyAccessExpression(jsonCallee) ? plain(jsonCallee.expression) : null;
+        if (!ts.isCallExpression(fetchCall) || fetchCall.questionDotToken
+            || !fetchCallee || !ts.isIdentifier(fetchCallee) || fetchCallee.text !== 'fetch'
+            || symbolAt(fetchCallee) || !ts.isCallExpression(jsonCall) || jsonCall.questionDotToken
+            || jsonCall.arguments.length || !jsonCallee || !ts.isPropertyAccessExpression(jsonCallee)
+            || jsonCallee.questionDotToken || jsonCallee.name.text !== 'json'
+            || !responseRef || !ts.isIdentifier(responseRef)
+            || symbolAt(responseRef) !== symbolAt(fetch.name)) continue;
+        let expression = plain(last.expression), assertion = null;
+        if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
+            assertion = expression; expression = plain(expression.expression);
+        }
+        const selected = expression, fieldPath = [];
+        while (expression && (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression))) {
+            if (expression.questionDotToken) break;
+            if (ts.isPropertyAccessExpression(expression)) {
+                if (!ts.isIdentifier(expression.name)) break;
+                fieldPath.unshift(expression.name.text);
+            } else {
+                const key = plain(expression.argumentExpression);
+                if (!key || !(ts.isStringLiteralLike(key) || ts.isNumericLiteral(key))) break;
+                fieldPath.unshift(key.text);
+            }
+            expression = plain(expression.expression);
+        }
+        if (!expression || !ts.isIdentifier(expression)
+            || symbolAt(expression) !== symbolAt(json.name)) continue;
+        records.push({callable_name: owner.name.text,
+            callable_kind: ts.isFunctionDeclaration(fn) ? 'async_function' : 'const_async_arrow',
+            field_path: fieldPath, return_type_assertion: Boolean(assertion), spans: {
+                callable: span(owner), callable_binding: span(owner.name), body: span(fn.body),
+                fetch: span(fetch), fetch_binding: span(fetch.name), json: span(json), json_binding: span(json.name),
+                response_ref: span(responseRef), return_statement: span(last),
+                return_expression: span(last.expression), selected_expression: span(selected), json_ref: span(expression),
+                ...(assertion ? {type_assertion: span(assertion)} : {}),
+            }});
+    }
+    return records;
 }
 
 function createZodObjectBroaderCastCollector(sourceFile, targetFile, importBindings, symbolAt) {
@@ -3712,6 +5216,56 @@ function createFiniteNumberGuardCollector(sourceFile, targetFile, symbolAt) {
         const sinkLine = sourceFile.getLineAndCharacterOfPosition(sink.getStart(sourceFile)).line + 1;
         if (guardLine < sinkLine) {
             fileFeatures.add(`TypeScript:FiniteNumberNaNOnlyGuard:${subject.text}:${guardLine}:${sinkLine}`);
+        }
+    };
+}
+
+function createShallowCopyNestedWriteCollector(sourceFile, targetFile, symbolAt) {
+    if (sourceFile.parseDiagnostics?.length || !/\.(?:ts|tsx|mts|cts)$/i.test(targetFile)) return () => {};
+    const simpleName = node => ts.isIdentifier(node) && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(node.text);
+    const literalIndex = node => !!node && (ts.isNumericLiteral(node) || ts.isStringLiteral(node));
+    function boundedValue(node) {
+        return !!node && (literalIndex(node)
+            || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(node.kind)
+            || (simpleName(node) && !!symbolAt(node)));
+    }
+    return function collect(node, fileFeatures) {
+        // Exactly one own async body: no inferred dominance across effects or branches.
+        if (!ts.isBlock(node) || node.statements.length !== 3 || !ts.isFunctionLike(node.parent)
+            || node.parent.body !== node || !node.parent.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword)) return;
+        const [copyStatement, writeStatement, awaitStatement] = node.statements;
+        if (!ts.isVariableStatement(copyStatement)
+            || !(copyStatement.declarationList.flags & ts.NodeFlags.Const)
+            || copyStatement.declarationList.declarations.length !== 1) return;
+        const copy = copyStatement.declarationList.declarations[0];
+        if (!simpleName(copy.name) || !copy.initializer) return;
+        const initializer = unwrapExpression(copy.initializer);
+        if (!ts.isObjectLiteralExpression(initializer) || initializer.properties.length !== 1
+            || !ts.isSpreadAssignment(initializer.properties[0])) return;
+        const origin = unwrapExpression(initializer.properties[0].expression);
+        const copySymbol = symbolAt(copy.name);
+        if (!simpleName(origin) || !copySymbol || copySymbol.declarations?.length !== 1
+            || copySymbol.declarations[0] !== copy || !symbolAt(origin) || symbolAt(origin) === copySymbol) return;
+        if (!ts.isExpressionStatement(writeStatement) || !ts.isExpressionStatement(awaitStatement)) return;
+        const write = unwrapExpression(writeStatement.expression);
+        if (!ts.isBinaryExpression(write) || write.operatorToken.kind !== ts.SyntaxKind.EqualsToken
+            || !ts.isElementAccessExpression(write.left) || write.left.questionDotToken
+            || !literalIndex(write.left.argumentExpression) || !boundedValue(unwrapExpression(write.right))) return;
+        const receiver = unwrapExpression(write.left.expression);
+        if (!ts.isPropertyAccessExpression(receiver) || receiver.questionDotToken || !simpleName(receiver.name)) return;
+        const root = unwrapExpression(receiver.expression);
+        if (!simpleName(root) || symbolAt(root) !== copySymbol) return;
+        const awaited = unwrapExpression(awaitStatement.expression);
+        if (!ts.isAwaitExpression(awaited)) return;
+        const call = unwrapExpression(awaited.expression);
+        if (!ts.isCallExpression(call) || call.questionDotToken || !simpleName(call.expression)
+            || !symbolAt(call.expression) || call.arguments.length !== 1) return;
+        const argument = unwrapExpression(call.arguments[0]);
+        if (!simpleName(argument) || symbolAt(argument) !== copySymbol) return;
+        const line = statement => sourceFile.getLineAndCharacterOfPosition(statement.getStart(sourceFile)).line + 1;
+        const copyLine = line(copyStatement), writeLine = line(writeStatement), awaitLine = line(awaitStatement);
+        if (copyLine < writeLine && writeLine < awaitLine) {
+            fileFeatures.add(`TypeScript:ShallowCopyNestedIndexWriteBeforeAwait:${copy.name.text}:${receiver.name.text}:${copyLine}:${writeLine}:${awaitLine}`);
         }
     };
 }
@@ -4747,13 +6301,27 @@ function analyzeFile(targetFile) {
     const parserStatus = parseDiagnostics.length ? 'degraded' : 'observed';
     const importBindings = collectImportBindings(sourceFile);
     const symbolAt = createFileSymbolResolver(sourceFile);
+    const bindingWrites = createBindingWriteCollector(symbolAt);
     const collectImportCalls = createImportCallCollector(sourceFile, importBindings, symbolAt);
     const collectSameFileStoreActionCalls = createSameFileStoreActionCallCollector(sourceFile, importBindings, symbolAt);
     const collectSameFileDirectCalls = createSameFileDirectCallCollector(sourceFile, symbolAt);
+    const collectLocalSiblingCalls = createLocalSiblingCallCollector(sourceFile, symbolAt, bindingWrites);
+    const collectReturnedLocalCallbacks = createReturnedLocalCallbackCollector(sourceFile, importBindings, symbolAt, bindingWrites);
+    const collectReturnedCallbackParameterOptional = createReturnedCallbackParameterOptionalCollector(
+        sourceFile, symbolAt, bindingWrites, collectReturnedLocalCallbacks);
+    const callResultBindingsByOwner = new WeakMap();
+    const collectCallResultPropertyBindings = createCallResultPropertyBindingCollector(sourceFile, importBindings, symbolAt, bindingWrites, callResultBindingsByOwner);
+    const collectCallResultAliasInvocations = createCallResultAliasInvocationCollector(sourceFile, symbolAt, collectCallResultPropertyBindings, callResultBindingsByOwner);
+    const collectNestedCallbackAliasInvocations = createNestedCallbackAliasInvocationCollector(sourceFile, symbolAt, collectCallResultPropertyBindings, callResultBindingsByOwner);
+    const collectImportOptionalRestAliases = createNestedCallbackAliasInvocationCollector(sourceFile, symbolAt,
+        collectCallResultPropertyBindings, callResultBindingsByOwner, true, bindingWrites);
+    const collectParameterConfigCallbacks = createParameterConfigCallbackCollector(sourceFile, symbolAt, bindingWrites);
+    const collectJsxCallbacks = createJsxCallbackCollector(sourceFile, importBindings, symbolAt, bindingWrites);
     const collectStoreHookSelectors = createStoreHookSelectorCollector(sourceFile, importBindings, symbolAt);
     const collectImmutableKeyTruthinessGuard = createImmutableKeyTruthinessGuardCollector(sourceFile, targetFile);
     const collectFiniteNumberGuard = createFiniteNumberGuardCollector(sourceFile, targetFile, symbolAt);
     const collectZodBroaderCast = createZodObjectBroaderCastCollector(sourceFile, targetFile, importBindings, symbolAt);
+    const collectShallowCopyNestedWrite = createShallowCopyNestedWriteCollector(sourceFile, targetFile, symbolAt);
     const collectUnawaitedAsyncHelper = createUnawaitedAsyncHelperCollector(sourceFile, targetFile, symbolAt);
     const collectCaughtAsyncAwait = createCaughtAsyncAwaitCollector(sourceFile, targetFile);
     const collectReturnedQueueCatch = createReturnedQueueCatchCollector(sourceFile, targetFile, symbolAt);
@@ -4763,6 +6331,11 @@ function analyzeFile(targetFile) {
     const symbols = [];
     const fileFeatures = new Set();
     const structuredOutputCandidates = [];
+    const responseFieldRecords = [];
+    const clientLocalParserResultRecords = [];
+    const clientLocalParserInputSinkRecords = [];
+    const clientImportedParserRecords = [];
+    const responseJsonReturnRecords = collectResponseJsonReturnRecords(sourceFile, targetFile, symbolAt);
     let structuredOutputCandidatesOmitted = 0;
     if (parserStatus === 'observed') {
         fileFeatures.add('ParserEvidence:ImportedPropertyEventCallsV1');
@@ -4794,7 +6367,7 @@ function analyzeFile(targetFile) {
     for (const feature of collectReactMutationContextFeatures(sourceFile)) {
         fileFeatures.add(feature);
     }
-    for (const feature of collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt)) {
+    for (const feature of collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt, responseFieldRecords, clientLocalParserResultRecords, clientLocalParserInputSinkRecords, clientImportedParserRecords)) {
         fileFeatures.add(feature);
     }
     for (const feature of collectFormValidationFeatures(sourceFile, importBindings)) {
@@ -4816,6 +6389,7 @@ function analyzeFile(targetFile) {
             collectImmutableKeyTruthinessGuard(node, fileFeatures);
             collectFiniteNumberGuard(node, fileFeatures);
             collectZodBroaderCast(node, fileFeatures);
+            collectShallowCopyNestedWrite(node, fileFeatures);
             collectUnawaitedAsyncHelper(node, fileFeatures);
             collectCaughtAsyncAwait(node, fileFeatures);
             collectReturnedQueueCatch(node, fileFeatures);
@@ -5020,6 +6594,17 @@ function analyzeFile(targetFile) {
             ...((type === 'Function' || type === 'Arrow' || type === 'Hook' || type === 'Component')
                 ? {same_file_store_action_call_evidence: collectSameFileStoreActionCalls(node),
                     same_file_direct_call_evidence: collectSameFileDirectCalls(node),
+                    local_arrow_sibling_call_evidence: collectLocalSiblingCalls(node),
+                    returned_local_callback_evidence: collectReturnedLocalCallbacks(node),
+                    returned_callback_parameter_optional_call_evidence: collectReturnedCallbackParameterOptional(node),
+                    returned_callback_parameter_context_call_evidence: collectReturnedCallbackParameterOptional.contexts(node),
+                    call_result_property_binding_evidence: collectCallResultPropertyBindings(node),
+                    call_result_alias_invocation_evidence: collectCallResultAliasInvocations(node),
+                    call_result_optional_alias_invocation_evidence: collectCallResultAliasInvocations(node, true),
+                    call_result_nested_callback_alias_invocation_evidence: collectNestedCallbackAliasInvocations(node),
+                    call_result_optional_rest_alias_invocation_evidence: collectImportOptionalRestAliases(node),
+                    parameter_config_callback_forwarding_evidence: collectParameterConfigCallbacks(node),
+                    ...collectJsxCallbacks(node),
                     store_hook_selector_evidence: collectStoreHookSelectors(node)} : {}),
             ...symbolExtra,
         };
@@ -5102,6 +6687,7 @@ function analyzeFile(targetFile) {
 
     // Global Sentinel
     const loc = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
+    const sourceHash = generateDna(sourceCode);
     symbols.push({
         name: '__file_meta__',
         type: 'Meta',
@@ -5119,6 +6705,40 @@ function analyzeFile(targetFile) {
         structuredOutputScanVersion: 'v3-xml-mime-helper-argument-candidate',
         structuredOutputCandidates,
         structuredOutputCandidatesOmitted,
+        responseFieldEvidence: {
+            status: parserStatus === 'observed' ? 'observed' : 'unavailable_parser',
+            version: 'v1-literal-response-field-state',
+            offset_unit: 'utf16_code_units', source_hash: sourceHash,
+            records: responseFieldRecords,
+        },
+        clientLocalParserResultEvidence: {
+            status: parserStatus !== 'observed' ? 'unavailable_parser'
+                : /\.tsx?$/i.test(targetFile) ? 'observed' : 'not_applicable_language',
+            version: 'v1-const-sync-call-result-to-state', offset_unit: 'utf16_code_units',
+            source_hash: sourceHash, record_count: clientLocalParserResultRecords.length,
+            records: clientLocalParserResultRecords,
+        },
+        clientLocalParserInputSinkEvidence: {
+            status: parserStatus !== 'observed' ? 'unavailable_parser'
+                : /\.tsx?$/i.test(targetFile) ? 'observed' : 'not_applicable_language',
+            version: 'v1-const-parse-call-input-to-state', offset_unit: 'utf16_code_units',
+            source_hash: sourceHash, record_count: clientLocalParserInputSinkRecords.length,
+            records: clientLocalParserInputSinkRecords,
+        },
+        clientImportedParserEvidence: {
+            status: parserStatus !== 'observed' ? 'unavailable_parser'
+                : /\.tsx?$/i.test(targetFile) ? 'observed' : 'not_applicable_language',
+            version: 'v1-named-import-parse-to-state', offset_unit: 'utf16_code_units',
+            source_hash: sourceHash, record_count: clientImportedParserRecords.length,
+            records: clientImportedParserRecords,
+        },
+        responseJsonReturnEvidence: {
+            status: parserStatus !== 'observed' ? 'unavailable_parser'
+                : /\.tsx?$/i.test(targetFile) ? 'observed' : 'not_applicable_language',
+            version: 'v1-three-statement-async-json-return', offset_unit: 'utf16_code_units',
+            source_hash: sourceHash, record_count: responseJsonReturnRecords.length,
+            records: responseJsonReturnRecords,
+        },
         moduleImports: collectModuleImportEvidence(sourceFile),
         directImportBindings: collectDirectImportBindingEvidence(sourceFile),
         moduleRootImportCallEvidence: collectImportCalls(sourceFile, 'module_root'),
@@ -5127,12 +6747,20 @@ function analyzeFile(targetFile) {
             `ParserStatus:${parserStatus}`,
             `ParserDiagnosticCount:${parseDiagnostics.length}`,
             `GemScore:${gemScoreTotal.toFixed(1)}`,
-            `Hash:${generateDna(sourceCode)}`,
+            `Hash:${sourceHash}`,
             `MTime:${fs.statSync(targetFile).mtimeMs / 1000}`,
             `LOC:${loc}`
         ]
     });
 
+    // Carry declaration style from the admitted native return producer, not
+    // from display categories such as Hook/Component or source-text heuristics.
+    const returnKinds = new Map(responseJsonReturnRecords.map(row => [
+        JSON.stringify([row.callable_name, row.spans.callable.start, row.spans.callable.end]), row.callable_kind]));
+    for (const symbol of symbols) {
+        const kind = returnKinds.get(JSON.stringify([symbol.name, symbol.start, symbol.end]));
+        if (kind) symbol.responseJsonCallableKind = kind;
+    }
     return symbols;
 }
 

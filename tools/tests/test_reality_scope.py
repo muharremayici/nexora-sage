@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+
+from tools.core import capability_activation
+from tools.core.artifact_registry import artifact_path_for_storage_root
+from tools.core.architecture_blueprints import architecture_governance_context
+from tools.core.contextos_mcp import build_surgical_operation_packet
+from tools.core.mcp_tool_profiles import project_mcp_tool_names
+from tools.mcp import server
 
 from tools.core.capability_activation import relevant_activation_context
 from tools.core.capability_registry import build_agent_capability_map, load_capability_registry
@@ -138,6 +149,59 @@ class RealityScopeProjectionTests(unittest.TestCase):
         self.assertEqual(projection["summary"]["enabled_capability_ids"], ["agent_surface"])
         self.assertEqual(projection["summary"]["disabled_capability_ids"], [])
         self.assertEqual([row["id"] for row in projection["projects"][0]["capabilities"]], ["agent_surface"])
+        self.assertNotIn("full_plan_mcp_tool", projection["surface_policy"])
+        self.assertNotIn("full_plan_artifact", projection["surface_policy"])
+        self.assertEqual(projection["surface_policy"]["full_plan_followup"]["availability"], "unavailable")
+
+    def test_private_operator_retains_its_activation_followup_outside_target_surface(self):
+        if PUBLIC_DISTRIBUTION:
+            self.skipTest("Private operator generation is not a public target-profile capability.")
+        from tools import generate_nexora_operator_packet as operator_packets
+
+        plan = {"summary": {"status": "PASS", "projects": 1}, "projects": []}
+        with (
+            patch.object(operator_packets, "_load", return_value={}),
+            patch.object(operator_packets, "load_capability_activation_plan", return_value=plan),
+        ):
+            packet = operator_packets.build_operator_packet()
+        self.assertEqual(packet["capability_activation"]["surface_policy"]["full_plan_mcp_tool"], "get_capability_activation_plan")
+        self.assertEqual(packet["capability_activation"]["surface_policy"]["full_plan_artifact"], "output/.raw/capability_activation_plan.json")
+        self.assertNotIn("capability_activation", packet["target_repository_agent_surface"])
+        for field, tool, artifact in (
+            ("pipeline_execution_contract", "get_pipeline_execution_contract", "pipeline_execution_contract_validation.json"),
+            ("engine_signal_contract", "get_engine_signal_contracts", "engine_signal_contract_validation.json"),
+        ):
+            self.assertEqual(packet[field]["mcp_tool"], tool)
+            self.assertEqual(packet[field]["artifact"], "output/.raw/" + artifact)
+            self.assertNotIn(field, packet["target_repository_agent_surface"])
+
+    def test_private_operator_retains_oracle_followup_and_seal_evidence(self):
+        if PUBLIC_DISTRIBUTION:
+            self.skipTest("Private operator generation is not a public target-profile capability.")
+        from tools import generate_nexora_operator_packet as operator_packets
+        from tools.core.mcp_tool_profiles import project_mcp_tool_names
+
+        oracle = {"summary": {"status": "PROPOSE_SEAL"}, "projects": [
+            {"project": "MAIN", "recommended_profile": "MODULAR_FLAT", "classification_status": "CLASSIFIED"},
+        ]}
+        ledger = {"entries": [{"gate": "architecture_doctrine_seal", "scope": "MAIN",
+                              "decision": "approved", "revoked_by": ""}]}
+        inputs = {"architecture_oracle.json": oracle, "hitl_approval_ledger.json": ledger}
+        with (
+            patch.object(operator_packets, "_load", side_effect=lambda path: inputs.get(path.name, {})),
+            patch.object(operator_packets, "load_capability_activation_plan", return_value={}),
+        ):
+            packet = operator_packets.build_operator_packet()
+        context = packet["architecture_governance_context"]
+        self.assertEqual(context["mcp_tool"], "get_architecture_oracle")
+        self.assertNotIn("followup", context)
+        self.assertEqual(context["seal_state"], "HUMAN_SEALED")
+        self.assertEqual(context["sealed_project_count"], 1)
+        self.assertFalse(context["policy_activation_allowed"])
+        self.assertEqual(context["effective_policy_status"], "NOT_MATERIALIZED")
+        self.assertIn("output/.raw/architecture_oracle.json", context["source_artifacts"])
+        self.assertNotIn("architecture_governance_context", packet["target_repository_agent_surface"])
+        self.assertIn(context["mcp_tool"], project_mcp_tool_names(ROOT, "sage_operator_debug")["visible_tools"])
 
     def test_sage_self_target_workflow_resolves_explicit_root_and_preserves_proof_boundary(self):
         if PUBLIC_DISTRIBUTION:
@@ -276,6 +340,257 @@ class RealityScopeProjectionTests(unittest.TestCase):
         self.assertEqual(descriptor["profile_id"], "target_repository_default")
         self.assertEqual(descriptor["artifact_strategy"], "DEFAULT_WORKSPACE_NAMESPACE")
         self.assertTrue(descriptor["subject_root"])
+
+
+def _oracle_inputs(case: str) -> tuple[dict, dict, dict]:
+    if case == "missing":
+        return {}, {}, {}
+    oracle = {
+        "summary": {"status": "PROPOSE_SEAL", "top_recommended_profile": "MODULAR_FLAT"},
+        "repository_blueprint": {"project_ids": ["MAIN", "OTHER"], "status": "ADVISORY_ONLY"},
+        "projects": [
+            {"project": "MAIN", "recommended_profile": "MODULAR_FLAT",
+             "classification_status": "INSUFFICIENT_SOURCE_EVIDENCE" if case == "insufficient" else "CLASSIFIED",
+             "confidence": 0.9, "seal_ready": case != "insufficient",
+             "project_system_kind": {"kind": "application"},
+             "project_language_capability": {"status": "ENGINE_AVAILABLE"}},
+            {"project": "OTHER", "recommended_profile": "MINIMAL", "classification_status": "CLASSIFIED"},
+        ],
+    }
+    ledger = {"entries": []}
+    if case in ("sealed", "activated", "insufficient"):
+        ledger["entries"] = [{"gate": "architecture_doctrine_seal", "scope": "MAIN",
+                              "decision": "approved", "revoked_by": ""}]
+    policy = {}
+    if case == "activated":
+        policy = {"summary": {"status": "PASS"}, "projects": {
+            "MAIN": {"status": "ACTIVATED", "policy_activation_allowed": True,
+                     "feature_flags": {"architecture_sensitive_rules": "enforce"}},
+        }}
+    return oracle, ledger, policy
+
+
+@pytest.mark.parametrize("case", ["missing", "proposal", "sealed", "activated", "insufficient"])
+def test_target_oracle_followup_is_unavailable_without_losing_architecture(tmp_path: Path, case: str) -> None:
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    oracle, ledger, policy = _oracle_inputs(case)
+    for name, value in (("architecture_oracle", oracle), ("hitl_approval_ledger", ledger),
+                        ("effective_architecture_policy", policy)):
+        if value:
+            (raw / f"{name}.json").write_text(json.dumps(value), encoding="utf-8")
+    signals = {"active_signals": [{"node_key": "MAIN::src/example.ts", "relative_path": "src/example.ts"}]}
+    with patch.object(capability_activation, "build_capability_activation_plan", side_effect=AssertionError("Private planner called")):
+        packet = build_surgical_operation_packet(signals, project_scope="MAIN", raw_dir=raw)
+    context = packet["architecture_governance_context"]
+    assert "mcp_tool" not in context
+    assert context["followup"]["availability"] == "unavailable"
+    assert context["followup"]["reason"] == "maintainer_only"
+    assert "does not authorize" in context["followup"]["claim_boundary"]
+    assert "does not prove" in context["followup"]["claim_boundary"]
+    assert context["selected_project_count"] == (0 if case == "missing" else 1)
+    assert [row["project"] for row in context["projects"]] == ([] if case == "missing" else ["MAIN"])
+    assert context["seal_state"] == ("HUMAN_SEALED" if case in ("sealed", "activated") else "PROPOSAL_ONLY")
+    assert context["sealed_project_count"] == (1 if case in ("sealed", "activated") else 0)
+    assert context["policy_activation_allowed"] is (case == "activated")
+    assert context["effective_policy_status"] == ("PASS" if case == "activated" else "NOT_MATERIALIZED")
+    assert context["repository_blueprint_applicability"] == ("NOT_GENERATED" if case == "missing" else "PROJECT_FILTER_SCOPE_MISMATCH")
+    assert context["source_artifacts"] == [
+        "output/.raw/architecture_oracle.json", "output/.raw/effective_architecture_policy.json",
+        "config/architecture_doctrine.json", "output/.raw/hitl_approval_ledger.json",
+    ]
+    assert "does not prove a compiled or activated effective policy" in context["agent_rule"]
+    if case != "missing":
+        assert context["projects"][0]["project_language_capability"] == {"status": "ENGINE_AVAILABLE"}
+    if case == "insufficient":
+        assert context["projects"][0]["seal_state"] == "EVIDENCE_INSUFFICIENT"
+    for profile in ("target_repository_default", "target_repository_followup"):
+        assert "get_architecture_oracle" not in project_mcp_tool_names(ROOT, profile)["visible_tools"]
+
+
+@pytest.mark.parametrize("case", ["missing", "proposal", "sealed", "activated", "insufficient"])
+def test_oracle_followup_projection_changes_only_access_guidance(case: str) -> None:
+    oracle, ledger, policy = _oracle_inputs(case)
+    target = architecture_governance_context(oracle, ledger, policy, project_ids={"MAIN"})
+    private = architecture_governance_context(oracle, ledger, policy, project_ids={"MAIN"},
+                                             include_private_followup=True)
+    assert private["mcp_tool"] == "get_architecture_oracle"
+    assert "followup" not in private
+    assert {k: v for k, v in target.items() if k != "followup"} == {
+        k: v for k, v in private.items() if k != "mcp_tool"
+    }
+    if not (ROOT / "PUBLIC_DISTRIBUTION_MANIFEST.json").is_file():
+        assert private["mcp_tool"] in project_mcp_tool_names(ROOT, "sage_operator_debug")["visible_tools"]
+
+
+@pytest.mark.parametrize("profile", ["target_repository_default", "target_repository_followup"])
+def test_target_profiles_reject_private_oracle_before_execution(profile: str) -> None:
+    instance = server.ProfiledFastMCP("oracle-profile-guard")
+    instance.set_visible_tools(profile, set(project_mcp_tool_names(ROOT, profile)["visible_tools"]))
+    with patch.object(instance, "_record_governance_trace") as recorder:
+        with pytest.raises(ValueError, match="get_architecture_oracle.*unavailable in profile"):
+            asyncio.run(instance.call_tool("get_architecture_oracle", {}))
+    assert recorder.call_args.args[4:6] == ("failure", "tool_visibility")
+
+
+def _recovery_from_response(body: str) -> dict:
+    if body.lstrip().startswith("{"):
+        return json.loads(body)["recovery"]
+    line = next(line for line in body.splitlines() if line.startswith("recovery: "))
+    return json.loads(line.removeprefix("recovery: "))
+
+
+def _set_recovery_profile(monkeypatch, profile: str) -> set[str]:
+    names = set(project_mcp_tool_names(ROOT, profile)["visible_tools"])
+    monkeypatch.setattr(server.mcp, "active_tool_profile", profile)
+    monkeypatch.setattr(server.mcp, "_visible_tool_names", frozenset(names))
+    monkeypatch.setattr(server, "_ACTIVE_MCP_PROFILE", profile)
+    monkeypatch.delenv(server.SAGE_ACTOR_PROFILE_ENV, raising=False)
+    monkeypatch.setenv(server.SAGE_REALITY_TARGET_PROFILE_ENV,
+                      server.SAGE_SELF_REALITY_PROFILE if profile == "sage_operator_debug" else "")
+    return names
+
+
+@pytest.mark.parametrize("profile", ["target_repository_default", "target_repository_followup"])
+@pytest.mark.parametrize("external", [False, True])
+def test_recovery_missing_analysis_never_advertises_hidden_heavy_call(monkeypatch, profile, external):
+    _set_recovery_profile(monkeypatch, profile)
+    target_root = 'C:/fixture/Örnek repo; other "scope"' if external else ""
+    required_files = [artifact_path_for_storage_root(Path("."), artifact).name
+                      for artifact in ("atlas", "test_impact_report")]
+    body = server._missing_target_artifact_brief("get_test_impact", "MAIN::src/A.ts", target_root,
+                                                 required_files)
+    assert "run_external_target_analysis" not in body
+    recovery = _recovery_from_response(body)
+    assert recovery["availability"] == "unavailable"
+    assert recovery["target_root"] == target_root
+    assert recovery["analysis_root"] == (target_root or str(server.ANALYZED_REPOSITORY_ROOT))
+    assert recovery["execution_authority"] == "not_granted"
+    assert recovery["refresh_executed"] is False
+    assert "mcp_call" not in recovery and "cli_manual_alternative" not in recovery
+    assert all(name in body for name in required_files)
+    assert "another repository or stale workspace" in body
+
+
+@pytest.mark.parametrize("profile", ["target_repository_followup"])
+@pytest.mark.parametrize("output_format", ["brief", "json"])
+@pytest.mark.parametrize("case", ["missing_packet", "missing_surface", "refresh"])
+def test_recovery_external_operator_packet_preserves_access_and_never_runs_analysis(
+    tmp_path, monkeypatch, profile, output_format, case,
+):
+    _set_recovery_profile(monkeypatch, profile)
+    target = tmp_path / 'repo Örnek with spaces'
+    target.mkdir()
+    monkeypatch.setattr(server, "_raw_dir_for_target", lambda root: tmp_path / ".raw")
+    monkeypatch.setattr(server, "_reports_dir_for_target", lambda root: tmp_path / "reports")
+    monkeypatch.setattr(server, "_load_json", lambda path: {} if case == "missing_surface" else None)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Recovery advice executed a producer or CLI")
+    for name in ("_run_cli", "run_operator_packet", "run_agent_contract", "run_nexora_brief"):
+        monkeypatch.setattr(server, name, forbidden)
+    body = server.get_operator_packet(target_root=str(target), refresh=case == "refresh", format=output_format)
+    assert "run_external_target_analysis" not in body
+    if case == "refresh" and profile == "target_repository_followup":
+        assert "BLOCKED" in body
+        return
+    recovery = _recovery_from_response(body)
+    assert recovery["availability"] == "unavailable"
+    assert recovery["target_root"] == str(target)
+    assert recovery["refresh_executed"] is False
+    assert recovery["execution_authority"] == "not_granted"
+
+
+@pytest.mark.parametrize("profile", ["target_repository_followup"])
+@pytest.mark.parametrize("case", ["missing", "missing_report", "stale", "current"])
+def test_recovery_watchdog_guidance_uses_current_visibility_and_exact_target(
+    tmp_path, monkeypatch, profile, case,
+):
+    from copy import deepcopy
+    import inspect
+    visible = _set_recovery_profile(monkeypatch, profile)
+    target = tmp_path / "repo Örnek with spaces"
+    target.mkdir()
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    session = {"summary": {"input_origin": "explicit_files", "analysis_status": "analyzed"},
+        "producer": {"kind": "fixture", "command": ["python", "sage.py", "watch"]},
+        "target_descriptor": {"system_scope": "SAGE_ON_REPOSITORY", "acquisition_mode": "external_target",
+            "profile_id": "target_repository_default", "subject_root": str(target), "artifact_strategy": "external_target"},
+        "path_contract": {"analysis_root": str(target)}, "violations": [], "input_files": ["src/A.ts"]}
+    before = deepcopy(session)
+    if case in ("stale", "current"):
+        (raw / "watchdog_session.json").write_text(json.dumps(session), encoding="utf-8")
+    monkeypatch.setattr(server, "_watchdog_session_roots", lambda root, profile_id: (raw, tmp_path / "reports", str(target)))
+    ledger = {"summary": {"current_violation_count": 0}}
+    monkeypatch.setattr(server, "_load_json", lambda path: deepcopy(session if path.name == "watchdog_session.json" else ledger))
+    monkeypatch.setattr(server, "_raw_artifact_source_mtime", lambda name, path: 2 if case == "stale" and name == "watchdog_pulse_ledger" else 1)
+    monkeypatch.setattr(server, "_record_mcp_call_result", lambda name, started, result, **kwargs: result)
+    monkeypatch.setattr(server, "_run_cli", lambda *args, **kwargs: pytest.fail("Read-only guidance invoked CLI"))
+    body = server.get_watchdog_session(target_root=str(target), human_report=case == "missing_report")
+    recovery = _recovery_from_response(body)
+    assert recovery["target_root"] == str(target)
+    assert recovery["profile_id"] == ""
+    assert recovery["execution_authority"] == "not_granted" and recovery["refresh_executed"] is False
+    if "run_watchdog_once" in visible:
+        call = recovery["mcp_call"]
+        assert call["tool"] in visible
+        inspect.signature(server.run_watchdog_once).bind(**call["arguments"])
+        assert call["arguments"]["target_root"] == str(target)
+        assert call["arguments"]["profile_id"] == ""
+    else:
+        assert "run_watchdog_once" not in body
+        assert recovery["availability"] == "unavailable" and "mcp_call" not in recovery
+    cli = recovery["cli_manual_alternative"]
+    assert cli["argv"] == ["python", "sage.py", "watch", "--once", "--target-root", str(target), "--path", "<explicit source path>"]
+    assert cli["cwd"] == str(server.BASE_DIR)
+    assert cli["execution_authority"] == "not_granted"
+    from codemaps import build_parser
+    parsed = build_parser().parse_args(cli["argv"][2:])
+    assert parsed.func.__name__ == "cmd_watch" and parsed.once is True
+    assert parsed.target_root == str(target) and parsed.path == ["<explicit source path>"]
+    assert session == before
+    if case == "stale":
+        assert "stale_against_pulse_ledger" in body and "historical_session_not_current" in body
+    if case == "current":
+        assert "latest_session_artifact" in body and "not release proof" in body
+
+
+def test_recovery_profile_authority_matches_distribution():
+    from tools.core.mcp_tool_profiles import available_mcp_tool_profiles
+    profiles = available_mcp_tool_profiles(ROOT)
+    assert "target_repository_followup" in profiles
+    if PUBLIC_DISTRIBUTION:
+        assert "sage_operator_debug" not in profiles
+        with pytest.raises(ValueError, match="Unknown MCP tool profile"):
+            project_mcp_tool_names(ROOT, "sage_operator_debug")
+    else:
+        assert "sage_operator_debug" in profiles
+
+
+def test_recovery_external_analysis_is_not_visible_in_any_declared_profile():
+    from tools.core.mcp_tool_profiles import available_mcp_tool_profiles
+    for profile in available_mcp_tool_profiles(ROOT):
+        assert "run_external_target_analysis" not in project_mcp_tool_names(ROOT, profile)["visible_tools"]
+
+
+@pytest.mark.parametrize("profile_id", ["unsupported-profile", "target_repository_default"])
+def test_recovery_invalid_watchdog_profile_rejects_before_advice(monkeypatch, profile_id):
+    _set_recovery_profile(monkeypatch, "target_repository_followup")
+    monkeypatch.setattr(server, "_record_mcp_call_result", lambda name, started, result, **kwargs: result)
+    body = server.get_watchdog_session(profile_id=profile_id)
+    assert "invalid_watchdog_target_scope" in body
+    assert "recovery:" not in body and "run_watchdog_once" not in body
+
+
+@pytest.mark.parametrize("profile", ["target_repository_default", "target_repository_followup"])
+@pytest.mark.parametrize("tool", ["run_watchdog_once", "run_external_target_analysis"])
+def test_recovery_target_profiles_still_reject_hidden_calls(profile, tool):
+    instance = server.ProfiledFastMCP("recovery-profile-guard")
+    instance.set_visible_tools(profile, set(project_mcp_tool_names(ROOT, profile)["visible_tools"]))
+    with patch.object(instance, "_record_governance_trace") as recorder:
+        with pytest.raises(ValueError, match=tool + ".*unavailable in profile"):
+            asyncio.run(instance.call_tool(tool, {}))
+    assert recorder.call_args.args[4:6] == ("failure", "tool_visibility")
 
 
 if __name__ == "__main__":

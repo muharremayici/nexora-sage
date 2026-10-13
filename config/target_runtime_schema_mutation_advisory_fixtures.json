@@ -3,9 +3,54 @@
     "kind": "nexora.target_runtime_schema_mutation_advisory_fixtures",
     "version": "v1",
     "status": "syntax_ast_advisory_calibration",
-    "scope": "Single-file TypeScript syntax-AST external-response-to-typed-React-state and direct Zod-object-to-broader-type-cast advisory calibration only",
+    "scope": "Single-file TypeScript syntax-AST response-to-state, literal field/branch, finite local call-result transport, Zod broader-cast and bounded shallow-copy/nested-index-write advisory calibration only",
     "authority": "Synthetic examples and bounded source-derived excerpts specify review disposition; they do not establish an observed target-repository defect or activate a public SAGE capability."
   },
+  "response_json_return_cases": [
+    {
+      "id": "whole_json_async_function",
+      "source": "export async function load() { const response = await fetch('/items'); const raw = await response.json(); return raw; }",
+      "field_path": [],
+      "callable_kind": "async_function",
+      "return_type_assertion": false
+    },
+    {
+      "id": "literal_field_const_arrow",
+      "source": "export const load = async (id: string) => { const response = await fetch(id); const raw = await response.json(); return raw.data['items'][0]; };",
+      "field_path": [
+        "data",
+        "items",
+        "0"
+      ],
+      "callable_kind": "const_async_arrow",
+      "return_type_assertion": false
+    },
+    {
+      "id": "outer_promise_assertion_not_validation",
+      "source": "export const load = async () => { const response = await fetch('/items'); const raw = await response.json(); return raw.data as Promise<Items>; };",
+      "field_path": [
+        "data"
+      ],
+      "callable_kind": "const_async_arrow",
+      "return_type_assertion": true
+    },
+    {
+      "id": "parentheses_whole_value",
+      "source": "async function load() { const response = (await ((fetch)('/items'))); const raw = (await (((response).json)())); return ((raw)); }",
+      "field_path": [],
+      "callable_kind": "async_function",
+      "return_type_assertion": false
+    },
+    {
+      "id": "type_assertion_ts_only",
+      "source": "async function load() { const response = await fetch('/items'); const raw = await response.json(); return <Items>raw['data']; }",
+      "field_path": [
+        "data"
+      ],
+      "callable_kind": "async_function",
+      "return_type_assertion": true
+    }
+  ],
   "cases": [
     {
       "id": "direct_json_cast_to_structured_state",
@@ -39,9 +84,9 @@
       "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: any = await response.json();\n    ItemsSchema.array().parse(raw);\n    setItems(raw);\n  }\n  return null;\n}",
       "required_evidence": [
         "external_response_producer",
-        "schema_parse_dominates_sink"
+        "prior_parse_named_same_binding_use"
       ],
-      "claim_ceiling": "A direct throwing parser statement before the setter is a local guard; do not emit a missing-validation advisory."
+      "claim_ceiling": "Prior parse-named use of the same binding conservatively omits this advisory; unresolved ItemsSchema does not prove throwing validation, dominance or safe raw consumption."
     },
     {
       "id": "explicit_any_json_to_opaque_state",
@@ -98,9 +143,9 @@
       "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw = await response.json();\n    ItemsSchema.array().parse(raw);\n    setItems(raw);\n  }\n  return null;\n}",
       "required_evidence": [
         "global_fetch_response",
-        "schema_parse_dominates_sink"
+        "prior_parse_named_same_binding_use"
       ],
-      "claim_ceiling": "A direct throwing parser statement before the setter is a local guard."
+      "claim_ceiling": "Prior parse-named use of the same binding is contrary syntax evidence, not proved schema validation or branch dominance."
     },
     {
       "id": "unannotated_json_assigned_parse_result",
@@ -109,9 +154,9 @@
       "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw = await response.json();\n    const checked = ItemsSchema.array().parse(raw);\n    setItems(raw);\n  }\n  return null;\n}",
       "required_evidence": [
         "global_fetch_response",
-        "prior_throwing_parser_use"
+        "prior_parse_named_same_binding_use"
       ],
-      "claim_ceiling": "A prior parser call makes the missing-validation claim unresolved even if its result is not used by the setter."
+      "claim_ceiling": "A prior parse-named call conservatively omits the advisory even though its result is discarded at the raw setter; this does not prove a safe or validated path."
     },
     {
       "id": "unannotated_json_safe_parse_branch",
@@ -122,7 +167,7 @@
         "global_fetch_response",
         "prior_safe_parse_branch"
       ],
-      "claim_ceiling": "A safeParse guard is source-level validation evidence; do not label this path unvalidated without branch proof."
+      "claim_ceiling": "Prior safeParse-named branch syntax conservatively omits the advisory; schema authority and success-path semantics still require separate proof."
     },
     {
       "id": "unannotated_json_to_opaque_state",
@@ -164,9 +209,9 @@
       "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: unknown = await response.json();\n    const parsed = ItemsSchema.array().parse(raw);\n    setItems(parsed);\n  }\n  return null;\n}",
       "required_evidence": [
         "external_response_producer",
-        "schema_parse_dominates_sink"
+        "prior_parse_named_same_binding_use"
       ],
-      "claim_ceiling": "Do not emit a missing-validation advisory from this local path."
+      "claim_ceiling": "The setter consumes a parse-named call result, not the raw binding; unresolved ItemsSchema still establishes no rejecting schema or runtime validity."
     },
     {
       "id": "dominating_parse_before_explicit_cast",
@@ -175,9 +220,9 @@
       "source": "import { useState } from 'react';\ntype Item = { id: string };\nexport function Items() {\n  const [items, setItems] = useState<Item[]>([]);\n  async function load() {\n    const response = await fetch('/items');\n    const raw: unknown = await response.json();\n    ItemsSchema.array().parse(raw);\n    setItems(raw as Item[]);\n  }\n  return null;\n}",
       "required_evidence": [
         "external_response_producer",
-        "schema_parse_dominates_sink"
+        "prior_parse_named_same_binding_use"
       ],
-      "claim_ceiling": "A direct throwing parser statement before the cast is a local validation guard; do not emit the advisory from this lexical path."
+      "claim_ceiling": "Prior parse-named same-binding use conservatively omits this cast advisory; neither the unresolved call nor the cast proves runtime validation."
     },
     {
       "id": "intentionally_opaque_response_state",
@@ -260,6 +305,118 @@
         "truthy_value_type_unproven"
       ],
       "claim_ceiling": "Review whether the provider image field can be a truthy non-string value; fallback-to-empty does not prove a string. Do not call this a demonstrated runtime defect."
+    }
+  ],
+  "field_state_cases": [
+    {
+      "id": "direct_field",
+      "expected": "advisory",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    setImage(raw.image);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "branch_literal_fallback",
+      "expected": "advisory",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw: any = await response.json();\n    if (!response.ok) { return; } else {\n      setImage(raw.image || '');\n    }\n  }\n  return null;\n}"
+    },
+    {
+      "id": "literal_nested_optional_field",
+      "expected": "advisory",
+      "source": "import { useState as state } from 'react';\nexport function Panel() {\n  const [image, setImage] = state<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw: unknown = await response.json();\n    setImage((raw as any)?.['data']?.image ?? '');\n  }\n  return null;\n}"
+    },
+    {
+      "id": "root_parser_before_branch",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    ResponseSchema.parse(raw);\n    if (response.ok) { setImage(raw.image); }\n  }\n  return null;\n}"
+    },
+    {
+      "id": "field_parser_before_branch",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    ImageSchema.parse(raw.image);\n    if (response.ok) { setImage(raw.image); }\n  }\n  return null;\n}"
+    },
+    {
+      "id": "parsed_result_not_raw",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    const checked = ResponseSchema.parse(raw);\n    setImage(checked.image);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "opaque_field_state",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [data, setData] = useState<unknown>(null);\n  async function load() {\n    const response = await fetch('/data');\n    const raw = await response.json();\n    setData(raw.data);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "shadowed_state_import",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel(useState: any) {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    setImage(raw.image);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "shadowed_local_fetch",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load(fetch: any) {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    setImage(raw.image);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "unrelated_payload",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel(local: { image: string }) {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    setImage(local.image);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "dynamic_field_key",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel(key: string) {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    setImage(raw[key]);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "deferred_callback_requires_activation_proof",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const response = await fetch('/image');\n    const raw = await response.json();\n    queueMicrotask(() => { setImage(raw.image); });\n  }\n  return null;\n}"
+    },
+    {
+      "id": "field_before_producer",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    setImage(raw.image);\n    const response = await fetch('/image');\n    const raw = await response.json();\n  }\n  return null;\n}"
+    },
+    {
+      "id": "computed_numeric_result",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n  const [offset, setOffset] = useState<number>(0);\n  async function load() {\n    const response = await fetch('/offset');\n    const raw = await response.json();\n    setOffset(raw.offset + 1);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "adapter_contract_not_inferred_from_name",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nimport { fetchProviderResponse } from './adapter';\nexport function Panel() {\n  const [image, setImage] = useState<string>('');\n  async function load() {\n    const raw: any = await fetchProviderResponse();\n    setImage(raw.image);\n  }\n  return null;\n}"
+    },
+    {
+      "id": "react_namespace_field",
+      "expected": "advisory",
+      "source": "import * as React from 'react';\nexport function Panel() {\n const [image, setImage] = React.useState<string>('');\n async function load() {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  setImage(raw.image);\n }\n return null;\n}"
+    },
+    {
+      "id": "field_overwrite_breaks_raw_value_path",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n const [image, setImage] = useState<string>('');\n async function load() {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  raw.image = 'local';\n  setImage(raw.image);\n }\n return null;\n}"
+    },
+    {
+      "id": "parent_field_overwrite_breaks_nested_path",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n const [image, setImage] = useState<string>('');\n async function load() {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  raw.data = { image: 'local' };\n  if (response.ok) { setImage(raw.data.image); }\n }\n return null;\n}"
+    },
+    {
+      "id": "unrelated_field_parser_does_not_cover_image",
+      "expected": "advisory",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n const [image, setImage] = useState<string>('');\n async function load() {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  CountSchema.parse(raw.count);\n  if (response.ok) { setImage(raw.image); }\n }\n return null;\n}"
+    },
+    {
+      "id": "loop_requires_execution_order_proof",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n const [image, setImage] = useState<string>('');\n async function load() {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  for (const item of items) { setImage(raw.image); }\n }\n return null;\n}"
+    },
+    {
+      "id": "shadowed_setter_is_not_state_sink",
+      "expected": "none",
+      "source": "import { useState } from 'react';\nexport function Panel() {\n const [image, setImage] = useState<string>('');\n async function load(setImage: any) {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  setImage(raw.image);\n }\n return null;\n}"
+    },
+    {
+      "id": "type_only_react_import_is_not_runtime_hook",
+      "expected": "none",
+      "source": "import type { useState } from 'react';\nexport function Panel() {\n const [image, setImage] = useState<string>('');\n async function load() {\n  const response = await fetch('/image');\n  const raw = await response.json();\n  setImage(raw.image);\n }\n return null;\n}"
     }
   ],
   "schema_strip_cases": [
@@ -347,6 +504,384 @@
       "id": "degraded_parser",
       "expected": "none",
       "source": "import { z } from 'zod';\ntype Domain = { id: string; history: string[] };\nconst Schema = z.object({ id: z.string() });\nfunction load(raw: unknown) { return Schema.parse(raw) as Domain;"
+    }
+  ],
+  "shallow_mutation_cases": [
+    {
+      "id": "single_spread_nested_index_before_await",
+      "expected": "advisory",
+      "body": "const copy = { ...base };\n  copy.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "literal_string_index",
+      "expected": "advisory",
+      "body": "const copy = { ...base };\n  copy.items['0'] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "independently_copied_nested_array",
+      "expected": "none",
+      "body": "const copy = { ...base, items: [...base.items] };\n  copy.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "different_write_receiver",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  other.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "different_await_argument",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items[0] = value;\n  await persist(other);"
+    },
+    {
+      "id": "write_after_await",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  await persist(copy);\n  copy.items[0] = value;"
+    },
+    {
+      "id": "nested_override_before_write",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items = [...base.items];\n  copy.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "shadowed_deferred_receiver",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  (() => { const copy = { items: [] }; copy.items[0] = value; })();\n  await persist(copy);"
+    },
+    {
+      "id": "conditional_write",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  if (value) copy.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "loop_write",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  for (let i = 0; i < 1; i++) copy.items[i] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "dynamic_index_effect",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items[getIndex()] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "effectful_assignment_value",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items[0] = transform(value);\n  await persist(copy);"
+    },
+    {
+      "id": "unbound_spread_source",
+      "expected": "none",
+      "body": "const copy = { ...missing };\n  copy.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "mutable_clone_binding",
+      "expected": "none",
+      "body": "let copy = { ...base };\n  copy.items[0] = value;\n  await persist(copy);"
+    },
+    {
+      "id": "push_method_identity_not_proven",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items.push(value);\n  await persist(copy);"
+    },
+    {
+      "id": "ordinary_property_replacement",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items = [value];\n  await persist(copy);"
+    },
+    {
+      "id": "nonawaited_call",
+      "expected": "none",
+      "body": "const copy = { ...base };\n  copy.items[0] = value;\n  persist(copy);"
+    },
+    {
+      "id": "prior_await_outside_finite_body",
+      "expected": "none",
+      "body": "await persist(base);\n  const copy = { ...base };\n  copy.items[0] = value;\n  await persist(copy);"
+    }
+  ],
+  "local_parser_input_sink_cases": [
+    {
+      "id": "rejecting_identity_input",
+      "source": "import {useState} from 'react';\nconst Schema={parse(value:any){if(typeof value.image!=='string')throw new Error('image');return value;}};\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n const response=await fetch('/api');\n const raw=await response.json();\n const parsed=Schema.parse(raw);\n setImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed",
+      "claim_boundary": "Input selection is not validation bypass: the call can reject independently of its selected return."
+    },
+    {
+      "id": "transforming_input",
+      "source": "import {useState} from 'react';\nconst Schema={parse(value:any){return {image:String(value.image)};}};\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n const response=await fetch('/api');\n const raw=await response.json();\n const parsed=Schema.parse(raw);\n setImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed",
+      "claim_boundary": "Different selected syntax does not prove incompatible types, data loss or an executed failure."
+    },
+    {
+      "id": "mutating_input",
+      "source": "import {useState} from 'react';\nconst Schema={parse(value:any){value.image=String(value.image);return value;}};\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n const response=await fetch('/api');\n const raw=await response.json();\n const parsed=Schema.parse(raw);\n setImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed",
+      "claim_boundary": "The original binding is not immutable original content; input mutation is not evaluated."
+    },
+    {
+      "id": "async_method_nonawaited_input",
+      "source": "import {useState} from 'react';\nconst Schema={async parse(value:any){return value;}};\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n const response=await fetch('/api');\n const raw=await response.json();\n const parsed=Schema.parse(raw);\n setImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed",
+      "claim_boundary": "Non-awaited call syntax is not synchronous behavior or return-type proof."
+    }
+  ],
+  "imported_parser_cases": [
+    {
+      "id": "named_result_selected",
+      "source": "import {useState} from 'react';\nimport {Schema as Parser} from './schema';\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n const response=await fetch('/api');\n const raw=await response.json();\n const parsed=Parser.parse(raw);\n setImage(parsed.image);\n }\n return null;\n}\n",
+      "selected_value_origin": "parser_call_result"
+    },
+    {
+      "id": "named_input_selected",
+      "source": "import {useState} from 'react';\nimport {Schema as Parser} from './schema';\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n const response=await fetch('/api');\n const raw=await response.json();\n const parsed=Parser.parse(raw);\n setImage(raw.image);\n }\n return null;\n}\n",
+      "selected_value_origin": "json_input"
+    }
+  ],
+  "local_parser_result_cases": [
+    {
+      "id": "result_field",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "result_whole",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<{image:string}>({image:''});\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "literal_result_key",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed['image']);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "aliased_react_and_zod_import",
+      "source": "import * as React from 'react';\nimport {z as zz} from 'zod';\nconst Schema = zz.object({image:zz.string()});\nexport function Panel(){\n const [image,setImage]=React.useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "discarded_result_raw_sink",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "unchecked_safe_parse_raw_sink",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.safeParse(raw);\nsetImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "checked_safe_parse_data",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.safeParse(raw);\nif (!parsed.success) return;\nsetImage(parsed.data.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "another_payload",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nSchema.parse({image:'other'});\nsetImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 1,
+      "parser_status": "observed"
+    },
+    {
+      "id": "another_field",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nSchema.parse(raw.title);\nsetImage(raw.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 1,
+      "parser_status": "observed"
+    },
+    {
+      "id": "local_passthrough_parse_name",
+      "source": "import {useState} from 'react';\nconst Schema = {parse(value:any){return value;}};\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 1,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "result_shadowed_at_sink",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\n{ const parsed = {image:'local'}; setImage(parsed.image); }\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "intervening_result_mutation",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nparsed.image = raw.image;\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "deferred_callback",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nqueueMicrotask(() => setImage(parsed.image));\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "raw_fallback",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image || raw.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "shadowed_fetch",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\nconst fetch = async (_url:string) => ({json:async()=>({image:''})});\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "wrong_react_package",
+      "source": "import {useState} from 'other-state';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "degraded_parser",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "degraded"
+    },
+    {
+      "id": "type_assertion_only",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nsetImage(raw.image as string);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 1,
+      "parser_status": "observed"
+    },
+    {
+      "id": "imported_schema",
+      "source": "import {useState} from 'react';\nimport {Schema} from './schema';\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "safe_parse_failure_raw_bypass",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.safeParse(raw);\nif (!parsed.success) { setImage(raw.image); return; }\nsetImage(parsed.data.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "async_parser",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = await Schema.parseAsync(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "inline_parser_result",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nsetImage(Schema.parse(raw).image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "optional_json",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response?.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "optional_parser",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema?.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "mutable_owner",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nlet Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "parameter_owner_shadow",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(Schema:any){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "dynamic_result_key",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){ const key='image';\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed[key]);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "nonfinal_sink",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image); console.log('after');\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "try_body",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n try { const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image); } catch {}\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "loop_body",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n for (;;) { const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image); }\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "type_only_react",
+      "source": "import type {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "cast_result",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed.image as string);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "non_null_result",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw);\nsetImage(parsed!.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
+    },
+    {
+      "id": "result_alias",
+      "source": "import {useState} from 'react';\nimport {z} from 'zod';\nconst Schema = z.object({image:z.string()});\nexport function Panel(){\n const [image,setImage]=useState<string>('');\n async function load(){\n\n const response=await fetch('/api');\n const raw=await response.json();\nconst parsed = Schema.parse(raw); const alias=parsed;\nsetImage(alias.image);\n }\n return null;\n}\n",
+      "expected_records": 0,
+      "expected_advisories": 0,
+      "parser_status": "observed"
     }
   ]
 }

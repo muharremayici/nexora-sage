@@ -26,6 +26,22 @@ def _load(path: Path | None = None) -> dict[str, Any]:
     return payload
 
 
+def validate_external_result_receipt_policy(policy: Any) -> None:
+    """One supported observational import protocol, not an approval bypass."""
+    if (not isinstance(policy, dict)
+        or type(policy.get("clean_mirror_write")) is not bool
+        or type(policy.get("execution_claim")) is not bool
+        or policy != {
+        "version": "v1",
+        "authority": "non_authoritative_evidence_proposal",
+        "binding": "pre_execution_package_and_source",
+        "evidence": "verified_private_journal_event",
+        "clean_mirror_write": False,
+        "execution_claim": False,
+    }):
+        raise ValueError("Unsupported external result receipt policy")
+
+
 def evaluate_governance_trace_contract(
     *, contract_loader: Callable[[], dict[str, Any]] | None = None
 ) -> dict[str, Any]:
@@ -42,6 +58,15 @@ def evaluate_governance_trace_contract(
         detail_allowed = event.get("detail_allowed_keys") if isinstance(event.get("detail_allowed_keys"), dict) else {}
         receipts = contract.get("work_package_receipts") if isinstance(contract.get("work_package_receipts"), dict) else {}
         operation_profiles = receipts.get("operation_profiles") if isinstance(receipts.get("operation_profiles"), dict) else {}
+        external_result_policy_valid = True
+        try:
+            validate_external_result_receipt_policy(
+                operation_profiles.get("clean_distribution_closeout", {}).get("external_result_receipt"))
+            for profile in operation_profiles.values():
+                if isinstance(profile, dict) and "external_result_receipt" in profile:
+                    validate_external_result_receipt_policy(profile["external_result_receipt"])
+        except ValueError:
+            external_result_policy_valid = False
         evidence_requirements = receipts.get("evidence_requirements") if isinstance(receipts.get("evidence_requirements"), dict) else {}
         mutation_preflight = receipts.get("mutation_preflight") if isinstance(receipts.get("mutation_preflight"), dict) else {}
         closed_activation = receipts.get("closed_package_activation") if isinstance(receipts.get("closed_package_activation"), dict) else {}
@@ -182,7 +207,7 @@ def evaluate_governance_trace_contract(
             {"id": "sqlite_event_table", "ok": event.get("table") == "governance_trace_events"},
             {"id": "trace_fields_complete", "ok": required_trace_fields.issubset(set(map(str, required)))},
             {"id": "unknown_is_explicit", "ok": event.get("unknown_value") == "not_available"},
-            {"id": "detail_allowlist_is_declared", "ok": set(detail_allowed.get("mcp_tool_call", [])) == {"argument_keys", "payload_chars", "result_status", "fail_closed_reason", "target_mode"} and set(detail_allowed.get("watchdog_session", [])) == {"pulse_id", "event_batch_id", "analysis_status", "raw_event_count", "deduplicated_path_count", "metadata_only_count", "unknown_path_count", "scope_decision_status", "changed_file_count", "violation_count", "deep_proof_debt_status"} and set(detail_allowed.get("release_proof_step", [])) == {"step_id", "required", "timed_out", "timeout_basis", "raw_artifact_present", "execution_status", "blocked_dependency_count", "advisory_dependency_failure_count"} and set(detail_allowed.get("agent_handoff", [])) == {"packet_kind", "packet_status", "source_grounding_status"} and set(detail_allowed.get("work_package_operation", [])) == {"package_id", "package_status", "operation_id", "result_status", "evidence_artifact", "evidence_fingerprint", "authority"} and set(detail_allowed.get("pipeline_invocation", [])) == pipeline_detail_fields},
+            {"id": "detail_allowlist_is_declared", "ok": set(detail_allowed.get("mcp_tool_call", [])) == {"argument_keys", "payload_chars", "result_status", "fail_closed_reason", "target_mode"} and set(detail_allowed.get("watchdog_session", [])) == {"pulse_id", "event_batch_id", "analysis_status", "raw_event_count", "deduplicated_path_count", "metadata_only_count", "unknown_path_count", "scope_decision_status", "changed_file_count", "violation_count", "deep_proof_debt_status"} and set(detail_allowed.get("release_proof_step", [])) == {"step_id", "required", "timed_out", "timeout_basis", "raw_artifact_present", "execution_status", "blocked_dependency_count", "advisory_dependency_failure_count"} and set(detail_allowed.get("agent_handoff", [])) == {"packet_kind", "packet_status", "source_grounding_status"} and set(detail_allowed.get("work_package_operation", [])) == {"package_id", "package_status", "operation_id", "result_status", "evidence_artifact", "evidence_fingerprint", "authority", "external_evidence_fingerprint", "operation_provenance"} and set(detail_allowed.get("pipeline_invocation", [])) == pipeline_detail_fields},
             {"id": "mcp_trace_storage_authority_is_product_global", "ok": isinstance(scope.get("storage_authority_by_event_type"), dict) and scope.get("storage_authority_by_event_type", {}).get("mcp_tool_call") == "product-global output/.operational/mcp/mcp_call_telemetry.db"},
             {"id": "observed_surfaces_declared", "ok": {"mcp_server", "watchdog", "release_proof", "agent_handoff", "work_package_operations", "pipeline_orchestrator"}.issubset(observed_surfaces)},
             {"id": "mcp_trace_writer_is_connected", "ok": "persist_completed_mcp_call" in mcp_source and "_record_governance_trace" in mcp_source and "activate_trace_storage" in mcp_source and "reset_trace_storage" in mcp_source},
@@ -195,6 +220,9 @@ def evaluate_governance_trace_contract(
             {"id": "work_package_receipt_authority_is_non_mutating", "ok": receipts.get("authority") == "non_authoritative_evidence_proposal" and receipts.get("closure_mutation_allowed") is False},
             {"id": "work_package_receipt_identity_follows_exact_primary_content", "ok": receipts.get("evidence_identity") == "raw_primary_content_v1" and bool(str(receipts.get("evidence_identity_boundary") or "").strip())},
             {"id": "work_package_receipts_do_not_dirty_clean_mirrors", "ok": receipts.get("write_scope") == "development_workspace_only" and receipts.get("clean_mirror_behavior") == "skip_with_explicit_notice"},
+            {"id": "external_result_receipt_is_bound_observation_not_execution", "ok": external_result_policy_valid and
+                {"external_evidence_fingerprint", "operation_provenance"}.issubset(
+                    set(event.get("detail_allowed_keys", {}).get("work_package_operation", [])))},
             {"id": "work_package_operation_profiles_are_contract_derived_and_coherent", "ok": operation_profiles_are_coherent},
             {"id": "work_package_closeout_scope_and_applicability_are_fail_closed", "ok": closeout_policy.get("version") == "v1" and closeout_policy.get("transition_required_status") == "EVIDENCE_READY_HUMAN_ACTION_REQUIRED" and changed_file_scope.get("classification_authority") == "tools.core.source_layer_classifier.classify_source_layer" and changed_file_scope.get("excluded_source_layers") == ["generated_runtime_artifact"] and changed_file_scope.get("excluded_behavior") == "report_without_affected_contract_requirement" and changed_file_scope.get("unknown_source_layers") == ["unknown_or_review"] and changed_file_scope.get("unknown_behavior") == "block" and changed_file_scope.get("undeclared_governed_behavior") == "block" and changed_file_scope.get("invalid_path_behavior") == "block" and closeout_policy.get("explicit_not_applicable_closure_status") == "not_applicable" and closeout_policy.get("unknown_release_mode_behavior") == "block" and applicability_is_complete},
             {"id": "inherited_dirty_baseline_is_content_bound_and_fail_closed", "ok": inherited_dirty_policy.get("version") == "v1" and inherited_dirty_policy.get("captured_status") == "captured" and inherited_dirty_policy.get("legacy_unknown_status") == "legacy_unavailable" and inherited_dirty_policy.get("capture_point") == "atomic_successor_activation" and inherited_dirty_policy.get("hash_algorithm") == "sha256" and inherited_dirty_policy.get("missing_identity") == "missing" and inherited_dirty_policy.get("scope") == "governed_git_dirty_files_outside_successor_affected_contracts" and inherited_dirty_policy.get("unchanged_behavior") == "report_separately_without_affected_contract_requirement" and inherited_dirty_policy.get("unrecorded_or_changed_behavior") == "block" and inherited_dirty_policy.get("legacy_without_baseline_behavior") == "block_undeclared_governed_files" and inherited_dirty_policy.get("invalid_baseline_behavior") == "block"},

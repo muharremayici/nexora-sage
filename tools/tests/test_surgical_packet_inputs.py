@@ -5,12 +5,15 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from tools.core.analysis_snapshot_lineage import write_lineage_receipt
 from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.audit_finding_generation import finding_scope_sha256
 from tools.core.contextos_mcp import build_surgical_operation_packet, render_surgical_operation_brief
 from tools.core.contextos_signal_limits import contextos_signal_limit
 from tools.core import capability_activation
+from tools.core.mcp_tool_profiles import project_mcp_tool_names
 from tools.core.surgical_packet_inputs import evaluate_surgical_packet_inputs
 from tools.engines import clone_detector, live_surface_analyzer
 from tools.mcp import server
@@ -24,6 +27,86 @@ def _activation_plan(project: str) -> dict:
         "summary": {"status": "PASS", "projects": 1},
         "projects": [{"project": project, "enabled_capabilities": []}],
     }
+
+
+def test_target_activation_followup_does_not_recommend_a_maintainer_tool() -> None:
+    context = capability_activation.relevant_activation_context(_activation_plan("MAIN"))
+    policy = context["surface_policy"]
+    assert "full_plan_mcp_tool" not in policy
+    assert "full_plan_artifact" not in policy
+    assert policy["full_plan_followup"]["availability"] == "unavailable"
+    assert policy["full_plan_followup"]["reason"] == "maintainer_only"
+    assert "does not authorize" in policy["full_plan_followup"]["claim_boundary"]
+    assert [row["project"] for row in context["projects"]] == ["MAIN"]
+
+
+def test_private_activation_followup_retains_operator_tool_without_profile_expansion() -> None:
+    context = capability_activation.relevant_activation_context(
+        _activation_plan("MAIN"), include_private_followup=True,
+    )
+    policy = context["surface_policy"]
+    assert policy["full_plan_mcp_tool"] == "get_capability_activation_plan"
+    assert policy["full_plan_artifact"] == "output/.raw/capability_activation_plan.json"
+    for profile in ("target_repository_default", "target_repository_followup"):
+        assert policy["full_plan_mcp_tool"] not in project_mcp_tool_names(ROOT, profile)["visible_tools"]
+    if not (ROOT / "PUBLIC_DISTRIBUTION_MANIFEST.json").is_file():
+        assert policy["full_plan_mcp_tool"] in project_mcp_tool_names(ROOT, "sage_operator_debug")["visible_tools"]
+
+
+def test_real_target_packet_omits_private_followup_for_present_and_missing_plan(tmp_path: Path) -> None:
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    path = raw / "capability_activation_plan.json"
+    for payload, expected in ((None, "UNAVAILABLE"), (_activation_plan("MAIN"), "UNVERIFIED"), ({"meta": None}, "UNAVAILABLE")):
+        if payload is not None:
+            path.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.object(capability_activation, "build_capability_activation_plan", side_effect=AssertionError("Private planner called")):
+            packet = build_surgical_operation_packet({"active_signals": []}, project_scope="MAIN", raw_dir=raw)
+        context = packet["capability_activation"]
+        assert context["input_evidence"]["status"] == expected
+        assert context["input_evidence"]["decision_use"] == "orientation_only"
+        assert context["input_evidence"]["regenerated"] is False
+        assert "full_plan_mcp_tool" not in context["surface_policy"]
+        assert "full_plan_artifact" not in context["surface_policy"]
+        assert context["surface_policy"]["full_plan_followup"]["availability"] == "unavailable"
+        assert context["surface_policy"]["full_plan_followup"]["reason"] == "maintainer_only"
+
+
+@pytest.mark.parametrize("field,tool", [
+    ("pipeline_execution_contract", "get_pipeline_execution_contract"),
+    ("engine_signal_contract", "get_engine_signal_contracts"),
+])
+@pytest.mark.parametrize("has_contract", [False, True])
+def test_target_contract_followup_is_unavailable_without_dropping_context(tmp_path: Path, field: str, tool: str, has_contract: bool) -> None:
+    raw = tmp_path / ".raw"
+    raw.mkdir()
+    relevant_signal = {"capability_id": "agent_surface", "authority": "engine_signal_only"}
+    if has_contract:
+        (raw / "pipeline_execution_contract_validation.json").write_text(json.dumps({
+            "summary": {"status": "PASS", "steps": 7},
+            "execution_modes": {"daily": {"profile": "daily", "scope": "MAIN", "claim_boundary": "bounded analysis"}},
+        }), encoding="utf-8")
+        (raw / "engine_signal_contract_validation.json").write_text(json.dumps({
+            "summary": {"status": "PASS", "contracts": 2},
+            "contract_summary": [relevant_signal, {"capability_id": "release_proof"}],
+        }), encoding="utf-8")
+    with patch.object(capability_activation, "build_capability_activation_plan", side_effect=AssertionError("Private planner called")):
+        packet = build_surgical_operation_packet({"active_signals": []}, project_scope="MAIN", raw_dir=raw)
+    context = packet[field]
+    assert "mcp_tool" not in context
+    assert "artifact" not in context
+    assert context["followup"]["availability"] == "unavailable"
+    assert context["followup"]["reason"] == "maintainer_only"
+    assert "does not authorize" in context["followup"]["claim_boundary"]
+    assert context["summary"]["status"] == ("PASS" if has_contract else None)
+    if field == "pipeline_execution_contract":
+        assert [row["id"] for row in context["relevant_execution_modes"]] == (["daily"] if has_contract else [])
+    else:
+        assert context["relevant_contracts"] == ([relevant_signal] if has_contract else [])
+    for profile in ("target_repository_default", "target_repository_followup"):
+        assert tool not in project_mcp_tool_names(ROOT, profile)["visible_tools"]
+    if not (ROOT / "PUBLIC_DISTRIBUTION_MANIFEST.json").is_file():
+        assert tool in project_mcp_tool_names(ROOT, "sage_operator_debug")["visible_tools"]
 
 
 def test_target_activation_context_never_regenerates_or_reads_installation_plan(tmp_path: Path) -> None:
@@ -130,6 +213,13 @@ def test_documented_first_call_without_activation_plan_keeps_real_packet_builder
     assert packet["status"] == "INCOMPLETE_EVIDENCE", packet
     assert packet["capability_activation"]["summary"]["status"] == "UNAVAILABLE"
     assert packet["capability_activation"]["input_evidence"]["regenerated"] is False
+    for field in ("pipeline_execution_contract", "engine_signal_contract"):
+        assert "mcp_tool" not in packet[field]
+        assert "artifact" not in packet[field]
+        assert packet[field]["followup"]["availability"] == "unavailable"
+    assert "mcp_tool" not in packet["architecture_governance_context"]
+    assert packet["architecture_governance_context"]["followup"]["availability"] == "unavailable"
+    assert packet["architecture_governance_context"]["policy_activation_allowed"] is False
     assert not (raw / "capability_activation_plan.json").exists()
 
 

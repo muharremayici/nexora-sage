@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.core import json_io, sqlite_storage_maintenance as maintenance
+from tools.core import db, json_io, sqlite_storage_maintenance as maintenance
 from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
 from tools import validate_entrypoints_and_failures as entrypoints
 
@@ -101,6 +101,80 @@ def test_missing_database_remains_missing_without_creation(tmp_path: Path) -> No
     assert not Path(native_filesystem_path(database)).exists()
 
 
+@pytest.mark.parametrize("raise_in_body", [False, True])
+def test_db_owner_read_only_handle_is_native_closed_and_non_mutating(tmp_path, raise_in_body):
+    database = _database(_long_raw_dir(tmp_path))
+    before = Path(native_filesystem_path(database)).read_bytes()
+    manager = db.SQLiteManager(database)
+    connection = None
+
+    def read():
+        nonlocal connection
+        with manager.get_read_only_connection() as connection:
+            assert connection.execute("SELECT name FROM state_payloads").fetchone()["name"] == "atlas"
+            with pytest.raises(sqlite3.OperationalError, match="readonly"):
+                connection.execute("DELETE FROM state_payloads")
+            if raise_in_body:
+                raise ValueError("caller failure")
+
+    if raise_in_body:
+        with pytest.raises(ValueError, match="caller failure"):
+            read()
+    else:
+        read()
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        connection.execute("SELECT 1")
+    assert Path(native_filesystem_path(database)).read_bytes() == before
+
+
+def test_db_owner_read_only_missing_database_cannot_initialize(tmp_path):
+    database = _long_raw_dir(tmp_path) / "codemaps.db"
+    with pytest.raises(sqlite3.OperationalError):
+        with db.SQLiteManager(database).get_read_only_connection():
+            pytest.fail("missing primary cannot yield a handle")
+    assert not Path(native_filesystem_path(database)).exists()
+
+
+def test_db_owner_read_only_timeout_is_governed_and_not_ambient(tmp_path, monkeypatch):
+    database = _database(tmp_path)
+    manager = db.SQLiteManager(database)
+    original_connect = sqlite3.connect
+    calls = []
+
+    def observe(*args, **kwargs):
+        calls.append((args, kwargs))
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(db.sqlite3, "connect", observe)
+    monkeypatch.setattr(db, "sqlite_read_timeout_seconds", lambda: 0.125)
+    with manager.transaction() as ambient:
+        with manager.get_read_only_connection() as reader:
+            assert reader is not ambient
+            assert reader.execute("PRAGMA busy_timeout").fetchone()[0] == 125
+            with pytest.raises(sqlite3.OperationalError, match="readonly"):
+                reader.execute("DELETE FROM state_payloads")
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            reader.execute("SELECT 1")
+        ambient.execute("INSERT INTO state_payloads (name, payload) VALUES ('write', '{}')")
+    assert calls[-1] == ((sqlite_read_only_uri(database),), {"uri": True, "timeout": 0.125})
+    with closing(original_connect(native_filesystem_path(database))) as conn:
+        assert conn.execute("SELECT count(*) FROM state_payloads").fetchone()[0] == 2
+
+
+def test_db_owner_read_only_connection_uses_existing_tenant_route(tmp_path):
+    tenant_raw = tmp_path / "tenants" / "example" / ".raw"
+    tenant_raw.mkdir(parents=True)
+    _database(tenant_raw)
+    manager = db.SQLiteManager(tmp_path / ".raw" / "codemaps.db")
+    token = db.tenant_var.set("example")
+    try:
+        with manager.get_read_only_connection() as conn:
+            assert conn.execute("SELECT name FROM state_payloads").fetchone()["name"] == "atlas"
+    finally:
+        db.tenant_var.reset(token)
+    assert not manager.base_db_path.exists()
+
+
 @pytest.mark.parametrize(
     ("consumer", "declared", "hot", "expected_pass"),
     [
@@ -153,10 +227,22 @@ def test_reviewed_fixture_references_use_exact_existing_policy_admission() -> No
 
     admitted = {
         "tools/tests/test_sqlite_read_only_uri.py",
+        "tools/tests/test_react_contracts.py",
+        "tools/tests/test_source_snapshot_integrity.py",
+        "tools/tests/test_target_runtime_shallow_mutation_advisory.py",
         "tools/tests/test_structured_export_advisory.py",
         "tools/tests/test_target_runtime_repository_direct_read_advisory.py",
         "tools/tests/test_target_runtime_repository_override_advisory.py",
         "tools/tests/test_native_run_log_ingestion.py",
+        "tools/tests/test_state_flow_call_result_alias_invocation_contract.py",
+        "tools/tests/test_state_flow_call_result_property_binding_contract.py",
+        "tools/tests/test_state_flow_direct_optional_alias_contract.py",
+        "tools/tests/test_state_flow_import_optional_rest_alias_contract.py",
+        "tools/tests/test_state_flow_nested_callback_alias_contract.py",
+        "tools/tests/test_state_flow_parameter_config_callback_contract.py",
+        "tools/tests/test_state_flow_returned_callback_context_contract.py",
+        "tools/tests/test_state_flow_returned_callback_parameter_optional_contract.py",
+        "tools/tests/test_state_flow_returned_local_callback_contract.py",
     }
     reasons = sqlite_first_allowed_references("atlas")
     assert admitted <= reasons.keys()

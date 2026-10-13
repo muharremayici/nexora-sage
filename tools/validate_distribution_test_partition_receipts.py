@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -26,15 +27,31 @@ RECEIPT_SCHEMA = "nexora_sage_distribution_test_partition_receipt_v1"
 RECEIPT_AUTHORITY = "test_evidence_only_no_release_or_publication_authority"
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _load_receipt_with_identity(path: Path) -> tuple[dict[str, Any], dict[str, str]]:
+    from tools.core.json_io import load_raw_artifact_primary_with_identity
+    from tools.core.json_syntax import loads_json_strict
+    from tools.core.unmanaged_atomic_io import native_filesystem_path
+
+    store = distribution_tests._managed_receipt_store(path)
+    if store is not None and store.use_sqlite:
+        read = load_raw_artifact_primary_with_identity(path)
+        if read is None:
+            raise ValueError(f"Shard receipt primary is missing: {path}")
+        payload, identity = read
+        content_sha256 = identity.removeprefix("sqlite:")
+        truth_source = "sqlite_primary"
+    else:
+        content = Path(native_filesystem_path(path)).read_bytes()
+        payload = loads_json_strict(content.decode("utf-8"))
+        content_sha256 = hashlib.sha256(content).hexdigest()
+        truth_source = "json_primary" if store is not None else "explicit_json_file"
+    if not isinstance(payload, dict):
+        raise ValueError(f"Shard receipt must be an object: {path}")
+    return payload, {"sha256": content_sha256, "truth_source": truth_source}
 
 
 def _load_receipt(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Shard receipt must be an object: {path}")
-    return payload
+    return _load_receipt_with_identity(path)[0]
 
 
 def _validated_shard_row(
@@ -140,6 +157,7 @@ def combine_partition_receipts(
                 "id": family,
                 "path": source_receipts[family]["path"],
                 "sha256": source_receipts[family]["sha256"],
+                "truth_source": source_receipts[family].get("truth_source", "not_available"),
             }
             for family in expected_families
         ]
@@ -161,8 +179,7 @@ def _parse_shard_receipts(values: list[str]) -> dict[str, Path]:
             path.relative_to(raw_root)
         except ValueError as exc:
             raise ValueError(f"Shard receipt escapes output/.raw: {value}") from exc
-        if not path.is_file():
-            raise ValueError(f"Shard receipt is missing: {path}")
+        # SQLite-primary receipts need no compatibility shadow; the read owns absence.
         rows[family] = path
     return rows
 
@@ -179,21 +196,18 @@ def main() -> int:
         output_path = ROOT / output_path
     try:
         paths = _parse_shard_receipts(args.shard_receipt)
-        payloads = {family: _load_receipt(path) for family, path in paths.items()}
-        source_rows = {
-            family: {
-                "path": path.relative_to(ROOT).as_posix(),
-                "sha256": _sha256(path),
-            }
-            for family, path in paths.items()
-        }
+        payloads, source_rows = {}, {}
+        for family, path in paths.items():
+            payload, identity = _load_receipt_with_identity(path)
+            payloads[family] = payload
+            source_rows[family] = {"path": path.relative_to(ROOT).as_posix(), **identity}
         receipt = combine_partition_receipts(
             distribution_tests._load_profile(),
             args.profile,
             payloads,
             source_receipts=source_rows,
         )
-    except (OSError, ValueError, json.JSONDecodeError, KeyError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError, KeyError, sqlite3.Error) as exc:
         receipt = {
             "schema": RECEIPT_SCHEMA,
             "status": "FAIL",

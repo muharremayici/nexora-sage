@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 PROFILE_PATH = ROOT / "config" / "distribution_test_profiles.json"
 PUBLIC_MANIFEST = ROOT / "PUBLIC_DISTRIBUTION_MANIFEST.json"
 KNOWN_CLASSIFICATIONS = {"public_target_repository", "private_maintainer"}
@@ -255,7 +258,25 @@ def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _managed_receipt_store(path: Path) -> Any:
+    """Reuse the active store only for this installation's managed raw root."""
+    resolved = path.resolve()
+    if resolved.parent != (ROOT / "output" / ".raw").resolve() or resolved.suffix.lower() != ".json":
+        return None
+    from tools.core.artifact_store import STORE
+
+    if STORE.raw_path(resolved.stem).resolve() != resolved:
+        raise ValueError("Receipt path does not match the active ArtifactStore namespace")
+    return STORE
+
+
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    store = _managed_receipt_store(path)
+    if store is not None:
+        # A failed primary commit must propagate; never write a shadow-only PASS.
+        store.save_raw(path.stem, payload)
+        return
+    # Explicit external receipts retain the standalone, dependency-light file path.
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -269,6 +290,21 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         handle.write("\n")
         temporary = Path(handle.name)
     os.replace(temporary, path)
+
+
+def _public_test_init_command(target_root: Path) -> list[str]:
+    """Reuse the source-owned setup command without shell expansion or analysis."""
+    from tools.core.quality_gate_ci import load_ci_execution_policy
+
+    command = shlex.split(load_ci_execution_policy(ROOT)["commands"]["target_init"])
+    if (
+        len(command) != 6
+        or command[:5] != ["python", "sage.py", "init", "--skip-deps", "--target-root"]
+        or not command[5].strip()
+        or command[5].startswith("-")
+    ):
+        raise ValueError("Public test setup requires the declared setup-only target init")
+    return [sys.executable, "-B", *command[1:5], str(target_root)]
 
 
 def _run_pytest(
@@ -298,6 +334,24 @@ def _run_pytest(
             external_target = Path(temporary_target.name) / "repository"
             shutil.copytree(resolved_fixture, external_target)
             env["CODEMAPS_TARGET_ROOT"] = str(external_target)
+
+        if PUBLIC_MANIFEST.is_file() and not collect_only:
+            if temporary_target is None:
+                raise ValueError("Public test setup requires an owned target fixture")
+            from tools.core.operational_limits import install_proof_step_timeout_seconds
+
+            # Init is a real test prerequisite, not analysis or borrowed developer config.
+            setup = subprocess.run(
+                _public_test_init_command(external_target),
+                cwd=ROOT,
+                env=env,
+                check=False,
+                timeout=install_proof_step_timeout_seconds("init"),
+            )
+            if setup.returncode != 0:
+                print("[distribution-tests] FAIL: target setup failed; pytest was not started",
+                      file=sys.stderr, flush=True)
+                return setup.returncode
 
         if basetemp is None:
             temporary_pytest = tempfile.TemporaryDirectory(

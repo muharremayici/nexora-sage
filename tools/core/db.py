@@ -13,8 +13,9 @@ from tools.core.operational_limits import (
     sqlite_schema_initialize_retries,
     sqlite_schema_initialize_retry_delay_ms,
     sqlite_write_timeout_seconds,
+    sqlite_read_timeout_seconds,
 )
-from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
 
 tenant_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("tenant_id", default=None)
 _schema_locks: dict[str, threading.RLock] = {}
@@ -41,6 +42,17 @@ class SQLiteManager:
             # Route to tenant-specific database directory
             return self.base_db_path.parent.parent / "tenants" / tenant_id / ".raw" / self.base_db_path.name
         return self.base_db_path
+
+    @contextmanager
+    def get_read_only_connection(self) -> Iterator[sqlite3.Connection]:
+        """Own a fresh native read-only handle, never an ambient write connection."""
+        conn = sqlite3.connect(sqlite_read_only_uri(self.db_path), uri=True,
+                               timeout=float(sqlite_read_timeout_seconds()))
+        try:
+            conn.row_factory = sqlite3.Row
+            yield conn
+        finally:
+            conn.close()
 
     @contextmanager
     def get_connection(self) -> Iterator[sqlite3.Connection]:

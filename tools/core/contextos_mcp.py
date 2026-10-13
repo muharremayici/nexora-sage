@@ -10,10 +10,11 @@ from tools.core.agent_command_contracts import command_contracts_for_agent, targ
 from tools.core.capability_registry import load_capability_registry, relevant_capability_contracts
 from tools.core.reality_scope import TARGET_REPOSITORY_PROJECTION_ID, projection_capability_scopes
 from tools.core.architecture_blueprints import architecture_governance_context
-from tools.core.atlas_io import load_atlas_data
+from tools.core.atlas_io import AtlasRead, load_atlas_data_with_identity
 from tools.core.config import RAW_DIR
 from tools.core.json_io import load_json_file
 from tools.core.audit_rules import build_rule_taxonomy
+from tools.core.audit_finding_generation import select_audit_presentation_rows
 from tools.core.principle_packs import principles_for_context
 from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, context_budget_profile
 from tools.core.contextos_signal_limits import contextos_signal_limit
@@ -23,6 +24,8 @@ from tools.core.target_repository_trust import load_target_repository_threat_bou
 
 
 MASKED_BODY = "// [MASKED] This file is restricted/locked under SAGE architectural governance rules."
+# Retired compatibility handle. Mutable process-wide dictionaries are never
+# current Atlas authority; path consumers receive one verified request read.
 _AGENT_ATLAS_CACHE: dict[str, Any] | None = None
 _APPROVAL_REQUIRED_RULE_MODES = frozenset({"enforced", "heal", "critical"})
 _ACTIONABILITY_VALUES = frozenset({"actionable_proposal", "orientation_only", "no_action"})
@@ -214,18 +217,18 @@ def _split_atlas_node(path_text: str, default_project: str | None = None) -> tup
     return default_project, text.strip().lstrip("/")
 
 
-def _atlas_file_meta(project_key: str | None, rel_path: str) -> dict[str, Any]:
-    global _AGENT_ATLAS_CACHE
+def _atlas_file_meta(project_key: str | None, rel_path: str, *, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
     if not project_key or not rel_path:
         return {}
-    if _AGENT_ATLAS_CACHE is None:
-        _AGENT_ATLAS_CACHE = load_atlas_data()
-    atlas = _AGENT_ATLAS_CACHE
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
+    if not current.primary_verified:
+        return {}
+    atlas = current.data
     project = atlas.get(project_key, {}) if isinstance(atlas, dict) else {}
     files = project.get("files", {}) if isinstance(project, dict) else {}
     if not isinstance(files, dict):
         return {}
-    direct = files.get(rel_path)
+    direct = current.file_metadata(project_key, rel_path)
     if isinstance(direct, dict):
         return {**direct, "_atlas_rel": rel_path}
     candidates = [
@@ -239,7 +242,7 @@ def _atlas_file_meta(project_key: str | None, rel_path: str) -> dict[str, Any]:
         f"{rel_path}/index.jsx",
     ]
     for candidate in candidates:
-        direct = files.get(candidate)
+        direct = current.file_metadata(project_key, candidate)
         if isinstance(direct, dict):
             return {**direct, "_atlas_rel": candidate}
     # Some Atlas file keys are source-root relative while the edit surface needs
@@ -247,13 +250,15 @@ def _atlas_file_meta(project_key: str | None, rel_path: str) -> dict[str, Any]:
     # path an editor should actually open.
     for _key, value in files.items():
         if isinstance(value, dict) and str(value.get("workspace_rel") or "").replace("\\", "/") == rel_path:
-            return {**value, "_atlas_rel": str(_key).replace("\\", "/")}
+            selected = current.file_metadata(project_key, _key)
+            return {**selected, "_atlas_rel": str(_key).replace("\\", "/")}
     return {}
 
 
-def _agent_file_context(path_text: str, *, default_project: str | None = None) -> dict[str, Any]:
+def _agent_file_context(path_text: str, *, default_project: str | None = None, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
     project_key, rel_path = _split_atlas_node(path_text, default_project=default_project)
-    meta = _atlas_file_meta(project_key, rel_path) if project_key else {}
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
+    meta = _atlas_file_meta(project_key, rel_path, atlas_read=current) if project_key else {}
     workspace_rel = str(meta.get("workspace_rel") or "").replace("\\", "/").strip()
     atlas_rel = str(meta.get("_atlas_rel") or rel_path).replace("\\", "/").strip()
     repo_relative = workspace_rel or atlas_rel
@@ -262,15 +267,18 @@ def _agent_file_context(path_text: str, *, default_project: str | None = None) -
         "atlas_relative_path": atlas_rel,
         "project_key": project_key,
         "atlas_node": f"{project_key}::{atlas_rel}" if project_key and atlas_rel else "",
+        "path_projection_status": "resolved" if workspace_rel else "unresolved",
+        "atlas_source_status": "verified_primary" if current.primary_verified else "unavailable_primary",
     }
     return context
 
 
-def _agent_file_fields(paths: list[str], *, default_project: str | None = None) -> dict[str, Any]:
+def _agent_file_fields(paths: list[str], *, default_project: str | None = None, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
     contexts: list[dict[str, Any]] = []
     seen_repo: set[str] = set()
     for path in paths:
-        context = _agent_file_context(path, default_project=default_project)
+        context = _agent_file_context(path, default_project=default_project, atlas_read=current)
         repo_path = context.get("repo_relative_path")
         if not repo_path or repo_path in seen_repo:
             continue
@@ -283,19 +291,20 @@ def _agent_file_fields(paths: list[str], *, default_project: str | None = None) 
     }
 
 
-def _signal_file_fields(signal: dict[str, Any]) -> dict[str, Any]:
+def _signal_file_fields(signal: dict[str, Any], *, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
     node_key = str(signal.get("node_key") or "").strip()
     relative = str(signal.get("relative_path") or "").strip()
     project_key, _rel = _split_atlas_node(node_key)
-    target_context = _agent_file_context(node_key or relative, default_project=project_key)
+    target_context = _agent_file_context(node_key or relative, default_project=project_key, atlas_read=current)
     target_file = target_context.get("repo_relative_path")
     direct = [
-        _agent_file_context(str(item), default_project=project_key)
+        _agent_file_context(str(item), default_project=project_key, atlas_read=current)
         for item in signal.get("direct_dependents", []) or []
         if item
     ]
     halo = [
-        _agent_file_context(str(item.get("node_key") or item.get("relative_path") or ""), default_project=project_key)
+        _agent_file_context(str(item.get("node_key") or item.get("relative_path") or ""), default_project=project_key, atlas_read=current)
         for item in signal.get("focus_halo", []) or []
         if isinstance(item, dict) and (item.get("node_key") or item.get("relative_path"))
     ]
@@ -343,6 +352,7 @@ def _import_evidence_related_files(
     detail: str,
     *,
     default_project: str | None = None,
+    atlas_read: AtlasRead | None = None,
 ) -> list[str]:
     """Return editor-openable related files from simple import evidence."""
     imported = import_specifier_from_audit_detail(detail)
@@ -355,9 +365,10 @@ def _import_evidence_related_files(
     )
     if candidate.startswith("../") or not candidate:
         return []
-    if not _atlas_file_meta(_project_key, candidate):
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
+    if not _atlas_file_meta(_project_key, candidate, atlas_read=current):
         return []
-    context = _agent_file_context(candidate, default_project=_project_key)
+    context = _agent_file_context(candidate, default_project=_project_key, atlas_read=current)
     repo_path = str(context.get("repo_relative_path") or "").strip()
     return [repo_path] if repo_path else []
 
@@ -368,14 +379,16 @@ def _directive_for_violation(
     *,
     index: int,
     source_artifact: str = "output/.raw/audit_report.json",
+    atlas_read: AtlasRead | None = None,
 ) -> dict[str, Any]:
     file_path = str(violation.get("file") or violation.get("path") or "").strip()
     project_key = str(violation.get("project") or violation.get("project_key") or "").strip() or None
     rule = str(violation.get("rule") or "architecture_violation").strip()
     detail = str(violation.get("detail") or violation.get("message") or "").strip()
     explanation = _rule_explanation(rule, audit_report)
-    file_fields = _agent_file_fields([file_path] if file_path else [], default_project=project_key)
-    related_files = _import_evidence_related_files(file_path, detail, default_project=project_key)
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
+    file_fields = _agent_file_fields([file_path] if file_path else [], default_project=project_key, atlas_read=current)
+    related_files = _import_evidence_related_files(file_path, detail, default_project=project_key, atlas_read=current)
     finding_semantics = {
         field: violation.get(field)
         for field in (
@@ -474,8 +487,8 @@ def _signal_matches_project_scope(signal: dict[str, Any], project_scope: str) ->
     )
 
 
-def _directive_for_signal(signal: dict[str, Any], *, index: int) -> dict[str, Any]:
-    file_fields = _signal_file_fields(signal)
+def _directive_for_signal(signal: dict[str, Any], *, index: int, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
+    file_fields = _signal_file_fields(signal, atlas_read=atlas_read)
     breadcrumbs = [str(item) for item in signal.get("reasoning_breadcrumbs", []) or [] if item]
     broad_proof_deferred = (
         signal.get("impact_score_status") in {"deferred_broad_proof", "scoped_dependency_lower_bound"}
@@ -564,11 +577,11 @@ def _extract_action_paths(value: Any, *, limit: int = 12) -> list[str]:
     return paths[:limit]
 
 
-def _directive_for_quality_check(check: dict[str, Any], *, index: int) -> dict[str, Any]:
+def _directive_for_quality_check(check: dict[str, Any], *, index: int, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
     name = str(check.get("name") or "quality_attention").strip()
     details = check.get("details", [])
     paths = _extract_action_paths(details)
-    file_fields = _agent_file_fields(paths)
+    file_fields = _agent_file_fields(paths, atlas_read=atlas_read)
     source_artifacts = ["output/.raw/quality_gate.json"]
     explanation = {
         "rule": name,
@@ -600,11 +613,12 @@ def _directive_for_quality_check(check: dict[str, Any], *, index: int) -> dict[s
     }
 
 
-def _directive_for_priority_finding(finding: dict[str, Any], *, index: int) -> dict[str, Any]:
+def _directive_for_priority_finding(finding: dict[str, Any], *, index: int, atlas_read: AtlasRead | None = None) -> dict[str, Any]:
     file_path = str(finding.get("scoped_file") or finding.get("file") or "").strip()
     related_files = [str(item) for item in finding.get("related_files", []) or [] if item]
-    file_fields = _agent_file_fields([file_path] if file_path else [])
-    related_fields = _agent_file_fields(related_files)
+    current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
+    file_fields = _agent_file_fields([file_path] if file_path else [], atlas_read=current)
+    related_fields = _agent_file_fields(related_files, atlas_read=current)
     classification = str(finding.get("classification") or "priority_repository_finding").strip()
     risk_tier = str(finding.get("risk_tier") or "").strip()
     why_problematic = str(finding.get("why_problematic") or "").strip()
@@ -654,6 +668,8 @@ def build_agent_action_directives(
     max_items: int = 8,
     project_scope: str = "",
     audit_source_artifact: str = "output/.raw/audit_report.json",
+    raw_dir: Path | None = None,
+    _atlas_read: AtlasRead | None = None,
 ) -> list[dict[str, Any]]:
     """Return bounded, patch-oriented instructions for AI agents.
 
@@ -662,33 +678,32 @@ def build_agent_action_directives(
     validation commands, source artifacts and approval posture.
     """
     max_items = max(1, min(int(max_items or 8), 20))
+    current = _atlas_read if _atlas_read is not None else load_atlas_data_with_identity(raw_dir)
     directives: list[dict[str, Any]] = []
 
     violations = audit_report.get("violations", []) if isinstance(audit_report, dict) else []
-    for violation in violations:
-        if isinstance(violation, dict) and _violation_matches_project_scope(violation, project_scope):
-            directives.append(
-                _directive_for_violation(
-                    violation,
-                    audit_report,
-                    index=len(directives) + 1,
-                    source_artifact=audit_source_artifact,
-                )
-            )
-        if len(directives) >= max_items:
-            return directives
+    scoped_violations = [row for row in violations
+        if isinstance(row, dict) and _violation_matches_project_scope(row, project_scope)]
+    ordered_violations, presentation = select_audit_presentation_rows(scoped_violations, limit=max_items)
+    for violation in ordered_violations:
+        directive = _directive_for_violation(violation, audit_report, index=len(directives) + 1,
+            source_artifact=audit_source_artifact, atlas_read=current)
+        directive["presentation_order"] = dict(presentation)
+        directives.append(directive)
+    if len(directives) >= max_items:
+        return directives
 
     active_signals = signals_data.get("active_signals", []) if isinstance(signals_data, dict) else []
     for signal in active_signals:
         if isinstance(signal, dict) and _signal_matches_project_scope(signal, project_scope):
-            directives.append(_directive_for_signal(sanitize_signal(signal), index=len(directives) + 1))
+            directives.append(_directive_for_signal(sanitize_signal(signal), index=len(directives) + 1, atlas_read=current))
         if len(directives) >= max_items:
             return directives
 
     priority_items = priority_pack.get("items", []) if isinstance(priority_pack, dict) else []
     for item in priority_items:
         if isinstance(item, dict) and (item.get("scoped_file") or item.get("file")):
-            directives.append(_directive_for_priority_finding(item, index=len(directives) + 1))
+            directives.append(_directive_for_priority_finding(item, index=len(directives) + 1, atlas_read=current))
         if len(directives) >= max_items:
             return directives
 
@@ -701,7 +716,7 @@ def build_agent_action_directives(
             and "expected_failure_drill" not in json.dumps(details, ensure_ascii=False)
             and _extract_action_paths(details)
         ):
-            directives.append(_directive_for_quality_check(check, index=len(directives) + 1))
+            directives.append(_directive_for_quality_check(check, index=len(directives) + 1, atlas_read=current))
         if len(directives) >= max_items:
             return directives
 
@@ -740,7 +755,8 @@ def build_agent_action_directives(
     return directives[:max_items]
 
 
-def build_upstream_trace(target_node: str, circular_deps_data: dict[str, Any], signals_data: dict[str, Any] | None = None) -> dict[str, Any]:
+def build_upstream_trace(target_node: str, circular_deps_data: dict[str, Any], signals_data: dict[str, Any] | None = None, *, raw_dir: Path | None = None, _atlas_read: AtlasRead | None = None) -> dict[str, Any]:
+    current = _atlas_read if _atlas_read is not None else load_atlas_data_with_identity(raw_dir)
     target = str(target_node or "").strip()
     edges = circular_deps_data.get("edges", []) if isinstance(circular_deps_data, dict) else []
     upstream_dependencies: list[str] = []
@@ -779,9 +795,9 @@ def build_upstream_trace(target_node: str, circular_deps_data: dict[str, Any], s
     related_limit = contextos_signal_limit("agent_related_files")
     upstream_nodes = upstream_all[:related_limit]
     dependent_nodes = dependent_all[:related_limit]
-    target_context = _agent_file_context(target)
-    upstream_contexts = [_agent_file_context(item) for item in upstream_nodes]
-    dependent_contexts = [_agent_file_context(item) for item in dependent_nodes]
+    target_context = _agent_file_context(target, atlas_read=current)
+    upstream_contexts = [_agent_file_context(item, atlas_read=current) for item in upstream_nodes]
+    dependent_contexts = [_agent_file_context(item, atlas_read=current) for item in dependent_nodes]
     return {
         "target": target,
         "target_file": target_context.get("repo_relative_path"),
@@ -837,6 +853,7 @@ def build_surgical_operation_packet(
     audit_source_artifact: str = "output/.raw/audit_report.json",
 ) -> dict[str, Any]:
     packet_raw_dir = Path(raw_dir or RAW_DIR)
+    current = load_atlas_data_with_identity(packet_raw_dir)
     active_signals = [
         sanitize_signal(sig)
         for sig in signals_data.get("active_signals", [])
@@ -871,7 +888,7 @@ def build_surgical_operation_packet(
     upstream_traces = []
     if circular_deps_data:
         for signal in visible:
-            upstream_traces.append(build_upstream_trace(signal.get("node_key", ""), circular_deps_data, signals_data))
+            upstream_traces.append(build_upstream_trace(signal.get("node_key", ""), circular_deps_data, signals_data, raw_dir=packet_raw_dir, _atlas_read=current))
     registry = load_capability_registry()
     activation_plan = load_capability_activation_plan(raw_dir=packet_raw_dir)
     execution_contract = load_json_file(packet_raw_dir / "pipeline_execution_contract_validation.json", {})
@@ -897,6 +914,10 @@ def build_surgical_operation_packet(
             "version": "v1",
             "generator": "tools.core.contextos_mcp.build_surgical_operation_packet",
         },
+        "atlas_path_evidence": {
+            "status": "verified_primary" if current.primary_verified else "unavailable_primary",
+            "claim_boundary": "Request-bound path metadata only; not producer attestation, runtime proof or mutation authority.",
+        },
         "summary": {
             **(signals_data.get("summary", {}) if isinstance(signals_data.get("summary"), dict) else {}),
             "returned_focus_files": len(visible),
@@ -913,6 +934,7 @@ def build_surgical_operation_packet(
             effective_architecture_policy,
             max_projects=3,
             project_ids=active_projects or None,
+            include_private_followup=False,
         ),
         "relevant_capabilities": relevant_capability_contracts(
             registry,
@@ -929,6 +951,7 @@ def build_surgical_operation_packet(
             include_disabled=False,
             allowed_system_scopes=projection_capability_scopes(TARGET_REPOSITORY_PROJECTION_ID),
             project_ids=[project_scope] if project_scope else None,
+            include_private_followup=False,
         ),
         "pipeline_execution_contract": {
             "summary": {
@@ -951,8 +974,14 @@ def build_surgical_operation_packet(
                 if isinstance(execution_modes.get(mode), dict)
             ],
             "agent_rule": "Use sequential-required steps as settled finalizers; use DAG-safe steps only after dependencies are satisfied.",
-            "mcp_tool": "get_pipeline_execution_contract",
-            "artifact": "output/.raw/pipeline_execution_contract_validation.json",
+            "followup": {
+                "availability": "unavailable",
+                "reason": "maintainer_only",
+                "claim_boundary": (
+                    "This contract context is orientation only. It does not authorize "
+                    "a maintainer-profile transition, scheduling change or an edit."
+                ),
+            },
         },
         "engine_signal_contract": {
             "summary": {
@@ -962,8 +991,14 @@ def build_surgical_operation_packet(
             },
             "relevant_contracts": signal_contracts[:6],
             "agent_rule": "ContextOS packets are focus/context signals, not release proof or autonomous mutation approval.",
-            "mcp_tool": "get_engine_signal_contracts",
-            "artifact": "output/.raw/engine_signal_contract_validation.json",
+            "followup": {
+                "availability": "unavailable",
+                "reason": "maintainer_only",
+                "claim_boundary": (
+                    "This contract context is orientation only. It does not authorize "
+                    "a maintainer-profile transition, scheduling change or an edit."
+                ),
+            },
         },
         "agent_action_directives": build_agent_action_directives(
             signals_data,
@@ -973,6 +1008,8 @@ def build_surgical_operation_packet(
             max_items=8,
             project_scope=project_scope,
             audit_source_artifact=audit_source_artifact,
+            raw_dir=packet_raw_dir,
+            _atlas_read=current,
         ),
         "l1_focus": visible,
         "l2_halo": deduped_halo[: max_signals * 3],
@@ -1145,8 +1182,6 @@ def _matching_upstream_trace(packet: dict[str, Any], directive: dict[str, Any], 
 
 
 def _surgical_inspect_first(directive: dict[str, Any], trace: dict[str, Any], source_grounding: dict[str, Any]) -> list[str]:
-    target_projects = _public_target_projects(directive)
-    default_project = target_projects[0] if target_projects else str(source_grounding.get("target_project") or "MAIN")
     target_paths = _directive_target_paths(directive, source_grounding)
     candidates: list[Any] = []
     candidates.extend(target_paths)
@@ -1168,8 +1203,9 @@ def _surgical_inspect_first(directive: dict[str, Any], trace: dict[str, Any], so
                 if canonical_target:
                     candidates.append(canonical_target)
                     continue
-                context = _agent_file_context(str(path), default_project=default_project)
-                candidates.append(context.get("repo_relative_path") or path)
+                # *_files are already editor-path projections of this packet.
+                # Rendering must not reopen a hidden default-root Atlas lookup.
+                candidates.append(path)
     return _dedupe_repo_paths(candidates, limit=10)
 
 
@@ -1285,6 +1321,8 @@ def render_surgical_operation_brief(packet: dict[str, Any], *, debug: bool = Fal
         },
         "path_contract": {
             "open_files_with": "analysis_root + target_files or related_files",
+            "metadata_primary_status": (packet.get("atlas_path_evidence") or {}).get("status") or "not_declared",
+            "navigation_rule": "Unresolved or unavailable path metadata is orientation, not verified navigation. Refresh target evidence before using it for a change.",
             "target_refs_usage": "SAGE/MCP follow-up references only; not filesystem paths",
             "target_ref_format": "<project>::<repo_relative_path>; MAIN is the primary analyzed project scope",
         },
@@ -1310,6 +1348,11 @@ def render_surgical_operation_brief(packet: dict[str, Any], *, debug: bool = Fal
             "Do not add allowlists, suppressions, deletions, moves, or broad rewrites without human approval.",
         ],
     }
+    if isinstance(directive.get("presentation_order"), dict):
+        brief_yaml["task"]["presentation_order"] = {
+            key: value for key,value in directive["presentation_order"].items()
+            if key in ("status", "basis", "reason", "meaning", "causal_relation", "candidate_universe_equality")
+        }
     if mutation_proposed:
         brief_yaml["do"].extend(
             [

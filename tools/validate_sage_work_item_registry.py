@@ -21,6 +21,8 @@ from tools.core.roadmap_phase_registry import (
     release_impact_issues,
     roadmap_phase_rows,
 )
+from tools.core.sage_active_work_package import load_active_work_package_ledger
+from tools.core.work_package_state import publication_reconciliation_issues
 from tools.generate_sage_work_item_report import run as generate_work_item_report
 from tools.core.work_package_receipts import record_work_package_operation_safely
 
@@ -175,55 +177,6 @@ def delivery_release_issues(
     return issues
 
 
-def publication_reconciliation_issues(
-    work_items: list[dict[str, Any]],
-    reconciliations: Any,
-    *,
-    roadmap_releases: set[str],
-) -> list[dict[str, str]]:
-    """Check reviewed delivery receipts, not live GitHub state or release authority."""
-    if not isinstance(reconciliations, list):
-        return [{"issue": "publication_reconciliations_must_be_a_list"}]
-    items = {str(row.get("id") or ""): row for row in work_items}
-    issues: list[dict[str, str]] = []
-    seen_releases: set[str] = set()
-    seen_items: set[str] = set()
-    for receipt in reconciliations:
-        if not isinstance(receipt, dict):
-            issues.append({"issue": "invalid_publication_reconciliation"})
-            continue
-        release = str(receipt.get("release") or "")
-        ids = receipt.get("reconciled_work_item_ids")
-        if (
-            release not in roadmap_releases
-            or release in seen_releases
-            or receipt.get("status") != "published"
-            or not isinstance(ids, list)
-            or not ids
-            or any(not isinstance(item_id, str) or not item_id for item_id in ids)
-            or any(
-                not isinstance(receipt.get(field), str) or not receipt[field].strip()
-                for field in (
-                    "canonical_source_commit", "clean_delivery_commit", "public_commit",
-                    "source_registry_git_blob", "published_at", "release_url", "evidence",
-                )
-            )
-        ):
-            issues.append({"release": release, "issue": "invalid_publication_reconciliation"})
-            continue
-        seen_releases.add(release)
-        for item_id in ids:
-            row = items.get(item_id)
-            if item_id in seen_items:
-                issues.append({"id": item_id, "issue": "duplicate_first_delivery"})
-            seen_items.add(item_id)
-            if row is None:
-                issues.append({"id": item_id, "issue": "publication_references_unknown_work"})
-            elif row.get("status") != "closed" or row.get("delivered_release") != release:
-                issues.append({"id": item_id, "issue": "published_work_not_reconciled"})
-    return issues
-
-
 def run_validation() -> dict[str, Any]:
     registry = load_json_object_strict(REGISTRY_PATH, label="SAGE work item registry")
     wave_registry = load_json_object_strict(WAVE_REGISTRY_PATH, label="SAGE execution wave registry")
@@ -312,6 +265,7 @@ def run_validation() -> dict[str, Any]:
         [row for row in all_items if isinstance(row, dict)],
         registry.get("publication_reconciliations", []),
         roadmap_releases=roadmap_releases,
+        package_history=load_active_work_package_ledger()["package_history"],
     )
     ready_release_impact_issues = []
     for row in all_items:

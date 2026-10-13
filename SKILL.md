@@ -38,6 +38,10 @@ the target-repository role and does not redefine authority or validation semanti
   private self-release and debug/provenance tools are not part of this profile.
 - Treat missing or empty ContextOS active signals as an idle/fail-closed state,
   not as proof that the analyzed repository has no risk.
+- ContextOS path metadata comes from a verified read of the selected target's
+  current Atlas, shared only within the request. `unavailable_primary` or
+  `unresolved` path metadata means a displayed path is orientation, not verified
+  editor navigation; refresh the target evidence before using it for a change.
 - Capability activation context is a read-only view of the selected target's
   artifacts. Missing or invalid plans are explicitly unavailable; plan presence
   alone does not prove snapshot freshness, enable rules or authorize mutation.
@@ -63,7 +67,36 @@ public profiles even when an agent guesses their names.
 4. `search_symbols`, `inspect_file`, `inspect_folder`, or `inspect_symbol` for targeted work.
 5. Use `supporting_context` tools only after a concrete file, symbol, rule, or issue exists.
 
+Activation, contract and architecture context are read-only orientation. When
+`full_plan_followup.availability=unavailable` or `followup.availability=unavailable`,
+no target-profile full-plan, full-contract or private Oracle follow-up is offered.
+Architecture source-artifact references remain provenance, not a fallback access
+route. Unavailable follow-up does not mean the supplied architecture evidence is
+missing. Do not switch to a maintainer/debug profile or use another target's plan,
+contract or Oracle as a fallback. This does not prove readiness or grant
+activation, scheduling or edit authority.
+
+Missing target artifacts and missing/stale watchdog sessions do not authorize
+heavy analysis. Follow the scoped `recovery` guidance: an unavailable MCP refresh
+requires an authorized operator, not guessed hidden calls or profile switching.
+A `cli_manual_alternative` is an argument list to review, not an executed command
+or permission; replace its explicit-path placeholder only after scope/authority
+is established. Preserve its target root, installation working directory and
+primary-versus-external namespace. A directory pulse is smoke sampling, not
+captured changes or repository-wide proof; stale findings remain historical
+until an actual scoped refresh succeeds.
+
 ## Target Repository Path Contract
+
+Primary inspection, impact and Test Impact recommendations from a follow-up
+packet use its `primary_tool_followup` projection. Use the current connection
+when the tool is visible, or a separate configured primary connection for the
+same target; reconnect only if that connection is absent. Preserve the exact
+`target_root` argument, including an empty primary root. Bind each central
+`call_template` to one intended target: templates are not complete or executed
+calls. For example, `inspect_file` takes `file_path`, not `target`. Visibility
+does not grant edit, lease, refresh or runtime-proof authority; unavailable and
+SAGE-self-only context must not be routed through a target-profile bypass.
 
 - Open files with `analysis_root + target_file`, `analysis_root + related_files`
   or `analysis_root + inspect_first` entries.
@@ -399,6 +432,186 @@ repository-specific command.
 - Treat `React Runtime Intelligence` as broad static repository analysis. It
   does not run target tests or ingest their stderr; runtime warnings require
   target-native execution and source corroboration before a production edit is proposed.
+  A source-bound JSON field-to-typed-state candidate can include a literal
+  fallback and lexical branch; neither proves the field type or absent upstream
+  validation. Inspect the exact adapter/response contract before prescribing a
+  parser or edit. Unsupported paths and an empty candidate list are not clean proof.
+  `inspect_file` may show separate `client_local_parser_result_evidence` and
+  `client_local_parser_input_sink_evidence` sections for a finite same-file
+  fetch/JSON/parse-call/setter sequence. The latter records this sink selecting
+  the JSON input rather than the call result, not a validation bypass: the call
+  can reject, mutate the input or return an alias. Neither section proves a
+  schema, compatible runtime type, execution or edit authority. Both share a
+  compact budget and record cap; inspect source binding, shown/omitted counts
+  and unavailable reasons. Empty records do not prove clean or complete coverage.
+  `client_imported_parser_evidence` separately records a runtime named-import
+  `.parse` call and whether this setter selects its result or its JSON input.
+  A `parser_source_candidate` is only one unique same-project direct variable
+  export with independent snapshot/live identity, not proof of schema behavior,
+  SDK semantics or HTTP endpoint correspondence. Follow its exact source range;
+  unresolved/barrel/ambiguous/drifted candidates must not be guessed or treated
+  as safety. These lanes share the compact budget and disclose omissions;
+  absent legacy metadata is not an observed-empty new lane.
+  The separate `response_json_return_evidence` lane records only an exact
+  top-level TS/TSX async fetch/JSON/return three-statement body. It preserves a
+  whole JSON value versus literal field path and one outer type assertion.
+  Source-bound returned-expression syntax is not schema validation, resolved
+  Promise data, callback execution or caller-state correspondence. This lane
+  shares the same compact budget/cap; follow its exact source range and omissions.
+  Focused `get_state_flow` can additionally show separate
+  `symbol_context.local_arrow_import_calls` and `local_arrow_import_callees`.
+  These record named-import calls inside one immediate const local arrow with
+  its lexical owner, not calls executed by the selected outer callable. A unique
+  same-project direct-export adapter can expose only its exact selected
+  `response_json_return_evidence`, matched by name, declaration kind, byte span
+  and source/AST identity. Inspect both independent source bindings, shared
+  budgets and omissions. Anonymous/deeper callbacks, branches, shadowed/type-only
+  bindings, legacy or ambiguous metadata remain unresolved. The join does not
+  prove arrow invocation, Promise data, schema validity or a caller-state update.
+  A separate `symbol_context.local_arrow_result_uses` lane records only an
+  immediate async const arrow's two-statement shape: `const result = await
+  namedImport(...); if (result.property) { boundIdentifier(result.property); }`.
+  Inspect the unique lexical binding, exact caller UTF-8 spans, source identity
+  and `callee_orientation`. The caller's `selected_property` and adapter's JSON
+  `field_path` remain separate; never concatenate them into a runtime path.
+  A truthiness guard is not validation and a sink named `setTables` is not proved
+  React state mutation. Casts, aliases, optional/dynamic/chained reads, else or
+  additional statements remain outside this finite lane. Caller drift clears
+  usage; adapter drift leaves caller syntax but removes the cross-file association.
+  Shared-budget exhaustion omits new rows before disturbing existing call/return
+  evidence. Missing/omitted rows are not proof that no such use exists.
+  `symbol_context.local_arrow_sibling_calls` separately records a direct plain
+  or awaited identifier call between two uniquely bound immediate const block
+  arrows under the same indexed outer callable. Caller and target are local
+  declarations with exact UTF-8 spans, not invented indexed callee references.
+  Inspect source identity and omissions; shadowed/mutable/alias bindings,
+  optional/member calls, branches and deeper/deferred callbacks are excluded.
+  This lane proves neither invocation nor argument/result transfer, Promise
+  resolution, schema validity, state mutation or error dominance. Source drift
+  clears the lane; shared-budget exhaustion omits it before existing evidence.
+  `symbol_context.jsx_prop_callbacks` adds site-specific JSX source candidates:
+  one checker-bound named-import tag, a literal prop whose bare value is a unique
+  immediate const block-arrow, and the same prop's simple child parameter call.
+  Inspect the separate parent and child UTF-8 spans and direct-export identity.
+  At most two inline JSX attribute arrow contexts are retained. Spreads, aliases,
+  defaults/rest, writes, ambiguous/re-export targets and unsupported deferred
+  callbacks remain outside this lane. Both files must independently match their
+  snapshots and live bytes; parent drift clears the lane and child drift removes
+  the association's child records. Legacy metadata is not fabricated as empty.
+  Its endpoints also require exact verified primary Atlas metadata; a compatibility
+  shadow cannot rescue missing/corrupt primary evidence. Focused State Flow now
+  requires content and identity from one verified primary read for every syntax
+  lane; legacy or failed primary reads remain unavailable, not observed-empty.
+  Its endpoints reuse that request's verified metadata under the same storage
+  and scan budgets. Inspection uses exact selected-primary reads, never a warm
+  mutable global Atlas dict. Explicit default JSON-primary mode remains primary
+  even with a residual SQLite database. Legacy recovery/orientation APIs remain
+  separate. Selected-file reads may verify/spool the whole primary payload;
+  cross-request full-content validation remains required and no constant-time,
+  aggregate speedup or token-saving claim is established. A storage checksum
+  does not attest the original AST producer or replace snapshot/live-byte checks.
+  Shared scan, item and compact token budgets disclose omissions; empty records
+  do not prove no callback exists. A source candidate proves neither React
+  activation, callback invocation, argument/result transfer nor runtime/schema
+  validity. It does not establish one global prop value across all JSX sites.
+  `symbol_context.returned_local_callbacks` separately associates a unique
+  immediate const initialized by a bound named React `useCallback` with its
+  shorthand in one direct returned object. Named import aliases, asynchronous
+  block callbacks and plain Unicode identifiers retain exact UTF-8 source spans;
+  callback arguments/body/dependencies are not interpreted. Inspect selected
+  primary metadata, snapshot/live binding and shared scan/item/token omissions.
+  Local endpoints are not indexed callees. Writes, object spreads/renamed keys,
+  indirect/branch returns, type-only/shadowed imports and legacy/malformed
+  evidence remain outside this finite lane. Neither callback value, activation,
+  schema validity nor runtime execution is established. Omitted/empty records
+  do not prove no callback exists.
+  A separate symbol_context.call_result_property_bindings lane records literal
+  properties destructured into immediate const local identifiers from one
+  direct named-import call, including renamed properties/import aliases.
+  Inspect exact UTF-8 pattern/import spans, verified primary and snapshot/live
+  source binding, and shared scan/item/token omissions. Writes, defaults, rest,
+  computed/quoted/nested keys, optional calls and old or unbound metadata remain
+  unavailable. These are local source facts, not indexed callees: property
+  existence, callable value, callback activation, schema validity, semantic
+  value transfer and runtime execution are not established. Empty/omitted
+  results do not prove absence.
+  Separately, `symbol_context.call_result_alias_invocations` associates a later
+  immediate plain identifier call with that exact const binding, including a
+  renamed local. Inspect its 17 UTF-8 source spans, current primary and
+  snapshot/live binding, and remaining shared scan/item/token omissions.
+  Nested/conditional, before-binding, optional/generic/spread/wrapped calls and
+  mutable/ambiguous bindings are not joined. The imported producer is not the
+  invoked target; callable identity, value transfer, callback activation, schema
+  validity and runtime execution remain unproven. Empty/omitted records never
+  establish absence.
+  `symbol_context.call_result_optional_alias_invocations` separately associates
+  a later immediate `run?.()` call with that admitted const binding. Inspect its
+  18 UTF-8 spans, including the exact `optional_operator`, current primary and
+  snapshot/live identity, and remaining shared scan/item/token omissions.
+  Ordinary and optional calls share one bounded owner-body scan. Conditional,
+  nested, returned, generic/spread/member/wrapped, written and ambiguous forms
+  remain unjoined. Optional syntax proves neither short-circuit outcome,
+  callable identity, argument evaluation, value/schema nor execution. The
+  imported producer is not the invoked target; omitted detail is not absence.
+  `symbol_context.returned_callback_parameter_optional_calls` separately links
+  an already oriented returned React async callback's parameter-property const
+  binding to `await callback?.(argument)` in an immediate own try block. Inspect
+  all 35 UTF-8 spans, exact old anchor, current primary/snapshot-live identity
+  and shared omissions. `parameter_property_name` is not the returned object's
+  `property_name`. Unselected primitive defaults describe syntax only. Selected
+  or effectful defaults, nested/rest/computed/quoted/duplicate bindings, writes,
+  shadows, conditional/deferred/returned/catch/finally/deeper calls and generic,
+  member/wrapped/spread forms remain unjoined. Argument spelling is not value,
+  HTTP/JSON or schema proof; callability, activation, reachability and execution
+  remain unknown. New detail is dropped before old lanes; empty is not absence.
+  The separate `symbol_context.returned_callback_parameter_context_calls` lane
+  adds plain own-try calls, plain/awaited own catch/finally calls, and one
+  immediate braced `if` then/else inside those bodies or the callback body.
+  Inspect its exact 34–40 UTF-8 roles and owning `if`/`else` selector token;
+  `await_expression` is present only for awaited syntax. The old awaited-try
+  lane remains exclusive. Same parameter/binding guards, complete returned
+  anchor, verified primary/current bytes and remaining shared budgets apply.
+  Deeper/unbraced/else-if/loop/deferred/returned or shadowed/written forms remain
+  unjoined. Lexical context proves neither reachability, exception origin,
+  activation, callable/value/schema correspondence nor execution. This lane
+  settles last; dropped rows and missing metadata never prove absence.
+  `symbol_context.call_result_nested_callback_alias_invocations` separately
+  associates that outer const binding with a plain call in a synchronous block
+  arrow property of one immediate literal object call argument. Inspect all 25
+  UTF-8 spans, primary/live binding and shared omissions. Container callee is
+  spelling only. Spread and duplicate static-key flags describe syntax, not
+  effective configuration; computed keys remain unknown. Registration, callable
+  identity, callback activation, value/schema and execution remain unproven.
+  Conditional/deeper/async/method/concise, optional/generic/spread-call, shadowed
+  and mutable forms are unjoined; missing evidence never establishes absence.
+  `symbol_context.parameter_config_callback_forwardings` separately associates
+  a simple owner parameter or shallow parameter property with an immediate const
+  property binding and its later optional call forwarding one exact callback
+  rest parameter. Direct input or literal `|| {}`/`?? {}` fallback and an optional
+  outer empty-object parameter default are source syntax only. Inspect 27 UTF-8
+  spans, primary/live binding and shared omissions. Object-rest exclusion is not
+  proof that a later spread overrides the callback. Defaults inside binding
+  patterns, nested/computed/quoted/ambiguous/mutable forms, branches, generic or
+  nonoptional calls and different arguments remain unjoined. This parameter
+  provenance is not an imported producer or call-graph edge; callability, value
+  transfer, registration, activation, schema and execution remain unproven.
+  Missing, stale or omitted detail never establishes absence.
+  `symbol_context.call_result_optional_rest_alias_invocations` separately binds
+  an admitted named-import call-result const alias to an optional identifier
+  call forwarding the exact rest parameter of one literal-object synchronous
+  block-arrow callback. Inspect 29 UTF-8 source spans, verified primary and
+  snapshot/live identity and shared scan/item/token omissions. Imported result
+  provenance is distinct from parameter configuration. Rest/optional syntax,
+  object spread and duplicate-key flags establish neither argument values or
+  cardinality, effective registration, callable identity, activation, schema nor
+  execution. Conditional/deeper/async, indirect, generic, written or ambiguous
+  forms remain unjoined. Missing, legacy and omitted detail is not absence proof.
+- Audit shallow-copy/nested-index-write review candidates preserve the copy,
+  write and awaited-call spans from one bounded async body. The call is not
+  assumed to persist anything. Verify property ownership, accessors/proxies,
+  intentional sharing and failure behavior with target-native evidence before
+  proposing a change. `needs_runtime_proof` and an empty candidate list are not
+  runtime confirmation or completeness proof.
 - Test Impact also declares `native_diagnostics: not_ingested`; it does not
   inspect a target test run. Check both native output streams separately from
   the exit code. Nonempty stderr is not automatically failure, empty stderr is
@@ -456,6 +669,7 @@ A matching identifier is not an import edge, historical execution or source faul
 - `auto_merge` is a filtered merge/migration plan backed by manifest, checksum, backups and rollback; it still requires HITL review before execution.
 - `auto_heal` is filtered by the generated-script policy; script-ineligible findings must appear as skipped/manual-review manifest evidence and must not be recommended to a coding agent as a default batch fix path.
 - If a work queue suggests many similar fixes, inspect or validate a bounded target first; only mention generated scripts as an optional HITL-gated operator path with manifest evidence.
+- Audit presentation order is not root-cause priority or edit authority. The work queue orders indexed rows before pagination; Surgical/Operator order producer-bound Audit rows before their cap, keeping Audit ahead of other source groups. Missing row severity stays unknown. Missing recorded indexed identity or an invalid descriptor preserves packet input order with `presentation_order.status=unavailable`; the SQLite queue does not substitute a JSON fallback. A shared descriptor or Atlas snapshot does not establish equal candidate coverage. Positional directive IDs are not persistent finding identity or reusable approval.
 - Before asking for approval, use the public target-bound MCP lifecycle to create a HITL decision request with evidence and scope.
 - When approval is granted or denied, use that lifecycle to record it in the HITL approval ledger before acting, then close the request.
 - Keep AI answers in the Nexora response shape: verdict, evidence, confidence, risk, human_approval_required, suggested_next_action, source_artifacts.

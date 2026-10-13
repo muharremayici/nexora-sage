@@ -1190,6 +1190,155 @@ def _state_focus(atlas=None, **selectors):
     )
 
 
+def _local_arrow_focus_atlas():
+    from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+    reference = {"source": "./adapter", "localName": "read", "importedName": "load", "kind": "named"}
+    span = lambda start, end, line: {"start": start, "end": end, "line": line, "end_line": line}
+    call = {**reference, "member": None, "optional": False, "lexical_owner": "handleTable",
+            "lexical_owner_kind": "const_local_arrow", "spans": {
+                "owner": {"start": 20, "end": 90, "line": 3, "end_line": 9},
+                "owner_binding": span(20, 30, 3), "body": {"start": 35, "end": 90, "line": 3, "end_line": 9},
+                "call": span(50, 56, 5), "callee": span(50, 54, 5)}}
+    owner = {"name": "Outer", "type": "Function", "start": 10, "end": 100, "line": 2, "end_line": 10,
+             "dependency_imports": [reference], "import_call_evidence": {
+                 "status": "observed", "calls": [], "limitations": [],
+                 "binding_scope": "single_file_lexical_import", "runtime_execution": "not_established"},
+             "local_arrow_import_call_evidence": {"status": "observed", "records": [call], "omitted": 0,
+                 "version": "v1-immediate-const-arrow-named-import-call", "offset_unit": "utf8_bytes",
+                 "source_hash": "a" * 64, "ast_contract_version": AST_CONTRACT_VERSION,
+                 "runtime_execution": "not_established"}}
+    return {"MAIN": {"files": {
+        "caller.ts": {"hash": "a" * 64, "ast_contract_version": AST_CONTRACT_VERSION,
+            "parser_evidence": {"status": "observed"}, "symbols": [owner], "import_records": [
+                {"raw_source": "./adapter", "source": "adapter.ts", "name": "load", "kind": "named", "scope": "top_level"}]},
+        "adapter.ts": {"hash": "b" * 64, "symbols": [{"name": "load", "type": "Arrow", "exported": True,
+            "export_kind": "named", "start": 1, "end": 8, "line": 1, "end_line": 1}]}}}}
+
+
+def test_state_flow_local_arrow_projection_separate_owner_caps_and_failures():
+    from copy import deepcopy
+    from tools.core.state_flow import _focus_local_arrow_import_calls
+    atlas = _local_arrow_focus_atlas()
+    result = _state_focus(atlas, file="caller.ts", symbol="Outer")
+    assert result["direct_callees"]["items"] == []
+    lane = result["local_arrow_import_callees"]
+    assert lane["returned"] == 1 and lane["items"][0]["status"] == "target_candidate"
+    assert lane["items"][0]["lexical_owner"] == "handleTable"
+    assert lane["items"][0]["caller_spans"]["callee"]["start"] == 50
+    record = atlas["MAIN"]["files"]["caller.ts"]
+    owner = record["symbols"][0]
+    for damage in ("hash", "ast", "version", "offset", "promoted", "span", "owner", "duplicate", "incomplete", "parser"):
+        info, row = deepcopy(record), deepcopy(owner)
+        evidence = row["local_arrow_import_call_evidence"]
+        if damage == "hash": evidence["source_hash"] = "b" * 64
+        elif damage == "ast": evidence["ast_contract_version"] = "old"
+        elif damage == "version": evidence["version"] = "old"
+        elif damage == "offset": evidence["offset_unit"] = "utf16_code_units"
+        elif damage == "promoted": evidence["runtime_execution"] = "proved"
+        elif damage == "span": evidence["records"][0]["spans"]["call"]["start"] = True
+        elif damage == "owner": evidence["records"][0]["spans"]["owner"]["end"] = 101
+        elif damage == "duplicate": evidence["records"] *= 2
+        elif damage == "incomplete": evidence.update(status="incomplete_scan", omitted=1)
+        elif damage == "parser": info["parser_evidence"]["status"] = "degraded"
+        projected = _focus_local_arrow_import_calls(info, row, 3, 50)
+        assert projected["status"] != "observed" and projected["items"] == [], damage
+    assert _focus_local_arrow_import_calls(record, owner, 3, 0)["status"] == "incomplete_scan"
+    second = deepcopy(owner["local_arrow_import_call_evidence"]["records"][0])
+    second["spans"]["call"]["start"] += 10
+    second["spans"]["call"]["end"] += 10
+    second["spans"]["callee"]["start"] += 10
+    second["spans"]["callee"]["end"] += 10
+    owner["local_arrow_import_call_evidence"]["records"].append(second)
+    capped = _focus_local_arrow_import_calls(record, owner, 1, 50)
+    assert capped["returned"] == capped["omitted"] == 1 and capped["visited_records"] == 2
+    owner.pop("local_arrow_import_call_evidence")
+    assert "local_arrow_import_callees" not in _state_focus(atlas, file="caller.ts", symbol="Outer")
+
+
+def test_state_flow_local_arrow_shared_packet_budget_omits_entire_candidate(monkeypatch, tmp_path):
+    atlas = _local_arrow_focus_atlas()
+    atlas["MAIN"]["files"]["caller.ts"]["symbols"][0]["local_arrow_import_call_evidence"]["records"][0]["lexical_owner"] = "x" * 30000
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: _mock_primary_atlas_read(atlas))
+    monkeypatch.setattr(server, "_raw_dir_for_target", lambda root: tmp_path)
+    monkeypatch.setattr(server, "_analysis_root_display", lambda root: str(tmp_path))
+    monkeypatch.setattr(server, "_target_path_status", lambda raw, ref, **kw: {
+        "resolved_node": ref, "target_file": ref.split("::", 1)[1], "inside_root": True,
+        "source_snapshot_status": "ok", "source_snapshot_hash": atlas["MAIN"]["files"][ref.split("::", 1)[1]]["hash"],
+        "drift_check_status": "match"})
+    result = json.loads(server.get_state_flow(file="caller.ts", symbol="Outer", format="json"))
+    for lane in (result["local_arrow_import_callees"], result["symbol_context"]["local_arrow_import_calls"]):
+        assert lane["status"] == "unavailable" and lane["items"] == [] and lane["omitted"] == 1
+        assert lane["reason"] == "focus_local_arrow_context_budget_exhausted"
+
+
+def _result_use_focus_atlas():
+    from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+    atlas = _local_arrow_focus_atlas()
+    record = atlas["MAIN"]["files"]["caller.ts"]
+    record.update(size=200, loc=15)
+    owner = record["symbols"][0]
+    call = owner["local_arrow_import_call_evidence"]["records"][0]
+    span = lambda start, end, line: {"start": start, "end": end, "line": line, "end_line": line}
+    usage = {**call, "result_name": "data", "selected_property": "tables", "sink_name": "setTables",
+             "spans": {**call["spans"], "result_binding": span(38, 42, 5), "initializer": span(44, 56, 5),
+                       "condition": span(60, 70, 6), "sink_call": span(72, 88, 7),
+                       "sink_callee": span(72, 78, 7), "argument": span(79, 87, 7), "sink_binding": span(11, 18, 2)}}
+    owner["local_arrow_result_use_evidence"] = {"status": "observed", "records": [usage], "omitted": 0,
+        "version": "v1-immediate-async-const-arrow-guarded-result-argument", "offset_unit": "utf8_bytes",
+        "source_hash": "a" * 64, "ast_contract_version": AST_CONTRACT_VERSION, "runtime_execution": "not_established"}
+    return atlas
+
+
+def test_state_flow_result_use_scan_output_and_exact_join_boundaries():
+    from copy import deepcopy
+    from tools.core.state_flow import _focus_local_arrow_result_uses
+    atlas = _result_use_focus_atlas()
+    result = _state_focus(atlas, file="caller.ts", symbol="Outer")
+    lane = result["symbol_context"]["local_arrow_result_uses"]
+    assert lane["status"] == "observed" and lane["visited_records"] == 3
+    assert lane["items"][0]["callee_orientation"]["status"] == "target_candidate"
+    record = atlas["MAIN"]["files"]["caller.ts"]
+    row = record["symbols"][0]
+    calls, callees = result["symbol_context"]["local_arrow_import_calls"], result["local_arrow_import_callees"]
+    assert _focus_local_arrow_result_uses(record, row, 3, 2, calls, callees)["status"] == "incomplete_scan"
+    for damage in ("ambiguous_candidate", "wrong_call_source", "wrong_owner", "wrong_call_span", "ambiguous_call"):
+        c, targets = deepcopy(calls), deepcopy(callees)
+        if damage == "ambiguous_candidate": targets["items"] *= 2
+        elif damage == "wrong_call_source": c["items"][0]["source"] = "./other"
+        elif damage == "wrong_owner": targets["items"][0]["lexical_owner"] = "other"
+        elif damage == "wrong_call_span": targets["items"][0]["caller_spans"]["call"]["end"] -= 1
+        else: c["items"] *= 2
+        projected = _focus_local_arrow_result_uses(record, row, 3, 50, c, targets)
+        assert projected["status"] == "observed" and projected["items"][0]["callee_orientation"]["status"] == "unresolved", damage
+    second = deepcopy(row["local_arrow_result_use_evidence"]["records"][0])
+    second["lexical_owner"] = "other"
+    for role in ("owner", "owner_binding", "body", "call", "callee", "result_binding", "initializer", "condition", "sink_call", "sink_callee", "argument"):
+        second["spans"][role]["start"] += 100
+        second["spans"][role]["end"] += 100
+    row["end"], record["size"] = 200, 300
+    row["local_arrow_result_use_evidence"]["records"].append(second)
+    capped = _focus_local_arrow_result_uses(record, row, 1, 50, calls, callees)
+    assert capped["returned"] == capped["omitted"] == 1 and capped["visited_records"] == 4
+
+
+def test_state_flow_result_use_packet_budget_preserves_earlier_callee_evidence(monkeypatch, tmp_path):
+    atlas = _result_use_focus_atlas()
+    atlas["MAIN"]["files"]["caller.ts"]["symbols"][0]["local_arrow_result_use_evidence"]["records"][0]["selected_property"] = "x" * 30000
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: _mock_primary_atlas_read(atlas))
+    monkeypatch.setattr(server, "_raw_dir_for_target", lambda root: tmp_path)
+    monkeypatch.setattr(server, "_analysis_root_display", lambda root: str(tmp_path))
+    monkeypatch.setattr(server, "_target_path_status", lambda raw, ref, **kw: {
+        "resolved_node": ref, "target_file": ref.split("::", 1)[1], "inside_root": True,
+        "source_snapshot_status": "ok", "source_snapshot_hash": atlas["MAIN"]["files"][ref.split("::", 1)[1]]["hash"],
+        "drift_check_status": "match"})
+    result = json.loads(server.get_state_flow(file="caller.ts", symbol="Outer", format="json"))
+    usage = result["symbol_context"]["local_arrow_result_uses"]
+    assert usage["status"] == "unavailable" and usage["items"] == [] and usage["omitted"] == 1
+    assert usage["reason"] == "focus_result_use_context_budget_exhausted"
+    assert result["local_arrow_import_callees"]["returned"] == 1
+    assert result["symbol_context"]["local_arrow_import_calls"]["returned"] == 1
+
+
 def test_state_flow_focus_separates_file_signals_from_symbol_references():
     result = _state_focus(file="src/store.ts", symbol="useProjects")
     assert result["status"] == "selected"
@@ -1260,10 +1409,17 @@ def test_state_flow_focus_alias_collision_and_missing_signals_stay_explicit():
     assert _state_focus(atlas, file="store.ts")["status"] == "evidence_unavailable"
 
 
+def _mock_primary_atlas_read(atlas):
+    from tools.core.atlas_io import AtlasRead
+    # Query-unit double only. Real storage/hash/drift/corruption proof is covered
+    # separately by test_state_flow_focus_actual_sqlite_snapshot_and_live_drift.
+    return AtlasRead(atlas, "synthetic:query-unit-fixture", "sqlite_primary", 1024 * 1024)
+
+
 def _wire_state_focus(monkeypatch, tmp_path):
     monkeypatch.setattr(server, "_raw_dir_for_target", lambda _target: tmp_path)
     monkeypatch.setattr(server, "_analysis_root_display", lambda _target="": str(tmp_path))
-    monkeypatch.setattr(server, "_atlas", lambda **_kw: _state_focus_atlas())
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: _mock_primary_atlas_read(_state_focus_atlas()))
     monkeypatch.setattr(server, "_target_path_status", lambda *_a, **_kw: {
         "resolved_node": "MAIN::store.ts", "target_file": "src/store.ts",
         "target_ref": "MAIN::src/store.ts", "inside_root": True,
@@ -1293,7 +1449,7 @@ def test_state_flow_focus_mcp_never_bypasses_selectors_or_loads_unbound_artifact
 
 def test_state_flow_focus_invalid_selector_does_not_materialize_atlas(monkeypatch, tmp_path):
     _wire_state_focus(monkeypatch, tmp_path)
-    monkeypatch.setattr(server, "_atlas", lambda **_kw: (_ for _ in ()).throw(
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: (_ for _ in ()).throw(
         AssertionError("Invalid focus must not materialize the Atlas")))
     for file in ("../escape.ts", "COMPANION::store.ts"):
         result = json.loads(server.get_state_flow(file=file, symbol="useProjects", format="json"))
@@ -1321,7 +1477,7 @@ def test_state_flow_focus_mcp_central_budget_survives_full_json(monkeypatch, tmp
     _wire_state_focus(monkeypatch, tmp_path)
     atlas = _state_focus_atlas()
     atlas["MAIN"]["files"]["store.ts"]["symbols"][0]["dependencies"] = ["one", "two", "three"]
-    monkeypatch.setattr(server, "_atlas", lambda **_kw: atlas)
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: _mock_primary_atlas_read(atlas))
     monkeypatch.setattr(server, "_state_flow_brief_policy", lambda: {"focus_max_items": 1, "focus_scan_limit": 100})
     result = json.loads(server.get_state_flow(file="store.ts", symbol="useProjects", full=True, max_items=9999))
     assert result["symbol_context"]["identifier_references"]["returned"] == 1
@@ -1336,7 +1492,7 @@ def test_state_flow_focus_mcp_keeps_external_failure_closed_and_legacy_default(m
     def invalid(_target):
         raise ValueError("invalid target")
     monkeypatch.setattr(server, "_raw_dir_for_target", invalid)
-    monkeypatch.setattr(server, "_atlas", lambda **_kw: (_ for _ in ()).throw(AssertionError("fallback")))
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: (_ for _ in ()).throw(AssertionError("fallback")))
     assert "invalid" in server.get_state_flow(file="store.ts", target_root="missing").lower()
     monkeypatch.setattr(server, "_raw_dir_for_target", lambda _target: tmp_path)
     monkeypatch.setattr(server, "_load_json", lambda _path: {"zustand_stores": {}})
@@ -1581,7 +1737,7 @@ def test_state_flow_focus_member_endpoint_binding_is_independent_and_cached(monk
     _wire_state_focus(monkeypatch, tmp_path)
     atlas = _state_member_atlas()
     atlas["MAIN"]["files"]["store.ts"]["symbols"][0]["member_details"][0]["dependencyImports"] *= 2
-    monkeypatch.setattr(server, "_atlas", lambda **_kw: atlas)
+    monkeypatch.setattr(server, "_atlas_read", lambda *_a, **_kw: _mock_primary_atlas_read(atlas))
     calls = []
     target_state = {"drift_check_status": "match"}
     def status(_raw, ref, **kw):

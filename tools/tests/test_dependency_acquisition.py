@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,6 +38,70 @@ def _budget(*, hard: float = 1.0, stall: float = 0.2) -> dict:
         "telemetry_identifier": "dependency fixture completed",
         "basis": "fixture",
     }
+
+
+@pytest.fixture
+def acquisition_boundary(monkeypatch):
+    """Control scheduling, not progress detection or outcome classification."""
+    def install(*, marker=None, stdout="", startup_seconds=0.0):
+        state = SimpleNamespace(now=0.0, terminated=[], waited=[], joined=[])
+
+        def sleep(seconds):
+            state.now = round(state.now + seconds, 6)
+
+        class Process:
+            returncode = None
+
+            def __init__(self, command, **kwargs):
+                state.command, state.kwargs = command, kwargs
+                # Popen follows the real filesystem-signature baseline.
+                state.now += startup_seconds
+                if marker is not None:
+                    marker.parent.mkdir(parents=True)
+                    marker.write_text("{}", encoding="utf-8")
+                self.stdout, self.stderr = io.StringIO(stdout), io.StringIO()
+
+            def poll(self):
+                return self.returncode
+
+            def wait(self, timeout):
+                state.waited.append(timeout)
+                return self.returncode
+
+        class StreamThread:
+            def __init__(self, *, target, args, daemon):
+                assert daemon is True
+                self.target, self.args = target, args
+
+            def start(self):
+                # Run the real stream pump before polling; no scheduler race.
+                self.target(*self.args)
+
+            def join(self, timeout):
+                state.joined.append(timeout)
+
+        def terminate(proc):
+            state.terminated.append(proc)
+            proc.returncode = -1
+
+        original = dependency_acquisition.subprocess
+        monkeypatch.setattr(dependency_acquisition, "subprocess", SimpleNamespace(
+            Popen=Process, PIPE=original.PIPE, TimeoutExpired=original.TimeoutExpired))
+        monkeypatch.setattr(dependency_acquisition, "time", SimpleNamespace(
+            perf_counter=lambda: state.now, sleep=sleep))
+        monkeypatch.setattr(dependency_acquisition, "threading", SimpleNamespace(Thread=StreamThread))
+        monkeypatch.setattr(dependency_acquisition, "terminate_process_tree", terminate)
+        return state
+
+    return install
+
+
+def _assert_forced_cleanup(result, state):
+    assert result["returncode"] == 124
+    assert result["cleanup_status"] == "process_tree_terminated"
+    assert len(state.terminated) == 1
+    assert state.waited == [5]
+    assert state.joined == [1, 1]
 
 
 def test_dependency_budget_bootstraps_then_adapts_from_success_only():
@@ -117,7 +182,8 @@ def test_dependency_action_preserves_failure_class(message, expected):
     assert "output_excerpt" not in captured.value.result
 
 
-def test_silent_dependency_action_is_timeout_not_invented_stall():
+def test_silent_dependency_action_is_timeout_not_invented_stall(acquisition_boundary):
+    state = acquisition_boundary()
     with pytest.raises(DependencyAcquisitionError) as captured:
         execute_dependency_action(
             _action([sys.executable, "-c", "import time; time.sleep(1)"]),
@@ -128,9 +194,13 @@ def test_silent_dependency_action_is_timeout_not_invented_stall():
 
     assert captured.value.result["status"] == "TIMED_OUT"
     assert captured.value.result["progress"]["event_count"] == 0
+    assert captured.value.result["progress"]["stall_event_count"] == 0
+    assert captured.value.result["duration_seconds"] == 0.15
+    _assert_forced_cleanup(captured.value.result, state)
 
 
-def test_output_only_progress_does_not_invent_a_stall():
+def test_output_only_progress_does_not_invent_a_stall(acquisition_boundary):
+    state = acquisition_boundary(stdout="started\n")
     command = [
         sys.executable,
         "-c",
@@ -145,11 +215,15 @@ def test_output_only_progress_does_not_invent_a_stall():
         )
 
     assert captured.value.result["status"] == "TIMED_OUT"
-    assert captured.value.result["progress"]["event_count"] >= 1
+    assert captured.value.result["progress"]["event_count"] == 1
     assert captured.value.result["progress"]["stall_event_count"] == 0
+    assert captured.value.result["duration_seconds"] == 0.6
+    _assert_forced_cleanup(captured.value.result, state)
 
 
-def test_silent_dependency_action_observes_declared_runtime_path_progress(tmp_path):
+def test_silent_dependency_action_observes_declared_runtime_path_progress(tmp_path, acquisition_boundary):
+    marker = tmp_path / "node_modules/typescript/package.json"
+    state = acquisition_boundary(marker=marker)
     action = _action(
         [
             sys.executable,
@@ -176,6 +250,35 @@ def test_silent_dependency_action_observes_declared_runtime_path_progress(tmp_pa
 
     assert captured.value.result["status"] == "STALLED"
     assert "filesystem" in captured.value.result["progress"]["sources"]
+    assert captured.value.result["progress"]["event_count"] == 1
+    assert captured.value.result["progress"]["stall_event_count"] == 1
+    assert captured.value.result["duration_seconds"] == 0.12
+    assert marker.read_text(encoding="utf-8") == "{}"
+    _assert_forced_cleanup(captured.value.result, state)
+
+
+@pytest.mark.parametrize(("authority", "startup", "expected_stall_events"), [
+    ([], 0.0, 0),
+    (["filesystem"], 0.52, 1),
+])
+def test_filesystem_progress_without_an_expired_authoritative_window_is_timeout(
+    tmp_path, acquisition_boundary, authority, startup, expected_stall_events,
+):
+    state = acquisition_boundary(marker=tmp_path / "node_modules/typescript/package.json",
+                                 startup_seconds=startup)
+    action = _action([sys.executable, "-c", "pass"])
+    action.update(cwd=str(tmp_path), progress_relative_paths=["node_modules"],
+                  stall_authority_sources=authority)
+    with pytest.raises(DependencyAcquisitionError) as captured:
+        execute_dependency_action(action, budget=_budget(hard=0.6, stall=0.12),
+                                  stdout_sink=io.StringIO(), stderr_sink=io.StringIO())
+    result = captured.value.result
+    assert result["status"] == "TIMED_OUT"
+    assert result["duration_seconds"] == 0.6
+    assert result["progress"]["event_count"] == 1
+    assert result["progress"]["sources"] == ["filesystem"]
+    assert result["progress"]["stall_event_count"] == expected_stall_events
+    _assert_forced_cleanup(result, state)
 
 
 def test_missing_package_manager_is_structured_even_after_preflight():

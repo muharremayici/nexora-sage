@@ -356,8 +356,9 @@ def architecture_governance_context(
     *,
     max_projects: int = 5,
     project_ids: set[str] | None = None,
+    include_private_followup: bool = False,
 ) -> dict[str, Any]:
-    """Project Post-Atlas architecture evidence and human seal truth for agents."""
+    """Project architecture evidence; private follow-up requires caller opt-in."""
     oracle_payload = oracle if isinstance(oracle, dict) else {}
     ledger_payload = approval_ledger if isinstance(approval_ledger, dict) else {}
     effective_policy_payload = effective_policy if isinstance(effective_policy, dict) else {}
@@ -472,7 +473,7 @@ def architecture_governance_context(
         if project_ids and set(project_ids) != repository_blueprint_projects
         else "MATCHING_CONTEXT"
     )
-    return {
+    context = {
         "oracle_status": summary.get("status") or "NOT_GENERATED",
         "seal_state": "HUMAN_SEALED" if all_selected_projects_sealed else "PROPOSAL_ONLY",
         "active_seal_approvals": sealed_project_count,
@@ -503,5 +504,18 @@ def architecture_governance_context(
             "config/architecture_doctrine.json",
             "output/.raw/hitl_approval_ledger.json",
         ],
-        "mcp_tool": "get_architecture_oracle",
     }
+    if include_private_followup:
+        context["mcp_tool"] = "get_architecture_oracle"
+    else:
+        context["followup"] = {
+            "availability": "unavailable",
+            "reason": "maintainer_only",
+            "claim_boundary": (
+                "Private Oracle follow-up is unavailable to target profiles. "
+                "This does not authorize a maintainer-profile transition, policy activation or an edit. "
+                "Unavailable follow-up does not prove missing architecture evidence; "
+                "source_artifacts are provenance references, not a fallback access route."
+            ),
+        }
+    return context

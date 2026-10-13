@@ -309,6 +309,13 @@ def project_successor_selection(
     )
     human_choice_present = raw_human_choice is not None
     human_choice = raw_human_choice if isinstance(raw_human_choice, dict) else {}
+    replanning_requested = "scope_replanning" in human_choice
+    replanning = human_choice.get("scope_replanning")
+    choice_policy = policy.get("human_choice_input")
+    replanning_policy = (
+        choice_policy.get("historical_scope_replanning") or {}
+        if isinstance(choice_policy, dict) else {}
+    )
     human_choice_result = {
         "present": human_choice_present,
         "applied": False,
@@ -316,6 +323,10 @@ def project_successor_selection(
         "decided_by": str(human_choice.get("decided_by") or "") or None,
         "reason": str(human_choice.get("reason") or "") or None,
         "roadmap_phase": str(human_choice.get("roadmap_phase") or "") or None,
+        "scope_replanning_applied": False,
+        "development_baseline": (
+            replanning.get("development_baseline") if isinstance(replanning, dict) else None
+        ),
         "authority": "successor_selection_only",
     }
     authority = {
@@ -406,6 +417,13 @@ def project_successor_selection(
         tuple(int(part) for part in current_release_match.groups())
         if current_release_match else None
     )
+    replanning_bound = (
+        isinstance(replanning, dict) and replanning_policy.get("enabled") is True
+        and set(replanning) == set(replanning_policy["required_fields"])
+        and replanning.get("development_baseline") == current_product_release(roadmap_registry)
+        and "concrete_release" in active_scope and active_scope["concrete_release"] is None
+        and active_scope.get("does_not_expand_current_release_claims") is True
+    )
     preferred_releases: list[str] = []
     for release in [active_phase, *phase_order, *phases]:
         if release and release not in preferred_releases:
@@ -447,6 +465,12 @@ def project_successor_selection(
             < current_release_key
         )
         priority = str(item.get("priority") or "")
+        replanning_candidate = (
+            historical_target and replanning_bound
+            and item_id == human_choice.get("work_item_id")
+            and target_release == human_choice.get("roadmap_phase")
+            and release_status in human_choice_release_statuses
+        )
         candidates.append(
             {
                 "work_item_id": item_id,
@@ -455,6 +479,7 @@ def project_successor_selection(
                 "target_release": target_release,
                 "release_status": release_status,
                 "historical_target_release": historical_target,
+                "historical_scope_replanning_candidate": replanning_candidate,
                 "wave_id": wave_id,
                 "dependency_ready": not unsatisfied,
                 "unsatisfied_technical_dependencies": unsatisfied,
@@ -463,7 +488,8 @@ def project_successor_selection(
                     release_status in automatic_release_statuses and not historical_target
                 ),
                 "human_choice_release_scope": (
-                    release_status in human_choice_release_statuses and not historical_target
+                    release_status in human_choice_release_statuses
+                    and (not historical_target or replanning_candidate)
                 ),
                 "stable_order": {
                     "wave": wave_order.get(wave_id, len(wave_order)),
@@ -517,6 +543,15 @@ def project_successor_selection(
             for field in ("work_item_id", "decided_by", "reason"):
                 if not str(human_choice.get(field) or "").strip():
                     input_issues.append(f"missing_human_choice_{field}")
+            if replanning_requested:
+                if not isinstance(replanning, dict):
+                    input_issues.append("invalid_historical_scope_replanning_decision")
+                if replanning_policy.get("enabled") is not True:
+                    input_issues.append("historical_scope_replanning_not_enabled")
+                if not replanning_bound:
+                    input_issues.append("historical_scope_replanning_baseline_or_release_scope_mismatch")
+                if not any(row["historical_scope_replanning_candidate"] for row in candidates):
+                    input_issues.append("historical_scope_replanning_candidate_not_eligible")
     if input_issues:
         return {
             "meta": {"kind": "sage_successor_selection_projection", "version": "v1"},
@@ -563,7 +598,8 @@ def project_successor_selection(
         row for row in selection_candidates if row["dependency_ready"]
     ]
     eligible_ready = [
-        row for row in dependency_ready if not row["historical_target_release"]
+        row for row in dependency_ready
+        if not row["historical_target_release"] or row["historical_scope_replanning_candidate"]
     ]
     interrupt = [row for row in eligible_ready if row["interrupt_priority"]]
     reason_codes: list[str] = []
@@ -616,6 +652,11 @@ def project_successor_selection(
     }:
         status = "HUMAN_CHOICE_REQUIRED"
         top = pool
+        if replanning_requested:
+            best_priority = min(priority_rank[row["priority"]] for row in top)
+            top = [row for row in top if priority_rank[row["priority"]] == best_priority]
+            best_wave = min(wave_order[row["wave_id"]] for row in top)
+            top = [row for row in top if wave_order[row["wave_id"]] == best_wave]
     else:
         available_releases = {row["target_release"] for row in pool}
         selected_release = next(
@@ -683,6 +724,9 @@ def project_successor_selection(
                 if tie_choice else "attributable_human_published_carryover_scope"
             )
             human_choice_result["applied"] = True
+            if replanning_requested:
+                human_choice_result["scope_replanning_applied"] = True
+                reason_codes.append("attributable_human_historical_scope_replanning")
 
     selected = top[0] if status == "SELECTED" else None
     selected_seed = (

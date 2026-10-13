@@ -406,7 +406,7 @@ def _react_response_state_contexts(atlas_features: set[str]) -> list[tuple[str, 
     candidates: set[tuple[str, int, int]] = set()
     for feature in atlas_features:
         match = re.fullmatch(
-            r"React:ExternalResponse(StateCast|AnyState|DirectState):(\d+):(\d+)", str(feature)
+            r"React:ExternalResponse(StateCast|AnyState|DirectState|FieldState):(\d+):(\d+)", str(feature)
         )
         if match:
             candidates.add((match.group(1), int(match.group(2)), int(match.group(3))))
@@ -681,6 +681,7 @@ def analyze_runtime_intelligence_file(
             continue
         explicit_any = signal == "AnyState"
         direct_json = signal == "DirectState"
+        field_json = signal == "FieldState"
         evidence_spans = [
             {"file": normalized, "line": producer_line, "source": "typescript_syntax_ast"},
             {"file": normalized, "line": sink_line, "source": "typescript_syntax_ast"},
@@ -691,24 +692,30 @@ def analyze_runtime_intelligence_file(
                 normalized,
                 "target_runtime_schema_mutation",
                 (
-                    "external_response_direct_json_to_typed_react_state"
+                    "external_response_field_to_typed_react_state"
+                    if field_json else "external_response_direct_json_to_typed_react_state"
                     if direct_json else "external_response_any_to_typed_react_state"
                     if explicit_any else "external_response_cast_to_typed_react_state"
                 ),
                 (
-                    "syntax-AST links a direct or unannotated fetch response.json() value to a typed React state setter; local guards, runtime response validity and upstream response contracts require review"
+                    "syntax-AST links a literal fetch response.json() field selection, optionally through a literal fallback or lexical branch, to a typed React state setter; upstream adapter/schema authority, field type and runtime response validity are not established"
+                    if field_json else "syntax-AST links a direct or unannotated fetch response.json() value to a typed React state setter; local guards, runtime response validity and upstream response contracts require review"
                     if direct_json else
                     "syntax-AST links an explicitly any-typed fetch response.json() value directly to a typed React state setter; runtime response validity and upstream response contracts are not established"
                     if explicit_any else
                     "syntax-AST links fetch response.json() through an explicit type assertion to a typed React state setter; runtime response validity and upstream response contracts are not established"
                 ),
                 3,
-                "Review the exact response contract and add a target-native malformed-payload test or a dominating runtime parser before treating this state value as validated.",
+                (
+                    "Inspect the exact field path and upstream response/adapter contract before proposing a parser or edit; a literal fallback is not a type check. Seek target-native malformed-payload proof only after resolving existing validation."
+                    if field_json else "Review the exact response contract and add a target-native malformed-payload test or a dominating runtime parser before treating this state value as validated."
+                ),
                 {"static", "atlas_feature", "needs_runtime_proof"},
                 line=sink_line,
                 evidence_spans=evidence_spans,
                 evidence_scope=(
-                    "same_file_direct_json_candidate"
+                    "same_file_json_field_candidate"
+                    if field_json else "same_file_direct_json_candidate"
                     if direct_json else "same_file_explicit_any_candidate"
                     if explicit_any else "same_file_explicit_cast_candidate"
                 ),

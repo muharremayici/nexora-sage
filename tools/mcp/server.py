@@ -235,6 +235,7 @@ from tools.hitl_approval_ledger import init_ledger, record_decision, verify_ledg
 from tools.hitl_decision_requests import create_request, init_requests, update_request_status
 from tools.inspect_target import (
     AGENT_INSPECTION_MAX_TARGET_SPANS,
+    project_client_local_parser_evidence,
     project_dead_code_matches_for_file,
     render_agent_inspection_brief,
     write_inspection,
@@ -251,7 +252,7 @@ from tools.core.json_io import (
     raw_artifact_content_fingerprint,
 )
 from tools.core.artifact_freshness_contract import artifact_state_meta
-from tools.core.atlas_io import load_atlas_data
+from tools.core.atlas_io import load_atlas_data, load_atlas_data_with_identity, load_atlas_file_metadata, AtlasRead
 from tools.core.text_normalizer import deep_repair, repair_text
 from tools.core.config import DOCTRINE, ROOT as ANALYZED_REPOSITORY_ROOT
 from tools.core.doctrine_contract import require_doctrine_mapping
@@ -259,6 +260,10 @@ from tools.core.artifact_trust import build_artifact_trust_summary
 from tools.core.audit_finding_generation import (
     AUDIT_FINDINGS_FACT_ARTIFACT,
     AUDIT_FINDINGS_FACT_KEY,
+    load_audit_presentation_order,
+    audit_presentation_order_sql,
+    audit_severity_order_sql,
+    audit_presentation_summary,
     evaluate_finding_manifest,
     generation_consumer_profile,
     normalize_finding_scope_refs,
@@ -427,10 +432,15 @@ def _work_queue_brief_policy() -> dict[str, Any]:
     contract = _agent_surface_contract()
     policy = contract.get("work_queue_brief_policy") if isinstance(contract.get("work_queue_brief_policy"), dict) else {}
     max_visible_items = int(policy.get("max_visible_items") or 1) if isinstance(policy, dict) else 1
+    try:
+        presentation_order_rule = load_audit_presentation_order()["authority_rule"]
+    except (OSError, ValueError, TypeError, AttributeError):
+        presentation_order_rule = "Audit presentation descriptor unavailable; ordering is not certified by this projection."
     return {
         "max_visible_items": max(1, max_visible_items),
         "omission_field": str(policy.get("omission_field") or "omitted_work_items"),
         "agent_rule": str(policy.get("agent_rule") or "Brief projection policy is missing from config/agent_surface_contract.json."),
+        "presentation_order_rule": presentation_order_rule,
     }
 
 
@@ -773,6 +783,52 @@ def _mcp_recommended_tool_action(
             "acquire a lease or validate a patch."
         ),
     }
+
+
+def _target_primary_tool_followup(target_root: str, *, profile_id: str = "") -> dict[str, Any]:
+    """Project existing primary call templates and connection visibility, not executable calls."""
+    route: dict[str, Any] = {
+        "status": "unavailable", "tools": [], "target_root": target_root,
+        "execution_authority": "not_granted", "call_templates_are_not_bound_calls": True,
+        "argument_rule": "Bind source_ref to one intended file's exact SAGE reference and pass the unchanged target_root argument; an empty root retains the configured primary repository. Templates are not executed or complete calls.",
+        "connection_rule": "Use the current connection when callable; otherwise use a separate configured connection for the required profile bound to the same target repository. If none exists, explicitly configure it and return to the originating profile when needed. Connection availability is not inferred and must not bypass authority or freshness.",
+    }
+    if profile_id == SAGE_SELF_REALITY_PROFILE:
+        route.update(status="not_applicable", reason="SAGE-self context cannot be transferred to a target-repository connection.")
+        return route
+    readiness = _agent_surface_contract().get("ai_agent_readiness")
+    readiness = readiness if isinstance(readiness, dict) else {}
+    required_profile = str(readiness.get("default_tool_context_profile") or "").strip()
+    templates = merge_review_validation_policy()["pre_approval_tools"]
+    if not required_profile or not templates:
+        route["reason"] = "missing_primary_profile_or_call_contract"
+        return route
+    try:
+        actions = [
+            (_mcp_recommended_tool_action(row["tool"], {}, required_profile=required_profile), row["call"])
+            for row in templates
+        ]
+    except (KeyError, TypeError, ValueError):
+        route["reason"] = "invalid_primary_profile_or_call_contract"
+        return route
+    route.update(
+        status="available" if all(action["availability"] != "unavailable" for action, _ in actions) else "incomplete_evidence",
+        required_profile=required_profile, current_profile=actions[0][0]["current_profile"],
+        profile_config_command_argv=actions[0][0]["profile_config_command_argv"],
+        tools=[{"tool": action["tool"], "call_template": template,
+                "availability": action["availability"],
+                "callable_in_current_profile": action["callable_in_current_profile"],
+                "callable_in_required_profile": action["callable_in_required_profile"]}
+               for action, template in actions],
+    )
+    return route
+
+
+def _merge_review_followup_instruction(validation: dict[str, Any]) -> str:
+    calls = [str(row.get("call") or "") for row in validation.get("pre_approval_tools", []) if isinstance(row, dict)]
+    return ("Use the declared primary_tool_followup connection and bind these central call templates: "
+            + ", ".join(call for call in calls if call)
+            + ". Preserve the exact target_root before recommending an approved merge patch.")
 
 
 def _artifact_trust_blocks_actor_context(trust_summary: dict[str, Any]) -> bool:
@@ -1619,17 +1675,28 @@ def _artifact_cache_key(path: Path) -> tuple[str, str]:
     return (str(path.resolve()), raw_artifact_content_fingerprint(path))
 
 
-def _atlas(raw_dir: Path | None = None) -> dict:
+def _atlas_read(raw_dir: Path | None = None) -> AtlasRead:
+    """Return the identity/content of this actual read, never a header guess.
+
+    Revalidate each request. An old dict or same digest cannot hide corruption,
+    a backend switch, repaired shadow content or caller mutation. Endpoints in
+    this request may reuse the returned proof without another full stream.
+    """
     source_raw_dir = raw_dir or RAW_DIR
-    atlas_path = source_raw_dir / "atlas.json"
-    cache_key = _artifact_cache_key(atlas_path)
-    cached = _ATLAS_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-    atlas = load_atlas_data(source_raw_dir)
+    path = Path(source_raw_dir) / "atlas.json"
+    # Invalid reader scope is a contract error, not an unavailable primary.
+    # Keep admission separate from the verified loader's storage refusal.
+    if not is_raw_artifact_path(path):
+        raise ValueError(f"Raw artifact path must point to a .raw JSON file: {path}")
+    read = load_atlas_data_with_identity(source_raw_dir)
+    # Preserve the old cache handle for compatibility, but do not retain or
+    # recertify an exposed mutable dict. This request's AtlasRead owns reuse.
     _ATLAS_CACHE.clear()
-    _ATLAS_CACHE[cache_key] = atlas
-    return atlas
+    return read
+
+
+def _atlas(raw_dir: Path | None = None) -> dict:
+    return _atlas_read(raw_dir).data
 
 
 def _host_key(atlas: dict) -> str:
@@ -2788,6 +2855,40 @@ def _render_symbol_search_brief(
     )
 
 
+def _target_recovery_guidance(operation: str, target_root: str, profile_id: str = "") -> dict[str, Any]:
+    """Describe scoped recovery without granting authority or executing it."""
+    recovery: dict[str, Any] = {
+        "operation": operation,
+        "availability": "unavailable",
+        "reason": "refresh_tool_not_visible_in_current_connection",
+        "target_root": target_root,
+        "analysis_root": target_root or str(ANALYZED_REPOSITORY_ROOT),
+        "profile_id": profile_id,
+        "execution_authority": "not_granted",
+        "refresh_executed": False,
+        "agent_rule": "Ask an authorized operator for this exact scope; do not switch profiles, substitute artifacts or execute recovery merely because advice is present.",
+    }
+    if operation != "watchdog_pulse":
+        recovery["next_action"] = "The operator must choose analysis appropriate to the missing artifacts for this exact repository; no implicit full analysis is requested."
+        return recovery
+    if "run_watchdog_once" in getattr(mcp, "_visible_tool_names", frozenset()):
+        recovery.update(availability="available", reason="tool_visible_in_current_connection",
+            mcp_call={"tool": "run_watchdog_once", "arguments": {
+                "target_root": target_root, "profile_id": profile_id, "paths": ["<explicit source path>"]}})
+    if profile_id == SAGE_SELF_REALITY_PROFILE:
+        recovery["cli_unavailable_reason"] = "A bare CLI does not preserve the private SAGE-self actor/reality identity; use the authorized scoped operator workflow."
+    else:
+        argv = ["python", "sage.py", "watch", "--once"]
+        if target_root:
+            argv.extend(["--target-root", target_root])
+        argv.extend(["--path", "<explicit source path>"])
+        recovery["cli_manual_alternative"] = {
+            "argv": argv, "cwd": str(BASE_DIR), "execution_authority": "not_granted",
+            "scope_rule": "An authorized operator must replace the placeholder with an explicit source path; repeat --path for one explicit multi-file pulse. A directory is smoke sampling, not captured changes or repo-wide proof. Preserve the configured primary identity when target_root is empty.",
+        }
+    return recovery
+
+
 def _missing_target_artifact_brief(tool_name: str, target: str, target_root: str, missing_artifacts: list[str]) -> str:
     yaml_lines = [
         "mission:",
@@ -2799,9 +2900,9 @@ def _missing_target_artifact_brief(tool_name: str, target: str, target_root: str
         "status: missing_required_target_artifacts",
         "missing_artifacts:",
         *[f"  - {json.dumps(item, ensure_ascii=False)}" for item in missing_artifacts],
+        "recovery: " + json.dumps(_target_recovery_guidance("target_analysis", target_root), ensure_ascii=False),
         "next_step:",
-        "  - Run or refresh analysis for this exact target_root before relying on this tool.",
-        "  - If this is an external repository, call run_external_target_analysis(target_root=..., full=true).",
+        "  - Request scoped operator recovery for this exact target_root before relying on this tool; analysis has not been run by this response.",
         "do_not:",
         "  - Do not use impact, test, confidence, or upstream data from the SAGE source workspace for this target repository.",
     ]
@@ -3832,10 +3933,11 @@ def _source_grounding_status(
     drift_status = "not_available"
     current_hash = ""
     try:
+        physical_target = Path(native_filesystem_path(target_abs))
         if snapshot_status != "ok":
             drift_status = "not_available"
-        elif target_abs.exists() and target_abs.is_file() and target_abs.stat().st_size <= 2_000_000:
-            current_bytes = target_abs.read_bytes()
+        elif physical_target.exists() and physical_target.is_file() and physical_target.stat().st_size <= 2_000_000:
+            current_bytes = physical_target.read_bytes()
             current_content = current_bytes.decode("utf-8", errors="replace")
             if snapshot_hash:
                 current_hash = source_text_hash(current_content, snapshot_hash) or ""
@@ -3847,7 +3949,7 @@ def _source_grounding_status(
                     drift_status = "not_comparable_unknown_hash_algorithm"
             else:
                 drift_status = "no_snapshot_hash"
-        elif target_abs.exists() and target_abs.is_file():
+        elif physical_target.exists() and physical_target.is_file():
             drift_status = "not_checked_too_large"
         else:
             drift_status = "target_missing"
@@ -3987,7 +4089,8 @@ def _target_path_status(
     analysis_root = Path(_analysis_root_display(target_root)).resolve()
     target_abs = (analysis_root / target_rel).resolve() if target_rel else analysis_root
     inside_root = analysis_root in [target_abs, *target_abs.parents]
-    exists = inside_root and target_abs.exists() and target_abs.is_file()
+    physical_target = Path(native_filesystem_path(target_abs))
+    exists = inside_root and physical_target.exists() and physical_target.is_file()
     if not indexed and not db_exists and context.get("path_projection_status") != "unresolved":
         try:
             atlas = _atlas(raw_dir=raw_dir)
@@ -4848,7 +4951,7 @@ def _bounded_merge_evidence(values: Any, *, limit: int = 8) -> tuple[list[Any], 
     return bounded, max(0, len(rows) - len(bounded))
 
 
-def _render_merge_review_queue_brief(payload: dict[str, Any]) -> str:
+def _render_merge_review_queue_brief(payload: dict[str, Any], *, target_root: str = "") -> str:
     items = payload.get("items") if isinstance(payload.get("items"), list) else []
     target_proof = payload.get("target_proof") if isinstance(payload.get("target_proof"), dict) else {}
     cockpit_proof = target_proof.get("cockpit") if isinstance(target_proof.get("cockpit"), dict) else {}
@@ -4936,13 +5039,14 @@ def _render_merge_review_queue_brief(payload: dict[str, Any]) -> str:
             "  post_approval_tools:",
             *["    - " + json.dumps(row, ensure_ascii=False) for row in merge_validation.get("post_approval_tools", [])],
             "  completion_rule: " + json.dumps(merge_validation.get("completion_rule") or "", ensure_ascii=False),
+            "primary_tool_followup: " + json.dumps(payload.get("primary_tool_followup") or _target_primary_tool_followup(target_root), ensure_ascii=False),
         ]
     )
     yaml_lines.extend(
         [
             "do:",
             "  - Inspect source_file as read-only evidence and proposed_target_path as the MAIN target candidate before making any recommendation.",
-            "  - Use MCP follow-up calls inspect_file(target=source_ref), get_impact_radius(target_node=source_ref), and get_test_impact(target_file=source_ref) before recommending an approved merge patch.",
+            "  - " + _merge_review_followup_instruction(merge_validation),
             "  - Treat Import With Review as advisory until a human approves the exact scope.",
             "  - After human approval, use the listed MCP validation follow-up and target-repository commands for the bounded patch.",
             "do_not:",
@@ -6618,6 +6722,7 @@ def _audit_violation_work_items_from_sqlite(
         params.append(target_file)
     where_clause = " AND ".join(where)
     try:
+        presentation_order = load_audit_presentation_order()
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             table = conn.execute(
@@ -6646,19 +6751,7 @@ def _audit_violation_work_items_from_sqlite(
                 JOIN files f ON f.file_id = fi.file_id
                 JOIN projects p ON p.project_key = f.project_key
                 WHERE {where_clause}
-                ORDER BY
-                    CASE LOWER(fi.severity)
-                        WHEN 'critical' THEN 0
-                        WHEN 'enforced' THEN 0
-                        WHEN 'heal' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'warning' THEN 2
-                        WHEN 'advisory' THEN 3
-                        ELSE 4
-                    END,
-                    f.rel_path,
-                    fi.code,
-                    fi.message
+                ORDER BY {audit_presentation_order_sql(presentation_order)}
                 LIMIT ? OFFSET ?;
                 """,
                 [*params, max(1, int(page_size or 10)), max(0, (max(1, int(page or 1)) - 1) * max(1, int(page_size or 10)))],
@@ -6702,6 +6795,7 @@ def _audit_violation_work_items_from_sqlite(
                 "label": guidance.get("label") or rule_id,
                 "mode": effective_mode or "unknown",
                 "audit_severity": audit_severity or "unknown",
+                "presentation_order": audit_presentation_summary(presentation_order),
                 "governance_mode": governance_mode or "unknown",
                 "why_it_matters": guidance.get("why_it_matters"),
                 "fix_strategy": guidance.get("fix_strategy"),
@@ -6755,6 +6849,7 @@ def _module_integrity_items_from_sqlite(
         )
         params.extend([module_filter, module_filter, module_filter])
     try:
+        presentation_order = load_audit_presentation_order()
         with closing(sqlite3.connect(native_filesystem_path(db_path), timeout=float(sqlite_read_timeout_seconds()))) as conn:
             conn.row_factory = sqlite3.Row
             if qualified:
@@ -6807,15 +6902,7 @@ def _module_integrity_items_from_sqlite(
                 JOIN projects p ON p.project_key = f.project_key
                 WHERE {where_clause}
                 ORDER BY
-                    CASE LOWER(fi.severity)
-                        WHEN 'critical' THEN 0
-                        WHEN 'enforced' THEN 0
-                        WHEN 'heal' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'warning' THEN 2
-                        WHEN 'advisory' THEN 3
-                        ELSE 4
-                    END,
+                    {audit_severity_order_sql(presentation_order)},
                     p.project_key,
                     f.rel_path,
                     fi.finding_id
@@ -7240,6 +7327,7 @@ def _render_violation_work_queue_page(payload: dict[str, Any], *, visible_limit:
         f"  raw_page_items_grouped: {raw_page_items_grouped}",
         "  grouping_policy: \"Rows with the same target_ref and rule are grouped into one patch-sized work item; evidence_items preserves the grouped evidence.\"",
         "  projection_policy: " + json.dumps(brief_policy.get("agent_rule") or "", ensure_ascii=False),
+        "  presentation_order_rule: " + json.dumps(brief_policy["presentation_order_rule"], ensure_ascii=False),
         f"  page: {int(payload.get('page') or 1)}",
         f"  page_size: {int(payload.get('page_size') or len(visible_items) or 1)}",
         "coverage:",
@@ -8092,12 +8180,17 @@ def _render_operator_agent_surface_brief(surface: dict[str, Any]) -> str:
             )
     else:
         lines.append("  []")
-    machine_projection = json.dumps("get_operator_packet(format='json')", ensure_ascii=False)
+    followup = surface.get("primary_tool_followup") or _target_primary_tool_followup("")
+    machine_projection = json.dumps(
+        "get_operator_packet(format='json', target_root=" + json.dumps(followup["target_root"], ensure_ascii=False) + ")",
+        ensure_ascii=False,
+    )
     lines.extend(
         [
             "follow_up:",
             f"  machine_projection: {machine_projection}",
             '  hint: "The machine projection preserves the same target-repository boundary in structured JSON."',
+            "primary_tool_followup: " + json.dumps(followup, ensure_ascii=False),
             "do:",
             "  - Prefer get_violation_work_queue or inspect_file when a concrete target exists.",
             "  - Use this broad packet to choose a first target, then switch to target inspection and impact/test tools.",
@@ -8156,10 +8249,10 @@ def get_operator_packet(refresh: bool = False, human_report: bool = False, proje
         except ValueError as exc:
             return _invalid_external_target_brief("get_operator_packet", target_root)
         if refresh:
-            return (
-                "External target operator packet refresh is not implicit. "
-                "Run run_external_target_analysis(target_root=..., full=true) first."
-            )
+            recovery = _target_recovery_guidance("target_analysis", target_root)
+            if requested_format in {"json", "machine"}:
+                return json.dumps({"status": "external_target_refresh_not_implicit", "recovery": recovery}, indent=2, ensure_ascii=False)
+            return "External target operator packet refresh is not implicit.\nrecovery: " + json.dumps(recovery, ensure_ascii=False)
         if human_report:
             return _read_text_artifact(reports_dir / "nexora_operator_packet.md", "External target operator packet report not found.")
         packet = _load_json(raw_dir / "nexora_operator_packet.json")
@@ -8169,9 +8262,11 @@ def get_operator_packet(refresh: bool = False, human_report: bool = False, proje
             return json.dumps(packet, indent=2, ensure_ascii=False)
         agent_surface = packet.get("target_repository_agent_surface")
         if not isinstance(agent_surface, dict):
-            return "Target repository agent surface not found in external target operator packet. Refresh external target analysis first."
+            return _missing_target_artifact_brief("get_operator_packet", "target_repository_agent_surface", target_root,
+                ["nexora_operator_packet.json:target_repository_agent_surface"])
         compact_surface = dict(agent_surface)
         compact_surface["analysis_root"] = _analysis_root_display(target_root)
+        compact_surface["primary_tool_followup"] = _target_primary_tool_followup(target_root)
         directives = agent_surface.get("directives")
         if isinstance(directives, list):
             max_directives = 3
@@ -8205,6 +8300,7 @@ def get_operator_packet(refresh: bool = False, human_report: bool = False, proje
     if not isinstance(agent_surface, dict):
         return "Target repository agent surface not found in operator packet. Refresh the operator packet first."
     compact_surface = dict(agent_surface)
+    compact_surface["primary_tool_followup"] = _target_primary_tool_followup(target_root)
     directives = agent_surface.get("directives")
     if isinstance(directives, list):
         max_directives = 3
@@ -8458,8 +8554,10 @@ def get_watchdog_session(human_report: bool = False, target_root: str = "", prof
             fail_closed_reason="invalid_watchdog_target_scope",
         )
 
+    recovery = _target_recovery_guidance("watchdog_pulse", resolved_target_root, profile_id)
     if human_report:
-        return _done(_read_text_artifact(reports_dir / "watchdog_session.md", "Watchdog session report not found. Run `python sage.py watch --once` first."))
+        return _done(_read_text_artifact(reports_dir / "watchdog_session.md",
+            "Watchdog session report not found.\nrecovery: " + json.dumps(recovery, ensure_ascii=False)))
     if not (raw_dir / "watchdog_session.json").exists():
         return _done("\n".join(
             [
@@ -8468,8 +8566,8 @@ def get_watchdog_session(human_report: bool = False, target_root: str = "", prof
                 "```yaml",
                 "status: missing_watchdog_session",
                 "meaning: \"No live watchdog pulse has been persisted for this workspace.\"",
-                "next_step: \"Run run_watchdog_once(path?), run_watchdog_once(paths=[...]), or python sage.py watch --once --path <file-or-directory> when live-change context is required.\"",
-                "next_action: \"Repeat --path or use paths=[...] for one explicit multi-file pulse; use one directory only for smoke sampling.\"",
+                "recovery: " + json.dumps(recovery, ensure_ascii=False),
+                "next_step: \"Request one explicitly scoped pulse through recovery guidance when live-change context is required; this read has not refreshed the session.\"",
                 "do_not:",
                 "  - Do not infer that the repository has no active risk from a missing watchdog session.",
                 "  - Do not fall back to stale active-signal or unrelated target artifacts.",
@@ -8559,6 +8657,8 @@ def get_watchdog_session(human_report: bool = False, target_root: str = "", prof
     yaml_lines = [
         "status: " + session_status,
         "meaning: \"Latest persisted watchdog pulse is save-time context, not repo-wide release proof.\"",
+        "recovery: " + json.dumps(recovery, ensure_ascii=False),
+        "primary_tool_followup: " + json.dumps(_target_primary_tool_followup(resolved_target_root, profile_id=profile_id), ensure_ascii=False),
         "execution_identity:",
         "  status: " + json.dumps(identity_status, ensure_ascii=False),
         "  missing_fields: " + json.dumps(missing_identity_fields, ensure_ascii=False),
@@ -8571,7 +8671,7 @@ def get_watchdog_session(human_report: bool = False, target_root: str = "", prof
         "  pulse_ledger_source: " + json.dumps("external_watchdog_pulse_ledger_json" if external_ledger_is_newer else "embedded_watchdog_session", ensure_ascii=False),
         f"  pulse_ledger_newer_than_session: {str(external_ledger_is_newer).lower()}",
         "  agent_rule: " + json.dumps(
-            "If session_currentness is stale_against_pulse_ledger, treat violations_sample as historical and run run_watchdog_once(path?) before acting on live-save context."
+            "If session_currentness is stale_against_pulse_ledger, treat violations_sample as historical and request scoped recovery before acting on live-save context."
             if external_ledger_is_newer
             else "This is the latest watchdog_session artifact; still treat it as save-time context, not release proof.",
             ensure_ascii=False,
@@ -8644,13 +8744,13 @@ def get_watchdog_session(human_report: bool = False, target_root: str = "", prof
         yaml_lines.append("    []")
     yaml_lines.extend(
         [
-            "next_step: \"If session_currentness is stale_against_pulse_ledger, run run_watchdog_once(path?) or run_watchdog_once(paths=[...]) before using this as current context; otherwise use input_files_sample or violations_sample within the declared input_origin and run deeper proof before repo-wide claims.\"",
+            "next_step: \"If session_currentness is stale_against_pulse_ledger, request an explicitly scoped refresh through recovery guidance before using this as current context; otherwise use input_files_sample or violations_sample within the declared input_origin and run deeper proof before repo-wide claims.\"",
             "do:",
             "  - Treat smoke_sample input as synthetic validation scope, never as a captured filesystem change.",
             "  - Treat filesystem_event input as bounded live-change context only.",
             "  - If scope_decision_status is operator_confirmation_required, inspect the held scope evidence before starting an explicit analysis.",
             "  - Check watchdog_pulse_ledger.unresolved_unread_count before starting another edit.",
-            "  - Use inspect_file, get_impact_radius, and get_test_impact before editing a listed file.",
+            "  - Use the declared primary_tool_followup connection for target inspection/impact/test templates before editing; unavailable or not-applicable guidance does not permit a profile bypass.",
             "  - Refresh broader proof before claiming repository-wide health.",
             "do_not:",
             "  - Do not treat historical violations_sample items as current when session_currentness is stale_against_pulse_ledger.",
@@ -9016,12 +9116,115 @@ def inspect_file(
         )
         if payload.get("one_shot_edit_ready"):
             payload.pop("agent_action", None)
+    status = payload.get("target_path_status") if isinstance(payload.get("target_path_status"), dict) else {}
+    contexts = payload.get("target_file_context") if isinstance(payload.get("target_file_context"), list) else []
+    file_info = None
+    metadata_reason = "exact_indexed_file_metadata_unavailable"
+    if len(contexts) == 1 and isinstance(contexts[0], dict):
+        context = contexts[0]
+        project = str(context.get("project_key") or context.get("project") or "")
+        atlas_rel = str(context.get("file") or "")
+        repo_rel = str(context.get("repo_relative_path") or context.get("workspace_rel") or "")
+        if (project and atlas_rel and repo_rel
+                and context.get("atlas_node") == f"{project}::{atlas_rel}"
+                and status.get("target_ref") == f"{project}::{repo_rel}"):
+            try:
+                # A warm mutable Atlas dict is not a current verified read.
+                file_info = load_atlas_file_metadata(raw_dir, project, atlas_rel)
+                metadata_reason = "primary_file_metadata_missing_or_unbound"
+            except Exception as exc:
+                metadata_reason = "primary_file_metadata_read_failed"
+                try:
+                    from tools.core.honesty_telemetry import record_honesty_event
+
+                    record_honesty_event(component="mcp.server", category="storage_fallback",
+                        operation="inspect_file_local_result_metadata", subject=f"{project}::{atlas_rel}",
+                        reason="Stored Atlas metadata could not be read for this exact inspection target.",
+                        fallback="unavailable_local_result_projection", claim_impact="local_result_evidence_unavailable",
+                        exception=exc)
+                except Exception:
+                    pass
+    candidate_cache = {}
+    def parser_source_candidate(record):
+        binding = record["import_binding"]
+        key = (binding["source"], binding["imported_name"], binding["local_name"])
+        if key not in candidate_cache:
+            candidate_cache[key] = _imported_parser_source_candidate(
+                raw_dir, file_info, record, project, target_root)
+        return candidate_cache[key]
+    local_syntax = project_client_local_parser_evidence(file_info, status, source_candidate=parser_source_candidate)
+    if file_info is None:
+        for section in local_syntax.values():
+            section["reason"] = metadata_reason
+    payload.update(local_syntax)
     requested_format = str(format or "brief").strip().lower()
     if requested_format in {"brief", "md", "markdown"}:
         return render_agent_inspection_brief(payload)
     if requested_format in {"brief_debug", "debug"}:
         return render_agent_inspection_brief(payload, debug=True)
     return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+def _imported_parser_source_candidate(raw_dir: Path, caller: dict, record: dict,
+                                      project: str, target_root: str) -> dict:
+    """One indexed direct export, using exact primary reads; never chase barrels."""
+    from tools.core.state_flow import _focus_relative_path, _focus_storage_direct_export
+
+    result = {"status": "unresolved", "reason": "module_resolution_unavailable",
+              "source_binding": "unavailable", "relation": "named_import_direct_variable_export_candidate"}
+    binding = record["import_binding"]
+    imports = caller.get("import_records")
+    budget = _state_flow_brief_policy()["focus_scan_limit"]
+    if not isinstance(imports, list):
+        return result
+    if len(imports) > budget:
+        return {**result, "reason": "module_resolution_scan_budget_exhausted"}
+    matches = [row for row in imports if isinstance(row, dict)
+               and row.get("raw_source") == binding["source"]]
+    if (not matches or any(not isinstance(row.get("source"), str) or not row["source"] for row in matches)
+            or not any(row.get("name") == binding["imported_name"] and row.get("kind") == "named" for row in matches)):
+        return {**result, "reason": "module_resolution_missing_or_invalid"}
+    resolved = {row["source"] for row in matches}
+    if len(resolved) != 1:
+        return {**result, "reason": "module_resolution_not_unique"}
+    ref = next(iter(resolved)).replace("\\", "/")
+    if "::" not in ref:
+        ref = f"{project}::{ref}"
+    prefix, _, rel = ref.partition("::")
+    if prefix != project or not _focus_relative_path(rel):
+        return {**result, "reason": "module_outside_exact_project"}
+    try:
+        info = load_atlas_file_metadata(raw_dir, project, rel)
+        parser = info.get("parser_evidence") if isinstance(info, dict) else None
+        if (not isinstance(info, dict) or info.get("ast_contract_version") != caller.get("ast_contract_version")
+                or not isinstance(parser, dict) or parser.get("status") != "observed"
+                or not _focus_relative_path(info.get("workspace_rel"))):
+            return {**result, "reason": "target_metadata_missing_or_unbound"}
+        target = {"atlas_ref": ref, "target_file": info["workspace_rel"], "source_hash": info.get("hash")}
+        candidate = _focus_storage_direct_export({"target": target,
+            "reference": {"importedName": binding["imported_name"]}}, {rel: info}, project, budget)
+        if candidate["status"] != "target_candidate":
+            return {**result, "reason": candidate["reason"]}
+        target = candidate["target"]
+        if type(info.get("loc")) is not int or target["end_line"] > info["loc"]:
+            return {**result, "reason": "target_symbol_span_outside_source"}
+        bound = _state_flow_endpoint_binding(raw_dir, target, target_root, binding["imported_name"])
+        if bound["source_binding"] != "snapshot_and_live_match":
+            return {**result, "reason": "target_source_binding_unavailable", "source_binding": bound["source_binding"]}
+        return {**result, "status": "source_candidate", "reason": "direct_export_source_orientation_only",
+                "source_binding": bound["source_binding"], "target": target,
+                "source_followup": {"tool": "inspect_file", "file_path": ref,
+                    "line_start": target["start_line"], "line_end": target["end_line"]}}
+    except Exception as exc:
+        try:
+            from tools.core.honesty_telemetry import record_honesty_event
+            record_honesty_event(component="mcp.server", category="storage_fallback",
+                operation="inspect_file_imported_parser_candidate", subject=ref,
+                reason="Exact imported parser source candidate could not be bound.",
+                fallback="unresolved_source_candidate", claim_impact="source_candidate_unavailable", exception=exc)
+        except Exception:
+            pass
+        return {**result, "reason": "target_primary_read_or_binding_failed"}
 
 
 @mcp.tool()
@@ -9036,6 +9239,7 @@ def inspect_folder(folder_path: str, format: str = "brief", target_root: str = "
     payload["analysis_root"] = _analysis_root_display(target_root)
     _add_agent_inspection_path_fields(payload)
     _add_inspection_grounding_status(payload, raw_dir, folder_path, "folder", target_root=target_root)
+    payload["primary_tool_followup"] = _target_primary_tool_followup(target_root)
     requested_format = str(format or "brief").strip().lower()
     if requested_format in {"brief", "md", "markdown"}:
         return render_agent_inspection_brief(payload)
@@ -9935,12 +10139,14 @@ def _default_agent_scope_allows(value: Any, *, target_root: str = "", explicit_f
 
 
 def _state_flow_endpoint_binding(raw_dir: Path, target: dict, target_root: str,
-                                 preferred_symbol: str = "") -> dict:
+                                 preferred_symbol: str = "", *, status_cache=None) -> dict:
     """File content identity only; never promotes a lexical/call relationship."""
     status = _target_path_status(
         raw_dir, target["atlas_ref"], target_root=target_root,
         preferred_symbols={preferred_symbol} if preferred_symbol else None,
     )
+    if status_cache is not None:
+        status_cache[target["atlas_ref"]] = status
     exact_identity = (
         status.get("resolved_node") == target["atlas_ref"]
         and status.get("target_file") == target["target_file"]
@@ -9963,9 +10169,32 @@ def _state_flow_endpoint_binding(raw_dir: Path, target: dict, target_root: str,
     }
 
 
+def _state_flow_jsx_primary_record_matches(raw_dir: Path, endpoint: dict, record: dict,
+                                            cache: dict, *, atlas_read: AtlasRead | None = None) -> bool:
+    """Reuse verified selected-file primary access; a shadow cannot certify facts."""
+    ref = endpoint.get("atlas_ref")
+    if ref not in cache:
+        try:
+            project, separator, rel = ref.partition("::") if isinstance(ref, str) else ("", "", "")
+            cache[ref] = ((atlas_read.file_metadata(project, rel) if atlas_read is not None
+                           else load_atlas_file_metadata(raw_dir, project, rel)) if separator else None)
+        except Exception as exc:
+            from tools.core.honesty_telemetry import record_honesty_event
+            record_honesty_event(component="mcp.server", category="storage_fallback",
+                operation="state_flow_jsx_primary_binding", subject=str(ref),
+                reason="Exact JSX endpoint primary metadata could not be verified.",
+                fallback="unavailable_source_candidate", claim_impact="jsx_source_binding_unavailable", exception=exc)
+            cache[ref] = None
+    return isinstance(cache[ref], dict) and cache[ref] == record
+
+
 def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                         max_items: int, target_root: str) -> dict[str, Any]:
-    from tools.core.state_flow import project_state_flow_focus
+    from tools.core.state_flow import (project_state_flow_focus, _focus_local_arrow_result_uses,
+                                      _focus_local_arrow_sibling_calls, _focus_jsx_prop_callbacks,
+                                      _focus_returned_local_callbacks, _focus_call_result_property_bindings,
+                                      _focus_call_result_alias_invocations, _focus_parameter_config_callbacks,
+                                      _focus_returned_callback_parameter_optional, _focus_returned_callback_parameter_context)
 
     policy = _state_flow_brief_policy()
     limit = min(max(1, int(max_items)), policy["focus_max_items"])
@@ -9974,15 +10203,51 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
     # The query owns selector validation. Reuse it before materializing the
     # potentially large Atlas; an invalid selector cannot need stored evidence.
     selector_probe = project_state_flow_focus({}, **focus_args)
-    result = (selector_probe if selector_probe["status"] == "invalid_selector"
-              else project_state_flow_focus(_atlas(raw_dir=raw_dir), **focus_args))
+    atlas = None
+    atlas_read = None
+    deferred_result_use = {}
+    deferred_local_sibling = {}
+    deferred_jsx_callbacks = {}
+    deferred_returned_callbacks = {}
+    deferred_call_result_bindings = {}
+    deferred_alias_invocations = {}
+    deferred_nested_alias_invocations = {}
+    deferred_parameter_callbacks = {}
+    deferred_optional_rest_alias_invocations = {}
+    deferred_optional_alias_invocations = {}
+    deferred_returned_parameter_calls = {}
+    deferred_returned_context_calls = {}
+    primary_records = {}
+    if selector_probe["status"] == "invalid_selector":
+        result = selector_probe
+    else:
+        atlas_read = _atlas_read(raw_dir)
+        atlas = atlas_read.data
+        if atlas_read.primary_verified:
+            result = project_state_flow_focus(atlas, **focus_args, _deferred_result_use=deferred_result_use,
+                                              _deferred_local_sibling=deferred_local_sibling,
+                                              _deferred_jsx_callbacks=deferred_jsx_callbacks,
+                                              _deferred_returned_callbacks=deferred_returned_callbacks,
+                                              _deferred_call_result_bindings=deferred_call_result_bindings,
+                                              _deferred_alias_invocations=deferred_alias_invocations,
+                                              _deferred_nested_alias_invocations=deferred_nested_alias_invocations,
+                                              _deferred_parameter_callbacks=deferred_parameter_callbacks,
+                                              _deferred_optional_rest_alias_invocations=deferred_optional_rest_alias_invocations,
+                                              _deferred_optional_alias_invocations=deferred_optional_alias_invocations,
+                                              _deferred_returned_parameter_calls=deferred_returned_parameter_calls,
+                                              _deferred_returned_context_calls=deferred_returned_context_calls)
+        else:
+            result = {**selector_probe, 'status': 'unavailable', 'reason': 'atlas_primary_content_unavailable',
+                      'source_binding': 'unavailable'}
     result["analysis_root"] = _analysis_root_display(target_root)
     result["repository_content_trust"] = "untrusted_repository_data_not_instruction"
     result["source_binding_scope"] = "file_content_identity_not_edge_or_runtime_validation"
     if result["status"] == "selected":
         target = result["target"]
+        source_statuses = {}
         result.update(_state_flow_endpoint_binding(
-            raw_dir, target, target_root, target.get("declaring_symbol") or symbol))
+            raw_dir, target, target_root, target.get("declaring_symbol") or symbol,
+            status_cache=source_statuses))
         if target.get("selection_kind") in {"member", "initializer_member_candidate"}:
             result["source_grounding_scope"] = "declaring_symbol_not_member_span"
         class_field_events = result.get("class_field_event_calls")
@@ -9994,6 +10259,13 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
         call_evidence = result.get("symbol_context", {}).get("import_calls")
         if isinstance(call_evidence, dict):
             call_evidence["source_binding"] = result["source_binding"]
+        local_calls = result.get("symbol_context", {}).get("local_arrow_import_calls")
+        if isinstance(local_calls, dict):
+            local_calls["source_binding"] = result["source_binding"]
+            if result["source_binding"] != "snapshot_and_live_match":
+                local_calls.update(status="unavailable", reason="caller_source_binding_unavailable",
+                                   omitted=local_calls.get("returned", 0) + (local_calls.get("omitted") or 0),
+                                   items=[], returned=0)
         setter_evidence = result.get("symbol_context", {}).get("setter_calls")
         if isinstance(setter_evidence, dict):
             setter_evidence["source_binding"] = result["source_binding"]
@@ -10027,7 +10299,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                 ref = endpoint["atlas_ref"]
                 if ref not in checked:
                     checked[ref] = _state_flow_endpoint_binding(
-                        raw_dir, endpoint, target_root, candidate.get("caller_symbol", ""))["source_binding"]
+                        raw_dir, endpoint, target_root, candidate.get("caller_symbol", ""),
+                        status_cache=source_statuses)["source_binding"]
                 candidate["source_binding"] = checked[ref]
                 candidate["endpoint_content_binding"] = (
                     "both_snapshot_and_live_match"
@@ -10040,7 +10313,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
             endpoint = candidate["target"]
             ref = endpoint["atlas_ref"]
             if ref not in checked:
-                checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root,
+                    status_cache=source_statuses)["source_binding"]
             candidate["source_binding"] = checked[ref]
             candidate["endpoint_content_binding"] = (
                 "both_snapshot_and_live_match"
@@ -10054,7 +10328,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                 endpoint = storage["target"]
                 ref = endpoint["atlas_ref"]
                 if ref not in checked:
-                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root,
+                        status_cache=source_statuses)["source_binding"]
                 storage["target_source_binding"] = checked[ref]
                 storage["endpoint_content_binding"] = (
                     "both_snapshot_and_live_match"
@@ -10071,8 +10346,10 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
             if hydration.get("status") == "source_candidate" and result["source_binding"] != "snapshot_and_live_match":
                 hydration.update(status="unavailable", reason="selected_source_not_currently_bound")
                 hydration.pop("skip_hydration", None)
-        callees = result.get("direct_callees")
-        if isinstance(callees, dict):
+        for callee_lane in ("direct_callees", "local_arrow_import_callees"):
+            callees = result.get(callee_lane)
+            if not isinstance(callees, dict):
+                continue
             callees["source_binding"] = result["source_binding"]
             for candidate in callees.get("items", []):
                 if candidate.get("status") != "target_candidate":
@@ -10080,7 +10357,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                 endpoint = candidate["target"]
                 ref = endpoint["atlas_ref"]
                 if ref not in checked:
-                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root,
+                        status_cache=source_statuses)["source_binding"]
                 candidate["source_binding"] = checked[ref]
                 candidate["endpoint_content_binding"] = (
                     "both_snapshot_and_live_match"
@@ -10091,7 +10369,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                 endpoint = context["target"]
                 ref = endpoint["atlas_ref"]
                 if ref not in checked:
-                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root)["source_binding"]
+                    checked[ref] = _state_flow_endpoint_binding(raw_dir, endpoint, target_root,
+                        status_cache=source_statuses)["source_binding"]
                 context["source_binding"] = checked[ref]
                 context["endpoint_content_binding"] = (
                     "both_snapshot_and_live_match"
@@ -10099,6 +10378,28 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                     else "not_currently_bound"
                 )
                 context["import_calls"]["source_binding"] = checked[ref]
+                from tools.inspect_target import _project_response_json_return_evidence
+                from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
+                caller_rel = target["atlas_ref"].split("::", 1)[1]
+                adapter_project, adapter_rel = ref.split("::", 1)
+                files = atlas.get(adapter_project, {}).get("files", {}) if isinstance(atlas, dict) else {}
+                info = files.get(adapter_rel) if isinstance(files, dict) else None
+                caller_info = files.get(caller_rel) if isinstance(files, dict) else None
+                metadata = info.get("response_json_return_evidence") if isinstance(info, dict) else None
+                records = metadata.get("records") if isinstance(metadata, dict) else None
+                remaining = max(0, policy["focus_scan_limit"] - result["visited_records"])
+                projected = _project_response_json_return_evidence(info, source_statuses.get(ref, {}),
+                    selected_target=endpoint, scan_limit=remaining)
+                if isinstance(records, list) and len(records) <= remaining:
+                    result["visited_records"] += len(records)
+                if (result["source_binding"] != "snapshot_and_live_match"
+                        or checked[ref] != "snapshot_and_live_match"
+                        or not isinstance(caller_info, dict)
+                        or caller_info.get("ast_contract_version") != AST_CONTRACT_VERSION):
+                    projected.update(status="unavailable", reason="caller_or_adapter_source_binding_unavailable",
+                                     records=[], shown=0, source_binding="unavailable",
+                                     omitted=projected.get("record_count"))
+                context["response_json_return_evidence"] = projected
                 outbound = context.get("outbound_calls")
                 if isinstance(outbound, dict):
                     outbound["source_binding"] = checked[ref]
@@ -10109,7 +10410,7 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                         next_ref = next_target["atlas_ref"]
                         if next_ref not in checked:
                             checked[next_ref] = _state_flow_endpoint_binding(
-                                raw_dir, next_target, target_root)["source_binding"]
+                                raw_dir, next_target, target_root, status_cache=source_statuses)["source_binding"]
                         candidate["source_binding"] = checked[next_ref]
                         candidate["endpoint_content_binding"] = (
                             "all_three_snapshot_and_live_match"
@@ -10122,7 +10423,639 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
             else "Refresh or verify the selected source before relying on this stored orientation."
         )
     else:
-        result["next_action"] = "Choose an exact project/file/symbol or refresh missing evidence; do not infer absence."
+        result["next_action"] = (
+            'Refresh verified primary Atlas evidence; unavailable is not absence proof.'
+            if result.get('reason') == 'atlas_primary_content_unavailable' else
+            "Choose an exact project/file/symbol or refresh missing evidence; do not infer absence.")
+    # Added source orientation shares the existing packet allowance. Omit an
+    # entire exact row/candidate rather than slicing a path or byte span.
+    for lane_name in ("local_arrow_import_callees", "direct_callees"):
+        lane = result.get(lane_name)
+        if not isinstance(lane, dict):
+            continue
+        for context in reversed(lane.get("target_symbol_contexts", [])):
+            projected = context.get("response_json_return_evidence")
+            if (isinstance(projected, dict) and projected.get("records")
+                    and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                        budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass"):
+                projected.update(status="unavailable", reason="focus_return_context_budget_exhausted",
+                                 records=[], shown=0, omitted=projected.get("record_count"))
+    if context_budget_profile(json.dumps(result, ensure_ascii=False),
+            budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+        for lane in (result.get("local_arrow_import_callees"),
+                     result.get("symbol_context", {}).get("local_arrow_import_calls")):
+            if isinstance(lane, dict):
+                lane.update(status="unavailable", reason="focus_local_arrow_context_budget_exhausted",
+                            omitted=lane.get("returned", 0) + (lane.get("omitted") or 0), items=[], returned=0)
+                if "target_symbol_contexts" in lane:
+                    lane["target_symbol_contexts"] = []
+    if deferred_result_use and result["status"] == "selected":
+        context = result["symbol_context"]
+        usage = _focus_local_arrow_result_uses(deferred_result_use["record"], deferred_result_use["symbol"],
+            limit, policy["focus_scan_limit"] - result["visited_records"],
+            context.get("local_arrow_import_calls", {}), result.get("local_arrow_import_callees", {}))
+        result["visited_records"] += usage["visited_records"]
+        usage["source_binding"] = result["source_binding"]
+        if result["source_binding"] != "snapshot_and_live_match":
+            usage.update(status="unavailable", reason="caller_source_binding_unavailable",
+                         omitted=usage["returned"] + (usage["omitted"] or 0), items=[], returned=0)
+        for item in usage["items"]:
+            association = item["callee_orientation"]
+            if (association.get("status") == "target_candidate"
+                    and association.get("endpoint_content_binding") != "both_snapshot_and_live_match"):
+                item["callee_orientation"] = {"status": "unresolved", "reason": "callee_source_binding_unavailable"}
+        context["local_arrow_result_uses"] = usage
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            usage.update(status="unavailable", reason="focus_result_use_context_budget_exhausted",
+                         omitted=usage["returned"] + (usage["omitted"] or 0), items=[], returned=0)
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                context.pop("local_arrow_result_uses")
+                result["next_action"] = (
+                    f"Result-use detail omitted by packet budget ({usage['omitted']} rows); inspect source, not absence.")
+    if deferred_local_sibling and result["status"] == "selected":
+        context = result["symbol_context"]
+        lane = _focus_local_arrow_sibling_calls(deferred_local_sibling["record"], deferred_local_sibling["symbol"],
+            limit, policy["focus_scan_limit"] - result["visited_records"])
+        result["visited_records"] += lane["visited_records"]
+        lane["source_binding"] = result["source_binding"]
+        if result["source_binding"] != "snapshot_and_live_match":
+            lane.update(status="unavailable", reason="local_sibling_source_binding_unavailable",
+                        omitted=lane["returned"] + (lane["omitted"] or 0), items=[], returned=0)
+        context["local_arrow_sibling_calls"] = lane
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane.update(status="unavailable", reason="focus_local_sibling_context_budget_exhausted",
+                        omitted=lane["returned"] + (lane["omitted"] or 0), items=[], returned=0)
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                context.pop("local_arrow_sibling_calls")
+                result["next_action"] = (
+                    f"Result-use ({usage['omitted']}) and local-sibling ({lane['omitted']}) detail omitted by budget; inspect source, not absence."
+                    if deferred_result_use and "local_arrow_result_uses" not in context else
+                    f"Local-sibling detail omitted by packet budget ({lane['omitted']} rows); inspect source, not absence.")
+    if deferred_jsx_callbacks and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        parent_current = result["source_binding"] == "snapshot_and_live_match"
+        if parent_current and remaining_scan > 0:
+            result["visited_records"] += 1
+        parent_primary = (parent_current and remaining_scan > 0 and _state_flow_jsx_primary_record_matches(
+            raw_dir, result["target"], deferred_jsx_callbacks["record"], primary_records, atlas_read=atlas_read))
+        if parent_primary:
+            lane = _focus_jsx_prop_callbacks(
+                deferred_jsx_callbacks["record"], deferred_jsx_callbacks["symbol"],
+                deferred_jsx_callbacks["imports"], deferred_jsx_callbacks["files"],
+                deferred_jsx_callbacks["project"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            lane = {"status": "incomplete_scan" if parent_current and remaining_scan <= 0 else "unavailable",
+                    "reason": "jsx_callback_scan_budget_exhausted" if parent_current and remaining_scan <= 0 else
+                              "jsx_parent_primary_evidence_unavailable" if parent_current else
+                              "jsx_parent_source_binding_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established"}
+        if parent_current and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        for item in lane["items"]:
+            child = item["child"]
+            if child["status"] != "source_candidate":
+                continue
+            endpoint = child["target"]
+            ref = endpoint["atlas_ref"]
+            rel = ref.split("::", 1)[1]
+            if ref not in primary_records:
+                if result["visited_records"] >= policy["focus_scan_limit"]:
+                    child.update(status="incomplete_scan", reason="jsx_primary_check_budget_exhausted",
+                                 omitted=child["returned"] + (child["omitted"] or 0), items=[], returned=0)
+                    lane.update(status="incomplete_scan", reason="jsx_primary_check_budget_exhausted")
+                    continue
+                result["visited_records"] += 1
+                lane["visited_records"] += 1
+            child_primary = _state_flow_jsx_primary_record_matches(
+                raw_dir, endpoint, deferred_jsx_callbacks["files"].get(rel), primary_records, atlas_read=atlas_read)
+            if ref not in checked:
+                checked[ref] = _state_flow_endpoint_binding(
+                    raw_dir, endpoint, target_root, endpoint["symbol"], status_cache=source_statuses)["source_binding"]
+            child["source_binding"] = checked[ref]
+            if not child_primary or checked[ref] != "snapshot_and_live_match":
+                child.update(status="unavailable", reason="jsx_child_primary_evidence_unavailable" if not child_primary
+                             else "jsx_child_source_binding_unavailable",
+                             omitted=child["returned"] + (child["omitted"] or 0), items=[], returned=0,
+                             endpoint_content_binding="not_currently_bound")
+            else:
+                child["endpoint_content_binding"] = "both_snapshot_and_live_match"
+        context["jsx_prop_callbacks"] = lane
+        # Additive lane settles last. Keep each source row whole, preserve prior
+        # omissions, and never use a token cap as an absence claim.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_jsx_callback_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("jsx_prop_callbacks")
+            result["next_action"] += " JSX callback detail omitted by packet budget; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                if deferred_result_use and "local_arrow_result_uses" not in context:
+                    prior_omissions.append("Result-use")
+                if deferred_local_sibling and "local_arrow_sibling_calls" not in context:
+                    prior_omissions.append("local-sibling")
+                result["next_action"] = (
+                    ", ".join(prior_omissions + ["JSX callback detail omitted"]) +
+                    " by packet budget; inspect source, not absence.")
+                if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                        budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                    # Leave room for growth of the shared visit counter too;
+                    # restoring the old action alone could add one token.
+                    result["next_action"] = (
+                        "Omitted: " + ", ".join(prior_omissions + ["JSX"]) + "; no absence proof.")
+    if deferred_returned_callbacks and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_returned_callbacks["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_returned_local_callbacks(deferred_returned_callbacks["record"],
+                deferred_returned_callbacks["symbol"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "returned_callback_scan_budget_exhausted" if exhausted else
+                              "returned_callback_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callback_activation": "not_established", "schema_validity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["returned_local_callbacks"] = lane
+        # Settle last: do not displace existing rows or erase their omission disclosures.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_returned_callback_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("returned_local_callbacks")
+            result["next_action"] += " Returned callback detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = (
+                    "Omitted: " + ", ".join(prior_omissions + ["returned callback"]) + "; no absence proof.")
+    if deferred_call_result_bindings and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_call_result_bindings["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_call_result_property_bindings(deferred_call_result_bindings["record"],
+                deferred_call_result_bindings["symbol"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "call_result_binding_scan_budget_exhausted" if exhausted else
+                              "call_result_binding_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["call_result_property_bindings"] = lane
+        # This new lane settles after every older lane and uses their remaining budgets.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_call_result_binding_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("call_result_property_bindings")
+            result["next_action"] += " Call-result binding detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = (
+                    "Omitted: " + ", ".join(prior_omissions + ["call-result binding"]) + "; no absence proof.")
+    if deferred_alias_invocations and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_alias_invocations["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_call_result_alias_invocations(deferred_alias_invocations["record"],
+                deferred_alias_invocations["symbol"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "alias_invocation_scan_budget_exhausted" if exhausted else
+                              "alias_invocation_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["call_result_alias_invocations"] = lane
+        # Settle only this new detail after all older lanes under their remaining budget.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_alias_invocation_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("call_result_alias_invocations")
+            result["next_action"] += " Alias invocation detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "call-result binding")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = (
+                    "Omitted: " + ", ".join(prior_omissions + ["alias invocation"]) + "; no absence proof.")
+    if deferred_nested_alias_invocations and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_nested_alias_invocations["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_call_result_alias_invocations(deferred_nested_alias_invocations["record"],
+                deferred_nested_alias_invocations["symbol"], limit,
+                policy["focus_scan_limit"] - result["visited_records"], _nested=True)
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "nested_alias_scan_budget_exhausted" if exhausted else "nested_alias_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established",
+                    "callback_registration": "not_established", "effective_object_property": "not_established",
+                    "container_callee_identity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["call_result_nested_callback_alias_invocations"] = lane
+        # Additive source detail settles last: preserve older evidence and disclosures.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_nested_alias_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("call_result_nested_callback_alias_invocations")
+            result["next_action"] += " Nested alias detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "call-result binding"),
+                        (deferred_alias_invocations, "call_result_alias_invocations", "alias invocation")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = "Omitted: " + ", ".join(prior_omissions + ["nested alias"]) + "; no absence proof."
+    if deferred_parameter_callbacks and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_parameter_callbacks["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_parameter_config_callbacks(deferred_parameter_callbacks["record"],
+                deferred_parameter_callbacks["symbol"], limit,
+                policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "parameter_callback_scan_budget_exhausted" if exhausted else "parameter_callback_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established",
+                    "callback_registration": "not_established", "effective_object_property": "not_established",
+                    "container_callee_identity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["parameter_config_callback_forwardings"] = lane
+        # Later parameter provenance cannot displace older detail or its omissions.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_parameter_callback_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("parameter_config_callback_forwardings")
+            result["next_action"] += " Parameter callback detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "call-result binding"),
+                        (deferred_alias_invocations, "call_result_alias_invocations", "alias invocation"),
+                        (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested alias")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = "Omitted: " + ", ".join(prior_omissions + ["parameter callback"]) + "; no absence proof."
+    if deferred_optional_rest_alias_invocations and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_optional_rest_alias_invocations["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_call_result_alias_invocations(deferred_optional_rest_alias_invocations["record"],
+                deferred_optional_rest_alias_invocations["symbol"], limit,
+                policy["focus_scan_limit"] - result["visited_records"], _optional_rest=True)
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "optional_rest_alias_scan_budget_exhausted" if exhausted else "optional_rest_alias_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established",
+                    "callback_registration": "not_established", "effective_object_property": "not_established",
+                    "container_callee_identity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["call_result_optional_rest_alias_invocations"] = lane
+        # Imported result provenance stays separate and cannot displace earlier detail.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_optional_rest_alias_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("call_result_optional_rest_alias_invocations")
+            result["next_action"] += " Optional/rest alias detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "call-result binding"),
+                        (deferred_alias_invocations, "call_result_alias_invocations", "alias invocation"),
+                        (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested alias"),
+                        (deferred_parameter_callbacks, "parameter_config_callback_forwardings", "parameter callback")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = "Omitted " + "/".join(prior_omissions + ["optional/rest"]) + "; no absence."
+    if deferred_optional_alias_invocations and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_optional_alias_invocations["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_call_result_alias_invocations(deferred_optional_alias_invocations["record"],
+                deferred_optional_alias_invocations["symbol"], limit,
+                policy["focus_scan_limit"] - result["visited_records"], _optional=True)
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "optional_alias_scan_budget_exhausted" if exhausted else "optional_alias_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established",
+                    "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established",
+                    "callback_registration": "not_established", "effective_object_property": "not_established",
+                    "container_callee_identity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        context["call_result_optional_alias_invocations"] = lane
+        # Direct optional syntax stays separate and cannot displace earlier detail.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_optional_alias_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop("call_result_optional_alias_invocations")
+            result["next_action"] += " Direct optional alias detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "call-result binding"),
+                        (deferred_alias_invocations, "call_result_alias_invocations", "alias invocation"),
+                        (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested alias"),
+                        (deferred_parameter_callbacks, "parameter_config_callback_forwardings", "parameter callback"),
+                        (deferred_optional_rest_alias_invocations, "call_result_optional_rest_alias_invocations", "optional/rest")):
+                    if deferred and key not in context:
+                        prior_omissions.append(label)
+                result["next_action"] = "Omitted " + "/".join(prior_omissions + ["direct optional"]) + "; no absence."
+    if deferred_returned_parameter_calls and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+                   and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                       deferred_returned_parameter_calls["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0:
+            result["visited_records"] += 1
+        if primary:
+            lane = _focus_returned_callback_parameter_optional(deferred_returned_parameter_calls["record"],
+                deferred_returned_parameter_calls["symbol"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                    "reason": "returned_parameter_scan_budget_exhausted" if exhausted else "returned_parameter_primary_or_source_unavailable",
+                    "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                    "runtime_execution": "not_established", "value_transfer": "not_established", "callability": "not_established",
+                    "callback_activation": "not_established", "schema_validity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0:
+            lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        key = "returned_callback_parameter_optional_calls"
+        context[key] = lane
+        # Settle last: additive detail cannot displace any older evidence or its omissions.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_returned_parameter_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop(key)
+            result["next_action"] += " Returned parameter detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                prior_omissions = []
+                for deferred, old_key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "Result-use"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "local-sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "call-result binding"),
+                        (deferred_alias_invocations, "call_result_alias_invocations", "alias invocation"),
+                        (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested alias"),
+                        (deferred_parameter_callbacks, "parameter_config_callback_forwardings", "parameter callback"),
+                        (deferred_optional_rest_alias_invocations, "call_result_optional_rest_alias_invocations", "optional/rest"),
+                        (deferred_optional_alias_invocations, "call_result_optional_alias_invocations", "direct optional")):
+                    if deferred and old_key not in context: prior_omissions.append(label)
+                short_labels = {"Result-use": "result", "local-sibling": "sibling",
+                                "call-result binding": "binding", "alias invocation": "alias", "nested alias": "nested"}
+                result["next_action"] = "Omit " + "/".join(
+                    short_labels.get(label, label) for label in prior_omissions + ["returned parameter"]) + "; no absence."
+    if deferred_returned_context_calls and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+            and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                deferred_returned_context_calls["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0: result["visited_records"] += 1
+        if primary:
+            lane = _focus_returned_callback_parameter_context(deferred_returned_context_calls["record"],
+                deferred_returned_context_calls["symbol"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                "reason": "returned_context_scan_budget_exhausted" if exhausted else "returned_context_primary_or_source_unavailable",
+                "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                "runtime_execution": "not_established", "value_transfer": "not_established", "callability": "not_established",
+                "callback_activation": "not_established", "schema_validity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0: lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        key = "returned_callback_parameter_context_calls"
+        context[key] = lane
+        # This lane settles after every pre-existing lane; drop its whole rows first.
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop()
+            lane["returned"] -= 1
+            lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_returned_context_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop(key)
+            result["next_action"] += " Contextual callback detail omitted; inspect source, not absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                omissions = []
+                for deferred, old_key, label in (
+                        (deferred_result_use, "local_arrow_result_uses", "result"),
+                        (deferred_local_sibling, "local_arrow_sibling_calls", "sibling"),
+                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                        (deferred_call_result_bindings, "call_result_property_bindings", "binding"),
+                        (deferred_alias_invocations, "call_result_alias_invocations", "alias"),
+                        (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested"),
+                        (deferred_parameter_callbacks, "parameter_config_callback_forwardings", "parameter callback"),
+                        (deferred_optional_rest_alias_invocations, "call_result_optional_rest_alias_invocations", "optional/rest"),
+                        (deferred_optional_alias_invocations, "call_result_optional_alias_invocations", "direct optional"),
+                        (deferred_returned_parameter_calls, "returned_callback_parameter_optional_calls", "returned parameter")):
+                    if deferred and old_key not in context: omissions.append(label)
+                short_labels = {"parameter callback": "param-cb", "optional/rest": "opt/rest", "direct optional": "direct-opt"}
+                result["next_action"] = "Omit " + "/".join(short_labels.get(label, label)
+                    for label in omissions + ["context"]) + "; no absence."
     return result
 
 
@@ -10419,7 +11352,7 @@ def get_merge_review_queue(action: str = "Import With Review", max_items: int = 
             "claim_boundary": "The target proof could not be constructed; no merge candidate or approval inference is available.",
         }
         rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload)
+        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload, target_root=target_root)
     proof_summary = proof.get("summary") if isinstance(proof.get("summary"), dict) else {}
     proof_verdict = str(proof_summary.get("verdict") or "UNKNOWN")
     cockpit_evidence = next(
@@ -10492,7 +11425,7 @@ def get_merge_review_queue(action: str = "Import With Review", max_items: int = 
             "claim_boundary": "No merge candidate is served from missing, stale, blocked or target-unbound evidence.",
         }
         rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload)
+        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload, target_root=target_root)
 
     path = raw_dir / "merge_decision_cockpit.json"
     if not path.exists():
@@ -10513,7 +11446,7 @@ def get_merge_review_queue(action: str = "Import With Review", max_items: int = 
             "claim_boundary": "The proof-to-read race invalidated the decision-support context; no merge candidate is served.",
         }
         rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload)
+        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload, target_root=target_root)
     data = _load_json(path) or {}
     from tools.core.analysis_snapshot_lineage import payload_sha256
 
@@ -10536,7 +11469,7 @@ def get_merge_review_queue(action: str = "Import With Review", max_items: int = 
             "claim_boundary": "The proof-to-read content identity changed; no merge candidate is served.",
         }
         rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload)
+        return rendered if requested_format in {"json", "machine"} else _render_merge_review_queue_brief(payload, target_root=target_root)
     all_rows = data.get("decisions") if isinstance(data, dict) else []
     all_rows = all_rows if isinstance(all_rows, list) else []
     rows = list(all_rows)
@@ -10610,9 +11543,10 @@ def get_merge_review_queue(action: str = "Import With Review", max_items: int = 
             "mutation_allowed_by_this_packet": False,
         },
         "validation": merge_validation,
+        "primary_tool_followup": _target_primary_tool_followup(target_root),
         "do": [
             "Inspect source_file as read-only evidence and proposed_target_path as the MAIN target candidate before making any recommendation.",
-            "Use MCP follow-up calls inspect_file(target=source_ref), get_impact_radius(target_node=source_ref), and get_test_impact(target_file=source_ref) before recommending an approved merge patch.",
+            _merge_review_followup_instruction(merge_validation),
             "Treat Import With Review as advisory until a human approves the exact scope.",
             "After human approval, use the listed MCP validation follow-up and target-repository commands for the bounded patch.",
         ],
@@ -10626,7 +11560,7 @@ def get_merge_review_queue(action: str = "Import With Review", max_items: int = 
     }
     if requested_format in {"json", "machine"}:
         return json.dumps(payload, indent=2, ensure_ascii=False)
-    return _render_merge_review_queue_brief(payload)
+    return _render_merge_review_queue_brief(payload, target_root=target_root)
 
 
 @mcp.tool()
@@ -11645,7 +12579,7 @@ def trace_upstream_cause(target_node: str, target_root: str = "", format: str = 
         if result is None:
             resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_node)
             trace_target = resolved_node or target_node
-            result = build_upstream_trace(trace_target, circular_deps, signals)
+            result = build_upstream_trace(trace_target, circular_deps, signals, raw_dir=raw_dir)
         else:
             resolved_node, context = _resolve_target_node_from_raw(raw_dir, target_node)
         if isinstance(result, dict):

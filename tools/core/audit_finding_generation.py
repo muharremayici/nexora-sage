@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import heapq
 import json
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -13,6 +15,106 @@ AUDIT_FINDINGS_FACT_KEY = "manifest"
 GENERATION_COMPOSITION_CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "config" / "artifact_freshness_contract.json"
 )
+AUDIT_PRESENTATION_CONTRACT_PATH = (
+    Path(__file__).resolve().parents[2] / "config" / "agent_surface_contract.json"
+)
+
+
+def audit_finding_severity(violation: Mapping[str, Any]) -> str:
+    """Preserve the relational producer's precedence; do not infer policy severity."""
+    return str(violation.get("mode") or violation.get("severity") or violation.get("level") or "unknown")
+
+
+def audit_finding_code(violation: Mapping[str, Any]) -> str:
+    return str(violation.get("rule") or "architecture_violation")
+
+
+def canonical_audit_finding_message(violation: Mapping[str, Any]) -> str:
+    return json.dumps(violation, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def load_audit_presentation_order() -> dict[str, Any]:
+    """Load the one presentation descriptor; invalid policy has no local fallback."""
+    payload = json.loads(AUDIT_PRESENTATION_CONTRACT_PATH.read_text(encoding="utf-8"))
+    order = payload.get("work_queue_brief_policy", {}).get("audit_presentation_order")
+    if not isinstance(order, dict) or order.get("version") != "v1" or order.get("basis") != "presentation_only":
+        raise ValueError("Audit presentation descriptor is missing or unsupported.")
+    keys = order.get("keys")
+    if (not isinstance(keys, list) or len(keys) != 4
+        or keys[0] != "stored_row_level_tier" or keys[1] != "indexed_rel_path_binary"
+        or keys[2] != "rule_code_binary" or keys[3] != "canonical_stored_finding_json_binary"):
+        raise ValueError("Audit presentation descriptor has unsupported sort keys.")
+    authority_rule = order.get("authority_rule")
+    if not isinstance(authority_rule, str) or not authority_rule.strip():
+        raise ValueError("Audit presentation descriptor requires an explicit authority boundary.")
+    tiers = order.get("severity_tiers")
+    unknown = order.get("unknown_tier")
+    if (not isinstance(tiers, dict) or not tiers or type(unknown) is not int
+        or any(not isinstance(k, str) or not re.fullmatch(r"[a-z_]+", k)
+            or type(v) is not int or v < 0 for k,v in tiers.items())
+        or unknown <= max(tiers.values())):
+        raise ValueError("Audit presentation tiers must be safe literals with an explicit last unknown tier.")
+    return order
+
+
+def audit_severity_order_sql(order: Mapping[str, Any]) -> str:
+    """Only validated policy literals enter SQL; user filters remain parameters."""
+    clauses = " ".join(f"WHEN '{name}' THEN {rank}" for name,rank in order["severity_tiers"].items())
+    return f"CASE LOWER(fi.severity) {clauses} ELSE {order['unknown_tier']} END"
+
+
+def audit_presentation_order_sql(order: Mapping[str, Any]) -> str:
+    return f"{audit_severity_order_sql(order)}, f.rel_path COLLATE BINARY, fi.code COLLATE BINARY, fi.message COLLATE BINARY"
+
+
+def audit_presentation_summary(order: Mapping[str, Any]) -> dict[str, Any]:
+    return {"status":"applied", "basis":order["basis"], "keys":list(order["keys"]),
+        "policy_sha256":hashlib.sha256(canonical_audit_finding_message(order).encode("utf-8")).hexdigest(),
+        "unknown_row_level":"preserved", "causal_relation":"not_evaluated",
+        "candidate_universe_equality":"not_evaluated",
+        "meaning":"Presentation order only; not root-cause priority, equal coverage or mutation authority."}
+
+
+class _AuditPresentationKey:
+    """Compare whole-row JSON lazily, only after the cheaper fields tie."""
+    __slots__ = ("prefix", "row", "message")
+
+    def __init__(self, row: Mapping[str, Any], order: Mapping[str, Any]) -> None:
+        self.prefix = (order["severity_tiers"].get(audit_finding_severity(row).lower(), order["unknown_tier"]),
+            row["atlas_rel_path"], audit_finding_code(row))
+        self.row = row
+        self.message: str | None = None
+
+    def _message(self) -> str:
+        if self.message is None:
+            self.message = canonical_audit_finding_message(self.row)
+        return self.message
+
+    def __lt__(self, other: _AuditPresentationKey) -> bool:
+        if self.prefix != other.prefix:
+            return self.prefix < other.prefix
+        return self._message() < other._message()
+
+
+def select_audit_presentation_rows(
+    rows: list[dict[str, Any]], *, limit: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Rank already scoped producer rows before capping, without resolving target paths."""
+    unavailable = {"status":"unavailable", "basis":"presentation_only",
+        "causal_relation":"not_evaluated", "candidate_universe_equality":"not_evaluated"}
+    try:
+        order = load_audit_presentation_order()
+    except (OSError, ValueError, TypeError, AttributeError):
+        return rows[:limit], {**unavailable, "reason":"invalid_or_missing_presentation_descriptor; existing input order retained"}
+    for row in rows:
+        path = row.get("atlas_rel_path")
+        project = str(row.get("project_key") or row.get("project") or "").strip()
+        if (not project or not isinstance(path, str) or not path or path != path.strip()
+            or "\\" in path or ":" in path or path.startswith("/")
+            or any(part in {"", ".", ".."} for part in path.split("/"))):
+            return rows[:limit], {**unavailable, "reason":"producer_recorded_indexed_identity_unavailable; existing input order retained"}
+    selected = heapq.nsmallest(limit, rows, key=lambda row: _AuditPresentationKey(row, order))
+    return selected, audit_presentation_summary(order)
 
 
 def load_generation_composition_contract() -> dict[str, Any]:

@@ -17,6 +17,31 @@ if str(_ROOT) not in sys.path:
 
 from tools.core.config import CONFIG_FILE, ROOT, RAW_DIR, SOURCE_EXTENSIONS, SKIP_DIRS, normalize_path, ensure_output_dir, save_json_atomic, DYNAMIC_CONFIG
 from tools.core.artifact_validator import ensure_valid_payload
+from tools.core.atlas_ast_contract import (
+    _call_result_alias_invocation_record_valid,
+    _direct_optional_alias_record_valid,
+    _nested_callback_alias_record_valid,
+    _optional_rest_alias_record_valid,
+    PARAMETER_CONFIG_CALLBACK_VERSION,
+    PARAMETER_CONFIG_CALLBACK_ROLES,
+    _parameter_config_callback_record_valid,
+    RETURNED_PARAMETER_OPTIONAL_VERSION,
+    RETURNED_CALLBACK_ANCHOR_FIELDS,
+    RETURNED_CALLBACK_ANCHOR_ROLES,
+    _returned_parameter_anchor,
+    _returned_parameter_optional_record_valid,
+    RETURNED_PARAMETER_CONTEXT_VERSION,
+    RETURNED_PARAMETER_CONTEXT_VARIANTS,
+    RETURNED_PARAMETER_CONTEXT_COMMON_ROLES,
+    _returned_parameter_context_roles,
+    _returned_parameter_context_record_valid,
+    AST_CONTRACT_VERSION,
+    _jsx_callback_record_valid,
+    _call_result_property_binding_record_valid,
+    _returned_local_callback_record_valid,
+    _local_arrow_sibling_record_valid,
+    _local_arrow_result_use_record_valid,
+)
 from tools.core.json_io import load_json_file, raw_artifact_content_fingerprint
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
 from tools.core.polyglot_imports import (
@@ -84,7 +109,6 @@ class SizeBoundedDict(dict):
 
 
 GLOBAL_ATLAS_CACHE = SizeBoundedDict(max_size=10)
-AST_CONTRACT_VERSION = "v18.29-repository-collection-read-return-review"
 PYTHON_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_python.py"
 JAVA_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_java.py"
 CS_SEQUENCER = Path(__file__).resolve().parent / "ast_sequencer_cs.py"
@@ -545,6 +569,8 @@ def _normalize_polyglot_symbol(
     utf16_offset_map=None,
     normalization_profile_context=None,
     canonical_type_cache=None,
+    local_call_context=None,
+    jsx_import_context=None,
 ) -> Dict:
     """Normalize TS/JS and polyglot sequencer outputs into the Atlas symbol contract."""
     name = str(raw_symbol.get("name") or "anonymous")
@@ -691,6 +717,9 @@ def _normalize_polyglot_symbol(
     features = raw_symbol.get("features", [])
     if not isinstance(features, list):
         features = []
+    returned_anchor = (_normalize_returned_local_callbacks(
+        raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context)
+        if "returned_local_callback_evidence" in raw_symbol else None)
 
     return {
         "name": name,
@@ -724,7 +753,19 @@ def _normalize_polyglot_symbol(
         "members": raw_symbol.get("members", []) if isinstance(raw_symbol.get("members", []), list) else [],
         "member_details": raw_symbol.get("memberDetails", raw_symbol.get("member_details", [])),
         "initializer_member_evidence": raw_symbol.get("initializerMemberEvidence", raw_symbol.get("initializer_member_evidence")),
-        "import_call_evidence": raw_symbol.get("import_call_evidence"),
+        "import_call_evidence": ({key: value for key, value in raw_symbol["import_call_evidence"].items()
+            if key not in {"local_arrow_import_call_evidence", "local_arrow_result_use_evidence"}}
+            if isinstance(raw_symbol.get("import_call_evidence"), dict) else raw_symbol.get("import_call_evidence")),
+        **({"response_json_callable_kind": raw_symbol["responseJsonCallableKind"]}
+           if compiler_offsets and "responseJsonCallableKind" in raw_symbol else {}),
+        **({"local_arrow_import_call_evidence": _normalize_local_arrow_import_calls(
+            raw_symbol, content, utf16_offset_map, local_call_context)}
+           if isinstance(raw_symbol.get("import_call_evidence"), dict)
+           and "local_arrow_import_call_evidence" in raw_symbol["import_call_evidence"] else {}),
+        **({"local_arrow_result_use_evidence": _normalize_local_arrow_import_calls(
+            raw_symbol, content, utf16_offset_map, local_call_context, result_use=True)}
+           if isinstance(raw_symbol.get("import_call_evidence"), dict)
+           and "local_arrow_result_use_evidence" in raw_symbol["import_call_evidence"] else {}),
         **({"event_emitter_singleton_evidence": raw_symbol["event_emitter_singleton_evidence"]}
            if isinstance(raw_symbol.get("event_emitter_singleton_evidence"), dict) else {}),
         **({"factory_source_evidence": raw_symbol["factory_source_evidence"]}
@@ -735,6 +776,40 @@ def _normalize_polyglot_symbol(
            if isinstance(raw_symbol.get("same_file_store_action_call_evidence"), dict) else {}),
         **({"same_file_direct_call_evidence": raw_symbol["same_file_direct_call_evidence"]}
            if isinstance(raw_symbol.get("same_file_direct_call_evidence"), dict) else {}),
+        **({"local_arrow_sibling_call_evidence": _normalize_local_arrow_sibling_calls(
+            raw_symbol, content, utf16_offset_map, local_call_context)}
+           if "local_arrow_sibling_call_evidence" in raw_symbol else {}),
+        **({"returned_local_callback_evidence": returned_anchor}
+           if "returned_local_callback_evidence" in raw_symbol else {}),
+        **({"returned_callback_parameter_optional_call_evidence": _normalize_returned_callback_parameter_optional(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context,
+            _normalized_anchor=returned_anchor)}
+           if "returned_callback_parameter_optional_call_evidence" in raw_symbol else {}),
+        **({"returned_callback_parameter_context_call_evidence": _normalize_returned_callback_parameter_context(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context,
+            _normalized_anchor=returned_anchor)}
+           if "returned_callback_parameter_context_call_evidence" in raw_symbol else {}),
+        **({"call_result_property_binding_evidence": _normalize_call_result_property_bindings(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context)}
+           if "call_result_property_binding_evidence" in raw_symbol else {}),
+        **({"call_result_alias_invocation_evidence": _normalize_call_result_alias_invocations(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context)}
+           if "call_result_alias_invocation_evidence" in raw_symbol else {}),
+        **({"call_result_optional_alias_invocation_evidence": _normalize_call_result_alias_invocations(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context, _optional=True)}
+           if "call_result_optional_alias_invocation_evidence" in raw_symbol else {}),
+        **({"call_result_nested_callback_alias_invocation_evidence": _normalize_call_result_alias_invocations(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context, _nested=True)}
+           if "call_result_nested_callback_alias_invocation_evidence" in raw_symbol else {}),
+        **({"parameter_config_callback_forwarding_evidence": _normalize_parameter_config_callbacks(
+            raw_symbol, content, utf16_offset_map, local_call_context)}
+           if "parameter_config_callback_forwarding_evidence" in raw_symbol else {}),
+        **({"call_result_optional_rest_alias_invocation_evidence": _normalize_call_result_alias_invocations(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context, _optional_rest=True)}
+           if "call_result_optional_rest_alias_invocation_evidence" in raw_symbol else {}),
+        **{key: _normalize_jsx_callback_evidence(raw_symbol, content, key, utf16_offset_map, local_call_context,
+                                               import_context=jsx_import_context)
+           for key in ("jsx_prop_callback_evidence", "jsx_parameter_callback_call_evidence") if key in raw_symbol},
         **({"store_hook_selector_evidence": raw_symbol["store_hook_selector_evidence"]}
            if isinstance(raw_symbol.get("store_hook_selector_evidence"), dict) else {}),
         "module_specifier": raw_symbol.get("moduleSpecifier", raw_symbol.get("module_specifier", "")),
@@ -762,6 +837,7 @@ def _normalize_polyglot_symbols(
     if not raw_symbols:
         return []
     requested_offsets = []
+    has_local_calls = False
     if language in {"typescript", "javascript"}:
         for raw_symbol in raw_symbols:
             if not isinstance(raw_symbol, dict):
@@ -778,8 +854,72 @@ def _normalize_polyglot_symbols(
                 except (TypeError, ValueError):
                     # Preserve the canonical per-symbol validation error.
                     continue
+            call_evidence = raw_symbol.get("import_call_evidence")
+            for key in ("jsx_prop_callback_evidence", "jsx_parameter_callback_call_evidence"):
+                lane = raw_symbol.get(key)
+                if not isinstance(lane, dict):
+                    continue
+                has_local_calls = True
+                records = lane.get("records")
+                if isinstance(records, list) and len(records) <= 64:
+                    for row in records:
+                        spans = row.get("spans") if isinstance(row, dict) else None
+                        if isinstance(spans, dict) and len(spans) <= 14:
+                            for span in spans.values():
+                                if isinstance(span, dict):
+                                    requested_offsets.extend(span[field] for field in ("start", "end")
+                                        if type(span.get(field)) is int)
+            for lane, roles in (("local_arrow_import_call_evidence", 5), ("local_arrow_result_use_evidence", 12),
+                                ("local_arrow_sibling_call_evidence", 9), ("returned_local_callback_evidence", 18),
+                                ("returned_callback_parameter_optional_call_evidence", 35),
+                                ("returned_callback_parameter_context_call_evidence", None),
+                                ("call_result_property_binding_evidence", 14), ("call_result_alias_invocation_evidence", 17),
+                                ("call_result_optional_alias_invocation_evidence", 18),
+                                ("call_result_nested_callback_alias_invocation_evidence", 25),
+                                ("parameter_config_callback_forwarding_evidence", 27),
+                                ("call_result_optional_rest_alias_invocation_evidence", 29)):
+                parent = raw_symbol if lane in {"local_arrow_sibling_call_evidence", "returned_local_callback_evidence",
+                                               "returned_callback_parameter_optional_call_evidence",
+                                               "returned_callback_parameter_context_call_evidence",
+                                               "call_result_property_binding_evidence", "call_result_alias_invocation_evidence",
+                                               "call_result_optional_alias_invocation_evidence",
+                                               "call_result_nested_callback_alias_invocation_evidence",
+                                               "parameter_config_callback_forwarding_evidence",
+                                               "call_result_optional_rest_alias_invocation_evidence"} else call_evidence
+                local_calls = parent.get(lane) if isinstance(parent, dict) else None
+                if isinstance(local_calls, dict):
+                    has_local_calls = True
+                    records = local_calls.get("records")
+                    if isinstance(records, list) and len(records) <= 64:
+                        for row in records:
+                            spans = row.get("spans") if isinstance(row, dict) else None
+                            if isinstance(spans, dict) and (len(spans) == roles if roles is not None else
+                                    set(spans) == (_returned_parameter_context_roles(row) or set())):
+                                for span in spans.values():
+                                    if isinstance(span, dict):
+                                        requested_offsets.extend(span[key] for key in ("start", "end")
+                                            if type(span.get(key)) is int)
 
     offset_map = _utf16_offsets_to_utf8_byte_offsets(content, requested_offsets)
+    # Reuse native direct-import identity; do not parse imports or resolve modules again.
+    jsx_import_context = None
+    metas = [row for row in raw_symbols if isinstance(row, dict) and row.get("name") == "__file_meta__"]
+    bindings = metas[0].get("directImportBindings") if len(metas) == 1 else None
+    if (len(metas) == 1 and metas[0].get("parserStatus") == "observed"
+            and isinstance(bindings, list) and len(bindings) <= 10000):
+        jsx_import_context = {}
+        for binding in bindings:
+            if (not isinstance(binding, dict)
+                    or any(not isinstance(binding.get(key), str) or not binding[key]
+                           for key in ("source", "localName", "importedName", "kind", "bindingScope"))
+                    or type(binding.get("typeOnly")) is not bool
+                    or any(type(binding.get(key)) is not int for key in ("line", "endLine"))):
+                jsx_import_context = None
+                break
+            identity_key = tuple(binding[key] for key in ("source", "localName", "importedName", "kind", "typeOnly", "bindingScope", "line", "endLine"))
+            jsx_import_context[identity_key] = jsx_import_context.get(identity_key, 0) + 1
+    local_call_context = (hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                          _native_utf16_span_validator(content)) if has_local_calls else None
     if normalization_profile_context is None:
         normalization_profile_context = normalization_profile_for_language(language)
     if canonical_type_cache is None:
@@ -792,6 +932,8 @@ def _normalize_polyglot_symbols(
             utf16_offset_map=offset_map,
             normalization_profile_context=normalization_profile_context,
             canonical_type_cache=canonical_type_cache,
+            local_call_context=local_call_context,
+            jsx_import_context=jsx_import_context,
         )
         for raw_symbol in raw_symbols
     ]
@@ -943,6 +1085,776 @@ def _structured_output_evidence(raw_results) -> Dict[str, object]:
         "candidates": candidates,
         "omitted": omitted,
     }
+
+
+def _native_utf16_span_validator(content: str):
+    """Validate parser spans before the existing batch byte-offset conversion."""
+    encoded = content.encode("utf-16-le")
+    length = len(encoded) // 2
+    # ECMAScript line terminators; CRLF contributes one completed break.
+    breaks = [index for index in range(length)
+              if encoded[index * 2:index * 2 + 2] in {b"\n\x00", b"\r\x00", b"\x28\x20", b"\x29\x20"}
+              and not (encoded[index * 2:index * 2 + 4] == b"\r\x00\n\x00")]
+
+    def valid_span(span, expected_text=None, quoted=False):
+        if (not isinstance(span, dict) or set(span) != {"start", "end", "line", "end_line"}
+                or any(type(value) is not int for value in span.values())
+                or not 0 <= span["start"] < span["end"] <= length):
+            return False
+        for offset in (span["start"], span["end"]):
+            if offset < length and 0xDC00 <= int.from_bytes(encoded[offset * 2:offset * 2 + 2], "little") <= 0xDFFF:
+                return False
+        if (span["line"] != bisect_left(breaks, span["start"]) + 1
+                or span["end_line"] != bisect_left(breaks, span["end"] - 1) + 1):
+            return False
+        if expected_text is not None:
+            token = encoded[span["start"] * 2:span["end"] * 2].decode("utf-16-le")
+            if quoted:
+                # Finite literal path grammar: no JS escape interpretation here.
+                if len(token) < 2 or token[0] not in {"'", '"'} or token[-1] != token[0] or "\\" in token:
+                    return False
+                token = token[1:-1]
+            if token != expected_text:
+                return False
+        return True
+
+    return valid_span
+
+
+
+
+def _normalize_jsx_callback_evidence(raw_symbol, content, key, offset_map=None, context=None, *, import_context=None):
+    """Use the file's shared native span/hash context and batch byte map."""
+    child = key == "jsx_parameter_callback_call_evidence"
+    version = "v1-jsx-object-parameter-inline-call" if child else "v1-jsx-named-import-const-arrow-prop"
+    base = {"status": "unavailable", "version": version, "offset_unit": "utf8_bytes",
+            "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None,
+            "records": [], "omitted": None, "runtime_execution": "not_established"}
+    evidence = raw_symbol.get(key)
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    if (not isinstance(evidence, dict)
+            or set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != version or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "jsx_callback_contract_or_identity_invalid"}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _jsx_callback_record_valid(row, outer, valid_span, child=child, source_span_validator=valid_span):
+            return {**base, "reason": "jsx_callback_record_or_spans_invalid"}
+        if not child:
+            binding = row["spans"]["import_binding"]
+            identity_key = (row["source"], row["localName"], row["importedName"], "named", False,
+                            "file_top_level_import_declaration", binding["line"], binding["end_line"])
+            if not isinstance(import_context, dict) or import_context.get(identity_key) != 1:
+                return {**base, "reason": "jsx_callback_direct_import_identity_unavailable"}
+        site = row["spans"]["call" if child else "attribute"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**base, "reason": "jsx_callback_duplicate"}
+        seen.add(unique)
+    offsets = [span[field] for row in evidence["records"] for span in row["spans"].values() for field in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "jsx_callback_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+def _normalize_call_result_property_bindings(raw_symbol, content, offset_map=None, context=None, *, import_context=None):
+    """Reuse the native source/import identity and one file-level UTF16 conversion."""
+    base = {"status": "unavailable", "version": "v1-direct-named-import-const-object-binding",
+            "offset_unit": "utf8_bytes", "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None,
+            "records": [], "omitted": None, "runtime_execution": "not_established"}
+    evidence = raw_symbol.get("call_result_property_binding_evidence")
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    if (not isinstance(evidence, dict)
+            or set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "call_result_binding_contract_or_identity_invalid"}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _call_result_property_binding_record_valid(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "call_result_binding_record_or_spans_invalid"}
+        binding = row["spans"]["import_binding"]
+        import_key = (row["source"], row["localName"], row["importedName"], "named", False,
+                      "file_top_level_import_declaration", binding["line"], binding["end_line"])
+        if not isinstance(import_context, dict) or import_context.get(import_key) != 1:
+            return {**base, "reason": "call_result_binding_direct_import_identity_unavailable"}
+        site = row["spans"]["binding_element"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**base, "reason": "call_result_binding_duplicate"}
+        seen.add(unique)
+    offsets = [span[key] for row in evidence["records"] for span in row["spans"].values() for key in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "call_result_binding_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+
+
+
+
+
+
+def _normalize_call_result_alias_invocations(raw_symbol, content, offset_map=None, context=None, *, import_context=None, _nested=False, _optional_rest=False, _optional=False):
+    """Normalize source-only call sites with the existing batched offsets/import identity."""
+    version = "v1-literal-object-arrow-const-property-alias-invocation" if _nested else "v1-immediate-const-property-alias-invocation"
+    validator = _nested_callback_alias_record_valid if _nested else _call_result_alias_invocation_record_valid
+    key = "call_result_nested_callback_alias_invocation_evidence" if _nested else "call_result_alias_invocation_evidence"
+    if _optional:
+        version = "v1-immediate-const-property-optional-alias-invocation"
+        validator = _direct_optional_alias_record_valid
+        key = "call_result_optional_alias_invocation_evidence"
+    if _optional_rest:
+        version = "v1-import-result-object-callback-optional-rest-alias"
+        validator = _optional_rest_alias_record_valid
+        key = "call_result_optional_rest_alias_invocation_evidence"
+    base = {"status": "unavailable", "version": version,
+            "offset_unit": "utf8_bytes", "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None,
+            "records": [], "omitted": None, "runtime_execution": "not_established"}
+    evidence = raw_symbol.get(key)
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    if (not isinstance(evidence, dict)
+            or set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "alias_invocation_contract_or_identity_invalid"}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not validator(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "alias_invocation_record_or_spans_invalid"}
+        binding = row["spans"]["import_binding"]
+        import_key = (row["source"], row["localName"], row["importedName"], "named", False,
+                      "file_top_level_import_declaration", binding["line"], binding["end_line"])
+        if not isinstance(import_context, dict) or import_context.get(import_key) != 1:
+            return {**base, "reason": "alias_invocation_direct_import_identity_unavailable"}
+        site = row["spans"]["invocation"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**base, "reason": "alias_invocation_duplicate"}
+        seen.add(unique)
+    offsets = [span[key] for row in evidence["records"] for span in row["spans"].values() for key in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "alias_invocation_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+
+
+def _normalize_parameter_config_callbacks(raw_symbol, content, offset_map=None, context=None):
+    """Additive source lane reusing one file coordinate conversion; no import repair."""
+    base = {"status": "unavailable", "version": PARAMETER_CONFIG_CALLBACK_VERSION,
+            "offset_unit": "utf8_bytes", "ast_contract_version": AST_CONTRACT_VERSION,
+            "source_hash": None, "records": [], "omitted": None, "runtime_execution": "not_established"}
+    evidence = raw_symbol.get("parameter_config_callback_forwarding_evidence")
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    if (not isinstance(evidence, dict)
+            or set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or evidence.get("status") not in ("observed", "incomplete_scan", "unavailable", "not_applicable")
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in ("unavailable", "not_applicable") and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "parameter_callback_contract_or_identity_invalid"}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _parameter_config_callback_record_valid(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "parameter_callback_record_or_spans_invalid"}
+        site = row["spans"]["invocation"]
+        unique = (site["start"], site["end"])
+        if unique in seen: return {**base, "reason": "parameter_callback_duplicate"}
+        seen.add(unique)
+    offsets = [span[key] for row in evidence["records"] for span in row["spans"].values() for key in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "parameter_callback_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+def _normalize_returned_local_callbacks(raw_symbol, content, offset_map=None, context=None, *, import_context=None):
+    """Reuse the file's native identity and 18-role batch conversion."""
+    base = {"status": "unavailable", "version": "v1-local-react-usecallback-returned-shorthand",
+            "offset_unit": "utf8_bytes", "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None,
+            "records": [], "omitted": None, "runtime_execution": "not_established"}
+    evidence = raw_symbol.get("returned_local_callback_evidence")
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    if (not isinstance(evidence, dict)
+            or set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "returned_callback_contract_or_identity_invalid"}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _returned_local_callback_record_valid(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "returned_callback_record_or_spans_invalid"}
+        binding = row["spans"]["import_binding"]
+        import_key = ("react", row["localName"], "useCallback", "named", False,
+                      "file_top_level_import_declaration", binding["line"], binding["end_line"])
+        if not isinstance(import_context, dict) or import_context.get(import_key) != 1:
+            return {**base, "reason": "returned_callback_direct_import_identity_unavailable"}
+        unique = (row["spans"]["property"]["start"], row["spans"]["property"]["end"])
+        if unique in seen:
+            return {**base, "reason": "returned_callback_duplicate"}
+        seen.add(unique)
+    offsets = [span[key] for row in evidence["records"] for span in row["spans"].values() for key in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "returned_callback_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+
+
+
+
+def _normalize_returned_callback_parameter_optional(raw_symbol, content, offset_map=None, context=None, *, import_context=None,
+                                                    _normalized_anchor=None):
+    """Validate the separate 35-role lane against a complete independently admitted anchor."""
+    base = {"status": "unavailable", "version": RETURNED_PARAMETER_OPTIONAL_VERSION, "offset_unit": "utf8_bytes",
+            "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [], "omitted": None,
+            "runtime_execution": "not_established"}
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    evidence = raw_symbol.get("returned_callback_parameter_optional_call_evidence")
+    if (not isinstance(evidence, dict) or set(evidence) != set(base) - {"ast_contract_version"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "returned_parameter_contract_or_identity_invalid"}
+    if evidence["status"] in {"unavailable", "not_applicable"}:
+        return {**base, "status": evidence["status"], "source_hash": identity, "omitted": 0}
+    anchor = (_normalized_anchor if _normalized_anchor is not None else
+              _normalize_returned_local_callbacks(raw_symbol, content, offset_map, context, import_context=import_context))
+    if evidence["status"] in {"observed", "incomplete_scan"} and (anchor["status"] != "observed" or anchor["omitted"]):
+        return {**base, "reason": "returned_parameter_complete_anchor_unavailable"}
+    anchors = {r["spans"]["property"]["start"]: r for r in raw_symbol.get("returned_local_callback_evidence", {}).get("records", [])}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _returned_parameter_optional_record_valid(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "returned_parameter_record_or_spans_invalid"}
+        if anchors.get(row["spans"]["property"]["start"]) != _returned_parameter_anchor(row):
+            return {**base, "reason": "returned_parameter_anchor_mismatch"}
+        unique = tuple(row["spans"][role]["start"] for role in ("declaration", "callback_binding_element", "invocation"))
+        if unique in seen: return {**base, "reason": "returned_parameter_duplicate"}
+        seen.add(unique)
+    offsets = [s[k] for r in evidence["records"] for s in r["spans"].values() for k in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "returned_parameter_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for s in row["spans"].values(): s.update(start=offset_map[s["start"]], end=offset_map[s["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+
+
+
+
+def _normalize_returned_callback_parameter_context(raw_symbol, content, offset_map=None, context=None, *, import_context=None,
+                                                   _normalized_anchor=None):
+    """Normalize exact contextual native evidence in the existing single offset batch."""
+    base = {"status": "unavailable", "version": RETURNED_PARAMETER_CONTEXT_VERSION, "offset_unit": "utf8_bytes",
+        "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [], "omitted": None,
+        "runtime_execution": "not_established"}
+    if context is None: context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    evidence = raw_symbol.get("returned_callback_parameter_context_call_evidence")
+    if (not isinstance(evidence, dict) or set(evidence) != set(base) - {"ast_contract_version"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "returned_context_contract_or_identity_invalid"}
+    if evidence["status"] in {"unavailable", "not_applicable"}:
+        return {**base, "status": evidence["status"], "source_hash": identity, "omitted": 0}
+    anchor = (_normalized_anchor if _normalized_anchor is not None else
+        _normalize_returned_local_callbacks(raw_symbol, content, offset_map, context, import_context=import_context))
+    if anchor["status"] != "observed" or anchor["omitted"]:
+        return {**base, "reason": "returned_context_complete_anchor_unavailable"}
+    anchors = {r["spans"]["property"]["start"]: r for r in raw_symbol.get("returned_local_callback_evidence", {}).get("records", [])}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _returned_parameter_context_record_valid(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "returned_context_record_or_spans_invalid"}
+        if anchors.get(row["spans"]["property"]["start"]) != _returned_parameter_anchor(row):
+            return {**base, "reason": "returned_context_anchor_mismatch"}
+        unique = tuple(row["spans"][role]["start"] for role in ("declaration", "callback_binding_element", "invocation"))
+        if unique in seen: return {**base, "reason": "returned_context_duplicate"}
+        seen.add(unique)
+    offsets = [s[k] for r in evidence["records"] for s in r["spans"].values() for k in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets): return {**base, "reason": "returned_context_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+def _normalize_local_arrow_sibling_calls(raw_symbol, content, offset_map=None, context=None):
+    """Use the file's shared span conversion; never upgrade source-call syntax."""
+    base = {"status": "unavailable", "version": "v1-immediate-const-arrow-sibling-call",
+            "offset_unit": "utf8_bytes", "ast_contract_version": AST_CONTRACT_VERSION,
+            "source_hash": None, "records": [], "omitted": None, "runtime_execution": "not_established"}
+    evidence = raw_symbol.get("local_arrow_sibling_call_evidence")
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    if (not isinstance(evidence, dict) or set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(evidence.get("status"), str)
+            or evidence.get("status") not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "local_sibling_contract_or_identity_invalid"}
+    seen = set()
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    for row in evidence["records"]:
+        if not _local_arrow_sibling_record_valid(row, outer, valid_span):
+            return {**base, "reason": "local_sibling_record_or_spans_invalid"}
+        key = (row["spans"]["call"]["start"], row["spans"]["call"]["end"])
+        if key in seen:
+            return {**base, "reason": "local_sibling_duplicate"}
+        seen.add(key)
+    offsets = [span[k] for row in evidence["records"] for span in row["spans"].values() for k in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "local_sibling_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
+
+
+
+
+def _normalize_local_arrow_import_calls(raw_symbol, content, offset_map=None, context=None, *, result_use=False):
+    """One file-level coordinate pass; lexical owner is not invocation evidence."""
+    base = {"status": "unavailable", "version": "v1-immediate-const-arrow-named-import-call",
+            "offset_unit": "utf8_bytes", "ast_contract_version": AST_CONTRACT_VERSION,
+            "source_hash": None, "records": [], "omitted": None,
+            "runtime_execution": "not_established"}
+    if result_use:
+        base["version"] = "v1-immediate-async-const-arrow-guarded-result-argument"
+    evidence = raw_symbol["import_call_evidence"]["local_arrow_result_use_evidence" if result_use else "local_arrow_import_call_evidence"]
+    if (not isinstance(evidence, dict)
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"):
+        return {**base, "reason": "local_call_metadata_invalid"}
+    if context is None:
+        context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    records, omitted = evidence.get("records"), evidence.get("omitted")
+    if (set(evidence) != {"status", "version", "offset_unit", "source_hash", "records", "omitted", "runtime_execution"}
+            or not isinstance(evidence.get("status"), str)
+            or evidence.get("status") not in {"observed", "incomplete_scan", "not_applicable", "unavailable"}
+            or evidence.get("version") != base["version"] or evidence.get("offset_unit") != "utf16_code_units"
+            or evidence.get("source_hash") != identity or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64 or type(omitted) is not int or omitted < 0
+            or (evidence["status"] == "observed" and omitted != 0)
+            or (evidence["status"] == "incomplete_scan" and omitted == 0)
+            or (evidence["status"] in {"not_applicable", "unavailable"} and (records or omitted))):
+        return {**base, "reason": "local_call_contract_or_identity_invalid"}
+    if evidence["status"] not in {"observed", "incomplete_scan"}:
+        return {**base, "status": evidence["status"], "reason": "local_call_parser_not_observed"}
+    outer_start, outer_end = raw_symbol.get("start"), raw_symbol.get("end")
+    seen = set()
+    for row in records:
+        if result_use:
+            if not _local_arrow_result_use_record_valid(row, raw_symbol, valid_span):
+                return {**base, "reason": "local_result_use_record_or_spans_invalid"}
+            key = (row["spans"]["call"]["start"], row["spans"]["call"]["end"])
+            if key in seen:
+                return {**base, "reason": "local_result_use_duplicate"}
+            seen.add(key)
+            continue
+        if (not isinstance(row, dict) or set(row) != {"source", "localName", "importedName", "kind", "member",
+                "optional", "lexical_owner", "lexical_owner_kind", "spans"}
+                or any(not isinstance(row[key], str) or not row[key] for key in
+                       ("source", "localName", "importedName", "lexical_owner"))
+                or row["kind"] != "named" or row["member"] is not None or row["optional"] is not False
+                or row["lexical_owner_kind"] != "const_local_arrow"):
+            return {**base, "reason": "local_call_record_invalid"}
+        spans = row["spans"]
+        if (not isinstance(spans, dict) or set(spans) != {"owner", "owner_binding", "body", "call", "callee"}
+                or not all(valid_span(value) for value in spans.values())
+                or type(outer_start) is not int or type(outer_end) is not int
+                or not outer_start <= spans["owner"]["start"] < spans["owner"]["end"] <= outer_end):
+            return {**base, "reason": "local_call_spans_invalid"}
+        key = (spans["call"]["start"], spans["call"]["end"])
+        if (any(not spans[outer]["start"] <= spans[inner]["start"] < spans[inner]["end"] <= spans[outer]["end"]
+                for outer, inner in [("owner", "owner_binding"), ("owner", "body"), ("body", "call"), ("call", "callee")])
+                or spans["owner_binding"]["end"] > spans["body"]["start"] or key in seen):
+            return {**base, "reason": "local_call_relations_invalid"}
+        seen.add(key)
+    offsets = [span[key] for row in records for span in row["spans"].values() for key in ("start", "end")]
+    if offset_map is None:
+        offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "local_call_coordinate_normalization_unavailable"}
+    normalized = copy.deepcopy(records)
+    for row in normalized:
+        for span in row["spans"].values():
+            span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": normalized, "omitted": omitted}
+
+
+def _response_field_evidence(raw_results, content: str) -> Dict[str, object]:
+    """Transport existing field candidates, not new value/schema authority."""
+    base = {"status": "unavailable", "scope": "existing_response_field_state_candidates",
+            "version": "v1-literal-response-field-state", "offset_unit": "utf8_bytes",
+            "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [],
+            "schema_authority": "not_established", "runtime_proof": "not_performed"}
+    meta = next((row for row in raw_results if isinstance(row, dict)
+                 and row.get("name") == "__file_meta__"), {}) if isinstance(raw_results, list) else {}
+    evidence = meta.get("responseFieldEvidence")
+    if meta.get("parserStatus") != "observed":
+        return {**base, "reason": "parser_not_observed"}
+    if not isinstance(evidence, dict):
+        return {**base, "reason": "response_field_metadata_missing"}
+    identity = evidence.get("source_hash")
+    if (evidence.get("status") != "observed" or evidence.get("version") != base["version"]
+            or evidence.get("offset_unit") != "utf16_code_units"
+            or not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+            or source_text_hash(content, identity) != identity):
+        return {**base, "reason": "response_field_identity_or_contract_invalid"}
+    records = evidence.get("records")
+    features = meta.get("features")
+    if not isinstance(records, list) or not isinstance(features, list):
+        return {**base, "reason": "response_field_records_invalid"}
+    if [feature for feature in features if isinstance(feature, str) and feature.startswith("Hash:")] != [f"Hash:{identity}"]:
+        return {**base, "reason": "response_field_atlas_hash_conflict"}
+    admitted = {feature for feature in features if isinstance(feature, str)
+                and feature.startswith("React:ExternalResponseFieldState:")}
+    if not records:
+        if admitted:
+            return {**base, "reason": "response_field_transport_incomplete"}
+        return {**base, "status": "observed", "source_hash": identity}
+    valid_span = _native_utf16_span_validator(content)
+    def contains(outer, inner):
+        return outer["start"] <= inner["start"] < inner["end"] <= outer["end"]
+    seen = set()
+    for row in records:
+        if not isinstance(row, dict) or set(row) != {"feature", "field_path", "spans"}:
+            return {**base, "reason": "response_field_record_invalid"}
+        path, spans = row["field_path"], row["spans"]
+        feature = row["feature"]
+        if (not isinstance(feature, str) or feature not in features or not isinstance(path, list) or not path
+                or any(not isinstance(key, str) for key in path) or not isinstance(spans, dict)
+                or set(spans) != {"fetch", "json", "sink", "argument", "json_binding", "setter_binding"}
+                or not all(valid_span(span) for span in spans.values())):
+            return {**base, "reason": "response_field_span_or_membership_invalid"}
+        if (feature != f"React:ExternalResponseFieldState:{spans['sink']['line']}:{spans['json']['line']}"
+                or spans["fetch"]["end"] > spans["json"]["start"]
+                or spans["json"]["end"] > spans["sink"]["start"]
+                or spans["setter_binding"]["end"] > spans["sink"]["start"]
+                or not contains(spans["json"], spans["json_binding"])
+                or not contains(spans["sink"], spans["argument"])
+                or (spans["sink"]["start"], spans["sink"]["end"]) in seen):
+            return {**base, "reason": "response_field_relation_invalid"}
+        seen.add((spans["sink"]["start"], spans["sink"]["end"]))
+    if {row["feature"] for row in records} != admitted:
+        return {**base, "reason": "response_field_transport_incomplete"}
+    offsets = [span[key] for row in records for span in row["spans"].values() for key in ("start", "end")]
+    offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "response_field_coordinate_normalization_unavailable"}
+    normalized = copy.deepcopy(records)
+    for row in normalized:
+        for span in row["spans"].values():
+            span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": "observed", "source_hash": identity, "records": normalized}
+
+
+def _response_json_return_evidence(raw_results, content: str) -> Dict[str, object]:
+    """Normalize finite returned-expression syntax; no schema/Promise authority."""
+    base = {"status": "unavailable", "scope": "finite_top_level_async_json_return_expression",
+            "version": "v1-three-statement-async-json-return", "offset_unit": "utf8_bytes",
+            "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [],
+            "schema_authority": "not_established", "promise_resolution": "not_established",
+            "caller_state_binding": "not_established", "runtime_proof": "not_performed"}
+    metas = [row for row in raw_results if isinstance(row, dict) and row.get("name") == "__file_meta__"] if isinstance(raw_results, list) else []
+    if len(metas) != 1 or metas[0].get("parserStatus") != "observed":
+        return {**base, "reason": "parser_not_uniquely_observed"}
+    meta, evidence = metas[0], metas[0].get("responseJsonReturnEvidence")
+    if not isinstance(evidence, dict):
+        return {**base, "reason": "return_metadata_missing"}
+    identity = evidence.get("source_hash")
+    if (set(evidence) != {"status", "version", "offset_unit", "source_hash", "record_count", "records"}
+            or evidence.get("status") != "observed" or evidence.get("version") != base["version"]
+            or evidence.get("offset_unit") != "utf16_code_units"
+            or not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+            or source_text_hash(content, identity) != identity):
+        return {**base, "reason": "return_identity_or_contract_invalid"}
+    records, features = evidence.get("records"), meta.get("features")
+    if (not isinstance(records, list) or type(evidence.get("record_count")) is not int
+            or evidence["record_count"] != len(records) or not isinstance(features, list)
+            or [value for value in features if isinstance(value, str) and value.startswith("Hash:")] != [f"Hash:{identity}"]):
+        return {**base, "reason": "return_count_or_atlas_identity_invalid"}
+    valid_span, seen = _native_utf16_span_validator(content), set()
+    roles = {"callable", "callable_binding", "body", "fetch", "fetch_binding", "json", "json_binding",
+             "response_ref", "return_statement", "return_expression", "selected_expression", "json_ref"}
+    for row in records:
+        if (not isinstance(row, dict) or set(row) != {"callable_name", "callable_kind", "field_path", "return_type_assertion", "spans"}
+                or not isinstance(row["callable_name"], str) or not row["callable_name"]
+                or row["callable_kind"] not in ("async_function", "const_async_arrow")
+                or type(row["return_type_assertion"]) is not bool
+                or not isinstance(row["field_path"], list) or any(not isinstance(key, str) for key in row["field_path"])):
+            return {**base, "reason": "return_record_invalid"}
+        spans = row["spans"]
+        expected = roles | ({"type_assertion"} if row["return_type_assertion"] else set())
+        if not isinstance(spans, dict) or set(spans) != expected or not all(valid_span(value) for value in spans.values()):
+            return {**base, "reason": "return_spans_invalid"}
+        containment = [("callable", "callable_binding"), ("callable", "body"), ("body", "fetch"), ("body", "json"),
+                       ("body", "return_statement"), ("fetch", "fetch_binding"), ("json", "json_binding"),
+                       ("json", "response_ref"), ("return_statement", "return_expression"),
+                       ("return_expression", "selected_expression"), ("selected_expression", "json_ref")]
+        if row["return_type_assertion"]:
+            containment += [("return_expression", "type_assertion"), ("type_assertion", "selected_expression")]
+        key = (spans["return_statement"]["start"], spans["return_statement"]["end"])
+        if (any(not spans[outer]["start"] <= spans[inner]["start"] < spans[inner]["end"] <= spans[outer]["end"]
+                for outer, inner in containment)
+                or any(spans[earlier]["end"] > spans[later]["start"] for earlier, later in
+                       [("callable_binding", "body"), ("fetch", "json"), ("json", "return_statement")])
+                or key in seen):
+            return {**base, "reason": "return_relations_invalid"}
+        seen.add(key)
+    offsets = [span[key] for row in records for span in row["spans"].values() for key in ("start", "end")]
+    offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": "return_coordinate_normalization_unavailable"}
+    normalized = copy.deepcopy(records)
+    for row in normalized:
+        for span in row["spans"].values():
+            span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": "observed", "source_hash": identity, "records": normalized}
+
+
+def _client_local_parser_result_evidence(raw_results, content: str) -> Dict[str, object]:
+    """Carry finite call-result syntax independently of advisory admission."""
+    return _client_local_parser_syntax_evidence(raw_results, content, input_sink=False)
+
+
+def _client_local_parser_input_sink_evidence(raw_results, content: str) -> Dict[str, object]:
+    """Selected input syntax is not proof of absent/rejected validation."""
+    return _client_local_parser_syntax_evidence(raw_results, content, input_sink=True)
+
+
+def _client_imported_parser_evidence(raw_results, content: str) -> Dict[str, object]:
+    """Named-import call syntax; imported schema behavior stays unknown."""
+    return _client_local_parser_syntax_evidence(raw_results, content, input_sink=False, imported=True)
+
+
+def _client_local_parser_syntax_evidence(raw_results, content: str, *, input_sink: bool, imported: bool = False) -> Dict[str, object]:
+    base = {"status": "unavailable",
+            "scope": "finite_same_file_parse_call_json_input_to_react_state" if input_sink else "finite_same_file_sync_call_result_to_react_state",
+            "version": "v1-const-parse-call-input-to-state" if input_sink else "v1-const-sync-call-result-to-state", "offset_unit": "utf8_bytes",
+            "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [],
+            "schema_authority": "not_established", "runtime_proof": "not_performed"}
+    if input_sink:
+        base.update(selected_value_origin="json_input", call_result_use="not_selected_by_this_sink",
+                    parser_effect_on_input="not_established")
+    if imported:
+        base.update(scope="finite_same_file_named_import_parse_json_to_react_state",
+                    version="v1-named-import-parse-to-state", parser_effect_on_input="not_established")
+    prefix = "imported_parser" if imported else "local_input_sink" if input_sink else "local_result"
+    metas = [row for row in raw_results if isinstance(row, dict)
+             and row.get("name") == "__file_meta__"] if isinstance(raw_results, list) else []
+    if len(metas) != 1 or metas[0].get("parserStatus") != "observed":
+        return {**base, "reason": "parser_not_uniquely_observed"}
+    meta = metas[0]
+    evidence = meta.get("clientImportedParserEvidence" if imported else "clientLocalParserInputSinkEvidence" if input_sink else "clientLocalParserResultEvidence")
+    if not isinstance(evidence, dict):
+        return {**base, "reason": prefix + "_metadata_missing"}
+    identity = evidence.get("source_hash")
+    if (set(evidence) != {"status", "version", "offset_unit", "source_hash", "record_count", "records"}
+            or evidence.get("status") != "observed" or evidence.get("version") != base["version"]
+            or evidence.get("offset_unit") != "utf16_code_units"
+            or not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+            or source_text_hash(content, identity) != identity):
+        return {**base, "reason": prefix + "_identity_or_contract_invalid"}
+    records, features = evidence.get("records"), meta.get("features")
+    if (not isinstance(records, list) or type(evidence.get("record_count")) is not int
+            or evidence["record_count"] != len(records) or not isinstance(features, list)):
+        return {**base, "reason": prefix + "_records_invalid"}
+    if [feature for feature in features if isinstance(feature, str) and feature.startswith("Hash:")] != [f"Hash:{identity}"]:
+        return {**base, "reason": prefix + "_atlas_hash_conflict"}
+    if not records:
+        return {**base, "status": "observed", "source_hash": identity}
+    valid_span = _native_utf16_span_validator(content)
+
+    def contains(outer, inner):
+        return outer["start"] <= inner["start"] < inner["end"] <= outer["end"]
+
+    selected_ref = "input_ref" if input_sink else "result_ref"
+    roles = {"body", "fetch", "fetch_binding", "json", "json_binding", "parser_owner",
+             "parser_owner_binding", "parser_owner_ref", "parser_call", "parser_input",
+             "result", "result_binding", selected_ref, "state_declaration", "state_import",
+             "setter_binding", "setter_ref", "sink", "argument"}
+    containment = [("body", role) for role in ("fetch", "json", "result", "sink")]
+    containment += [("fetch", "fetch_binding"), ("json", "json_binding"),
+                    ("parser_owner", "parser_owner_binding"), ("result", "result_binding"),
+                    ("result", "parser_call"), ("parser_call", "parser_owner_ref"),
+                    ("parser_call", "parser_input"), ("state_declaration", "setter_binding"),
+                    ("sink", "setter_ref"), ("sink", "argument"), ("argument", selected_ref)]
+    order = [("fetch", "json"), ("json", "result"), ("result", "sink"),
+             ("parser_owner", "parser_call"), ("state_import", "state_declaration"),
+             ("setter_binding", "sink")]
+    seen = set()
+    for row in records:
+        row_keys = {"field_path", "spans", "import_binding", "selected_value_origin"} if imported else {"field_path", "spans"}
+        if not isinstance(row, dict) or set(row) != row_keys:
+            return {**base, "reason": prefix + "_record_invalid"}
+        if imported:
+            binding = row["import_binding"]
+            origin = row["selected_value_origin"]
+            if (not isinstance(origin, str) or origin not in {"parser_call_result", "json_input"}
+                    or not isinstance(binding, dict)
+                    or set(binding) != {"source", "kind", "imported_name", "local_name", "type_only"}
+                    or binding["kind"] != "named" or binding["type_only"] is not False
+                    or any(not isinstance(binding[key], str) or not binding[key] for key in
+                           ("source", "imported_name", "local_name"))):
+                return {**base, "reason": prefix + "_binding_invalid"}
+            # Each row chooses exactly one value; never collapse input and result.
+            prior_ref = selected_ref
+            selected_ref = "input_ref" if origin == "json_input" else "result_ref"
+            roles = (roles - {prior_ref}) | {selected_ref}
+            containment[-1] = ("argument", selected_ref)
+        path, spans = row["field_path"], row["spans"]
+        if (not isinstance(path, list) or any(not isinstance(key, str) for key in path)
+                or not isinstance(spans, dict) or set(spans) != roles
+                or not all(valid_span(span) for span in spans.values())):
+            return {**base, "reason": prefix + "_spans_invalid"}
+        if imported:
+            bindings = meta.get("directImportBindings")
+            matches = [item for item in bindings if isinstance(item, dict)
+                       and item.get("source") == binding["source"]
+                       and item.get("localName") == binding["local_name"]
+                       and item.get("importedName") == binding["imported_name"]
+                       and item.get("kind") == "named" and item.get("typeOnly") is False
+                       and item.get("bindingScope") == "file_top_level_import_declaration"
+                       and item.get("line") == spans["parser_owner_binding"]["line"]
+                       and item.get("endLine") == spans["parser_owner_binding"]["end_line"]] if isinstance(bindings, list) else []
+            if len(matches) != 1:
+                return {**base, "reason": prefix + "_direct_binding_conflict"}
+        key = (spans["sink"]["start"], spans["sink"]["end"])
+        if (any(not contains(spans[outer], spans[inner]) for outer, inner in containment)
+                or any(spans[earlier]["end"] > spans[later]["start"] for earlier, later in order)
+                or key in seen):
+            return {**base, "reason": prefix + "_relations_invalid"}
+        seen.add(key)
+    offsets = [span[key] for row in records for span in row["spans"].values() for key in ("start", "end")]
+    offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return {**base, "reason": prefix + "_coordinate_normalization_unavailable"}
+    normalized = copy.deepcopy(records)
+    for row in normalized:
+        for span in row["spans"].values():
+            span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": "observed", "source_hash": identity, "records": normalized}
 
 
 def _build_project_sequencer_evidence(files: Dict[str, Dict]) -> Dict[str, object]:
@@ -2922,6 +3834,16 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "state_flow": state_flow,
                 "parser_evidence": _file_parser_evidence(raw_node_results, f_lang),
                 **({"structured_output_evidence": _structured_output_evidence(raw_node_results)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"response_field_evidence": _response_field_evidence(raw_node_results, content)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"client_local_parser_result_evidence": _client_local_parser_result_evidence(raw_node_results, content)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"client_local_parser_input_sink_evidence": _client_local_parser_input_sink_evidence(raw_node_results, content)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"client_imported_parser_evidence": _client_imported_parser_evidence(raw_node_results, content)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"response_json_return_evidence": _response_json_return_evidence(raw_node_results, content)}
                    if f_lang in {"typescript", "javascript"} else {}),
                 "dna": "".join([s['dna'] or "" for s in ast_symbols if s['name'] != '__file_meta__']),
                 "mtime": f_mtime,

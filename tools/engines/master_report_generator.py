@@ -8,7 +8,7 @@ from tools.core.json_io import load_json_file
 from tools.core.projects_registry import project_display_name
 from tools.core.report_index import list_report_names
 from tools.core.workspace_mode import get_workspace_mode
-from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
 
 logger = logging.getLogger("master_generator")
 

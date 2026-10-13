@@ -436,6 +436,554 @@ def _focus_import_calls(row, declaring, limit, budget):
     return result
 
 
+def _focus_local_arrow_import_calls(record, row, limit, budget):
+    """Preserve immediate local-arrow lexical ownership, never outer execution."""
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "local_arrow_named_import_call_syntax_not_outer_execution",
+              "runtime_execution": "not_established", "outer_callable_execution": "not_established"}
+    evidence = row.get("local_arrow_import_call_evidence")
+    if not isinstance(evidence, dict):
+        return {**result, "reason": "local_arrow_metadata_missing"}
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
+    records = evidence.get("records")
+    identity = evidence.get("source_hash")
+    if (evidence.get("version") != "v1-immediate-const-arrow-named-import-call"
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != record.get("ast_contract_version")
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity)
+            or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict)
+            or record["parser_evidence"].get("status") != "observed"
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "local_arrow_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"]:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "local_arrow_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    if len(records) > budget:
+        return {**result, "status": "incomplete_scan", "reason": "local_arrow_scan_budget_exhausted",
+                "omitted": len(records)}
+    seen = set()
+    for call in records:
+        result["visited_records"] += 1
+        spans = call.get("spans") if isinstance(call, dict) else None
+        if (not isinstance(call, dict) or set(call) != {"source", "localName", "importedName", "kind", "member",
+                "optional", "lexical_owner", "lexical_owner_kind", "spans"}
+                or any(not isinstance(call[key], str) or not call[key] for key in
+                       ("source", "localName", "importedName", "lexical_owner"))
+                or call["kind"] != "named" or call["member"] is not None or call["optional"] is not False
+                or call["lexical_owner_kind"] != "const_local_arrow"
+                or not isinstance(spans, dict) or set(spans) != {"owner", "owner_binding", "body", "call", "callee"}
+                or any(not isinstance(span, dict) or set(span) != {"start", "end", "line", "end_line"}
+                       or any(type(value) is not int for value in span.values())
+                       or not 0 <= span["start"] < span["end"] or not 1 <= span["line"] <= span["end_line"]
+                       for span in spans.values())
+                or type(row.get("start")) is not int or type(row.get("end")) is not int
+                or not row["start"] <= spans["owner"]["start"] < spans["owner"]["end"] <= row["end"]
+                or any(type(row.get(key)) is not int for key in ("line", "end_line"))
+                or not row["line"] <= spans["owner"]["line"] <= spans["owner"]["end_line"] <= row["end_line"]
+                or any(not spans[outer]["start"] <= spans[inner]["start"] < spans[inner]["end"] <= spans[outer]["end"]
+                       for outer, inner in (("owner", "owner_binding"), ("owner", "body"), ("body", "call"), ("call", "callee")))
+                or spans["owner_binding"]["end"] > spans["body"]["start"]
+                or (spans["call"]["start"], spans["call"]["end"]) in seen):
+            return {**result, "reason": "local_arrow_record_invalid", "items": [], "omitted": len(records)}
+        seen.add((spans["call"]["start"], spans["call"]["end"]))
+        if len(result["items"]) < limit:
+            result["items"].append({**call, "line": spans["call"]["line"], "end_line": spans["call"]["end_line"]})
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_local_arrow_sibling_calls(record, row, limit, budget):
+    """Exact local lexical endpoints; never fabricate an indexed callee."""
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION, _local_arrow_sibling_record_valid
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "same_block_local_sibling_call_syntax",
+              "value_transfer": "not_established", "runtime_execution": "not_established"}
+    evidence = row.get("local_arrow_sibling_call_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "local_sibling_metadata_missing"}
+    records = evidence.get("records")
+    identity = evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != "v1-immediate-const-arrow-sibling-call"
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or record.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict) or record["parser_evidence"].get("status") != "observed"
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "local_sibling_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "local_sibling_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    if len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "local_sibling_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    seen = set()
+    result["visited_records"] = 1
+    for call in records:
+        result["visited_records"] += 1
+        if not _local_arrow_sibling_record_valid(call, row, valid_span):
+            return {**result, "reason": "local_sibling_record_invalid", "items": [], "omitted": len(records)}
+        key = (call["spans"]["call"]["start"], call["spans"]["call"]["end"])
+        if key in seen:
+            return {**result, "reason": "local_sibling_duplicate", "items": [], "omitted": len(records)}
+        seen.add(key)
+        if len(result["items"]) < max(0, limit): result["items"].append(call)
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_call_result_property_bindings(record, row, limit, budget):
+    """Selected local binding facts; never an inferred callable/dispatch edge."""
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION, _call_result_property_binding_record_valid
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "direct_named_import_call_result_property_to_const_local_source_binding",
+              "value_transfer": "not_established", "runtime_execution": "not_established",
+              "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established"}
+    evidence = row.get("call_result_property_binding_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "call_result_binding_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != "v1-direct-named-import-const-object-binding"
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or record.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict) or record["parser_evidence"].get("status") != "observed"
+            or row.get("parser_kind") != "typescript_compiler_api"
+            or row.get("type") not in {"Function", "Arrow", "Hook", "Component"}
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "call_result_binding_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "call_result_binding_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    if len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "call_result_binding_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    seen = set()
+    result["visited_records"] = 1
+    for binding in records:
+        result["visited_records"] += 1
+        if not _call_result_property_binding_record_valid(binding, row, valid_span):
+            return {**result, "reason": "call_result_binding_record_invalid", "items": [], "omitted": len(records)}
+        site = binding["spans"]["binding_element"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**result, "reason": "call_result_binding_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(binding)
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_call_result_alias_invocations(record, row, limit, budget, *, _nested=False, _optional_rest=False, _optional=False):
+    """Selected immediate call sites; no runtime callable/dispatch authority."""
+    from tools.core.atlas_ast_contract import (AST_CONTRACT_VERSION, _call_result_alias_invocation_record_valid,
+                                              _nested_callback_alias_record_valid, _optional_rest_alias_record_valid,
+                                              _direct_optional_alias_record_valid)
+    version = "v1-literal-object-arrow-const-property-alias-invocation" if _nested else "v1-immediate-const-property-alias-invocation"
+    validator = _nested_callback_alias_record_valid if _nested else _call_result_alias_invocation_record_valid
+    key = "call_result_nested_callback_alias_invocation_evidence" if _nested else "call_result_alias_invocation_evidence"
+    if _optional:
+        version = "v1-immediate-const-property-optional-alias-invocation"
+        validator = _direct_optional_alias_record_valid
+        key = "call_result_optional_alias_invocation_evidence"
+    if _optional_rest:
+        version = "v1-import-result-object-callback-optional-rest-alias"
+        validator = _optional_rest_alias_record_valid
+        key = "call_result_optional_rest_alias_invocation_evidence"
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": ("const_call_result_property_alias_to_literal_object_arrow_identifier_invocation_source_association"
+                           if _nested else "const_call_result_property_alias_to_immediate_identifier_invocation_source_association"),
+              "value_transfer": "not_established", "runtime_execution": "not_established",
+              "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established"}
+    if _optional:
+        result["relation"] = "const_call_result_property_alias_to_immediate_optional_identifier_invocation_source_association"
+    if _optional_rest:
+        result["relation"] = "const_call_result_property_alias_to_callback_optional_rest_invocation_source_association"
+    if _nested or _optional_rest:
+        result.update(callback_registration="not_established", effective_object_property="not_established",
+                      container_callee_identity="not_established", context_flags_scope="literal_syntax_not_effective_configuration")
+    evidence = row.get(key)
+    if not isinstance(evidence, dict): return {**result, "reason": "alias_invocation_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != version
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or record.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict) or record["parser_evidence"].get("status") != "observed"
+            or row.get("parser_kind") != "typescript_compiler_api"
+            or row.get("type") not in {"Function", "Arrow", "Hook", "Component"}
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "alias_invocation_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "alias_invocation_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    if len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "alias_invocation_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    seen = set()
+    result["visited_records"] = 1
+    for invocation in records:
+        result["visited_records"] += 1
+        if not validator(invocation, row, valid_span):
+            return {**result, "reason": "alias_invocation_record_invalid", "items": [], "omitted": len(records)}
+        site = invocation["spans"]["invocation"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**result, "reason": "alias_invocation_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(invocation)
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_parameter_config_callbacks(record, row, limit, budget):
+    """Parameter provenance and optional/rest syntax, not callback execution."""
+    from tools.core.atlas_ast_contract import (AST_CONTRACT_VERSION, PARAMETER_CONFIG_CALLBACK_VERSION,
+                                              _parameter_config_callback_record_valid)
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "owner_parameter_property_to_callback_optional_rest_forwarding_source_association",
+              "value_transfer": "not_established", "runtime_execution": "not_established",
+              "callability": "not_established", "callback_activation": "not_established",
+              "schema_validity": "not_established", "callback_registration": "not_established",
+              "effective_object_property": "not_established", "container_callee_identity": "not_established",
+              "context_flags_scope": "literal_syntax_not_effective_configuration"}
+    evidence = row.get("parameter_config_callback_forwarding_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "parameter_callback_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != PARAMETER_CONFIG_CALLBACK_VERSION
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or record.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict) or record["parser_evidence"].get("status") != "observed"
+            or row.get("parser_kind") != "typescript_compiler_api"
+            or row.get("type") not in {"Function", "Arrow", "Hook", "Component"}
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "parameter_callback_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "parameter_callback_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    if len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "parameter_callback_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    seen = set()
+    result["visited_records"] = 1
+    for forwarding in records:
+        result["visited_records"] += 1
+        if not _parameter_config_callback_record_valid(forwarding, row, valid_span):
+            return {**result, "reason": "parameter_callback_record_invalid", "items": [], "omitted": len(records)}
+        site = forwarding["spans"]["invocation"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**result, "reason": "parameter_callback_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(forwarding)
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_returned_local_callbacks(record, row, limit, budget):
+    """Selected owner's local source endpoints, not a callback execution graph."""
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION, _returned_local_callback_record_valid
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "local_usecallback_to_returned_shorthand_source_association",
+              "value_transfer": "not_established", "runtime_execution": "not_established",
+              "callback_activation": "not_established", "schema_validity": "not_established"}
+    evidence = row.get("returned_local_callback_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "returned_callback_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != "v1-local-react-usecallback-returned-shorthand"
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or record.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict) or record["parser_evidence"].get("status") != "observed"
+            or row.get("parser_kind") != "typescript_compiler_api"
+            or row.get("type") not in {"Function", "Arrow", "Hook", "Component"}
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "returned_callback_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "returned_callback_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    if len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "returned_callback_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    seen = set()
+    result["visited_records"] = 1
+    for callback in records:
+        result["visited_records"] += 1
+        if not _returned_local_callback_record_valid(callback, row, valid_span):
+            return {**result, "reason": "returned_callback_record_invalid", "items": [], "omitted": len(records)}
+        site = callback["spans"]["property"]
+        unique = (site["start"], site["end"])
+        if unique in seen:
+            return {**result, "reason": "returned_callback_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(callback)
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_returned_callback_parameter_optional(record, row, limit, budget):
+    """Bounded source syntax inside a returned callback; never callable/value proof."""
+    from tools.core.atlas_ast_contract import (AST_CONTRACT_VERSION, RETURNED_PARAMETER_OPTIONAL_VERSION,
+                                            _returned_parameter_optional_record_valid, _returned_parameter_anchor)
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+              "source_binding": "not_checked",
+              "relation": "returned_callback_parameter_property_to_awaited_optional_call_source_association",
+              "runtime_execution": "not_established", "value_transfer": "not_established", "callability": "not_established",
+              "callback_activation": "not_established", "schema_validity": "not_established"}
+    evidence = row.get("returned_callback_parameter_optional_call_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "returned_parameter_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != RETURNED_PARAMETER_OPTIONAL_VERSION or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION or identity != record.get("hash")
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "returned_parameter_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "returned_parameter_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    anchor = _focus_returned_local_callbacks(record, row, 64, budget)
+    result["visited_records"] = anchor["visited_records"]
+    if anchor["status"] != "observed" or anchor["omitted"]:
+        return {**result, "status": anchor["status"], "reason": "returned_parameter_complete_anchor_unavailable"}
+    if result["visited_records"] + len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "returned_parameter_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    anchors = {r["spans"]["property"]["start"]: r for r in anchor["items"]}
+    seen = set()
+    result["visited_records"] += 1
+    for item in records:
+        result["visited_records"] += 1
+        if (not _returned_parameter_optional_record_valid(item, row, valid_span)
+                or anchors.get(item["spans"]["property"]["start"]) != _returned_parameter_anchor(item)):
+            return {**result, "reason": "returned_parameter_record_or_anchor_invalid", "items": [], "omitted": len(records)}
+        unique = tuple(item["spans"][role]["start"] for role in ("declaration", "callback_binding_element", "invocation"))
+        if unique in seen:
+            return {**result, "reason": "returned_parameter_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(item)
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_returned_callback_parameter_context(record, row, limit, budget):
+    """Independently versioned contextual source facts with charged anchor work."""
+    from tools.core.atlas_ast_contract import (AST_CONTRACT_VERSION, RETURNED_PARAMETER_CONTEXT_VERSION,
+        _returned_parameter_context_record_valid, _returned_parameter_anchor)
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+        "source_binding": "not_checked", "relation": "returned_callback_parameter_property_to_contextual_optional_call_source_association",
+        "runtime_execution": "not_established", "value_transfer": "not_established", "callability": "not_established",
+        "callback_activation": "not_established", "schema_validity": "not_established"}
+    evidence = row.get("returned_callback_parameter_context_call_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "returned_context_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != RETURNED_PARAMETER_CONTEXT_VERSION or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION or identity != record.get("hash")
+            or evidence.get("runtime_execution") != "not_established" or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "returned_context_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+            "reason": "returned_context_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    anchor = _focus_returned_local_callbacks(record, row, 64, budget)
+    result["visited_records"] = anchor["visited_records"]
+    if anchor["status"] != "observed" or anchor["omitted"]:
+        return {**result, "status": anchor["status"], "reason": "returned_context_complete_anchor_unavailable"}
+    if result["visited_records"] + len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "returned_context_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+            and all(type(value) is int for value in span.values()) and type(record.get("size")) is int and type(record.get("loc")) is int
+            and 0 <= span["start"] < span["end"] <= record["size"] and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    anchors = {r["spans"]["property"]["start"]: r for r in anchor["items"]}
+    seen = set()
+    result["visited_records"] += 1
+    for item in records:
+        result["visited_records"] += 1
+        if (not _returned_parameter_context_record_valid(item, row, valid_span)
+                or anchors.get(item["spans"]["property"]["start"]) != _returned_parameter_anchor(item)):
+            return {**result, "reason": "returned_context_record_or_anchor_invalid", "items": [], "omitted": len(records)}
+        unique = tuple(item["spans"][role]["start"] for role in ("declaration", "callback_binding_element", "invocation"))
+        if unique in seen: return {**result, "reason": "returned_context_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(item)
+    return {**result, "status": "observed", "returned": len(result["items"]), "omitted": len(records) - len(result["items"]),
+        "source_hash": identity, "ast_contract_version": evidence["ast_contract_version"]}
+
+
+def _focus_local_arrow_result_uses(record, row, limit, budget, calls, callees):
+    """Caller property/argument syntax; reuse settled callee orientation only."""
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION, _local_arrow_result_use_record_valid
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "guarded_await_result_property_to_call_argument_syntax",
+              "promise_resolution": "not_established", "caller_state_binding": "not_established",
+              "schema_authority": "not_established", "runtime_execution": "not_established"}
+    evidence = row.get("local_arrow_result_use_evidence")
+    if not isinstance(evidence, dict):
+        return {**result, "reason": "local_result_use_metadata_missing"}
+    records = evidence.get("records")
+    identity = evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash",
+                        "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != "v1-immediate-async-const-arrow-guarded-result-argument"
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != record.get("ast_contract_version")
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict)
+            or record["parser_evidence"].get("status") != "observed"
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "local_result_use_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "local_result_use_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    call_rows = calls.get("items", []) if calls.get("status") == "observed" else []
+    candidate_rows = callees.get("items", [])
+    if (not isinstance(call_rows, list) or not isinstance(candidate_rows, list)
+            or len(call_rows) > 64 or len(candidate_rows) > 64):
+        return {**result, "reason": "local_result_use_orientation_invalid"}
+    if len(records) + len(call_rows) + len(candidate_rows) > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "local_result_use_scan_budget_exhausted",
+                "omitted": len(records)}
+    roles = ("owner", "owner_binding", "body", "call", "callee")
+    def span_key(spans):
+        if not isinstance(spans, dict) or set(spans) != set(roles):
+            return None
+        if any(not isinstance(spans[k], dict) or any(type(spans[k].get(v)) is not int
+               for v in ("start", "end", "line", "end_line")) for k in roles):
+            return None
+        return tuple(spans[k][v] for k in roles for v in ("start", "end", "line", "end_line"))
+    bound_calls, orientations = {}, {}
+    for call in call_rows:
+        result["visited_records"] += 1
+        if not isinstance(call, dict):
+            continue
+        key = span_key(call.get("spans"))
+        if key is not None:
+            identity_key = tuple(call.get(k) for k in ("source", "localName", "importedName", "kind", "lexical_owner", "lexical_owner_kind"))
+            if all(isinstance(value, str) for value in identity_key):
+                bound_calls.setdefault((identity_key, key), []).append(call)
+    for candidate in candidate_rows:
+        result["visited_records"] += 1
+        if not isinstance(candidate, dict):
+            continue
+        key = span_key(candidate.get("caller_spans"))
+        names = tuple(candidate.get(k) for k in ("local_name", "imported_name", "lexical_owner", "lexical_owner_kind"))
+        if key is not None and all(isinstance(value, str) for value in names):
+            orientations.setdefault((names, key), []).append(candidate)
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    seen = set()
+    for usage in records:
+        result["visited_records"] += 1
+        if not _local_arrow_result_use_record_valid(usage, row, valid_span):
+            return {**result, "reason": "local_result_use_record_invalid", "items": [], "omitted": len(records)}
+        spans = usage["spans"]
+        key = (spans["call"]["start"], spans["call"]["end"])
+        if (key in seen or any(type(row.get(k)) is not int for k in ("line", "end_line"))
+                or not row["line"] <= spans["owner"]["line"] <= spans["owner"]["end_line"] <= row["end_line"]):
+            return {**result, "reason": "local_result_use_record_invalid", "items": [], "omitted": len(records)}
+        seen.add(key)
+        if len(result["items"]) >= limit:
+            continue
+        call_spans = {k: spans[k] for k in ("owner", "owner_binding", "body", "call", "callee")}
+        key = span_key(call_spans)
+        identity_key = tuple(usage[k] for k in ("source", "localName", "importedName", "kind", "lexical_owner", "lexical_owner_kind"))
+        matches = bound_calls.get((identity_key, key), [])
+        names = tuple(usage[k] for k in ("localName", "importedName", "lexical_owner", "lexical_owner_kind"))
+        candidates = orientations.get((names, key), []) if len(matches) == 1 else []
+        association = {"status": "unresolved", "reason": "exact_call_orientation_unavailable"}
+        if len(candidates) == 1 and candidates[0].get("status") == "target_candidate":
+            candidate = candidates[0]
+            association = {k: candidate[k] for k in ("status", "target", "target_context_index",
+                           "source_binding", "endpoint_content_binding") if k in candidate}
+        result["items"].append({**usage, "callee_orientation": association})
+    return {**result, "status": "observed", "returned": len(result["items"]),
+            "omitted": len(records) - len(result["items"]), "source_hash": identity,
+            "ast_contract_version": evidence["ast_contract_version"]}
+
+
 def _focus_zustand_setter_calls(row, limit, budget):
     """Project only parser-owned calls to a supported factory setter parameter."""
     result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
@@ -528,6 +1076,213 @@ def _focus_zustand_setter_calls(row, limit, budget):
     return result
 
 
+def _focus_direct_export(module, name, files, project, index, wanted_names, budget):
+    """Existing stored module/direct callable export owner; no call is invented."""
+    result = {"status": "unresolved", "reason": "module_target_unavailable", "visited_records": 0}
+    if module.get("status") != "target_candidate":
+        result["reason"] = module.get("reason", result["reason"])
+        return result, None, None
+    target = module.get("target")
+    ref = target.get("atlas_ref") if isinstance(target, dict) else None
+    prefix, separator, rel = ref.partition("::") if isinstance(ref, str) else ("", "", "")
+    if prefix != project or not separator or not _focus_relative_path(rel):
+        result["reason"] = "malformed_target_file_identity"
+        return result, None, None
+    record = files.get(rel)
+    if (not isinstance(record, dict) or target.get("source_hash") != record.get("hash")
+            or not isinstance(target.get("source_hash"), str) or not target["source_hash"]
+            or not isinstance(record.get("symbols"), list)):
+        result["reason"] = "target_export_evidence_unavailable"
+        return result, None, None
+    if ref not in index:
+        found, complete = {}, True
+        for symbol in record["symbols"]:
+            if result["visited_records"] >= max(0, budget):
+                complete = False
+                break
+            result["visited_records"] += 1
+            if isinstance(symbol, dict):
+                export_key = "default" if symbol.get("export_kind") == "default" else symbol.get("name")
+                if isinstance(export_key, str) and export_key in wanted_names:
+                    found.setdefault(export_key, []).append(symbol)
+        index[ref] = (complete, found)
+    complete, found = index[ref]
+    if not complete:
+        result.update(status="incomplete_scan", reason="target_symbol_scan_incomplete")
+        return result, None, None
+    if not isinstance(name, str) or not name:
+        result["reason"] = "dynamic_or_missing_export_name"
+        return result, None, None
+    matches = found.get(name, [])
+    if len(matches) != 1:
+        result.update(status="ambiguous" if matches else "unresolved",
+                      reason="ambiguous_target_export" if matches else "target_export_not_indexed")
+        return result, None, None
+    symbol = matches[0]
+    if symbol.get("type") in {"ReExportedSymbol", "ProxyExport", "LocalReExport"}:
+        result["reason"] = "reexport_or_alias_unresolved"
+        return result, None, None
+    expected_kind = "default" if name == "default" else "named"
+    if (symbol.get("exported") is not True or symbol.get("export_kind") != expected_kind
+            or not isinstance(symbol.get("name"), str) or not symbol["name"]
+            or symbol.get("type") not in {"Function", "Arrow", "Hook", "Component"}):
+        result["reason"] = "export_not_direct_callable"
+        return result, None, None
+    line, end_line = symbol.get("line"), symbol.get("end_line")
+    if not (type(line) is int and type(end_line) is int and 0 < line <= end_line):
+        result["reason"] = "target_symbol_span_unavailable"
+        return result, None, None
+    result.update(status="target_candidate", reason="direct_declared_export", source_binding="not_checked",
+                  target={**target, "symbol": symbol["name"], "start_line": line, "end_line": end_line,
+                          "ast_contract_version": record.get("ast_contract_version"),
+                          "callable_kind": symbol.get("response_json_callable_kind"),
+                          "callable_span": {"start": symbol.get("start"), "end": symbol.get("end"),
+                                            "line": line, "end_line": end_line}})
+    return result, record, symbol
+
+
+def _focus_jsx_source_facts(record, symbol, budget, *, child=False):
+    """Validate normalized finite facts against their exact stored source owner."""
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION, _jsx_callback_record_valid
+    key = "jsx_parameter_callback_call_evidence" if child else "jsx_prop_callback_evidence"
+    version = "v1-jsx-object-parameter-inline-call" if child else "v1-jsx-named-import-const-arrow-prop"
+    result = {"status": "unavailable", "records": [], "omitted": None, "visited_records": 0,
+              "reason": "jsx_callback_metadata_missing"}
+    evidence = symbol.get(key)
+    if not isinstance(evidence, dict):
+        return result
+    rows, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash",
+                        "records", "omitted", "runtime_execution", "reason"}
+            or evidence.get("version") != version or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or record.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or not isinstance(identity, str) or len(identity) != 64
+            or any(char not in "0123456789abcdef" for char in identity) or identity != record.get("hash")
+            or not isinstance(record.get("parser_evidence"), dict)
+            or record["parser_evidence"].get("status") != "observed"
+            or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(rows, list) or len(rows) > 64
+            or symbol.get("parser_kind") != "typescript_compiler_api"
+            or symbol.get("type") not in {"Function", "Arrow", "Hook", "Component"}
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "jsx_callback_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+                "reason": "jsx_callback_producer_incomplete", "omitted": len(rows) + evidence["omitted"]}
+    if len(rows) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "jsx_callback_scan_budget_exhausted", "omitted": len(rows)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+                and all(type(value) is int for value in span.values())
+                and type(record.get("size")) is int and type(record.get("loc")) is int
+                and 0 <= span["start"] < span["end"] <= record["size"]
+                and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    if not valid_span({key: symbol.get(key) for key in ("start", "end", "line", "end_line")}):
+        return {**result, "reason": "jsx_callback_outer_span_invalid", "omitted": len(rows)}
+    seen = set()
+    result["visited_records"] = 1
+    for row in rows:
+        result["visited_records"] += 1
+        if not _jsx_callback_record_valid(row, symbol, valid_span, child=child):
+            return {**result, "reason": "jsx_callback_record_invalid", "omitted": len(rows)}
+        site = row["spans"]["call" if child else "attribute"]
+        identity_key = (site["start"], site["end"])
+        if identity_key in seen:
+            return {**result, "reason": "jsx_callback_duplicate", "omitted": len(rows)}
+        seen.add(identity_key)
+    return {**result, "status": "observed", "reason": "finite_normalized_source_facts",
+            "records": rows, "omitted": 0, "source_hash": identity, "ast_contract_version": AST_CONTRACT_VERSION}
+
+
+def _focus_jsx_prop_callbacks(record, symbol, imports, files, project, limit, budget):
+    """Join one lexical JSX site to direct exported child parameter syntax only."""
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None,
+              "visited_records": 0, "source_binding": "not_checked",
+              "relation": "site_specific_jsx_prop_to_child_parameter_call_source_candidate",
+              "runtime_execution": "not_established", "value_transfer": "not_established"}
+    facts = _focus_jsx_source_facts(record, symbol, budget)
+    result["visited_records"] += facts["visited_records"]
+    if facts["status"] != "observed":
+        return {**result, "status": facts["status"], "reason": facts["reason"], "omitted": facts["omitted"]}
+    rows = facts["records"]
+    result.update(status="observed", source_hash=facts["source_hash"], ast_contract_version=facts["ast_contract_version"])
+    if not rows:
+        return {**result, "omitted": 0}
+    modules = imports.get("items") if isinstance(imports, dict) else None
+    if not isinstance(modules, list) or len(modules) > 64:
+        return {**result, "status": "unavailable", "reason": "jsx_module_evidence_unavailable", "omitted": len(rows)}
+    module_index = {}
+    for module in modules:
+        if result["visited_records"] >= max(0, budget):
+            return {**result, "status": "incomplete_scan", "reason": "jsx_module_scan_budget_exhausted", "omitted": len(rows)}
+        result["visited_records"] += 1
+        if isinstance(module, dict):
+            identity = tuple(module.get(key) for key in ("source", "localName", "importedName", "kind"))
+            if all(isinstance(value, str) and value for value in identity):
+                module_index.setdefault(identity, []).append(module)
+    exports, child_indexes = {}, {}
+    wanted = {row["importedName"] for row in rows}
+    remaining_children = max(0, limit)
+    for row in rows[:max(0, limit)]:
+        if result["visited_records"] >= max(0, budget):
+            result.update(status="incomplete_scan", reason="jsx_callback_join_budget_exhausted")
+            break
+        result["visited_records"] += 1
+        child = {"status": "unresolved", "reason": "module_reference_unavailable",
+                 "items": [], "returned": 0, "omitted": None, "source_binding": "not_checked"}
+        item = {"parent": row, "child": child}
+        result["items"].append(item)
+        identity = tuple(row[key] for key in ("source", "localName", "importedName", "kind"))
+        matching = module_index.get(identity, [])
+        if len(matching) != 1:
+            child["reason"] = ("ambiguous_module_reference" if matching else "module_reference_omitted"
+                               if imports.get("omitted") else "module_reference_unavailable")
+            continue
+        orientation, child_record, child_symbol = _focus_direct_export(
+            matching[0], row["importedName"], files, project, exports, wanted, budget - result["visited_records"])
+        result["visited_records"] += orientation.pop("visited_records")
+        child.update(orientation)
+        if orientation["status"] == "incomplete_scan":
+            result.update(status="incomplete_scan", reason="jsx_export_scan_budget_exhausted")
+            break
+        if orientation["status"] != "target_candidate":
+            continue
+        target = orientation["target"]
+        cache_key = (target["atlas_ref"], target["symbol"], target["start_line"], target["end_line"])
+        if cache_key not in child_indexes:
+            projected = _focus_jsx_source_facts(child_record, child_symbol, budget - result["visited_records"], child=True)
+            result["visited_records"] += projected["visited_records"]
+            by_prop = {}
+            if projected["status"] == "observed":
+                for fact in projected["records"]:
+                    if result["visited_records"] >= max(0, budget):
+                        projected.update(status="incomplete_scan", reason="jsx_child_index_budget_exhausted",
+                                         omitted=len(projected["records"]))
+                        break
+                    result["visited_records"] += 1
+                    by_prop.setdefault(fact["prop"], []).append(fact)
+            child_indexes[cache_key] = (projected, by_prop)
+        projected, by_prop = child_indexes[cache_key]
+        if projected["status"] != "observed":
+            child.update(status=projected["status"], reason=projected["reason"], omitted=projected["omitted"])
+            if projected["status"] == "incomplete_scan":
+                result.update(status="incomplete_scan", reason="jsx_child_evidence_incomplete")
+            continue
+        selected = by_prop.get(row["prop"], [])
+        if not selected:
+            child.update(status="unresolved", reason="no_admitted_same_prop_call",
+                         omitted=0, absence_claim="not_established")
+            continue
+        shown = selected[:remaining_children]
+        remaining_children -= len(shown)
+        child.update(status="source_candidate", reason="same_prop_direct_child_parameter_syntax",
+                     source_hash=projected["source_hash"], ast_contract_version=projected["ast_contract_version"],
+                     items=shown, returned=len(shown), omitted=len(selected) - len(shown),
+                     runtime_execution="not_established", value_transfer="not_established",
+                     absence_claim="not_established")
+    return {**result, "returned": len(result["items"]), "omitted": len(rows) - len(result["items"])}
+
 def _focus_direct_callees(calls, imports, files, project, limit, budget,
                           *, file_index=None, remaining_hops=1):
     """Resolve at most two syntax hops to unique same-project direct exports."""
@@ -561,6 +1316,9 @@ def _focus_direct_callees(calls, imports, files, project, limit, budget,
         item = {"status": "unresolved", "call_line": call["line"],
                 "imported_name": call["importedName"], "local_name": call["localName"],
                 "reason": "module_reference_unavailable", "runtime_execution": "not_established"}
+        if "lexical_owner" in call:
+            item.update(lexical_owner=call["lexical_owner"], lexical_owner_kind=call["lexical_owner_kind"],
+                        caller_spans=call["spans"], outer_callable_execution="not_established")
         result["items"].append(item)
         matching = [entry for entry in import_rows if isinstance(entry, dict) and all(
             entry.get(key) == call.get(key) for key in ("source", "localName", "importedName", "kind"))]
@@ -574,67 +1332,21 @@ def _focus_direct_callees(calls, imports, files, project, limit, budget,
         if module.get("status") != "target_candidate":
             item["reason"] = module.get("reason", "module_target_unavailable")
             continue
-        target = module.get("target")
-        if not isinstance(target, dict):
-            item["reason"] = "malformed_target_file_identity"
-            continue
-        ref = target.get("atlas_ref")
-        prefix, separator, rel = ref.partition("::") if isinstance(ref, str) else ("", "", "")
-        if prefix != project or not separator or not _focus_relative_path(rel):
-            item["reason"] = "malformed_target_file_identity"
-            continue
-        record = files.get(rel)
-        if (not isinstance(record, dict) or target.get("source_hash") != record.get("hash")
-                or not isinstance(target.get("source_hash"), str) or not target["source_hash"]
-                or not isinstance(record.get("symbols"), list)):
-            item["reason"] = "target_export_evidence_unavailable"
-            continue
-        if ref not in indexed_targets:
-            found = {}
-            complete = True
-            for symbol in record["symbols"]:
-                if result["visited_records"] >= budget:
-                    complete = False
-                    break
-                result["visited_records"] += 1
-                if isinstance(symbol, dict):
-                    export_key = "default" if symbol.get("export_kind") == "default" else symbol.get("name")
-                    if export_key in wanted_names:
-                        found.setdefault(export_key, []).append(symbol)
-            indexed_targets[ref] = (complete, found)
-        complete, found = indexed_targets[ref]
-        if not complete:
-            item["reason"] = "target_symbol_scan_incomplete"
+        name = call.get("member") if call.get("kind") == "namespace" else call.get("importedName")
+        orientation, record, symbol = _focus_direct_export(
+            module, name, files, project, indexed_targets, wanted_names, budget - result["visited_records"])
+        result["visited_records"] += orientation.pop("visited_records")
+        item.update(orientation)
+        if item["status"] == "incomplete_scan":
+            item["status"] = "unresolved"
             result.update(status="incomplete_scan", reason="callee_scan_budget_exhausted")
             break
-        name = call.get("member") if call.get("kind") == "namespace" else call.get("importedName")
-        if not isinstance(name, str) or not name:
-            item["reason"] = "dynamic_or_missing_export_name"
+        if item["status"] != "target_candidate":
             continue
-        matches = found.get(name, [])
-        if len(matches) != 1:
-            item["status"] = "ambiguous" if matches else "unresolved"
-            item["reason"] = "ambiguous_target_export" if matches else "target_export_not_indexed"
-            continue
-        symbol = matches[0]
-        if symbol.get("type") in {"ReExportedSymbol", "ProxyExport", "LocalReExport"}:
-            item["reason"] = "reexport_or_alias_unresolved"
-            continue
-        expected_kind = "default" if name == "default" else "named"
-        if (symbol.get("exported") is not True or symbol.get("export_kind") != expected_kind
-                or not isinstance(symbol.get("name"), str) or not symbol["name"]
-                or symbol.get("type") not in {"Function", "Arrow", "Hook", "Component"}):
-            item["reason"] = "export_not_direct_callable"
-            continue
-        line, end_line = symbol.get("line"), symbol.get("end_line")
-        if not (type(line) is int and type(end_line) is int and 0 < line <= end_line):
-            item["reason"] = "target_symbol_span_unavailable"
-            continue
-        item.update(status="target_candidate", reason="direct_declared_export",
-                    target={**target, "symbol": symbol["name"], "start_line": line, "end_line": end_line},
-                    source_binding="not_checked")
+        ref = item["target"]["atlas_ref"]
         if not remaining_hops:
             continue
+        line, end_line = item["target"]["start_line"], item["target"]["end_line"]
         context_key = (ref, symbol["name"], line, end_line)
         if context_key not in context_index:
             context = _focus_symbol_context(symbol, limit, "direct_target_symbol_syntax_not_execution")
@@ -2169,7 +2881,18 @@ def _focus_same_file_direct_calls(record, selected, target, limit, budget):
 
 
 def project_state_flow_focus(atlas: dict, *, project: str, file: str, symbol: str,
-                             max_items: int, scan_limit: int) -> dict:
+                             max_items: int, scan_limit: int, _deferred_result_use: dict | None = None,
+                             _deferred_local_sibling: dict | None = None,
+                             _deferred_jsx_callbacks: dict | None = None,
+                             _deferred_returned_callbacks: dict | None = None,
+                             _deferred_call_result_bindings: dict | None = None,
+                             _deferred_alias_invocations: dict | None = None,
+                             _deferred_nested_alias_invocations: dict | None = None,
+                             _deferred_parameter_callbacks: dict | None = None,
+                             _deferred_optional_rest_alias_invocations: dict | None = None,
+                             _deferred_optional_alias_invocations: dict | None = None,
+                             _deferred_returned_parameter_calls: dict | None = None,
+                             _deferred_returned_context_calls: dict | None = None) -> dict:
     """Project stored evidence only; identifier references are not data-flow edges."""
     limit = max(1, int(max_items))
     budget = max(1, int(scan_limit))
@@ -2368,6 +3091,15 @@ def project_state_flow_focus(atlas: dict, *, project: str, file: str, symbol: st
                 context["import_calls"], result["import_candidates"], files, project,
                 limit, budget - result["visited_records"], file_index=file_index)
             result["visited_records"] += result["direct_callees"]["visited_records"]
+            if "local_arrow_import_call_evidence" in row:
+                context["local_arrow_import_calls"] = _focus_local_arrow_import_calls(
+                    record, row, limit, budget - result["visited_records"])
+                result["visited_records"] += context["local_arrow_import_calls"]["visited_records"]
+                result["local_arrow_import_callees"] = _focus_direct_callees(
+                    context["local_arrow_import_calls"], result["import_candidates"], files, project,
+                    limit, budget - result["visited_records"], file_index=file_index)
+                result["local_arrow_import_callees"]["relation"] = "local_arrow_named_import_direct_export_orientation"
+                result["visited_records"] += result["local_arrow_import_callees"]["visited_records"]
             if not declaring and row.get("type") in {"Function", "Arrow", "Hook", "Component"}:
                 result["same_file_direct_calls"] = _focus_same_file_direct_calls(
                     record, row, result["target"], limit, budget - result["visited_records"])
@@ -2454,4 +3186,93 @@ def project_state_flow_focus(atlas: dict, *, project: str, file: str, symbol: st
                     "bounded_file_import_scan" if indexed_importers is None
                     else "same_snapshot_resolved_module_importer_index")
                 result["visited_records"] += result["cross_file_rehydrate_call_candidates"]["visited_records"]
+            if "local_arrow_result_use_evidence" in row:
+                if _deferred_result_use is not None:
+                    # MCP settles pre-existing return/packet budgets first. Pass
+                    # selected references, not another Atlas load or symbol walk.
+                    _deferred_result_use.update(record=record, symbol=row)
+                else:
+                    context["local_arrow_result_uses"] = _focus_local_arrow_result_uses(
+                        record, row, limit, budget - result["visited_records"],
+                        context.get("local_arrow_import_calls", {}), result.get("local_arrow_import_callees", {}))
+                    result["visited_records"] += context["local_arrow_result_uses"]["visited_records"]
+            if "local_arrow_sibling_call_evidence" in row:
+                if _deferred_local_sibling is not None:
+                    _deferred_local_sibling.update(record=record, symbol=row)
+                else:
+                    context["local_arrow_sibling_calls"] = _focus_local_arrow_sibling_calls(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["local_arrow_sibling_calls"]["visited_records"]
+            if "jsx_prop_callback_evidence" in row:
+                if _deferred_jsx_callbacks is not None:
+                    _deferred_jsx_callbacks.update(record=record, symbol=row, files=files, project=project,
+                                                   imports=result["import_candidates"])
+                else:
+                    context["jsx_prop_callbacks"] = _focus_jsx_prop_callbacks(
+                        record, row, result["import_candidates"], files, project,
+                        limit, budget - result["visited_records"])
+                    result["visited_records"] += context["jsx_prop_callbacks"]["visited_records"]
+            if "returned_local_callback_evidence" in row:
+                if _deferred_returned_callbacks is not None:
+                    _deferred_returned_callbacks.update(record=record, symbol=row)
+                else:
+                    context["returned_local_callbacks"] = _focus_returned_local_callbacks(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["returned_local_callbacks"]["visited_records"]
+            if "call_result_property_binding_evidence" in row:
+                if _deferred_call_result_bindings is not None:
+                    _deferred_call_result_bindings.update(record=record, symbol=row)
+                else:
+                    context["call_result_property_bindings"] = _focus_call_result_property_bindings(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["call_result_property_bindings"]["visited_records"]
+            if "call_result_alias_invocation_evidence" in row:
+                if _deferred_alias_invocations is not None:
+                    _deferred_alias_invocations.update(record=record, symbol=row)
+                else:
+                    context["call_result_alias_invocations"] = _focus_call_result_alias_invocations(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["call_result_alias_invocations"]["visited_records"]
+            if "call_result_nested_callback_alias_invocation_evidence" in row:
+                if _deferred_nested_alias_invocations is not None:
+                    _deferred_nested_alias_invocations.update(record=record, symbol=row)
+                else:
+                    context["call_result_nested_callback_alias_invocations"] = _focus_call_result_alias_invocations(
+                        record, row, limit, budget - result["visited_records"], _nested=True)
+                    result["visited_records"] += context["call_result_nested_callback_alias_invocations"]["visited_records"]
+            if "parameter_config_callback_forwarding_evidence" in row:
+                if _deferred_parameter_callbacks is not None:
+                    _deferred_parameter_callbacks.update(record=record, symbol=row)
+                else:
+                    context["parameter_config_callback_forwardings"] = _focus_parameter_config_callbacks(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["parameter_config_callback_forwardings"]["visited_records"]
+            if "call_result_optional_rest_alias_invocation_evidence" in row:
+                if _deferred_optional_rest_alias_invocations is not None:
+                    _deferred_optional_rest_alias_invocations.update(record=record, symbol=row)
+                else:
+                    context["call_result_optional_rest_alias_invocations"] = _focus_call_result_alias_invocations(
+                        record, row, limit, budget - result["visited_records"], _optional_rest=True)
+                    result["visited_records"] += context["call_result_optional_rest_alias_invocations"]["visited_records"]
+            if "call_result_optional_alias_invocation_evidence" in row:
+                if _deferred_optional_alias_invocations is not None:
+                    _deferred_optional_alias_invocations.update(record=record, symbol=row)
+                else:
+                    context["call_result_optional_alias_invocations"] = _focus_call_result_alias_invocations(
+                        record, row, limit, budget - result["visited_records"], _optional=True)
+                    result["visited_records"] += context["call_result_optional_alias_invocations"]["visited_records"]
+            if "returned_callback_parameter_optional_call_evidence" in row:
+                if _deferred_returned_parameter_calls is not None:
+                    _deferred_returned_parameter_calls.update(record=record, symbol=row)
+                else:
+                    context["returned_callback_parameter_optional_calls"] = _focus_returned_callback_parameter_optional(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["returned_callback_parameter_optional_calls"]["visited_records"]
+            if "returned_callback_parameter_context_call_evidence" in row:
+                if _deferred_returned_context_calls is not None:
+                    _deferred_returned_context_calls.update(record=record, symbol=row)
+                else:
+                    context["returned_callback_parameter_context_calls"] = _focus_returned_callback_parameter_context(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["returned_callback_parameter_context_calls"]["visited_records"]
     return result
