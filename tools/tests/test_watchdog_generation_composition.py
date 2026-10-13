@@ -9,6 +9,8 @@ import pytest
 from tools.core.artifact_store import ArtifactStore
 from tools.core.atlas_integrity import build_atlas_commit
 from tools.core.audit_finding_generation import evaluate_finding_manifest
+from tools.core import audit_finding_generation as finding_order
+from tools.core import contextos_mcp
 from tools.core.db import SQLiteManager
 from tools.mcp import server
 
@@ -92,6 +94,167 @@ def _violation(file_name: str, detail: str) -> dict:
         "rule": "proof",
         "detail": detail,
     }
+
+
+def _ordered_violation(path: str, detail: str = "source-bound review", **fields) -> dict:
+    return {**_violation(path, detail), "atlas_rel_path":path, **fields}
+
+
+def _presentation_queue(root: Path, rows: list[dict], *, page: int = 1, size: int = 50):
+    store = _store(root)
+    atlas = _atlas(root, a_hash="a1", b_hash="b1")
+    # Exercise the real indexed mapping and relational projection, including Unicode paths.
+    for row in rows:
+        atlas["MAIN"]["files"].setdefault(row["atlas_rel_path"], dict(atlas["MAIN"]["files"]["a.ts"]))
+    commit = build_atlas_commit(atlas)
+    store._save_atlas_to_sqlite(atlas)
+    store._save_payload_to_state_table("atlas", atlas)
+    store._save_payload_to_state_table("atlas_commit", commit)
+    store._save_audit_findings_to_sqlite(_audit(snapshot_id=commit["snapshot_id"], violations=rows))
+    return server._audit_violation_work_items_from_sqlite(root, page=page, page_size=size, project="MAIN")
+
+
+@pytest.mark.parametrize("fields", [{"mode":"critical"}, {"severity":"high"}, {"level":"warning"}])
+def test_presentation_ranks_before_queue_page_and_packet_cap(tmp_path, fields):
+    rows = [_ordered_violation("a.ts", "early advisory", mode="advisory"), _ordered_violation("b.ts", "late elevated row", **fields)]
+    queue, total, ok = _presentation_queue(tmp_path, rows, size=1)
+    directives = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, max_items=1)
+    assert ok and total == 2 and queue[0]["target_file"] == "b.ts"
+    assert directives[0]["evidence"] == rows[1]["detail"]
+    assert directives[0]["presentation_order"] == queue[0]["presentation_order"]
+    assert directives[0]["mutation_authority"] == "separate_actor_policy_and_approval"
+    assert queue[0]["presentation_order"]["causal_relation"] == "not_evaluated"
+
+
+def test_unknown_ties_unicode_duplicates_and_dictionary_order_match_queue(tmp_path):
+    rows = [_ordered_violation("İ.ts"), _ordered_violation("Ö.ts"), _ordered_violation("Z.ts"),
+        _ordered_violation("a.ts", "z"), _ordered_violation("a.ts", "a"), _ordered_violation("a.ts", "a")]
+    rows[4] = dict(reversed(list(rows[4].items())))
+    queue, total, ok = _presentation_queue(tmp_path, rows)
+    selected, summary = finding_order.select_audit_presentation_rows(rows, limit=20)
+    assert ok and total == len(queue) == len(selected) == 6
+    assert [(r["target_file"],r["evidence"]) for r in queue] == [(r["atlas_rel_path"],r["detail"]) for r in selected]
+    assert [r["audit_severity"] for r in queue] == ["unknown"] * 6
+    assert summary["unknown_row_level"] == "preserved"
+    assert summary["candidate_universe_equality"] == "not_evaluated"
+    reverse, _ = finding_order.select_audit_presentation_rows(list(reversed(rows)), limit=20)
+    assert reverse == selected
+
+
+def test_mode_precedence_and_canonical_identity_not_workspace_path(tmp_path):
+    rows = [_ordered_violation("b.ts", mode="advisory", severity="critical"),
+        _ordered_violation("a.ts", file="workspace/z.ts", severity="high")]
+    queue, total, ok = _presentation_queue(tmp_path, rows)
+    selected, _ = finding_order.select_audit_presentation_rows(rows, limit=1)
+    assert ok and total == 2 and queue[0]["target_file"] == selected[0]["atlas_rel_path"] == "a.ts"
+    assert queue[1]["audit_severity"] == "advisory"
+    other_page, _, _ = server._audit_violation_work_items_from_sqlite(tmp_path, page=2, page_size=1, project="MAIN")
+    assert other_page[0]["id"] == queue[1]["id"]
+
+
+def test_scope_filter_precedes_presentation_and_source_groups_remain_separate():
+    rows = [_ordered_violation("a.ts", project="COMPANION", project_key="COMPANION", mode="critical"),
+        _ordered_violation("b.ts", mode="advisory")]
+    directives = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, project_scope="MAIN",
+        priority_pack={"items":[{"file":"attention.ts", "risk_tier":"critical"}]}, max_items=2)
+    assert len(directives) == 2 and directives[0]["id"] == "audit_violation_1"
+    assert directives[1]["id"] == "priority_finding_2"
+    assert directives[0]["presentation_order"]["status"] == "applied"
+    assert directives[1]["actionability"] == "orientation_only"
+
+
+@pytest.mark.parametrize("path", [None, "", "../a.ts", "MAIN::a.ts", "a\\b.ts", "/a.ts"])
+def test_missing_recorded_identity_preserves_visible_findings(path):
+    rows = [_ordered_violation("b.ts", "first"), _ordered_violation("a.ts", "second", mode="critical")]
+    rows[0]["atlas_rel_path"] = path
+    selected, summary = finding_order.select_audit_presentation_rows(rows, limit=1)
+    assert selected == rows[:1] and summary["status"] == "unavailable"
+    directives = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, max_items=1)
+    assert directives[0]["evidence"] == "first" and directives[0]["presentation_order"]["status"] == "unavailable"
+
+
+def test_missing_descriptor_keeps_packet_visibility_but_refuses_sqlite_fallback(tmp_path, monkeypatch):
+    rows = [_ordered_violation("a.ts")]
+    _presentation_queue(tmp_path, rows)
+    monkeypatch.setattr(finding_order, "AUDIT_PRESENTATION_CONTRACT_PATH", tmp_path / "missing-contract.json")
+    selected, summary = finding_order.select_audit_presentation_rows(rows, limit=1)
+    assert selected == rows and summary["status"] == "unavailable"
+    assert server._audit_violation_work_items_from_sqlite(tmp_path, page=1, page_size=10) == ([], 0, False)
+
+
+@pytest.mark.parametrize("bad", ["unsafe_name'; DROP TABLE findings;--", True, -1])
+def test_descriptor_rejects_invalid_sql_literals(tmp_path, monkeypatch, bad):
+    order = finding_order.load_audit_presentation_order()
+    if isinstance(bad, str):
+        order["severity_tiers"][bad] = 0
+    else:
+        order["unknown_tier"] = bad
+    path = tmp_path / "policy.json"
+    path.write_text(json.dumps({"work_queue_brief_policy":{"audit_presentation_order":order}}), encoding="utf-8")
+    monkeypatch.setattr(finding_order, "AUDIT_PRESENTATION_CONTRACT_PATH", path)
+    with pytest.raises(ValueError):
+        finding_order.load_audit_presentation_order()
+
+
+@pytest.mark.parametrize("field,value", [("version", "v2"), ("basis", "causal_priority"),
+    ("keys", ["stored_row_level_tier"]), ("authority_rule", None), ("authority_rule", " ")])
+def test_incomplete_descriptor_keeps_visibility_without_certifying_order(tmp_path, monkeypatch, field, value):
+    order = finding_order.load_audit_presentation_order()
+    order[field] = value
+    path = tmp_path / "policy.json"
+    path.write_text(json.dumps({"work_queue_brief_policy":{"audit_presentation_order":order}}), encoding="utf-8")
+    monkeypatch.setattr(finding_order, "AUDIT_PRESENTATION_CONTRACT_PATH", path)
+    rows = [_ordered_violation("b.ts"), _ordered_violation("a.ts", mode="critical")]
+    selected, summary = finding_order.select_audit_presentation_rows(rows, limit=1)
+    assert selected == rows[:1] and summary["status"] == "unavailable"
+    brief = server._render_violation_work_queue_page({"artifact_trust":{"status":"FAIL"}}, visible_limit=1)
+    assert "presentation_order_rule:" in brief and "ordering is not certified" in brief
+
+
+def test_policy_tier_change_reaches_sql_packet_module_and_queue_brief(tmp_path, monkeypatch):
+    raw_dir = tmp_path / ".raw"
+    raw_dir.mkdir()
+    rows = [_ordered_violation("a.ts", "critical row", mode="critical"),
+        _ordered_violation("b.ts", "advisory row", mode="advisory")]
+    queue, total, ok = _presentation_queue(raw_dir, rows, size=1)
+    assert ok and total == 2 and queue[0]["target_file"] == "a.ts"
+    order = finding_order.load_audit_presentation_order()
+    order["severity_tiers"]["advisory"] = 0
+    order["severity_tiers"]["critical"] = 3
+    path = tmp_path / "policy.json"
+    path.write_text(json.dumps({"work_queue_brief_policy":{"audit_presentation_order":order}}), encoding="utf-8")
+    monkeypatch.setattr(finding_order, "AUDIT_PRESENTATION_CONTRACT_PATH", path)
+    queue, total, ok = server._audit_violation_work_items_from_sqlite(raw_dir, page=1, page_size=1, project="MAIN")
+    directives = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, max_items=1)
+    modules, module_total, module_ok = server._module_integrity_items_from_sqlite(raw_dir, "", max_items=1)
+    assert ok and module_ok and total == module_total == 2
+    assert queue[0]["evidence"] == directives[0]["evidence"] == modules[0]["evidence"] == "advisory row"
+    assert directives[0]["presentation_order"] == queue[0]["presentation_order"]
+    assert server._work_queue_brief_policy()["presentation_order_rule"] == order["authority_rule"]
+    brief = server._render_violation_work_queue_page({"items":queue, "total_violations":2,
+        "artifact_trust":{"status":"PASS"}}, visible_limit=1)
+    assert "presentation_order_rule:" in brief and order["authority_rule"] in brief
+
+
+def test_unique_omitted_paths_do_not_serialize_whole_rows_or_construct_directives(monkeypatch):
+    rows = [_ordered_violation(f"file{i:04}.ts") for i in range(500, 0, -1)]
+    with patch.object(finding_order, "canonical_audit_finding_message", wraps=finding_order.canonical_audit_finding_message) as serialize:
+        selected, summary = finding_order.select_audit_presentation_rows(rows, limit=2)
+    assert [r["atlas_rel_path"] for r in selected] == ["file0001.ts", "file0002.ts"]
+    assert serialize.call_count == 1  # Descriptor identity only; no finding-prefix ties.
+    with patch.object(contextos_mcp, "_directive_for_violation", wraps=contextos_mcp._directive_for_violation) as construct:
+        directives = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, max_items=2)
+    assert len(directives) == construct.call_count == 2 and summary["status"] == "applied"
+
+
+def test_public_operator_and_surgical_brief_keep_presentation_boundary():
+    from tools.generate_nexora_operator_packet import _public_agent_directives
+    rows = [_ordered_violation("a.ts")]
+    directive = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, max_items=1)[0]
+    public = _public_agent_directives([directive])[0]
+    assert public["presentation_order"]["candidate_universe_equality"] == "not_evaluated"
+    assert "message" not in public["presentation_order"]
+    assert "presentation_order" in contextos_mcp.render_surgical_operation_brief({"agent_action_directives":[directive]})
 
 
 def _store(root: Path) -> ArtifactStore:

@@ -98,7 +98,9 @@ def relevant_activation_context(
     include_disabled: bool = False,
     allowed_system_scopes: set[str] | None = None,
     project_ids: list[str] | None = None,
+    include_private_followup: bool = False,
 ) -> dict[str, Any]:
+    """Project bounded context; maintainer provenance requires an explicit opt-in."""
     target_ids = {str(item) for item in capability_ids or [] if str(item).strip()}
     requested_projects = [str(item) for item in project_ids or [] if str(item).strip()]
     requested_project_set = set(requested_projects)
@@ -149,17 +151,30 @@ def relevant_activation_context(
     summary["source_projects"] = summary.get("projects")
     summary["projects"] = len(rows)
     summary["project_ids"] = [str(row.get("project") or "") for row in rows]
+    surface_policy = {
+        "detail": "bounded_context_projection",
+        "disabled_rows_included": bool(include_disabled),
+        "max_projects": max(1, int(max_projects or 3)),
+        "system_scope_filter": sorted(allowed_system_scopes) if allowed_system_scopes is not None else [],
+        "project_filter": requested_projects,
+    }
+    if include_private_followup is True:
+        surface_policy.update(
+            full_plan_artifact="output/.raw/capability_activation_plan.json",
+            full_plan_mcp_tool="get_capability_activation_plan",
+        )
+    else:
+        surface_policy["full_plan_followup"] = {
+            "availability": "unavailable",
+            "reason": "maintainer_only",
+            "claim_boundary": (
+                "Target activation context is orientation only. It does not authorize "
+                "a maintainer-profile transition, capability activation or an edit."
+            ),
+        }
     return {
         "summary": summary,
         "input_evidence": plan.get("input_evidence", {}),
-        "surface_policy": {
-            "detail": "bounded_context_projection",
-            "full_plan_artifact": "output/.raw/capability_activation_plan.json",
-            "full_plan_mcp_tool": "get_capability_activation_plan",
-            "disabled_rows_included": bool(include_disabled),
-            "max_projects": max(1, int(max_projects or 3)),
-            "system_scope_filter": sorted(allowed_system_scopes) if allowed_system_scopes is not None else [],
-            "project_filter": requested_projects,
-        },
+        "surface_policy": surface_policy,
         "projects": rows,
     }

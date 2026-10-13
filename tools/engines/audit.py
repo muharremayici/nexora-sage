@@ -80,6 +80,9 @@ REPOSITORY_INLINE_READ_RETURN_FEATURE = re.compile(
 REPOSITORY_COLLECTION_READ_RETURN_FEATURE = re.compile(
     r"TypeScript:RepositoryCollectionReadReturn:([A-Za-z_$][A-Za-z0-9_$]*):(getAll(?:By[A-Z][A-Za-z0-9_$]*)?):(const_binding|inline_await|filtered_binding):([1-9][0-9]*):([1-9][0-9]*)"
 )
+SHALLOW_COPY_NESTED_WRITE_FEATURE = re.compile(
+    r"TypeScript:ShallowCopyNestedIndexWriteBeforeAwait:([A-Za-z_$][A-Za-z0-9_$]*):([A-Za-z_$][A-Za-z0-9_$]*):([1-9][0-9]*):([1-9][0-9]*):([1-9][0-9]*)"
+)
 
 
 def _runtime_review_file_evidence(project: str, rel_path: str, file_data: dict):
@@ -110,6 +113,38 @@ def _runtime_review_file_evidence(project: str, rel_path: str, file_data: dict):
     if not isinstance(features, list):
         return None
     return source_hash, target_ref, loc, sorted({item for item in features if isinstance(item, str)})
+
+
+def _shallow_copy_nested_write_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
+    """Project bound copy/write/await syntax; ownership and persistence stay unknown."""
+    evidence = _runtime_review_file_evidence(project, rel_path, file_data)
+    if evidence is None:
+        return []
+    source_hash, target_ref, loc, features = evidence
+    rows = []
+    for feature in features:
+        match = SHALLOW_COPY_NESTED_WRITE_FEATURE.fullmatch(feature)
+        if not match:
+            continue
+        subject, property_name, copy_text, write_text, await_text = match.groups()
+        copy_line, write_line, await_line = int(copy_text), int(write_text), int(await_text)
+        if not (copy_line < write_line < await_line <= loc):
+            continue
+        rows.append({
+            "kind": "shallow_copy_nested_index_write_before_await",
+            "project": project, "file": rel_path, "target_ref": target_ref,
+            "subject": subject, "property": property_name,
+            "guard_line": copy_line, "sink_line": write_line, "await_line": await_line,
+            "source_hash": source_hash, "evidence_source": "typescript_syntax_ast",
+            "atlas_feature": feature, "confidence": "needs_runtime_proof", "actionability": "review",
+            "claim_boundary": "guard_line locates a single-spread copy, not a validation guard. A literal nested index write precedes an awaited call receiving that copy. Accessors/proxies, shared ownership, call purpose, execution and durable persistence remain unproven.",
+            "verification_questions": [
+                "Do target types and native tests establish an ordinary shared nested object, rather than an accessor/proxy or intentional alias?",
+                "What contract does the awaited call actually implement? A call name or await does not establish persistence.",
+                "Under the declared caller contract, should the original remain unchanged when that call rejects? Verify with a focused target-native failure test before proposing a change.",
+            ],
+        })
+    return rows
 
 
 def _immutable_key_review_candidates(project: str, rel_path: str, file_data: dict) -> list[dict]:
@@ -808,6 +843,8 @@ def _write_outputs(
             f"  - [{row['project']}] {row['file']}:{row['guard_line']} "
             f"kind={row['kind']} {subject_field}={row[subject_field]} sink_line={row['sink_line']}"
         )
+        if "await_line" in row:
+            lines.append(f"    copy_binding={row['subject']} awaited_call_line={row['await_line']} (purpose unverified)")
         for question in row.get("verification_questions", []):
             lines.append(f"    Target-native question (unverified): {question}")
     if len(runtime_review_candidates) > 20:
@@ -1140,6 +1177,9 @@ def analyze_project(changed_files=None, atlas=None):
             )
             runtime_review_candidates.extend(
                 _schema_broader_cast_review_candidates(pkey, rel_path, a_data)
+            )
+            runtime_review_candidates.extend(
+                _shallow_copy_nested_write_review_candidates(pkey, rel_path, a_data)
             )
             runtime_review_candidates.extend(
                 _unawaited_async_helper_review_candidates(pkey, rel_path, a_data)

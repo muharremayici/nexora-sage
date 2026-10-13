@@ -1670,7 +1670,10 @@ def validate_agent_semantic_contract_smoke() -> dict[str, Any]:
         ),
         _check(
             "surgical_packet_marks_contextos_as_focus_not_verdict",
-            surgical_packet.get("engine_signal_contract", {}).get("mcp_tool") == "get_engine_signal_contracts"
+            "mcp_tool" not in surgical_packet.get("engine_signal_contract", {})
+            and surgical_packet.get("engine_signal_contract", {}).get("followup", {}).get("availability") == "unavailable"
+            and surgical_packet.get("engine_signal_contract", {}).get("followup", {}).get("reason") == "maintainer_only"
+            and "does not authorize" in str(surgical_packet.get("engine_signal_contract", {}).get("followup", {}).get("claim_boundary", "")).lower()
             and "not release proof" in str(surgical_packet.get("engine_signal_contract", {}).get("agent_rule", "")).lower()
             and contextos_contract.get("emits") == "context_packet"
             and contextos_contract.get("quality_gate_effect") == "none",

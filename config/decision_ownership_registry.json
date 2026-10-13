@@ -25,6 +25,15 @@
   },
   "domains": [
     {
+      "id": "audit_presentation_order_keys",
+      "owner_file": "config/agent_surface_contract.json",
+      "owner_pointers": [
+        "work_queue_brief_policy.audit_presentation_order.keys"
+      ],
+      "value_mode": "list_values",
+      "consumer_rule": "Use the validated shared Audit presentation helper; do not reconstruct an ordering descriptor in an adapter or infer causal priority from it."
+    },
+    {
       "id": "product_boundary_required_ids",
       "owner_file": "config/product_boundary_contract.json",
       "owner_pointers": [

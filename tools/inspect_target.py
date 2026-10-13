@@ -15,7 +15,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.core.audit_rules import build_rule_taxonomy
-from tools.core.agent_packet_budget import context_budget_profile
+from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, context_budget_profile
 from tools.core.agent_snippet_renderer import render_target_source_snippets
 from tools.core.atlas_io import load_atlas_data
 from tools.core.config import DOCTRINE, RAW_DIR, REPORTS_DIR, ROOT as ANALYZED_REPOSITORY_ROOT, save_json_atomic, save_text_atomic
@@ -25,6 +25,274 @@ from tools.core.operational_limits import sqlite_read_timeout_seconds
 
 
 AGENT_INSPECTION_MAX_TARGET_SPANS = 6
+
+
+def _project_client_local_parser_syntax_evidence(file_info: Any, source_status: dict[str, Any], *, input_sink: bool,
+                                               imported: bool = False, source_candidate=None) -> dict[str, Any]:
+    """Sample stored syntax, never rescan source or infer validation authority."""
+    base = {"status": "unavailable", "reason": "metadata_missing", "records": [],
+            "record_count": None, "shown": 0, "omitted": None,
+            "projection_scope": "file_wide_record_sample_not_requested_line_range",
+            "coverage": "finite_grammar_not_exhaustive", "offset_unit": "utf8_bytes",
+            "source_binding": "unavailable", "schema_authority": "not_established",
+            "runtime_proof": "not_performed", "edit_authority": "not_granted",
+            "empty_result_meaning": "No recorded finite-grammar relation; not proof of clean code or absent validation."}
+    if input_sink:
+        base.update(selected_value_origin="json_input", call_result_use="not_selected_by_this_sink",
+                    parser_effect_on_input="not_established")
+    if imported:
+        base.update(parser_effect_on_input="not_established")
+    if not isinstance(file_info, dict):
+        return base
+    evidence = file_info.get("client_imported_parser_evidence" if imported else "client_local_parser_input_sink_evidence" if input_sink else "client_local_parser_result_evidence")
+    if not isinstance(evidence, dict):
+        return base
+    if evidence.get("status") != "observed":
+        return {**base, "reason": "producer_evidence_unavailable"}
+    identity = evidence.get("source_hash")
+    records = evidence.get("records")
+    version = "v1-const-parse-call-input-to-state" if input_sink else "v1-const-sync-call-result-to-state"
+    scope = "finite_same_file_parse_call_json_input_to_react_state" if input_sink else "finite_same_file_sync_call_result_to_react_state"
+    if imported:
+        version, scope = "v1-named-import-parse-to-state", "finite_same_file_named_import_parse_json_to_react_state"
+    if (evidence.get("version") != version
+            or evidence.get("scope") != scope
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+            or identity != file_info.get("hash")
+            or not isinstance(evidence.get("ast_contract_version"), str)
+            or not evidence["ast_contract_version"]
+            or evidence["ast_contract_version"] != file_info.get("ast_contract_version")
+            or evidence.get("schema_authority") != "not_established"
+            or evidence.get("runtime_proof") != "not_performed"
+            or (imported and evidence.get("parser_effect_on_input") != "not_established")
+            or not isinstance(records, list)
+            or (input_sink and any(evidence.get(key) != base[key] for key in
+                ("selected_value_origin", "call_result_use", "parser_effect_on_input")))):
+        return {**base, "reason": "metadata_identity_or_contract_invalid"}
+    if (source_status.get("source_snapshot_hash") != identity
+            or source_status.get("source_snapshot_status") != "ok"
+            or source_status.get("drift_check_status") != "match"
+            or not all(source_status.get(key) for key in ("inside_root", "exists", "indexed"))):
+        return {**base, "reason": "source_binding_unavailable"}
+    result = {**base, "status": "observed", "reason": "stored_syntax_only",
+              "source_binding": "snapshot_and_live_match", "source_hash": identity,
+              "version": evidence["version"], "ast_contract_version": evidence["ast_contract_version"],
+              "record_count": len(records), "omitted": len(records),
+              "syntax_claim": ("This setter selects the parse call's JSON input, not that call's result. The call can reject or mutate the input; validation bypass is not established."
+                               if input_sink else "Recorded local call-result consumption by a typed React setter; a parse-named call may be passthrough.")}
+    if imported:
+        result["syntax_claim"] = "Named-import parse-call syntax with selected input or result. Direct export orientation is not schema, SDK, HTTP or runtime proof."
+    roles = ("fetch", "json", "parser_call", "result", "sink", "argument")
+    shown: list[dict[str, Any]] = []
+    for record in records[:AGENT_INSPECTION_MAX_TARGET_SPANS]:
+        if not isinstance(record, dict) or not isinstance(record.get("spans"), dict):
+            return {**base, "reason": "projected_record_invalid"}
+        field_path, spans = record.get("field_path"), record["spans"]
+        if not isinstance(field_path, list) or any(not isinstance(key, str) for key in field_path):
+            return {**base, "reason": "projected_record_invalid"}
+        selected = {}
+        for role in roles:
+            span = spans.get(role)
+            if (not isinstance(span, dict) or set(span) != {"start", "end", "line", "end_line"}
+                    or any(type(value) is not int for value in span.values())
+                    or not 0 <= span["start"] < span["end"]
+                    or not 1 <= span["line"] <= span["end_line"]):
+                return {**base, "reason": "projected_record_invalid"}
+            selected[role] = dict(span)
+        item = {"field_path": list(field_path), "spans": selected,
+                "source_followup": {"tool": "inspect_file", "file_path": source_status.get("target_ref") or "",
+                    "line_start": selected["parser_call"]["line"], "line_end": selected["sink"]["end_line"]}}
+        if imported:
+            binding, origin = record.get("import_binding"), record.get("selected_value_origin")
+            if (not isinstance(origin, str) or origin not in {"parser_call_result", "json_input"} or not isinstance(binding, dict)
+                    or set(binding) != {"source", "kind", "imported_name", "local_name", "type_only"}
+                    or binding["kind"] != "named" or binding["type_only"] is not False
+                    or any(not isinstance(binding[key], str) or not binding[key] for key in
+                           ("source", "imported_name", "local_name"))):
+                return {**base, "reason": "projected_import_binding_invalid"}
+            declared = file_info.get("direct_import_binding_evidence")
+            bindings = declared.get("records") if isinstance(declared, dict) and declared.get("status") == "observed" else None
+            matches = [row for row in bindings if isinstance(row, dict)
+                       and row.get("source") == binding["source"]
+                       and row.get("localName") == binding["local_name"]
+                       and row.get("importedName") == binding["imported_name"]
+                       and row.get("kind") == "named" and row.get("typeOnly") is False
+                       and row.get("bindingScope") == "file_top_level_import_declaration"] if isinstance(bindings, list) else []
+            if len(matches) != 1:
+                return {**base, "reason": "projected_direct_binding_conflict"}
+            item.update(import_binding=dict(binding), selected_value_origin=origin,
+                        parser_source_candidate=(source_candidate(record) if source_candidate else
+                            {"status": "unresolved", "reason": "source_candidate_not_requested", "source_binding": "unavailable"}))
+        # Reuse the compact packet allowance for this section, including its
+        # explicit limits. Do not truncate a path/span or claim omitted rows.
+        candidate = {**result, "records": [*shown, item], "shown": len(shown) + 1,
+                     "omitted": len(records) - len(shown) - 1}
+        if context_budget_profile(json.dumps(candidate, ensure_ascii=False),
+                                  budget_tokens=COMPACT_AGENT_PACKET_TOKENS)["status"] != "pass":
+            result["reason"] = "compact_budget_omission"
+            break
+        shown.append(item)
+    return {**result, "records": shown, "shown": len(shown), "omitted": len(records) - len(shown)}
+
+
+def project_client_local_parser_result_evidence(file_info: Any, source_status: dict[str, Any]) -> dict[str, Any]:
+    """Retain the existing result-selected projection contract."""
+    return _project_client_local_parser_syntax_evidence(file_info, source_status, input_sink=False)
+
+
+def _project_response_json_return_evidence(file_info: Any, source_status: dict[str, Any], *,
+                                         selected_target=None, scan_limit=None) -> dict[str, Any]:
+    """Return stored source-bound expression syntax, never resolved async data."""
+    base = {"status": "unavailable", "reason": "metadata_missing", "records": [],
+            "record_count": None, "shown": 0, "omitted": None,
+            "projection_scope": "file_wide_record_sample_not_requested_line_range",
+            "coverage": "finite_grammar_not_exhaustive", "offset_unit": "utf8_bytes",
+            "source_binding": "unavailable", "schema_authority": "not_established",
+            "promise_resolution": "not_established", "caller_state_binding": "not_established",
+            "runtime_proof": "not_performed", "edit_authority": "not_granted"}
+    evidence = file_info.get("response_json_return_evidence") if isinstance(file_info, dict) else None
+    if selected_target is not None:
+        base["projection_scope"] = "exact_selected_callable_return_expression"
+    if not isinstance(evidence, dict):
+        return base
+    if evidence.get("status") != "observed":
+        return {**base, "reason": "producer_evidence_unavailable"}
+    identity, records = evidence.get("source_hash"), evidence.get("records")
+    if (evidence.get("version") != "v1-three-statement-async-json-return"
+            or evidence.get("scope") != "finite_top_level_async_json_return_expression"
+            or evidence.get("offset_unit") != "utf8_bytes"
+            or not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+            or identity != file_info.get("hash")
+            or not isinstance(evidence.get("ast_contract_version"), str) or not evidence["ast_contract_version"]
+            or evidence["ast_contract_version"] != file_info.get("ast_contract_version")
+            or any(evidence.get(key) != base[key] for key in
+                   ("schema_authority", "promise_resolution", "caller_state_binding", "runtime_proof"))
+            or not isinstance(records, list)):
+        return {**base, "reason": "metadata_identity_or_contract_invalid"}
+    if selected_target is not None:
+        from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
+        if (not isinstance(selected_target, dict)
+                or selected_target.get("source_hash") != identity
+                or selected_target.get("ast_contract_version") != evidence["ast_contract_version"]
+                or evidence["ast_contract_version"] != AST_CONTRACT_VERSION
+                or not isinstance(file_info.get("parser_evidence"), dict)
+                or file_info["parser_evidence"].get("status") != "observed"
+                or selected_target.get("callable_kind") not in ("async_function", "const_async_arrow")
+                or not isinstance(selected_target.get("callable_span"), dict)
+                or set(selected_target["callable_span"]) != {"start", "end", "line", "end_line"}
+                or any(type(value) is not int for value in selected_target["callable_span"].values())
+                or not 0 <= selected_target["callable_span"]["start"] < selected_target["callable_span"]["end"]
+                or not 1 <= selected_target["callable_span"]["line"] <= selected_target["callable_span"]["end_line"]):
+            return {**base, "reason": "selected_callable_identity_unavailable"}
+        if type(scan_limit) is not int or len(records) > scan_limit:
+            return {**base, "reason": "selected_return_scan_budget_exhausted"}
+    if (source_status.get("source_snapshot_hash") != identity or source_status.get("source_snapshot_status") != "ok"
+            or source_status.get("drift_check_status") != "match"
+            or not all(source_status.get(key) for key in ("inside_root", "exists", "indexed"))):
+        return {**base, "reason": "source_binding_unavailable"}
+    if not records:
+        if selected_target is not None:
+            return {**base, "reason": "selected_callable_return_not_recorded", "record_count": 0, "omitted": 0}
+        # Do not spend the older lanes' record allowance on a verbose empty
+        # fourth header. Empty is still observed only after identity binding.
+        return {key: value for key, value in {**base, "status": "observed",
+                "reason": "no_finite_grammar_return_record", "source_binding": "snapshot_and_live_match",
+                "record_count": 0, "shown": 0, "omitted": 0}.items()
+                if key not in {"projection_scope", "offset_unit", "edit_authority"}}
+    roles = {"callable", "callable_binding", "body", "fetch", "fetch_binding", "json", "json_binding",
+             "response_ref", "return_statement", "return_expression", "selected_expression", "json_ref"}
+    shown = []
+    matched = 0
+    for row in records if selected_target is not None else records[:AGENT_INSPECTION_MAX_TARGET_SPANS]:
+        if (not isinstance(row, dict) or set(row) != {"callable_name", "callable_kind", "field_path", "return_type_assertion", "spans"}
+                or not isinstance(row["callable_name"], str) or not row["callable_name"]
+                or row["callable_kind"] not in ("async_function", "const_async_arrow")
+                or type(row["return_type_assertion"]) is not bool
+                or not isinstance(row["field_path"], list) or any(not isinstance(key, str) for key in row["field_path"])):
+            return {**base, "reason": "projected_record_invalid"}
+        spans = row["spans"]
+        if (not isinstance(spans, dict) or set(spans) != roles | ({"type_assertion"} if row["return_type_assertion"] else set())
+                or any(not isinstance(value, dict) or set(value) != {"start", "end", "line", "end_line"}
+                       or any(type(number) is not int for number in value.values())
+                       or not 0 <= value["start"] < value["end"] or not 1 <= value["line"] <= value["end_line"]
+                       for value in spans.values())):
+            return {**base, "reason": "projected_record_invalid"}
+        # Compact orientation keeps exact selected expression and producer spans;
+        # complete native roles remain in existing Atlas metadata.
+        containment = [("callable", "callable_binding"), ("callable", "body"), ("body", "fetch"), ("body", "json"),
+                       ("body", "return_statement"), ("fetch", "fetch_binding"), ("json", "json_binding"),
+                       ("json", "response_ref"), ("return_statement", "return_expression"),
+                       ("return_expression", "selected_expression"), ("selected_expression", "json_ref")]
+        if row["return_type_assertion"]:
+            containment += [("return_expression", "type_assertion"), ("type_assertion", "selected_expression")]
+        if (any(not spans[outer]["start"] <= spans[inner]["start"] < spans[inner]["end"] <= spans[outer]["end"]
+                for outer, inner in containment)
+                or any(spans[earlier]["end"] > spans[later]["start"] for earlier, later in
+                       [("callable_binding", "body"), ("fetch", "json"), ("json", "return_statement")])):
+            return {**base, "reason": "projected_relation_invalid"}
+        if selected_target is not None:
+            if (row["callable_name"] != selected_target.get("symbol")
+                    or row["callable_kind"] != selected_target["callable_kind"]
+                    or spans["callable"] != selected_target["callable_span"]):
+                continue
+            matched += 1
+        selected = {role: dict(spans[role]) for role in ("fetch", "json", "return_statement", "selected_expression", "json_ref")}
+        if row["return_type_assertion"]:
+            selected["type_assertion"] = dict(spans["type_assertion"])
+        shown.append({**{key: row[key] for key in ("callable_name", "callable_kind", "return_type_assertion")},
+            "field_path": list(row["field_path"]), "spans": selected,
+            "source_followup": {"tool": "inspect_file", "file_path": source_status.get("target_ref") or "",
+                "line_start": spans["fetch"]["line"], "line_end": spans["return_statement"]["end_line"]}})
+    if selected_target is not None and matched != 1:
+        return {**base, "reason": "selected_callable_return_ambiguous" if matched else "selected_callable_return_not_recorded",
+                "record_count": len(records), "omitted": len(records)}
+    return {**base, "status": "observed", "reason": "stored_return_expression_syntax_only",
+            "source_hash": identity, "source_binding": "snapshot_and_live_match",
+            "version": evidence["version"], "ast_contract_version": evidence["ast_contract_version"],
+            "records": shown, "record_count": len(records), "shown": len(shown), "omitted": len(records) - len(shown)}
+
+
+def project_client_local_parser_evidence(file_info: Any, source_status: dict[str, Any], *, source_candidate=None) -> dict[str, Any]:
+    """All syntax lanes share the existing compact allowance and record cap."""
+    projections = {
+        "client_local_parser_result_evidence": project_client_local_parser_result_evidence(file_info, source_status),
+        "client_local_parser_input_sink_evidence": _project_client_local_parser_syntax_evidence(file_info, source_status, input_sink=True),
+    }
+    # Legacy files retain their old two-section packet; absent new metadata is
+    # not an empty observed lane and must not be synthesized as such.
+    if isinstance(file_info, dict) and "client_imported_parser_evidence" in file_info:
+        projections["client_imported_parser_evidence"] = _project_client_local_parser_syntax_evidence(
+            file_info, source_status, input_sink=False, imported=True, source_candidate=source_candidate)
+    if isinstance(file_info, dict) and "response_json_return_evidence" in file_info:
+        projections["response_json_return_evidence"] = _project_response_json_return_evidence(file_info, source_status)
+    sections = {key: {**value, "records": [], "shown": 0, "omitted": value["record_count"]}
+                for key, value in projections.items()}
+    if context_budget_profile(json.dumps(sections, ensure_ascii=False),
+                              budget_tokens=COMPACT_AGENT_PACKET_TOKENS)["status"] != "pass":
+        return {key: {**(_project_response_json_return_evidence(None, source_status) if key == "response_json_return_evidence" else
+                        _project_client_local_parser_syntax_evidence(None, source_status, input_sink=index == 1, imported=index == 2)),
+                      "reason": "compact_projection_header_over_budget"}
+                for index, key in enumerate(sections)}
+    shown = 0
+    for key, projected in projections.items():
+        for row in projected["records"]:
+            if shown >= AGENT_INSPECTION_MAX_TARGET_SPANS:
+                sections[key]["reason"] = "shared_record_budget_omission"
+                break
+            section = sections[key]
+            candidate = {**section, "records": [*section["records"], row],
+                         "shown": section["shown"] + 1, "omitted": section["omitted"] - 1}
+            budgeted = {name: {**value, "reason": "shared_record_budget_omission"}
+                        if value["status"] == "observed" and value["omitted"] else value
+                        for name, value in {**sections, key: candidate}.items()}
+            if context_budget_profile(json.dumps(budgeted, ensure_ascii=False),
+                                      budget_tokens=COMPACT_AGENT_PACKET_TOKENS)["status"] != "pass":
+                sections[key]["reason"] = "compact_budget_omission"
+                break
+            sections[key] = candidate
+            shown += 1
+    return sections
 
 
 def _utc_now() -> str:
@@ -1151,6 +1419,18 @@ def render_agent_inspection_brief(payload: dict[str, Any], *, debug: bool = Fals
         yaml_lines.extend(f"    - {json.dumps(path, ensure_ascii=False)}" for path in missing_target_files[:6])
         yaml_lines.append(f"  omitted_missing_target_files: {max(0, len(missing_target_files) - 6)}")
         yaml_lines.append("  action: \"Do not edit missing paths; refresh analysis for this exact target root first.\"")
+    local_results = payload.get("client_local_parser_result_evidence")
+    if isinstance(local_results, dict):
+        yaml_lines.append("client_local_parser_result_evidence: " + json.dumps(local_results, ensure_ascii=False))
+    local_inputs = payload.get("client_local_parser_input_sink_evidence")
+    if isinstance(local_inputs, dict):
+        yaml_lines.append("client_local_parser_input_sink_evidence: " + json.dumps(local_inputs, ensure_ascii=False))
+    imported_parsers = payload.get("client_imported_parser_evidence")
+    if isinstance(imported_parsers, dict):
+        yaml_lines.append("client_imported_parser_evidence: " + json.dumps(imported_parsers, ensure_ascii=False))
+    response_returns = payload.get("response_json_return_evidence")
+    if isinstance(response_returns, dict):
+        yaml_lines.append("response_json_return_evidence: " + json.dumps(response_returns, ensure_ascii=False))
     yaml_lines.extend(
         [
             "path_contract:",
@@ -1198,6 +1478,8 @@ def render_agent_inspection_brief(payload: dict[str, Any], *, debug: bool = Fals
         )
     else:
         yaml_lines.append("  []")
+    if isinstance(payload.get("primary_tool_followup"), dict):
+        yaml_lines.append("primary_tool_followup: " + json.dumps(payload["primary_tool_followup"], ensure_ascii=False))
     yaml_lines.append("do:")
     if ambiguous_target:
         yaml_lines.extend(

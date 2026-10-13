@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from tools.core.artifact_store import ArtifactStore
+from tools.core.artifact_store import ArtifactStore, CorruptPartitionedPayloadError
+from tools.core.json_syntax import JSONSelectionLimitError, select_json_object_path
 from tools.core.db import SQLiteManager
 
 
@@ -19,6 +20,189 @@ def _sqlite_store(root: Path) -> ArtifactStore:
     store._schema_initialized = False
     store._ensure_schema()
     return store
+
+
+@pytest.mark.parametrize("chunk", [1, 2, 7, 32])
+def test_primary_file_selector_handles_escaped_exact_keys_and_chunk_boundaries(chunk):
+    import io
+    project, file = 'MÇ"🚀', 'src/a\\b".tsx'
+    expected = {"hash": "h", "nested": [None, True, False, -1.25e3, {"text": "\\\"\n🚀"}]}
+    payload = {"padding": ["{} files MAIN", {"files": {file: {"wrong": True}}}],
+               project: {"files": {file: expected, "other": {"large": "\\" * 100}}}}
+    text = json.dumps(payload, ensure_ascii=True)
+    assert select_json_object_path(io.StringIO(text), (project, "files", file),
+        chunk_size=chunk, max_value_bytes=4096) == expected
+
+
+@pytest.mark.parametrize("text", [
+    '{"MAIN":{"files":{"a.ts":{}}},"MAIN":{}}',
+    '{"MAIN":{"files":{"a.ts":{}},"files":{}}}',
+    '{"MAIN":{"files":{"a.ts":{},"a.ts":{}}}}',
+    '{"MAIN":{"files":{"a.ts":{"x":1,"x":2}}}}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":"\\q"}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":"\\u00zz"}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":"bad\ntext"}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":[1,]}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":01}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":NaN}',
+    '{"MAIN":{"files":{"a.ts":{}}}} trailing',
+    '{"MAIN":{"files":{"a.ts":{}}}',
+])
+def test_primary_file_selector_rejects_ambiguous_target_or_invalid_tail(text):
+    import io
+    with pytest.raises(ValueError):
+        select_json_object_path(io.StringIO(text), ("MAIN", "files", "a.ts"),
+            chunk_size=3, max_value_bytes=4096)
+
+
+@pytest.mark.parametrize("payload", [{}, {"OTHER": {"files": {"a.ts": {}}}},
+    {"MAIN": {"files": ["a.ts"]}}, {"MAIN": None}])
+def test_primary_file_selector_missing_path_is_not_an_empty_file_verdict(payload):
+    import io
+    assert select_json_object_path(io.StringIO(json.dumps(payload)), ("MAIN", "files", "a.ts"),
+        chunk_size=2, max_value_bytes=64) is None
+
+
+@pytest.mark.parametrize("partitioned", [False, True])
+def test_primary_file_metadata_reads_only_exact_canonical_project_file(tmp_path, monkeypatch, partitioned):
+    store = _sqlite_store(tmp_path)
+    store.state_payload_inline_limit_bytes = 1 if partitioned else 4096
+    store.state_payload_part_size_bytes = 17
+    wanted = {"hash": "h", "evidence": ["🚀", True, None]}
+    atlas = {"MAIN": {"files": {"a.ts": wanted}}, "OTHER": {"files": {"a.ts": {"wrong": True}}}}
+    store._save_payload_to_state_table("atlas", atlas)
+    monkeypatch.setattr(store, "load_raw", lambda *a, **k: pytest.fail("Whole Atlas/shadow fallback"))
+    monkeypatch.setattr(store, "_load_state_payload_row", lambda *a, **k: pytest.fail("Whole object decoder"))
+    assert store.load_sqlite_atlas_file_metadata("MAIN", "a.ts") == wanted
+    assert store.load_sqlite_atlas_file_metadata("main", "a.ts") is None
+    assert store.load_sqlite_atlas_file_metadata("MAIN", "missing.ts") is None
+
+
+@pytest.mark.parametrize("damage", ["missing_part", "part_bytes", "part_length", "part_hash",
+    "aggregate_bytes", "aggregate_hash", "generation", "manifest", "sequence"])
+def test_primary_file_metadata_rejects_partition_damage_even_after_target(tmp_path, damage):
+    store = _sqlite_store(tmp_path)
+    store.state_payload_inline_limit_bytes, store.state_payload_part_size_bytes = 1, 32
+    store._save_payload_to_state_table("atlas", {"MAIN": {"files": {"a.ts": {"good": True}}}, "Z": "x" * 150})
+    with store.db_manager.get_connection() as conn:
+        if damage == "missing_part":
+            conn.execute("DELETE FROM state_payload_parts WHERE part_index = (SELECT MAX(part_index) FROM state_payload_parts)")
+        elif damage.startswith("part_"):
+            field, value = {"part_bytes": ("payload", b"bad"), "part_length": ("payload_bytes", 0), "part_hash": ("payload_sha", "bad")}[damage]
+            conn.execute(f"UPDATE state_payload_parts SET {field}=? WHERE part_index=1", (value,))
+        elif damage in {"aggregate_bytes", "aggregate_hash", "generation"}:
+            field, value = {"aggregate_bytes": ("payload_bytes", 1), "aggregate_hash": ("payload_sha", "0" * 64), "generation": ("generation_id", "other")}[damage]
+            conn.execute(f"UPDATE state_payloads SET {field}=? WHERE name='atlas'", (value,))
+        elif damage == "manifest":
+            conn.execute("UPDATE state_payloads SET payload='{}' WHERE name='atlas'")
+        else:
+            conn.execute("UPDATE state_payload_parts SET part_index=999 WHERE part_index=1")
+    with pytest.raises(CorruptPartitionedPayloadError):
+        store.load_sqlite_atlas_file_metadata("MAIN", "a.ts")
+
+
+@pytest.mark.parametrize("damage", ["legacy_hash", "missing_row", "inline_hash", "inline_length", "oversize_record", "oversize_part", "invalid_utf8"])
+def test_primary_file_metadata_unknown_corruption_and_limits(tmp_path, damage):
+    store = _sqlite_store(tmp_path)
+    store._save_payload_to_state_table("atlas", {"MAIN": {"files": {"a.ts": {"text": "x" * 100}}}})
+    if damage in {"legacy_hash", "missing_row", "inline_hash", "inline_length"}:
+        with store.db_manager.get_connection() as conn:
+            if damage == "missing_row":
+                conn.execute("DELETE FROM state_payloads WHERE name='atlas'")
+            else:
+                field, value = {"legacy_hash": ("payload_sha", ""), "inline_hash": ("payload_sha", "0" * 64), "inline_length": ("payload_bytes", 1)}[damage]
+                conn.execute(f"UPDATE state_payloads SET {field}=? WHERE name='atlas'", (value,))
+        if damage in {"legacy_hash", "missing_row"}:
+            assert store.load_sqlite_atlas_file_metadata("MAIN", "a.ts") is None
+            return
+        expected = CorruptPartitionedPayloadError
+    elif damage == "oversize_record":
+        store.atlas_staging_file_aggregate_limit_bytes = 32
+        expected = JSONSelectionLimitError
+    else:
+        store.state_payload_inline_limit_bytes, store.state_payload_part_size_bytes = 1, 1024
+        store._save_payload_to_state_table("atlas", {"MAIN": {"files": {"a.ts": {}}}})
+        if damage == "oversize_part":
+            store.state_payload_part_size_bytes = 1
+            expected = JSONSelectionLimitError
+        else:
+            data = b'{"MAIN":{"files":{"a.ts":{}}},"Z":"\xff"}'
+            digest = hashlib.sha256(data).hexdigest()
+            with store.db_manager.get_connection() as conn:
+                row = conn.execute("SELECT * FROM state_payloads WHERE name='atlas'").fetchone()
+                manifest = json.loads(row["payload"])
+                manifest["__sage_partitioned_payload__"].update(payload_bytes=len(data), payload_sha256=digest)
+                conn.execute("UPDATE state_payloads SET payload=?, payload_bytes=?, payload_sha=? WHERE name='atlas'", (json.dumps(manifest), len(data), digest))
+                conn.execute("UPDATE state_payload_parts SET payload=?, payload_bytes=?, payload_sha=?", (data, len(data), digest))
+            expected = UnicodeDecodeError
+    with pytest.raises(expected):
+        store.load_sqlite_atlas_file_metadata("MAIN", "a.ts")
+
+
+def test_primary_file_metadata_memory_is_independent_of_unselected_string(tmp_path, monkeypatch):
+    import tracemalloc
+    store = _sqlite_store(tmp_path)
+    store.state_payload_inline_limit_bytes, store.state_payload_part_size_bytes = 64, 16384
+    store._save_payload_to_state_table("atlas", {"MAIN": {"files": {"a.ts": {"wanted": True}}}, "Z": "x" * (10 * 1024 * 1024)})
+    monkeypatch.setattr(store, "_load_state_payload_row", lambda *a, **k: pytest.fail("Whole Atlas decoder"))
+    tracemalloc.start()
+    try:
+        assert store.load_sqlite_atlas_file_metadata("MAIN", "a.ts") == {"wanted": True}
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 2 * 1024 * 1024, f"Unselected 10 MiB string was materialized: peak={peak}"
+
+
+def test_primary_file_selector_matches_stdlib_on_generated_json_values():
+    import io
+    import random
+    rng = random.Random(142)
+    strings = ['a', '', 'files', '"\\\r\n\t', '🚀ç', '\u0000', '{}[],:']
+    def value(depth=0):
+        leaves = [None, True, False, rng.randint(-10000, 10000), rng.random(), rng.choice(strings)]
+        if depth > 2:
+            return rng.choice(leaves)
+        return rng.choice(leaves + [[value(depth + 1), value(depth + 1)], {rng.choice(strings): value(depth + 1)}])
+    for index in range(100):
+        expected = {"value": value()}
+        body = {"before": value(), "MAIN": {"files": {"a.ts": expected, "other": value()}}, "after": value()}
+        text = json.dumps(body, ensure_ascii=bool(index % 2), indent=2 if index % 3 else None)
+        actual = select_json_object_path(io.StringIO(text), ("MAIN", "files", "a.ts"),
+            chunk_size=(1, 5, 64)[index % 3], max_value_bytes=4096)
+        assert actual == json.loads(text)["MAIN"]["files"]["a.ts"]
+
+
+@pytest.mark.parametrize("text", ['{"MAIN":{"files":{"a.ts":{}}},"MAIN":{}}',
+    '{"MAIN":{"files":{"a.ts":{}}},"tail":[1,]}'])
+def test_primary_file_metadata_valid_checksum_does_not_certify_json_meaning(tmp_path, text):
+    store = _sqlite_store(tmp_path)
+    store._save_payload_to_state_table("atlas", {})
+    encoded = text.encode("utf-8")
+    with store.db_manager.get_connection() as conn:
+        conn.execute("UPDATE state_payloads SET payload=?, payload_bytes=?, payload_sha=? WHERE name='atlas'",
+            (text, len(encoded), hashlib.sha256(encoded).hexdigest()))
+    with pytest.raises(ValueError):
+        store.load_sqlite_atlas_file_metadata("MAIN", "a.ts")
+
+
+def test_primary_file_metadata_read_snapshot_cannot_mix_replaced_generations(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    store = _sqlite_store(tmp_path)
+    store.state_payload_inline_limit_bytes, store.state_payload_part_size_bytes = 1, 32
+    store._save_payload_to_state_table("atlas", {"MAIN": {"files": {"a.ts": {"version": "old"}}}})
+    with store.db_manager.get_connection() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+    native = store._state_payload_stream
+    @contextmanager
+    def replace_during_read(conn, row):
+        store._save_payload_to_state_table("atlas", {"MAIN": {"files": {"a.ts": {"version": "new"}}}})
+        with native(conn, row) as stream:
+            yield stream
+    monkeypatch.setattr(store, "_state_payload_stream", replace_during_read)
+    assert store.load_sqlite_atlas_file_metadata("MAIN", "a.ts") == {"version": "old"}
+    monkeypatch.setattr(store, "_state_payload_stream", native)
+    assert store.load_sqlite_atlas_file_metadata("MAIN", "a.ts") == {"version": "new"}
 
 
 def test_legacy_inline_staging_schema_migrates_without_losing_checkpoint() -> None:

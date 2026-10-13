@@ -85,7 +85,9 @@
         "result_status",
         "evidence_artifact",
         "evidence_fingerprint",
-        "authority"
+        "authority",
+        "external_evidence_fingerprint",
+        "operation_provenance"
       ],
       "pipeline_invocation": [
         "run_id",
@@ -263,7 +265,15 @@
           "PASS"
         ],
         "closure_evidence_id": "clean_mirror_synced_and_validated_when_applicable",
-        "evidence_artifact": "not_available"
+        "evidence_artifact": "not_available",
+        "external_result_receipt": {
+          "version": "v1",
+          "authority": "non_authoritative_evidence_proposal",
+          "binding": "pre_execution_package_and_source",
+          "evidence": "verified_private_journal_event",
+          "clean_mirror_write": false,
+          "execution_claim": false
+        }
       },
       "sage_learning_system_bootstrap": {
         "accepted_statuses": [

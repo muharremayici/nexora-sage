@@ -16,6 +16,7 @@
       "record_honesty_event",
       "_record_raw_artifact_fallback",
       "_record_store_degradation",
+      "_record_atlas_primary_read_failure",
       "_record_store_freshness_event",
       "_record_snapshot_fallback",
       "send_response",

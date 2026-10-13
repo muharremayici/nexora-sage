@@ -28,7 +28,7 @@ from tools.core.source_files import is_analysis_source_file
 from tools.core.text_normalizer import SUSPICIOUS_MARKERS
 from tools.core.workspace_mode import get_workspace_mode
 from tools.core.workload_profile import manual_review_budget_selection
-from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
 
 
 _CLAIM_OPTIONAL_ARTIFACT_IDS = {

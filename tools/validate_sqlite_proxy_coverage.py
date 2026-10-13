@@ -186,6 +186,7 @@ def run_validation() -> dict[str, Any]:
         "tools/core/artifact_store.py",
         "_load_state_payload_row",
     )
+    state_payload_stream_source = _definition_source("tools/core/artifact_store.py", "_state_payload_stream")
 
     checks.append(
         _check(
@@ -239,9 +240,12 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "artifact_store_hot_read_avoids_per_read_payload_digest",
-            'if storage_mode == "inline_json":' in load_state_payload_source
+            '== "inline_json":' in load_state_payload_source
             and 'return json.loads(row["payload"])' in load_state_payload_source
-            and "digest.update(part_bytes)" in load_state_payload_source
+            and "self._state_payload_stream(conn, row)" in load_state_payload_source
+            and "digest.update(part_bytes)" in state_payload_stream_source
+            and "digest.hexdigest() != expected_sha" in state_payload_stream_source
+            and "actual_parts != expected_parts or actual_bytes != expected_bytes" in state_payload_stream_source
             and "json.dumps" not in load_state_payload_source
             and "_payload_digest(sqlite_payload)" not in load_raw_source,
             "Inline runtime reads do not canonical-rehash JSON; partitioned reads verify bounded parts and the manifest digest while reassembling.",

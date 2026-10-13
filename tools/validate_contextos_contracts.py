@@ -595,7 +595,11 @@ def run_validation() -> dict[str, Any]:
             "contextos_surgical_packet_exposes_compact_blueprint_and_seal_truth",
             isinstance(architecture_context, dict)
             and architecture_context.get("seal_state") in {"PROPOSAL_ONLY", "HUMAN_SEALED"}
-            and architecture_context.get("mcp_tool") == "get_architecture_oracle"
+            and "mcp_tool" not in architecture_context
+            and architecture_context.get("followup", {}).get("availability") == "unavailable"
+            and architecture_context.get("followup", {}).get("reason") == "maintainer_only"
+            and "does not authorize" in architecture_context.get("followup", {}).get("claim_boundary", "")
+            and "does not prove" in architecture_context.get("followup", {}).get("claim_boundary", "")
             and len(architecture_context.get("projects", [])) <= 3
             and "architecture_doctrine.json" in " ".join(architecture_context.get("source_artifacts", [])),
             architecture_context,

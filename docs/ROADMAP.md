@@ -2,10 +2,12 @@
 
 This roadmap is intentionally conservative and registry-backed.
 
-The source of truth is:
+The sources of truth are:
 
 ```txt
 config/capability_registry.json
+config/roadmap_phase_registry.json
+config/sage_work_item_registry.json
 ```
 
 Generate the machine-readable and human report with:
@@ -20,25 +22,49 @@ Validate the roadmap contract with:
 python .\tools\validate_capability_registry.py
 ```
 
+Roadmap maintenance checks run in the private development workflow.
+
 The roadmap is not a wishlist. A roadmap capability becomes release-claimable
 only after it has engines, artifacts, validators, release-proof coverage and
 claim-guard wording.
 
-## Current 1.0.0 Position
+## Current Candidate And Claim Baseline
 
-SAGE 1.0.0 is scoped as a React-first architectural governance platform for AI
-coding workflows.
+The active `1.5.0` candidate is **Bounded Source Bindings And Atlas Trust
+Delivery**. Its seven reviewed delivery rows cover finite source bindings,
+Atlas trust, Audit presentation and existing maintenance subsets. This is a
+candidate scope, not a publication decision or readiness verdict.
 
-## Phase Identity
+The existing React/TypeScript static-governance claim profile remains active:
+no third-party plugin runtime, runtime/schema/value proof, activation or
+reachability proof, or complete-graph proof is included in this cut. The
+original v1 claim baseline is preserved, not expanded by a new version label.
 
-The phase boundary is intentionally narrow:
+## Future Planning Phase
+
+`1.6.0` is **Dormant React And Extension Continuity** in the phase registry.
+It holds unactivated React, static-governance and extension intentions apart
+from the later polyglot phase. It is future planning only, not a selected public
+release, feature commitment, capability activation or license change.
+
+Capability `target_release` and `maturity` belong to the capability registry;
+historical debt targets and actual `delivered_release` belong to the work-item
+registry. Completing a subset does not activate its wider roadmap capability.
+The third-party plugin runtime remains dormant and outside the current claim.
+
+## Historical Capability Intent
+
+The following slots preserve the original capability plan. They are not the
+scope actually shipped under each version, and they must not override current
+registry phases, capability maturity or delivered-work evidence. In particular,
+the original plugin intent for `1.5.0` was not activated by the finite candidate.
 
 - `1.0.0`: bounded, evidence-backed React/TypeScript architectural governance on a polyglot substrate, including DNA-driven capability activation, advisory immutability evidence and a minimal CI gate.
 - `1.1.0`: proof and agent-surface hardening: target repository proof envelopes, bidirectional scoped SAGE/target-repository projections, documentation-to-code freshness, local governance telemetry, deterministic source-release agent bootstrap and React fixture/taxonomy promotion.
 - `1.2.0`: cage and principle calibration: privacy, N+1, resilience, cognitive-load and advisory engineering wisdom packs.
 - `1.3.0`: React topology intelligence: provider topology, auth/cache/state graphs, route-data/mutation graphs, state topology, server-state graphs and bundle intelligence.
 - `1.4.0`: operational evidence and developer surfaces: external evidence adapters, IDE/LSP surfaces, standard Python package distribution, AST daemon performance work, shadow variation labs and bounded agent execution foundations.
-- `1.5.0`: trusted plugin runtime foundation: executable third-party plugin runtime governance after sandbox, trust, artifact and claim-boundary contracts are mature.
+- Original `1.5.0` intent: trusted plugin runtime foundation, not activated; executable third-party plugin governance still requires mature sandbox, trust, artifact and claim-boundary contracts.
 - `2.0.0`: polyglot semantic expansion. The goal is to move non-React languages from structural substrate toward deeper language-normalized analysis.
 - `2.5.0`: runtime-aware and distributed-system governance after the polyglot semantic layer exists.
 - `3.0.0`: bounded multi-agent coordination and private learning loops.
@@ -53,7 +79,7 @@ Current v1 capability groups:
 | Repository discovery             | Discovers workspace shape, hypotheses and policy-backed project DNA; final architecture confidence belongs to post-Atlas evidence. |
 | Atlas and sequencing             | React/TypeScript is deep; non-React languages are structural unless separately proven.                                             |
 | Architecture governance          | Oracle proposes architecture; doctrine sealing remains human-governed.                                                             |
-| React surgical intelligence      | Production-grade for core React web architectural governance; not full runtime/browser behavior proof.                             |
+| React surgical intelligence      | Bounded source-backed React/TypeScript architectural governance; not full runtime/browser or complete-graph proof.                   |
 | Dead code and public contracts   | Protects known public surfaces; runtime-only reflection remains confidence-ranked.                                                 |
 | Dependency health                | Static dependency graph and impact analysis; runtime dependency flow is post-2.0.0.                                                |
 | Test impact                      | Maps likely impacted tests; does not prove coverage completeness.                                                                  |
@@ -68,10 +94,18 @@ Current v1 capability groups:
 | CI/CD gate surface               | Provides a minimal read-only GitHub Actions contract gate; not hosted CI governance.                                               |
 | Release proof                    | Proves the scoped release claim only; claim guard blocks wider unsupported claims.                                                 |
 
-## Next High-ROI Work
+## Historical Capability Intent Tables
 
-These items have the best value-to-effort ratio and should be considered before
-large new subsystems.
+The phase columns below are original planning slots retained for context,
+not current target-release or delivery status. Read current priorities and
+targets from the registries above; dormant React and extension projections
+use the future planning phase. These tables neither reopen completed work
+nor require the finite candidate to implement the wider historical milestones.
+
+### Original High-ROI Slots
+
+These slots explain the original value-to-effort prioritization before large
+new subsystems; they are not the current development queue.
 
 | Capability                                   | Phase | Priority | Why It Is Early                                                                                                                   |
 | -------------------------------------------- | ----- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -83,7 +117,7 @@ large new subsystems.
 | External evidence adapter fabric             | 1.4.0 | P0       | Normalizes specialist CI, security, test and observability evidence into Atlas without rebuilding those tools.                    |
 | Standard Python package distribution         | 1.4.0 | P1       | Adds wheel/PyPI plus pipx/uvx delivery only after package-data, storage and upgrade boundaries are proven.                        |
 
-## Platform Hardening
+### Original Platform Hardening Slots
 
 These improve enterprise usefulness and daily operational quality, but should
 follow stable v1 contracts.
@@ -101,7 +135,7 @@ follow stable v1 contracts.
 | Bounded agent execution sandbox      | 1.4.0 | P1       | Adds resource, filesystem, command and approval boundaries around agent execution after the threat model is stable.                                                |
 | Third-party plugin runtime           | 1.5.0 | P1       | Loads external executable extensions only after sandbox, trust, artifact and claim contracts are mature.                                                           |
 
-## React Topology Expansion
+### Original React Topology Slots
 
 These deepen the React ecosystem claim without turning v1 into a runtime product.
 
@@ -115,7 +149,7 @@ These deepen the React ecosystem claim without turning v1 into a runtime product
 | Server state graph           | 1.3.0 | P1       | TanStack Query, SWR, Apollo, Relay and tRPC state surfaces.       |
 | Bundle intelligence          | 1.3.0 | P1       | Heavy import, bundle boundary and build-output correlation.       |
 
-## Strategic Future
+### Strategic Future Intent
 
 These are important, but they should not block v1 or near-term hardening.
 

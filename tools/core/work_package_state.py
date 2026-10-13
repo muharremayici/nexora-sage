@@ -135,3 +135,86 @@ def successor_matches_selection(
         == str(seed.get("execution_wave") or "")
         and all(successor_scope.get(field) == seed_scope.get(field) for field in scope_fields)
     )
+
+
+def publication_reconciliation_issues(
+    work_items: list[dict[str, Any]],
+    reconciliations: Any,
+    *,
+    roadmap_releases: set[str],
+    package_history: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    """Check reviewed delivery receipts, not live GitHub state or release authority."""
+    if not isinstance(reconciliations, list):
+        return [{"issue": "publication_reconciliations_must_be_a_list"}]
+    items = {str(row.get("id") or ""): row for row in work_items}
+    issues: list[dict[str, str]] = []
+    seen_releases: set[str] = set()
+    seen_items: set[str] = set()
+    published: dict[str, dict[str, Any]] = {}
+    for receipt in reconciliations:
+        if not isinstance(receipt, dict):
+            issues.append({"issue": "invalid_publication_reconciliation"})
+            continue
+        release = str(receipt.get("release") or "")
+        ids = receipt.get("reconciled_work_item_ids")
+        if (
+            release not in roadmap_releases
+            or release in seen_releases
+            or receipt.get("status") != "published"
+            or not isinstance(ids, list)
+            or not ids
+            or any(not isinstance(item_id, str) or not item_id for item_id in ids)
+            or any(
+                not isinstance(receipt.get(field), str) or not receipt[field].strip()
+                for field in (
+                    "canonical_source_commit", "clean_delivery_commit", "public_commit",
+                    "source_registry_git_blob", "published_at", "release_url", "evidence",
+                )
+            )
+        ):
+            issues.append({"release": release, "issue": "invalid_publication_reconciliation"})
+            continue
+        seen_releases.add(release)
+        published[release] = receipt
+        for item_id in ids:
+            row = items.get(item_id)
+            if item_id in seen_items:
+                issues.append({"id": item_id, "issue": "duplicate_first_delivery"})
+            seen_items.add(item_id)
+            if row is None:
+                issues.append({"id": item_id, "issue": "publication_references_unknown_work"})
+            elif row.get("status") != "closed" or row.get("delivered_release") != release:
+                issues.append({"id": item_id, "issue": "published_work_not_reconciled"})
+    # The exact frozen ready rows exclude their preparation owner. A closed,
+    # publication-bound preparation package has a separate accounting duty;
+    # neither a wider open parent nor a merely technical closure proves it done.
+    closure_contract = _closure_contract() if package_history else None
+    completed = {row["id"]: row for row in (package_history or [])
+        if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"]
+        and isinstance(row.get("published_completion_reference"), dict)
+        and all(isinstance(row["published_completion_reference"].get(key), str)
+                and row["published_completion_reference"][key] for key in ("path", "sha256"))
+        and package_closure_is_complete(row, closure_contract)}
+    for item_id, row in items.items():
+        boundary = row.get("candidate_boundary")
+        if not isinstance(boundary, dict) or boundary.get("concrete_release_selected") is not True:
+            continue
+        release = str(boundary.get("concrete_release") or "")
+        package_id = row.get("active_package_id")
+        package = completed.get(package_id) if isinstance(package_id, str) else None
+        receipt = published.get(release)
+        if not package or not receipt or item_id not in package.get("work_item_ids", []):
+            continue
+        selection = boundary.get("selection")
+        selected = selection.get("selected_delivery_ids") if isinstance(selection, dict) else None
+        scope = package.get("release_scope")
+        history_release = scope.get("concrete_release") if isinstance(scope, dict) else None
+        if (history_release != release or not isinstance(selected, list) or not selected
+                or any(not isinstance(value, str) or not value for value in selected)
+                or len(set(selected)) != len(selected)
+                or set(selected) != set(receipt["reconciled_work_item_ids"])):
+            issues.append({"id": item_id, "issue": "published_preparation_scope_not_reconciled"})
+        elif row.get("status") != "closed" or row.get("delivered_release") != release:
+            issues.append({"id": item_id, "issue": "published_preparation_not_reconciled"})
+    return issues

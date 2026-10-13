@@ -321,7 +321,8 @@
               "repository_bulk_method_direct_storage_write",
               "failed_schema_parse_returns_raw_input",
               "repository_direct_read_return_without_local_validation",
-              "repository_collection_read_return_without_local_validation"
+              "repository_collection_read_return_without_local_validation",
+              "shallow_copy_nested_index_write_before_await"
             ]
           },
           "project": {
@@ -360,6 +361,10 @@
             "type": "integer",
             "minimum": 2
           },
+          "await_line": {
+            "type": "integer",
+            "minimum": 3
+          },
           "source_hash": {
             "type": "string",
             "minLength": 1
@@ -394,6 +399,25 @@
         },
         "additionalProperties": false,
         "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "shallow_copy_nested_index_write_before_await"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "required": [
+                "subject",
+                "property",
+                "await_line",
+                "verification_questions"
+              ]
+            }
+          },
           {
             "if": {
               "type": "object",

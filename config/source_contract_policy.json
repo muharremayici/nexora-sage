@@ -152,11 +152,13 @@
     "tools/tests/test_engine_contracts.py": "large regression suite by design",
     "tools/tests/test_init_execution_contract.py": "cohesive init, installation-proof and immutable Preflight receipt lifecycle regression suite; split only when an execution-contract owner boundary can preserve the shared setup and reuse semantics",
     "tools/tests/test_pipeline_registry.py": "central pipeline registry, release DAG, freshness and execution-policy regression suite; split only with preserved cross-contract ownership evidence",
+    "tools/tests/test_react_contracts.py": "cohesive React syntax, AST-to-Atlas and runtime-calibration contract suite sharing real parser fixtures and exact binding/source helpers; local parser input/result compatibility and malformed metadata controls stay adjacent under one evidence owner; split only when an independently owned contract boundary preserves that proof",
     "tools/tests/test_sage_active_work_package_lifecycle.py": "cohesive work-package validation, successor selection and atomic transition regression suite; the accepted-risk final-byte drift control shares the transition fixture and must remain adjacent to its writer checks",
     "tools/tests/test_sage_work_item_registry_validation.py": "cohesive work-item registry, release-scope successor selection and historical/current/future phase guard regression suite; shared roadmap and wave fixtures keep positive and fail-closed selection assertions directly comparable",
     "tools/tests/test_typescript_source_binding.py": "cohesive real Node TypeScript collector, source identity, producer-lineage and Merge fail-closed regression suite; split only when a separate semantic evidence owner can retain the cross-consumer proof",
     "tools/tests/test_work_package_receipts.py": "cohesive private work-package receipt and governance evaluator regression suite sharing the same active-package, source-identity and fail-closed authority contracts; public runtime telemetry remains separately owned by test_governance_trace.py, and the canonical distribution runner retains the complete private cohort",
     "tools/tests/test_release_proof_dispatch_cadence.py": "cohesive dispatch, append-only history, source-stability and external-blocker propagation regression suite; split only along an independently owned contract boundary",
-    "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist"
+    "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist",
+    "tools/tests/test_source_snapshot_integrity.py": "cohesive source snapshot, primary SQLite and MCP provenance regression suite sharing one real AST/Atlas fixture; caller-result and adapter-return endpoint corruption controls stay adjacent under the same source-evidence owner; split only when an independent contract boundary preserves fixture reuse and cross-consumer identity proof"
   }
 }

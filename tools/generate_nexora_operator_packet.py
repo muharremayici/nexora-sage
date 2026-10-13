@@ -414,6 +414,7 @@ def build_operator_packet() -> dict[str, Any]:
         "architecture_governance_context": architecture_governance_context(
             architecture_oracle,
             approval_ledger,
+            include_private_followup=True,
         ),
         "relevant_capabilities": relevant_capability_contracts(
             capability_registry,
@@ -451,6 +452,7 @@ def build_operator_packet() -> dict[str, Any]:
             include_disabled=False,
             allowed_system_scopes=projection_capability_scopes(TARGET_REPOSITORY_PROJECTION_ID),
             project_ids=["MAIN"],
+            include_private_followup=True,
         ),
         "pipeline_execution_contract": _execution_contract_context(execution_contract),
         "engine_signal_contract": _engine_signal_contract_context(engine_signal_contract),

@@ -741,7 +741,7 @@ class NanometricKernel:
     def _cached_block_contract_gap(self, cached_blocks, atlas_entry):
         if not cached_blocks:
             return "missing_cached_blocks"
-        from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+        from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
 
         current_contract_version = AST_CONTRACT_VERSION
         if atlas_entry and atlas_entry.get('symbols'):
@@ -937,7 +937,7 @@ class NanometricKernel:
             logger.warning(f"Error parsing file {fpath}: {str(e)}")
 
     def _sanitize_universe(self, universe, allowed_projects):
-        from tools.engines.generate_atlas import AST_CONTRACT_VERSION
+        from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
 
         sanitized = defaultdict(list)
         # Normalize allowed projects to upper for immune cross-matching

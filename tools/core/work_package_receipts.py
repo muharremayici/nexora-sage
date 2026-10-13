@@ -117,8 +117,12 @@ def record_work_package_operation(
     started: float,
     evidence_artifact: str | None = None,
     db_path: Path | None = None,
+    expected_binding: dict[str, str] | None = None,
+    external_evidence_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     package = active_work_package()
+    if expected_binding is not None and expected_binding != work_package_operation_binding(package):
+        raise ValueError("External operation package/source binding is stale")
     profile = _operation_profile(operation_id)
     accepted = {str(item) for item in profile.get("accepted_statuses", []) if str(item)}
     status = str(result_status or UNKNOWN_VALUE)
@@ -150,9 +154,23 @@ def record_work_package_operation(
             "evidence_artifact": artifact,
             "evidence_fingerprint": evidence_fingerprint,
             "authority": _receipt_contract().get("authority"),
+            **({"external_evidence_fingerprint": external_evidence_fingerprint,
+                "operation_provenance": "verified_external_result"}
+               if external_evidence_fingerprint is not None else {}),
         },
         db_path=db_path,
     )
+
+
+def work_package_operation_binding(package: dict[str, Any] | None = None) -> dict[str, str]:
+    """Capture identity before an external operation; never write in a clean mirror."""
+    if is_clean_install_root(CODE_MAPS_DIR):
+        raise ValueError("clean_mirror_runtime_write_prohibited")
+    current = package if package is not None else active_work_package()
+    if not current.get("id") or current.get("status") != "in_progress":
+        raise ValueError("External operation requires an active in-progress package")
+    return {"package_id": str(current["id"]), "package_identity": work_package_identity(current),
+            "source_identity": work_package_source_identity(current)}
 
 
 def record_work_package_operation_safely(**kwargs: Any) -> dict[str, Any]:
@@ -238,6 +256,11 @@ def propose_work_package_evidence(*, db_path: Path | None = None) -> dict[str, A
             "result_status": details.get("result_status"),
             "evidence_artifact": details.get("evidence_artifact"),
             "evidence_fingerprint": details.get("evidence_fingerprint"),
+            **({"operation_provenance": details["operation_provenance"],
+                "external_evidence_fingerprint": details.get("external_evidence_fingerprint"),
+                "operation_executed": False,
+                "external_evidence_recheck": "private_controller_at_transfer"}
+               if details.get("operation_provenance") == "verified_external_result" else {}),
         }
     evidence_requirements = receipt_contract.get("evidence_requirements") if isinstance(receipt_contract.get("evidence_requirements"), dict) else {}
     proposals: dict[str, dict[str, Any]] = {}

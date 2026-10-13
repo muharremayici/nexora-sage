@@ -144,6 +144,18 @@ def successor_selection_policy_issues(
         issues.append("invalid_human_choice_required_fields")
     if human_choice_input.get("authority") != "successor_selection_only":
         issues.append("unsafe_human_choice_authority")
+    replanning = human_choice_input.get("historical_scope_replanning")
+    if replanning is not None and (
+        not isinstance(replanning, dict)
+        or replanning.get("enabled") is not True
+        or replanning.get("required_fields") != ["development_baseline"]
+        or any(replanning.get(field) is not True for field in (
+            "require_unselected_concrete_release", "preserve_target_release",
+            "preserve_priority_and_dependencies",
+        ))
+        or replanning.get("authority") != "successor_selection_only"
+    ):
+        issues.append("unsafe_historical_scope_replanning_policy")
     issues.extend(release_train_policy_issues(policy))
     return sorted(set(issues))
 

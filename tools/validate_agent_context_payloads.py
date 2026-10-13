@@ -125,6 +125,25 @@ def _has_full_plan_pointer(payload: dict[str, Any]) -> bool:
     )
 
 
+def _has_unavailable_target_followup(followup: Any) -> bool:
+    return (
+        isinstance(followup, dict)
+        and followup.get("availability") == "unavailable"
+        and followup.get("reason") == "maintainer_only"
+        and "does not authorize" in str(followup.get("claim_boundary") or "")
+    )
+
+
+def _has_target_activation_boundary(payload: dict[str, Any]) -> bool:
+    policy = _activation(payload).get("surface_policy", {})
+    return (
+        isinstance(policy, dict)
+        and "full_plan_artifact" not in policy
+        and "full_plan_mcp_tool" not in policy
+        and _has_unavailable_target_followup(policy.get("full_plan_followup"))
+    )
+
+
 def _execution_summary(payload: dict[str, Any]) -> dict[str, Any]:
     value = payload.get("pipeline_execution_contract")
     if not isinstance(value, dict):
@@ -1030,7 +1049,7 @@ def validate_agent_context_payloads() -> dict[str, Any]:
             "surgical_packet_uses_bounded_activation_projection",
             len(_project_rows(surgical_packet)) <= 3
             and not _has_disabled_detail_rows(surgical_packet)
-            and _has_full_plan_pointer(surgical_packet),
+            and _has_target_activation_boundary(surgical_packet),
             {
                 "project_rows": len(_project_rows(surgical_packet)),
                 "has_disabled_detail_rows": _has_disabled_detail_rows(surgical_packet),
@@ -1047,7 +1066,8 @@ def validate_agent_context_payloads() -> dict[str, Any]:
             "surgical_packet_has_pipeline_execution_contract_context",
             _execution_summary(surgical_packet).get("status") == "PASS"
             and isinstance(_execution_summary(surgical_packet).get("scheduler_counts"), dict)
-            and surgical_packet.get("pipeline_execution_contract", {}).get("mcp_tool") == "get_pipeline_execution_contract",
+            and "mcp_tool" not in surgical_packet.get("pipeline_execution_contract", {})
+            and _has_unavailable_target_followup(surgical_packet.get("pipeline_execution_contract", {}).get("followup")),
             _execution_summary(surgical_packet),
         ),
         _check(
@@ -1060,7 +1080,8 @@ def validate_agent_context_payloads() -> dict[str, Any]:
         _check(
             "surgical_packet_has_engine_signal_contract_context",
             _engine_signal_summary(surgical_packet).get("status") == "PASS"
-            and surgical_packet.get("engine_signal_contract", {}).get("mcp_tool") == "get_engine_signal_contracts"
+            and "mcp_tool" not in surgical_packet.get("engine_signal_contract", {})
+            and _has_unavailable_target_followup(surgical_packet.get("engine_signal_contract", {}).get("followup"))
             and surgical_packet.get("engine_signal_contract", {}).get("relevant_contracts"),
             _engine_signal_summary(surgical_packet),
         ),
