@@ -12,6 +12,7 @@ if str(CODE_MAPS_DIR_FOR_IMPORT) not in sys.path:
 
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.artifact_validator import ensure_against_schema
+from tools.core.audit_source_contracts import api_entry_source_contract
 
 
 SCHEMA_PATH = CONFIG_DIR / "schemas" / "language_registry.schema.json"
@@ -155,9 +156,7 @@ def run_validation() -> dict[str, Any]:
     checks.append(
         _check(
             "audit_and_mcp_api_entry_policy_is_centralized",
-            "def get_api_entry_filenames" in pipeline_policy_text
-            and "get_api_entry_filenames" in audit_text
-            and "get_api_entry_filenames" in mcp_text
+            api_entry_source_contract(pipeline_policy_text, audit_text, mcp_text)
             and '["index.ts", "index.tsx", "__init__.py", "mod.go"]' not in audit_text
             and '["index.ts", "index.tsx", "__init__.py", "mod.go"]' not in mcp_text,
             "Audit and MCP governance should read public API entry filenames from shared policy, not local engine fallbacks.",

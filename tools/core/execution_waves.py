@@ -417,11 +417,30 @@ def project_successor_selection(
         tuple(int(part) for part in current_release_match.groups())
         if current_release_match else None
     )
+    completed_published_predecessor = False
+    if (
+        replanning_requested
+        and replanning_policy.get("allow_verified_published_predecessor") is True
+        and active_scope.get("concrete_release") == current_product_release(roadmap_registry)
+        and active_scope.get("roadmap_phase") == current_product_release(roadmap_registry)
+    ):
+        # Reuse the publication gate's verifier, not presence of a reference or
+        # a caller-supplied success flag. The full activation gate still runs.
+        from tools.core.work_package_receipts import verified_published_package_completion
+
+        try:
+            publication = verified_published_package_completion(active_package)
+            completed_published_predecessor = publication["release"] == current_product_release(roadmap_registry)
+            human_choice_result["published_predecessor_verification"] = {"status": "verified"}
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            human_choice_result["published_predecessor_verification"] = {
+                "status": "unverified", "reason": str(exc)}
     replanning_bound = (
         isinstance(replanning, dict) and replanning_policy.get("enabled") is True
         and set(replanning) == set(replanning_policy["required_fields"])
         and replanning.get("development_baseline") == current_product_release(roadmap_registry)
-        and "concrete_release" in active_scope and active_scope["concrete_release"] is None
+        and "concrete_release" in active_scope
+        and (active_scope["concrete_release"] is None or completed_published_predecessor)
         and active_scope.get("does_not_expand_current_release_claims") is True
     )
     preferred_releases: list[str] = []

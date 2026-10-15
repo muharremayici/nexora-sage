@@ -884,6 +884,51 @@ def _focus_returned_callback_parameter_context(record, row, limit, budget):
         "source_hash": identity, "ast_contract_version": evidence["ast_contract_version"]}
 
 
+def _focus_returned_callback_parameter_unbraced(record, row, limit, budget):
+    """Finite source scope; zero rows/truncation is not whole-function absence."""
+    from tools.core.atlas_ast_contract import (AST_CONTRACT_VERSION, RETURNED_PARAMETER_UNBRACED_VERSION,
+        _returned_parameter_unbraced_record_valid, _returned_parameter_anchor)
+    result = {"status": "unavailable", "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+        "source_binding": "not_checked", "relation": "returned_callback_parameter_property_to_unbraced_optional_call_source_association",
+        "coverage": "finite_source_grammar_only", "runtime_execution": "not_established", "value_transfer": "not_established",
+        "callability": "not_established", "callback_activation": "not_established", "schema_validity": "not_established"}
+    evidence = row.get("returned_callback_parameter_unbraced_if_call_evidence")
+    if not isinstance(evidence, dict): return {**result, "reason": "returned_unbraced_metadata_missing"}
+    records, identity = evidence.get("records"), evidence.get("source_hash")
+    if (set(evidence) - {"status", "version", "offset_unit", "ast_contract_version", "source_hash", "records", "omitted", "runtime_execution", "coverage", "reason"}
+            or evidence.get("version") != RETURNED_PARAMETER_UNBRACED_VERSION or evidence.get("offset_unit") != "utf8_bytes"
+            or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION or identity != record.get("hash")
+            or evidence.get("coverage") != result["coverage"] or evidence.get("runtime_execution") != "not_established"
+            or not isinstance(records, list) or len(records) > 64 or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0):
+        return {**result, "reason": "returned_unbraced_identity_or_contract_invalid"}
+    if evidence.get("status") != "observed" or evidence["omitted"] or "reason" in evidence:
+        return {**result, "status": "incomplete_scan" if evidence.get("status") == "incomplete_scan" else "unavailable",
+            "reason": "returned_unbraced_producer_incomplete", "omitted": len(records) + evidence["omitted"]}
+    anchor = _focus_returned_local_callbacks(record, row, 64, budget)
+    result["visited_records"] = anchor["visited_records"]
+    if anchor["status"] != "observed" or anchor["omitted"]:
+        return {**result, "status": anchor["status"], "reason": "returned_unbraced_complete_anchor_unavailable"}
+    if result["visited_records"] + len(records) + 1 > max(0, budget):
+        return {**result, "status": "incomplete_scan", "reason": "returned_unbraced_scan_budget_exhausted", "omitted": len(records)}
+    def valid_span(span):
+        return (isinstance(span, dict) and set(span) == {"start", "end", "line", "end_line"}
+            and all(type(v) is int for v in span.values()) and type(record.get("size")) is int and type(record.get("loc")) is int
+            and 0 <= span["start"] < span["end"] <= record["size"] and 1 <= span["line"] <= span["end_line"] <= record["loc"])
+    anchors = {r["spans"]["property"]["start"]: r for r in anchor["items"]}
+    seen = set(); result["visited_records"] += 1
+    for item in records:
+        result["visited_records"] += 1
+        if (not _returned_parameter_unbraced_record_valid(item, row, valid_span)
+                or anchors.get(item["spans"]["property"]["start"]) != _returned_parameter_anchor(item)):
+            return {**result, "reason": "returned_unbraced_record_or_anchor_invalid", "items": [], "omitted": len(records)}
+        unique = tuple(item["spans"][key]["start"] for key in ("declaration", "callback_binding_element", "invocation"))
+        if unique in seen: return {**result, "reason": "returned_unbraced_duplicate", "items": [], "omitted": len(records)}
+        seen.add(unique)
+        if len(result["items"]) < max(0, limit): result["items"].append(item)
+    return {**result, "status": "observed", "returned": len(result["items"]), "omitted": len(records) - len(result["items"]),
+        "source_hash": identity, "ast_contract_version": evidence["ast_contract_version"]}
+
+
 def _focus_local_arrow_result_uses(record, row, limit, budget, calls, callees):
     """Caller property/argument syntax; reuse settled callee orientation only."""
     from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION, _local_arrow_result_use_record_valid
@@ -2892,7 +2937,8 @@ def project_state_flow_focus(atlas: dict, *, project: str, file: str, symbol: st
                              _deferred_optional_rest_alias_invocations: dict | None = None,
                              _deferred_optional_alias_invocations: dict | None = None,
                              _deferred_returned_parameter_calls: dict | None = None,
-                             _deferred_returned_context_calls: dict | None = None) -> dict:
+                             _deferred_returned_context_calls: dict | None = None,
+                             _deferred_returned_unbraced_calls: dict | None = None) -> dict:
     """Project stored evidence only; identifier references are not data-flow edges."""
     limit = max(1, int(max_items))
     budget = max(1, int(scan_limit))
@@ -3275,4 +3321,11 @@ def project_state_flow_focus(atlas: dict, *, project: str, file: str, symbol: st
                     context["returned_callback_parameter_context_calls"] = _focus_returned_callback_parameter_context(
                         record, row, limit, budget - result["visited_records"])
                     result["visited_records"] += context["returned_callback_parameter_context_calls"]["visited_records"]
+            if "returned_callback_parameter_unbraced_if_call_evidence" in row:
+                if _deferred_returned_unbraced_calls is not None:
+                    _deferred_returned_unbraced_calls.update(record=record, symbol=row)
+                else:
+                    context["returned_callback_parameter_unbraced_if_calls"] = _focus_returned_callback_parameter_unbraced(
+                        record, row, limit, budget - result["visited_records"])
+                    result["visited_records"] += context["returned_callback_parameter_unbraced_if_calls"]["visited_records"]
     return result

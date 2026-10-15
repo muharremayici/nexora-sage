@@ -61,6 +61,15 @@ CASES = {
 }
 
 
+def _packet_before_context(packet, key):
+    """Ordered older-stage baseline; later additive lanes are not this stage's data."""
+    baseline=deepcopy(packet)
+    keys=list(baseline['symbol_context'])
+    older=keys[:keys.index(key)]
+    baseline['symbol_context']={k:baseline['symbol_context'][k] for k in older}
+    return baseline
+
+
 def _native(path):
     node = shutil.which('node')
     assert node, 'Native contract requires the configured Node runtime'
@@ -261,17 +270,8 @@ def test_exact_settled_packet_cap_preserves_prior_lanes(callback_atlas_run, monk
     from tools.mcp import server
     from tools.core.agent_packet_budget import context_budget_profile
     target, _, _ = callback_atlas_run
-    baseline = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))
-    baseline['symbol_context'].pop('returned_local_callbacks')
-    # A later-settled lane is not part of this lane's pre-existing packet.
-    baseline['symbol_context'].pop('call_result_property_bindings', None)
-    baseline['symbol_context'].pop('call_result_alias_invocations', None)
-    baseline['symbol_context'].pop('call_result_nested_callback_alias_invocations', None)
-    baseline['symbol_context'].pop('parameter_config_callback_forwardings', None)
-    baseline['symbol_context'].pop('call_result_optional_rest_alias_invocations', None)
-    baseline['symbol_context'].pop('call_result_optional_alias_invocations', None)
-    baseline['symbol_context'].pop('returned_callback_parameter_optional_calls', None)
-    baseline['symbol_context'].pop('returned_callback_parameter_context_calls', None)
+    full = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))
+    baseline = _packet_before_context(full, 'returned_local_callbacks')
     budget = context_budget_profile(json.dumps(baseline, ensure_ascii=False))['estimated_tokens']
     monkeypatch.setattr(server, 'DEFAULT_AGENT_PACKET_BUDGET_TOKENS', budget)
     limited = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))

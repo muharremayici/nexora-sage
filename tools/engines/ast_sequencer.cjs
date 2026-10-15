@@ -2144,7 +2144,7 @@ function createReturnedLocalCallbackCollector(sourceFile, importBindings, symbol
 
 function createReturnedCallbackParameterOptionalCollector(sourceFile, symbolAt, bindingWrites, returned) {
     const cache = new WeakMap();
-    const admitted = new WeakMap(), contextCache = new WeakMap();
+    const admitted = new WeakMap(), contextCache = new WeakMap(), unbracedCache = new WeakMap();
     const plain = node => !!node && ts.isIdentifier(node) && node.getText(sourceFile) === node.text;
     const oneDeclaration = node => {
         const declarations = symbolAt(node)?.declarations || [];
@@ -2356,6 +2356,81 @@ function createReturnedCallbackParameterOptionalCollector(sourceFile, symbolAt, 
                         for (const statement of body.statements) {
                             tick();
                             if (ts.isIfStatement(statement)) arms(tuple, statement, `immediate_own_${kind}_if_block`, spans);
+                        }
+                    }
+                }
+            }
+            result.status = result.omitted ? 'incomplete_scan' : 'observed';
+        } catch (_err) {
+            result.status = 'unavailable'; result.records = []; result.omitted = 0;
+        }
+        return result;
+    };
+    collectReturnedCallbackParameterOptional.unbraced = function collectUnbraced(node) {
+        const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+        if (fn && unbracedCache.has(fn)) return unbracedCache.get(fn);
+        const old = collectReturnedCallbackParameterOptional(node);
+        const result = {status: old.status, version: 'v1-returned-react-async-parameter-unbraced-if-optional-call',
+            offset_unit: old.offset_unit, source_hash: old.source_hash, records: [], omitted: 0,
+            runtime_execution: 'not_established', coverage: 'finite_source_grammar_only'};
+        if (fn) unbracedCache.set(fn, result);
+        if (!['observed', 'incomplete_scan'].includes(old.status)) return result;
+        try {
+            let visited = 0;
+            const tick = () => { if (++visited > 10000) throw new Error('unbraced parameter scan cap'); };
+            function arms(tuple, statement, kind, extra) {
+                if (statement.elseStatement && ts.isIfStatement(statement.elseStatement)) return;
+                const children = statement.getChildren(sourceFile);
+                for (const [branch, arm, tokenKind] of [['then', statement.thenStatement, ts.SyntaxKind.IfKeyword],
+                        ['else', statement.elseStatement, ts.SyntaxKind.ElseKeyword]]) {
+                    tick();
+                    if (!arm || !ts.isExpressionStatement(arm)) continue;
+                    const expression = arm.expression, awaited = ts.isAwaitExpression(expression);
+                    const call = awaited ? expression.expression : expression;
+                    if (!ts.isCallExpression(call) || !call.questionDotToken || call.typeArguments?.length
+                        || !plain(call.expression) || call.arguments.length !== 1 || !plain(call.arguments[0])) continue;
+                    const element = oneDeclaration(call.expression);
+                    if (!tuple.selected.has(element)) continue;
+                    const selector = children.find(child => child.kind === tokenKind);
+                    if (!selector) continue;
+                    if (result.records.length >= 64) { result.omitted += 1; continue; }
+                    const {row, parameter, statement: bindingStatement, declaration, defaults} = tuple;
+                    result.records.push({...row, parameter_name: parameter.name.text,
+                        parameter_default_empty_object: !!parameter.initializer,
+                        parameter_property_name: (element.propertyName || element.name).text,
+                        parameter_local_name: element.name.text, argument_name: call.arguments[0].text,
+                        unselected_literal_default_count: defaults, context_kind: kind,
+                        branch_kind: branch, awaited, optional_call: true, spans: {...row.spans,
+                            parameter: span(parameter), parameter_name: span(parameter.name),
+                            parameter_input: span(declaration.initializer), binding_statement: span(bindingStatement),
+                            binding_declaration: span(declaration), binding_pattern: span(declaration.name),
+                            callback_binding_element: span(element), callback_property_name: span(element.propertyName || element.name),
+                            callback_local_binding: span(element.name), ...extra,
+                            if_statement: span(statement), if_condition: span(statement.expression),
+                            branch_selector: span(selector), branch_statement: span(arm), invocation_statement: span(arm),
+                            ...(awaited ? {await_expression: span(expression)} : {}),
+                            invocation: span(call), invoked_identifier: span(call.expression),
+                            optional_operator: span(call.questionDotToken), argument: span(call.arguments[0])}});
+                }
+            }
+            for (const tuple of admitted.get(fn) || []) {
+                tick();
+                for (const root of tuple.callback.body.statements) {
+                    tick();
+                    if (root.getStart(sourceFile) <= tuple.statement.end) continue;
+                    if (ts.isIfStatement(root)) arms(tuple, root, 'immediate_callback_unbraced_if', {});
+                    if (!ts.isTryStatement(root)) continue;
+                    for (const [body, kind, extra] of [
+                        [root.tryBlock, 'try', {try_statement: span(root), try_body: span(root.tryBlock)}],
+                        [root.catchClause?.block, 'catch', root.catchClause ?
+                            {try_statement: span(root), catch_clause: span(root.catchClause), catch_body: span(root.catchClause.block)} : {}],
+                        [root.finallyBlock, 'finally', root.finallyBlock ?
+                            {try_statement: span(root), finally_body: span(root.finallyBlock)} : {}]]) {
+                        tick();
+                        if (!body) continue;
+                        for (const statement of body.statements) {
+                            tick();
+                            if (ts.isIfStatement(statement)) arms(tuple, statement, `immediate_own_${kind}_unbraced_if`, extra);
                         }
                     }
                 }
@@ -6598,6 +6673,7 @@ function analyzeFile(targetFile) {
                     returned_local_callback_evidence: collectReturnedLocalCallbacks(node),
                     returned_callback_parameter_optional_call_evidence: collectReturnedCallbackParameterOptional(node),
                     returned_callback_parameter_context_call_evidence: collectReturnedCallbackParameterOptional.contexts(node),
+                    returned_callback_parameter_unbraced_if_call_evidence: collectReturnedCallbackParameterOptional.unbraced(node),
                     call_result_property_binding_evidence: collectCallResultPropertyBindings(node),
                     call_result_alias_invocation_evidence: collectCallResultAliasInvocations(node),
                     call_result_optional_alias_invocation_evidence: collectCallResultAliasInvocations(node, true),

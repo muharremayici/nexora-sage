@@ -22,7 +22,7 @@ from tools.core.persistence_limits import load_persistence_limits
 from tools.core.json_syntax import JSONSelectionLimitError, loads_json_strict, select_json_object_path, _unique_object_pairs
 from tools.core.db import SQLiteManager
 from tools.core.source_snapshot_integrity import snapshot_hash_algorithms, source_text_hash
-from tools.core.audit_finding_generation import (
+from tools.core.audit_finding_facts import (
     AUDIT_FINDINGS_FACT_ARTIFACT,
     AUDIT_FINDINGS_FACT_KEY,
     audit_finding_severity,

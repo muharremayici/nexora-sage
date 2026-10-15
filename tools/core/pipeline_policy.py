@@ -104,17 +104,36 @@ def resolve_loc_finding_semantics(
 
 
 def get_api_entry_filenames():
+    return capture_api_entry_policy()["names"]
+
+
+def capture_api_entry_policy():
+    """Trace the one winning owner without changing existing fallback/filter order."""
     from tools.core.config import DOCTRINE
+    from tools.core.audit_finding_facts import _import_evidence_digest
 
     configured = (
         DOCTRINE.get("architectural_integrity_rules", {})
         .get("api_entry_filenames")
     )
     if isinstance(configured, list) and configured:
-        return [str(item) for item in configured if str(item or "").strip()]
+        owner, pointer = "modular_doctrine", "/architectural_integrity_rules/api_entry_filenames"
+    else:
+        configured = get_audit_policy().get("api_entry_filenames", [])
+        owner, pointer = "audit_policy", "/api_entry_filenames"
+    result = {"owner": owner, "pointer": pointer, "configured_entries": deepcopy(configured),
+        "names": [str(item) for item in configured if str(item or "").strip()]}
+    result["identity"] = _import_evidence_digest(result)
+    return result
 
-    configured_policy = get_audit_policy().get("api_entry_filenames", [])
-    return [str(item) for item in configured_policy if str(item or "").strip()]
+
+def module_import_runtime_configuration():
+    """Relevant consumed process configuration, never a live topology re-discovery."""
+    from tools.core.config import PRIMARY_ALIAS
+    architecture = DYNAMIC_CONFIG.get("architecture", {}) or {}
+    return {"architecture": {key: deepcopy(architecture[key])
+            for key in ["module_root", "module_container"] if key in architecture},
+        "primary_alias": PRIMARY_ALIAS}
 
 
 def get_audit_report_sections():

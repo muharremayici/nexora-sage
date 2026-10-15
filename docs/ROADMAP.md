@@ -30,10 +30,11 @@ claim-guard wording.
 
 ## Current Candidate And Claim Baseline
 
-The active `1.5.0` candidate is **Bounded Source Bindings And Atlas Trust
-Delivery**. Its seven reviewed delivery rows cover finite source bindings,
-Atlas trust, Audit presentation and existing maintenance subsets. This is a
-candidate scope, not a publication decision or readiness verdict.
+The active `1.6.0` candidate is **Bounded Callback Context And Import Rule
+Evidence Delivery**. Its six reviewed delivery rows cover finite callback
+source context, three import source/policy evidence lanes, multi-component
+module-root matching and existing preparation maintenance. This is a candidate
+scope, not a publication decision or readiness verdict.
 
 The existing React/TypeScript static-governance claim profile remains active:
 no third-party plugin runtime, runtime/schema/value proof, activation or
@@ -42,7 +43,7 @@ original v1 claim baseline is preserved, not expanded by a new version label.
 
 ## Future Planning Phase
 
-`1.6.0` is **Dormant React And Extension Continuity** in the phase registry.
+`1.7.0` is **Dormant React And Extension Continuity** in the phase registry.
 It holds unactivated React, static-governance and extension intentions apart
 from the later polyglot phase. It is future planning only, not a selected public
 release, feature commitment, capability activation or license change.

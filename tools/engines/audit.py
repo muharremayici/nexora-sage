@@ -1,6 +1,5 @@
 import json
 import sys
-import fnmatch
 import re
 import time
 from collections import defaultdict
@@ -17,6 +16,7 @@ from tools.core.audit_rules import (
     canonical_alias_boundary_decision,
     filter_violations_by_project_taxonomy,
     path_alias_applies_to_file,
+    get_audit_runtime_context,
     violates_canonical_alias_boundary,
 )
 from tools.core.atlas_io import load_atlas_data, resolve_atlas_data
@@ -24,9 +24,19 @@ from tools.core.config import ROOT, RAW_DIR, REPORTS_DIR, DOCTRINE, save_json_at
 from tools.core.doctrine_contract import require_doctrine_mapping
 from tools.core.logger import logger
 from tools.core.operational_limits import artifact_shadow_flush_timeout_seconds
-from tools.core.pipeline_policy import get_api_entry_filenames, get_audit_report_sections, get_module_root_name, resolve_loc_finding_semantics
+from tools.core.pipeline_policy import (get_audit_report_sections, get_module_root_name, resolve_loc_finding_semantics,
+    capture_api_entry_policy, module_import_runtime_configuration)
+from tools.core.import_classifier import module_source_context, module_api_import_evidence
 from tools.core.projects_registry import project_display_name, resolve_runtime_projects
 from tools.core.layer_resolver import resolve_layer, is_violation
+from tools.core.layer_resolver import (resolve_layer_evidence, layer_violation_evidence,
+    import_matches_forbidden_fragment, restriction_allows_source, layer_import_restriction_evidence)
+from tools.core.source_snapshot_reader import read_source_snapshot_binding
+from tools.core.audit_finding_generation import (
+    audit_import_subject_contract, build_audit_import_subject, merge_audit_import_subjects,
+    capture_audit_import_doctrine_identity, capture_audit_import_policy,
+    audit_import_restriction_rows, unavailable_audit_import_subject,
+)
 from tools.core.language_registry import language_for_extension
 from tools.core.watchdog_runtime_contract import (
     normalize_watchdog_scope_refs,
@@ -559,7 +569,7 @@ def _dedupe_violations(violations):
     """Collapse duplicate import/member findings into one actionable finding."""
     deduped = {}
     for rule_key, items in violations.items():
-        seen = set()
+        seen = {}
         clean_items = []
         for item in items:
             key = (
@@ -568,60 +578,33 @@ def _dedupe_violations(violations):
                 str(item.get("detail", "")),
             )
             if key in seen:
+                previous = seen[key]
+                if "finding_evidence" in item or "finding_evidence" in previous:
+                    from tools.core.audit_finding_generation import unavailable_audit_import_subject
+                    previous["finding_evidence"] = merge_audit_import_subjects(
+                        previous.get("finding_evidence") or unavailable_audit_import_subject("legacy_evidence_missing"),
+                        item.get("finding_evidence") or unavailable_audit_import_subject("legacy_evidence_missing"),
+                        apply_budget=False)
                 continue
-            seen.add(key)
+            seen[key] = item
             clean_items.append(item)
+        for item in clean_items:
+            if "finding_evidence" in item:
+                # Apply the cap once after complete deduplication, so repeated
+                # omitted members cannot inflate the distinct-record count.
+                item["finding_evidence"] = merge_audit_import_subjects(
+                    item["finding_evidence"], item["finding_evidence"])
         deduped[rule_key] = clean_items
     return deduped
 
 
 def _import_matches_forbidden_fragment(import_path: str, raw_import_path: str, fragment: str) -> bool:
-    """
-    Match architectural restrictions on path/package segments, not arbitrary substrings.
-
-    This keeps real domain -> platform/ui leaks visible while avoiding false positives
-    such as a domain-owned port file named platformPorts.
-    """
-    needle = str(fragment or "").strip().lower().strip("/")
-    if not needle:
-        return False
-
-    candidates = [str(import_path or ""), str(raw_import_path or "")]
-    for candidate in candidates:
-        normalized = candidate.replace("\\", "/").lower().strip()
-        if not normalized:
-            continue
-        normalized = normalized.removeprefix("@/")
-        segments = [part for part in normalized.split("/") if part and part not in {".", ".."}]
-
-        if needle.endswith("/"):
-            prefix = needle.rstrip("/")
-            if segments and segments[0] == prefix:
-                return True
-            if f"/{prefix}/" in f"/{'/'.join(segments)}/":
-                return True
-            continue
-
-        if "/" in needle:
-            if f"/{needle}/" in f"/{'/'.join(segments)}/":
-                return True
-            continue
-
-        if needle in segments:
-            return True
-        if normalized == needle or normalized.startswith(f"{needle}/"):
-            return True
-
-    return False
+    """Compatibility view of the one shared existing segment matcher."""
+    return import_matches_forbidden_fragment(import_path, raw_import_path, fragment)
 
 
 def _restriction_allows_source(restriction: dict, rel_path: str) -> bool:
-    normalized = str(rel_path or "").replace("\\", "/")
-    for pattern in restriction.get("allowed_source_globs", []) or []:
-        glob = str(pattern or "").replace("\\", "/")
-        if glob and fnmatch.fnmatch(normalized, glob):
-            return True
-    return False
+    return restriction_allows_source(restriction, rel_path)
 
 
 def _load_structural_contract_health():
@@ -929,6 +912,7 @@ def _write_outputs(
                         "end_line",
                         "observed_loc",
                         "limit", "limit_authority", "target_policy_resolution",
+                        "finding_evidence",
                     )
                     if field in item
                 },
@@ -1116,6 +1100,17 @@ def analyze_project(changed_files=None, atlas=None):
         )
         for pkey in projects
     }
+    doctrine_identity = capture_audit_import_doctrine_identity()
+    runtime_context = get_audit_runtime_context(project_count=len(projects))
+    import_policies = {pkey: capture_audit_import_policy(pkey, effective_policy, taxonomy,
+                       doctrine_identity, runtime_context) for pkey, taxonomy in project_taxonomies.items()}
+    from tools.core.config import PRIMARY_ALIAS
+    restriction_policies = {(pkey, row["rule_key"]): capture_audit_import_policy(
+        pkey, effective_policy, taxonomy, doctrine_identity,
+        {**runtime_context, "primary_alias": PRIMARY_ALIAS}, rule_key=row["rule_key"])
+        for pkey, taxonomy in project_taxonomies.items() for row in audit_import_restriction_rows()}
+    source_bindings = {}
+    bound_atlas_snapshot = _canonical_audit_artifact_identity(atlas).get("atlas_snapshot_id") or ""
     # Collect candidate evidence first, then let the exact project taxonomy decide
     # applicability. This also keeps suppressed false-positive counts observable.
     violations = {key: [] for key in DEFAULT_VIOLATION_KEYS}
@@ -1124,6 +1119,14 @@ def analyze_project(changed_files=None, atlas=None):
     
     report_sections = get_audit_report_sections()
     module_root_name = get_module_root_name()
+    module_context = {**runtime_context, "primary_alias": PRIMARY_ALIAS,
+        "module_container": module_root_name, "module_container_resolution": "captured_runtime_value",
+        "module_runtime_configuration": module_import_runtime_configuration()}
+    module_rules = audit_import_subject_contract()["extensions"]["module_api_import"]["rules"]
+    module_policies = {(pkey, rule): capture_audit_import_policy(pkey, effective_policy, taxonomy,
+        doctrine_identity, module_context, rule_key=rule)
+        for pkey, taxonomy in project_taxonomies.items() for rule in module_rules}
+    api_entry_policy = None
     policy_loaded_at = time.perf_counter()
     
     for pkey, ppath in projects.items():
@@ -1216,12 +1219,7 @@ def analyze_project(changed_files=None, atlas=None):
                 if isinstance(s, dict): all_feats.update(s.get("features", []))
 
             # Detect current module
-            current_mod = None
-            parts = rel_path.split('/')
-            if module_root_name in parts:
-                idx = parts.index(module_root_name)
-                if idx + 1 < len(parts):
-                    current_mod = parts[idx + 1]
+            source_module = module_source_context(rel_path, module_root_name)
 
             # 1. Complexity (LOC) from AST
             file_loc = int(a_data.get("loc") or 0) if isinstance(a_data, dict) else 0
@@ -1276,58 +1274,87 @@ def analyze_project(changed_files=None, atlas=None):
                 if str(imp_rec.get("kind") or "").strip().lower() == "type": continue
                 imp = imp_rec.get('source', '')
                 raw_imp = imp_rec.get("raw_source") or imp
-                module_import_prefix = f"{PRIMARY_ALIAS}{module_root_name}/"
-                
-                if current_mod and module_import_prefix in raw_imp:
-                    imp_parts = raw_imp.split(module_import_prefix)[1].split("/")
-                    if len(imp_parts) > 0:
-                        imp_mod = imp_parts[0]
-                        if imp_mod != current_mod:
-                            # [Debt Fixed] Generic API boundary check
-                            if not raw_imp.endswith('/api') and not raw_imp.endswith('/api/'):
-                                _add_violation(violations, 'deep_imports', pkey, rel_path, f"{rel_path} imports {raw_imp}")
-                        else:
-                            # [Debt Fixed] Language-agnostic API entry check from config
-                            api_entries = get_api_entry_filenames()
-                            is_api_entry = any(rel_path.endswith(f"/api/{x}") for x in api_entries)
-                            if "/api" in raw_imp and not is_api_entry:
-                                _add_violation(violations, 'own_api_imports', pkey, rel_path, f"{rel_path} imports {raw_imp}")
+                module_decision = module_api_import_evidence(source_module, raw_imp,
+                    module_container=module_root_name, primary_alias=PRIMARY_ALIAS)
+                if module_decision.get("api_entry_policy_required"):
+                    if api_entry_policy is None:
+                        api_entry_policy = capture_api_entry_policy()
+                    module_decision = module_api_import_evidence(source_module, raw_imp,
+                        module_container=module_root_name, primary_alias=PRIMARY_ALIAS, api_entry_policy=api_entry_policy)
+                if module_decision["violated"]:
+                    trace = module_decision["trace"]
+                    rule_key = next(rule for rule, branch in module_rules.items() if branch == trace["decision_branch"])
+                    policy = module_policies[(pkey, rule_key)]
+                    evidence = unavailable_audit_import_subject("policy_binding_unavailable", rule_key=rule_key)
+                    if policy.get("identity"):
+                        source_key = (pkey, rel_path)
+                        if source_key not in source_bindings:
+                            source_bindings[source_key] = read_source_snapshot_binding(
+                                RAW_DIR, pkey, rel_path, expected_hash=a_data.get("hash"))
+                            source_bindings[source_key].pop("content", None)
+                        evidence = build_audit_import_subject(project=pkey, rel_path=rel_path, file_data=a_data,
+                            snapshot_id=bound_atlas_snapshot, source_binding=source_bindings[source_key],
+                            policy=policy, import_record=imp_rec, module_trace=trace, rule_key=rule_key)
+                    _add_violation(violations, rule_key, pkey, rel_path, f"{rel_path} imports {raw_imp}",
+                        metadata={"finding_evidence": evidence})
                 
                 # Domain Integrity (Hexagonal)
-                source_layer = resolve_layer(rel_path)
+                source_trace = resolve_layer_evidence(rel_path)
+                source_layer = source_trace["layer"]
                 
                 # Resolve target layer for the import
                 target_rel_path = imp.replace(PRIMARY_ALIAS, "") if imp.startswith(PRIMARY_ALIAS) else imp
-                target_layer = resolve_layer(target_rel_path)
+                target_trace = resolve_layer_evidence(target_rel_path)
+                target_layer = target_trace["layer"]
                 
-                if is_violation(source_layer, target_layer, language=f_lang):
+                violation_trace = layer_violation_evidence(source_layer, target_layer, language=f_lang)
+                if violation_trace["violated"]:
                     members = imp_rec.get('members', [])
                     members_str = f" ({', '.join(members)})" if members else ""
+                    metadata = None
+                    # Only already-applicable candidates pay for source binding.
+                    if import_policies[pkey].get("identity"):
+                        source_key = (pkey, rel_path)
+                        if source_key not in source_bindings:
+                            source_bindings[source_key] = read_source_snapshot_binding(
+                                RAW_DIR, pkey, rel_path, expected_hash=a_data.get("hash"))
+                            source_bindings[source_key].pop("content", None)
+                        metadata = {"finding_evidence": build_audit_import_subject(
+                            project=pkey, rel_path=rel_path, file_data=a_data,
+                            snapshot_id=bound_atlas_snapshot, source_binding=source_bindings[source_key],
+                            policy=import_policies[pkey], import_record=imp_rec,
+                            source_layer=source_trace, target_layer=target_trace, mapping=violation_trace)}
                     _add_violation(
                         violations, 
                         'hexagonal_layer_violation', 
                         pkey, 
                         rel_path, 
-                        f"[{f_lang}] [{source_layer} -> {target_layer}] {rel_path} imports {imp}{members_str}"
+                        f"[{f_lang}] [{source_layer} -> {target_layer}] {rel_path} imports {imp}{members_str}",
+                        metadata=metadata,
                     )
                 
                 # [Debt Cleaned] Layer-based import restrictions (Config-driven and Framework-agnostic)
                 import_restrictions = require_doctrine_mapping("architectural_integrity_rules").get("layer_import_restrictions")
-                for restriction in import_restrictions:
-                    res_layer = restriction.get("layer")
-                    res_lang = restriction.get("language")
-                    
-                    if source_layer == res_layer and (not res_lang or res_lang == f_lang):
-                        if _restriction_allows_source(restriction, rel_path):
-                            continue
-                        for sub in restriction.get("forbidden_substrings", []):
-                            aliased_sub = f"{PRIMARY_ALIAS}{sub}"
-                            if (
-                                _import_matches_forbidden_fragment(imp, raw_imp, sub)
-                                or _import_matches_forbidden_fragment(imp, raw_imp, aliased_sub)
-                            ):
-                                _add_violation(violations, restriction.get("rule_key"), pkey, rel_path, f"{rel_path} imports {raw_imp}")
-                                break
+                for restriction_index, restriction in enumerate(import_restrictions):
+                    trace = layer_import_restriction_evidence(restriction, restriction_index, rel_path=rel_path,
+                        source_layer=source_layer, import_path=imp, raw_import_path=raw_imp,
+                        language=f_lang, primary_alias=PRIMARY_ALIAS)
+                    if trace["violated"]:
+                        rule_key = restriction.get("rule_key")
+                        policy = restriction_policies.get((pkey, rule_key), {})
+                        evidence = unavailable_audit_import_subject("policy_binding_unavailable", rule_key=rule_key)
+                        if policy.get("identity"):
+                            source_key = (pkey, rel_path)
+                            if source_key not in source_bindings:
+                                source_bindings[source_key] = read_source_snapshot_binding(
+                                    RAW_DIR, pkey, rel_path, expected_hash=a_data.get("hash"))
+                                source_bindings[source_key].pop("content", None)
+                            evidence = build_audit_import_subject(project=pkey, rel_path=rel_path, file_data=a_data,
+                                snapshot_id=bound_atlas_snapshot, source_binding=source_bindings[source_key],
+                                policy=policy, import_record=imp_rec, source_layer=source_trace,
+                                restriction_trace=trace, rule_key=rule_key)
+                        _add_violation(violations, rule_key, pkey, rel_path, f"{rel_path} imports {raw_imp}",
+                                       metadata={"finding_evidence": evidence})
 
                 if violates_canonical_alias_boundary(
                     rel_path,

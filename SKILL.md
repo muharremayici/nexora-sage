@@ -575,6 +575,16 @@ repository-specific command.
   unjoined. Lexical context proves neither reachability, exception origin,
   activation, callable/value/schema correspondence nor execution. This lane
   settles last; dropped rows and missing metadata never prove absence.
+  The additive `symbol_context.returned_callback_parameter_unbraced_if_calls`
+  associates the same admitted parameter binding with one immediate unbraced
+  `if`/`else` optional identifier call, plain or awaited, in the callback or
+  its own try/catch/finally body. Its exact 36–40 roles use `branch_statement`
+  (equal to `invocation_statement`), never reinterpret the older `branch_body`.
+  Require `coverage: finite_source_grammar_only`, current primary/source identity
+  and shared budgets. Zero records or truncation omissions do not prove complete
+  source coverage. Else-if/deeper/deferred/written/shadowed forms remain unjoined;
+  activation, callability, value/schema and runtime effects remain unproved.
+  This new detail settles after the older lanes and is dropped first.
   `symbol_context.call_result_nested_callback_alias_invocations` separately
   associates that outer const binding with a plain call in a synchronous block
   arrow property of one immediate literal object call argument. Inspect all 25
@@ -670,6 +680,32 @@ A matching identifier is not an import edge, historical execution or source faul
 - `auto_heal` is filtered by the generated-script policy; script-ineligible findings must appear as skipped/manual-review manifest evidence and must not be recommended to a coding agent as a default batch fix path.
 - If a work queue suggests many similar fixes, inspect or validate a bounded target first; only mention generated scripts as an optional HITL-gated operator path with manifest evidence.
 - Audit presentation order is not root-cause priority or edit authority. The work queue orders indexed rows before pagination; Surgical/Operator order producer-bound Audit rows before their cap, keeping Audit ahead of other source groups. Missing row severity stays unknown. Missing recorded indexed identity or an invalid descriptor preserves packet input order with `presentation_order.status=unavailable`; the SQLite queue does not substitute a JSON fallback. A shared descriptor or Atlas snapshot does not establish equal candidate coverage. Positional directive IDs are not persistent finding identity or reusable approval.
+- Hexagonal JS/TS findings may additionally carry `finding_evidence`: exact
+  captured top-level named/default/namespace/side-effect import records, verified
+  against the selected Atlas, source snapshot, finding generation and applicable
+  SAGE path-model policy. This is a record set, not individual import occurrences:
+  source ranges and independently resolved target endpoints are not established.
+  `partial` discloses the bounded record cap; `unavailable` includes legacy,
+  unsupported, missing, malformed or stale evidence without removing the finding.
+  This does not prove target-native policy, runtime behavior, causality, absence,
+  architecture intent or safe mutation. Keep the existing approval/trust boundary.
+- The existing declared-layer import restrictions may carry the same optional
+  field with explicit v2 rule/decision evidence; Hexagonal v1 is preserved.
+  Inspect its exact restriction row and first matched fragment, not display
+  prose alone. Source/policy/generation must verify and the complete finding
+  must match selected SQLite primary state. Caller-resealed metadata, missing
+  source, unsupported forms or conflicting traces remain unavailable while
+  ordinary findings/counts stay visible. This does not expand language scope,
+  establish target-native import legality or grant mutation authority.
+- Existing cross-module and own-API path findings may additionally carry v3
+  source/rule evidence. It names the module container actually consumed by
+  Audit, the raw alias/path decision and any evaluated API-entry exemption.
+  Source-module matching uses the first exact contiguous container path sequence,
+  not a substring or a guessed architecture; multi-component roots are supported.
+  Verify selected source, configuration, policy and complete SQLite finding;
+  do not rediscover module topology on the host or treat a literal `/api`
+  match as package-export legality. Legacy/corrupt/unsupported evidence stays
+  unavailable without erasing ordinary findings. Existing approval rules apply.
 - Before asking for approval, use the public target-bound MCP lifecycle to create a HITL decision request with evidence and scope.
 - When approval is granted or denied, use that lifecycle to record it in the HITL approval ledger before acting, then close the request.
 - Keep AI answers in the Nexora response shape: verdict, evidence, confidence, risk, human_approval_required, suggested_next_action, source_artifacts.

@@ -11,7 +11,7 @@ import pytest
 
 from tools.engines import generate_atlas as ga
 from tools.core.state_flow import _focus_returned_callback_parameter_optional
-from tools.tests.test_state_flow_returned_local_callback_contract import _native
+from tools.tests.test_state_flow_returned_local_callback_contract import _native, _packet_before_context
 
 ROOT = Path(__file__).resolve().parents[2]
 KEY = 'returned_callback_parameter_optional_call_evidence'
@@ -366,10 +366,7 @@ def test_last_lane_packet_budget_preserves_all_old_context(atlas_run, monkeypatc
     from tools.core.agent_packet_budget import context_budget_profile
     target, _, _ = atlas_run
     full = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))
-    baseline = deepcopy(full)
-    baseline['symbol_context'].pop(CONTEXT)
-    # The later independently versioned context lane is not an old-lane baseline.
-    baseline['symbol_context'].pop('returned_callback_parameter_context_calls', None)
+    baseline = _packet_before_context(full, CONTEXT)
     budget = context_budget_profile(json.dumps(baseline, ensure_ascii=False))['estimated_tokens']
     monkeypatch.setattr(server, 'DEFAULT_AGENT_PACKET_BUDGET_TOKENS', budget)
     result = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))

@@ -76,6 +76,39 @@ frozen release boundary and is not part of normal product use.
 
 ## Evidence Style
 
+### Import finding source and policy context
+
+The development Hexagonal JS/TS finding lane adds source-bound captured static
+import record sets and the exact applicable SAGE path-model policy to Audit,
+SQLite queues and agent directives. Named, default, namespace and side-effect
+top-level imports are supported; other forms and legacy metadata remain explicit
+unavailable context. Repeated records are not distinct source occurrences.
+Record caps disclose partial detail without removing ordinary findings.
+
+The same development transport additionally covers the existing declared-layer
+import restrictions with explicit v2 evidence, preserving Hexagonal v1.
+It records the consumed restriction row, first matched fragment and source
+label, language/exemption decision and applicable project policy. The selected
+SQLite finding message must match the projected record; a caller's new hash
+alone is not producer evidence. Existing TypeScript-only restriction scope is
+not expanded to JavaScript, and no target layer is invented for package imports.
+
+Existing cross-module and own-API findings can also carry development v3
+evidence for the consumed module container, raw alias/path criterion and
+winning API-entry policy/exemption. Consumers verify current relevant configuration
+and the complete selected SQLite finding without re-discovering live topology.
+Source-module matching supports exact contiguous multi-component containers;
+first-match and single-component behavior are retained. This repairs the previous
+single-component-only source matching, not dot-root inference or alias/API heuristics.
+This preserves the existing literal import heuristics and earlier evidence versions;
+it does not prove package exports or correctness of every architectural inference.
+
+The binding uses the selected Atlas/source snapshot and current finding generation.
+It does not establish individual import locations, independently resolved target
+files, live-source freshness, target-native effective policy, runtime execution,
+causal priority or safe edits. This additive development work is not a new public
+release claim or an end-to-end precision measurement.
+
 Nexora SAGE should be described through evidence, not vibes.
 
 Good:

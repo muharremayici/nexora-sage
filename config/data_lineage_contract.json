@@ -313,7 +313,7 @@
           "contains": "_write_audit_findings_manifest"
         },
         {
-          "file": "tools/core/audit_finding_generation.py",
+          "file": "tools/core/audit_finding_facts.py",
           "contains": "build_scoped_finding_manifest"
         }
       ],
