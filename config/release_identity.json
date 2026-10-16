@@ -9,7 +9,7 @@
     "package_name": "nexora-sage",
     "public_version": "1.6.0",
     "release_status": "public_release",
-    "public_release_date": "2026-10-15",
+    "public_release_date": "2026-10-16",
     "primary_entrypoint": "python sage.py",
     "internal_compatibility_module": "codemaps.py"
   },
@@ -19,7 +19,7 @@
     "private_ownership_evidence": "RETAINED_OUTSIDE_PUBLIC_DISTRIBUTION",
     "qualified_legal_review": "NOT_COMPLETED_AND_NOT_A_V1_PUBLICATION_GATE",
     "human_publication_authority": "RECORDED_OUTSIDE_PUBLIC_DISTRIBUTION",
-    "publication_authority_receipt_sha256": "ccd596481bc9683138d1674ff6e745ebe60c152bc48728a5993c4c3ed1fcfaea"
+    "publication_authority_receipt_sha256": "abba1d6d6dbc9a44d5d824f1a1a6fe1ab43e4c45f47839015bbeba5fdfe5a69d"
   },
   "license": {
     "expression": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
