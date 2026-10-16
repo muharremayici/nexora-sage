@@ -73,6 +73,11 @@ jobs:
         run: npm ci --prefix tools/engines --ignore-scripts
       - name: Smoke public CLI
         run: python -B sage.py --help
+      - name: Observe actual matrix environment before suite
+        run: >-
+          python -B tools/capture_quality_gate_ci_environment.py
+          --output "$RUNNER_TEMP/ci-environment/before.json"
+          --role matrix --phase before_suite --python-version "${{ matrix.python-version }}"
       - name: Run runtime behavior suite
         run: python -B tools/run_distribution_tests.py
       - name: Prepare explicit CI target repository
@@ -86,6 +91,19 @@ jobs:
       - name: Validate installation and contracts
         if: matrix.python-version == '3.12'
         run: CODEMAPS_TARGET_ROOT="$RUNNER_TEMP/sage-ci-target" python sage.py doctor --include-validate --quick --max-seconds 45
+      - name: Observe actual matrix environment after suite and lifecycle
+        run: >-
+          python -B tools/capture_quality_gate_ci_environment.py
+          --output "$RUNNER_TEMP/ci-environment/after.json"
+          --role matrix --phase after_suite --python-version "${{ matrix.python-version }}"
+      - name: Publish observational matrix environment
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-sage-ci-environment-matrix-${{ matrix.python-version }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-environment/*.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
 
   pr-matrix-receipt:
     needs: [ci-tier, python-runtime-compatibility]
@@ -149,6 +167,11 @@ jobs:
         run: npm ci --prefix tools/engines --ignore-scripts
       - name: Smoke public CLI
         run: python -B sage.py --help
+      - name: Observe actual reference environment before suite
+        run: >-
+          python -B tools/capture_quality_gate_ci_environment.py
+          --output "$RUNNER_TEMP/ci-environment/before.json"
+          --role reference --phase before_suite --python-version "3.12"
       - name: Run reference-runtime behavior suite
         run: python -B tools/run_distribution_tests.py
       - name: Prepare explicit CI target repository
@@ -159,3 +182,28 @@ jobs:
         run: python sage.py init --skip-deps --target-root "$RUNNER_TEMP/sage-ci-target"
       - name: Validate installation and contracts
         run: CODEMAPS_TARGET_ROOT="$RUNNER_TEMP/sage-ci-target" python sage.py doctor --include-validate --quick --max-seconds 45
+      - name: Observe actual reference environment after suite and lifecycle
+        run: >-
+          python -B tools/capture_quality_gate_ci_environment.py
+          --output "$RUNNER_TEMP/ci-environment/after.json"
+          --role reference --phase after_suite --python-version "3.12"
+      - name: Compare captured environments without authorizing reuse
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python -B tools/compare_quality_gate_ci_environment.py
+          --before "$RUNNER_TEMP/ci-environment/before.json"
+          --after "$RUNNER_TEMP/ci-environment/after.json"
+          --output "$RUNNER_TEMP/ci-environment-comparison.json"
+      - name: Publish observational reference environment
+        # Shadow diagnostics never change the CI tier or replace suite execution.
+        # The comparison output is separate from the legacy matrix receipt.
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-sage-ci-environment-reference-3.12-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ci-environment/*.json
+            ${{ runner.temp }}/ci-environment-comparison.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

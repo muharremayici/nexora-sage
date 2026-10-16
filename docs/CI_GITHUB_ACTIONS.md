@@ -15,9 +15,13 @@ does not maintain a second release pipeline or a second runtime-version list.
   bound to the checked-out Git tree, PR number and head SHA, workflow run and
   attempt, supported runtime list, and suite command.
 - A `main` push runs one Python 3.12 reference verification only when the
-  associated successful PR workflow receipt is present, internally intact and
-  its tested Git tree equals the exact `main` tree. The reference run includes
-  the same explicit target lifecycle.
+  associated completed, successful PR workflow belongs to the exact repository,
+  workflow path, head and attempt, and has one unexpired matrix receipt in a
+  complete artifact inventory. The internally intact receipt's actually tested
+  commit is read independently through GitHub's Git API; both its returned
+  commit identity and its actual Git tree must match the receipt and exact
+  `main` tree. A second same-named artifact is ambiguous even if one is expired.
+  The reference run includes the same explicit target lifecycle.
 - A direct `main` push with no exact merged-pull-request association runs the
   full four-runtime matrix. Missing token or association-API failure also
   falls back to that full matrix with an explicit reason. Missing, expired,
@@ -101,3 +105,56 @@ reuse is implemented only as a prerequisite for reducing the main run; it does
 not replace the bounded reference verification. Neither run proves Windows or
 macOS parity, every pipeline behavior, publication authority, or independent
 physical-machine installation.
+
+The v1 matrix receipt does not capture actual installed dependency versions,
+the runner image, or full interpreter/Node patch identities. Matching Git trees
+therefore does not establish installed-environment equivalence and does not
+authorize removing the fresh post-merge suite. The normal journey remains four
+PR suites plus one reference suite; incomplete or unavailable remote commit
+evidence retains the explicit full-matrix fallback.
+
+## Actual-job environment observations
+
+`ci_execution_policy.environment_observation` owns a separate, observational
+artifact contract. Each actual matrix cell and the post-merge reference job
+captures metadata immediately before the suite and after the suite and applicable
+target lifecycle. The fresh matrix-receipt aggregation job cannot impersonate
+these jobs. The original single-file v1 receipt and its consumers are unchanged.
+
+The allowlisted observations bind repository, event/ref, checked-out commit tree,
+workflow identity, run/attempt, job, runtime cell, actual Python version/ABI,
+normalized installed Python distribution names/versions, Node ABI/version,
+engine-resolved TypeScript version, runner image metadata and selected source
+input hashes. Arbitrary environment variables, secrets, paths and source text
+are not exported. Missing or ambiguous inventory is explicitly incomplete.
+
+Artifacts named `nexora-sage-ci-environment-<role>-<python>-<attempt>` are retained
+for 30 days, separately from `nexora-sage-pr-matrix-receipt`. They are bounded
+diagnostic evidence for a subsequent comparison, not proof of successful tests,
+package/binary integrity, startup-hook equivalence, event independence or absence
+of intermediate changes. No consumer may treat `reuse_authorized: false` as
+permission to skip execution. Incomplete observations do not claim equivalence;
+invalid CI bindings or failed writes fail the observation step explicitly.
+
+All four PR suites, the post-merge reference suite and existing full-matrix
+fallback remain. This addition has not yet run in a newly published GitHub
+workflow; no end-to-end speed or token saving is claimed.
+
+The reference job now compares its completed before/after observations with the
+reference-Python PR cell in shadow mode. It reuses the existing PR association,
+successful matrix receipt and actual tested-commit/tree verifier, then requires
+one unexpired, exact-run/attempt environment artifact in a complete inventory.
+Only the two exact root observation files are read; no archive is extracted.
+Their digests, phase/job/source bindings, completeness, policy/command and full
+declared metadata membership are checked before comparing all four snapshots.
+
+`MATCHING_CAPTURED_METADATA` means only that the recorded interpreter, installed
+distribution versions, runner metadata, Node/TypeScript and declared source
+input hashes match, with no recorded before/after drift. It does not prove full
+environment, binary, startup-hook or event equivalence. `DIFFERENT_CAPTURED_METADATA`
+reports bounded differing field names. Missing, corrupt, expired, ambiguous or
+unverifiable evidence yields `UNAVAILABLE_EVIDENCE`, never a matching verdict.
+All results retain `reuse_authorized: false`; the comparator emits no tier or
+skip output. An unavailable diagnostic is not a failed runtime suite, and a
+matching diagnostic is not a successful runtime-test receipt. The comparison
+report accompanies the reference observations, never the legacy matrix artifact.

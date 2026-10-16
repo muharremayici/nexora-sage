@@ -82,6 +82,113 @@ def _receipt_archive(receipt: dict[str, object]) -> bytes:
     return buffer.getvalue()
 
 
+def _matrix_evidence_fetcher(**overrides):
+    run = {
+        'id': 123, 'run_attempt': 2, 'event': 'pull_request', 'status': 'completed',
+        'conclusion': 'success', 'head_sha': HEAD_SHA,
+        'path': '.github/workflows/quality-gate.yml',
+        'repository': {'full_name': 'example/nexora-sage'},
+        **overrides.get('run', {}),
+    }
+    artifact = {'id': 31, 'name': tier_resolver.RECEIPT_ARTIFACT_NAME,
+                'expired': False, 'archive_download_url': 'https://api.github.com/artifact/31'}
+    artifacts = overrides.get('artifacts', [artifact])
+    calls = []
+
+    def fetch(url: str, *, token: str):
+        assert token == 'secret'
+        calls.append(url)
+        if '/runs?' in url:
+            return {'workflow_runs': [run]}
+        if '/artifacts?' in url:
+            return {'total_count': overrides.get('total_count', len(artifacts)), 'artifacts': artifacts}
+        if '/git/commits/' in url:
+            assert url.endswith('/git/commits/' + EVENT_SHA)
+            if overrides.get('commit_unavailable'):
+                raise ValueError('Git commit evidence unavailable')
+            return overrides.get('tested_commit', {'sha': EVENT_SHA, 'tree': {'sha': TREE_SHA}})
+        raise AssertionError('Unexpected evidence endpoint: ' + url)
+
+    return fetch, calls
+
+
+def _verified_with_evidence(fetch):
+    return tier_resolver._verified_pr_matrix_receipt(
+        _push_event(), [_merged_pull_request()], token='secret', source_tree_sha=TREE_SHA,
+        policy=load_ci_execution_policy(), fetch_json=fetch,
+        fetch_archive=lambda *_args, **_kwargs: _receipt_archive(_receipt()))
+
+
+@pytest.mark.parametrize('evidence', [
+    {'tested_commit': {'sha': EVENT_SHA, 'tree': {'sha': 'e' * 40}}},
+    {'tested_commit': {'sha': 'e' * 40, 'tree': {'sha': TREE_SHA}}},
+    {'tested_commit': None},
+    {'tested_commit': {'sha': EVENT_SHA}},
+    {'commit_unavailable': True},
+])
+def test_receipt_requires_independent_tested_commit_tree(evidence):
+    fetch, _ = _matrix_evidence_fetcher(**evidence)
+    with pytest.raises(ValueError, match='commit|tree|receipt'):
+        _verified_with_evidence(fetch)
+
+
+@pytest.mark.parametrize('expired', [False, True])
+def test_receipt_refuses_ambiguous_artifacts_even_if_one_is_valid(expired):
+    artifact = {'id': 31, 'name': tier_resolver.RECEIPT_ARTIFACT_NAME,
+                'expired': False, 'archive_download_url': 'https://api.github.com/artifact/31'}
+    fetch, _ = _matrix_evidence_fetcher(artifacts=[artifact, {**artifact, 'id': 32, 'expired': expired}])
+    with pytest.raises(ValueError, match='artifact|receipt'):
+        _verified_with_evidence(fetch)
+
+
+@pytest.mark.parametrize('evidence', [
+    {'total_count': 2}, {'total_count': True},
+    {'run': {'status': 'in_progress'}},
+    {'run': {'path': '.github/workflows/unrelated.yml'}},
+    {'run': {'repository': {'full_name': 'other/repo'}}},
+    {'run': {'repository': None}},
+    {'run': {'run_attempt': '2'}},
+    {'artifacts': [{'id': True, 'name': tier_resolver.RECEIPT_ARTIFACT_NAME,
+                    'expired': False, 'archive_download_url': 'https://api.github.com/artifact/31'}]},
+])
+def test_receipt_refuses_partial_or_different_run_artifact_evidence(evidence):
+    fetch, _ = _matrix_evidence_fetcher(**evidence)
+    with pytest.raises(ValueError, match='artifact|receipt'):
+        _verified_with_evidence(fetch)
+
+
+def test_receipt_observes_actual_tested_commit_before_acceptance():
+    fetch, calls = _matrix_evidence_fetcher()
+    assert _verified_with_evidence(fetch) == _receipt()
+    assert calls[-1] == 'https://api.github.com/repos/example/nexora-sage/git/commits/' + EVENT_SHA
+
+
+@pytest.mark.parametrize('evidence', [
+    {'tested_commit': {'sha': EVENT_SHA, 'tree': {'sha': 'e' * 40}}},
+    {'commit_unavailable': True},
+    {'run': {'status': 'in_progress'}},
+])
+def test_actual_commit_admission_failure_preserves_cli_full_matrix_fallback(monkeypatch, tmp_path, evidence):
+    event_path, output_path = tmp_path / 'event.json', tmp_path / 'github-output.txt'
+    event_path.write_text(json.dumps(_push_event()), encoding='utf-8')
+    fetch, _ = _matrix_evidence_fetcher(**evidence)
+    verifier = tier_resolver._verified_pr_matrix_receipt
+    monkeypatch.setenv('GITHUB_TOKEN', 'secret')
+    monkeypatch.setattr(tier_resolver, '_associated_pull_requests', lambda *_args, **_kwargs: [_merged_pull_request()])
+    monkeypatch.setattr(tier_resolver, 'current_git_tree_sha', lambda: TREE_SHA)
+    monkeypatch.setattr(tier_resolver, '_verified_pr_matrix_receipt',
+        lambda *args, **kwargs: verifier(*args, **kwargs, fetch_json=fetch,
+            fetch_archive=lambda *_args, **_kwargs: _receipt_archive(_receipt())))
+    monkeypatch.setattr(sys, 'argv', ['resolve_quality_gate_ci_tier.py', '--event-name', 'push',
+        '--event-path', str(event_path), '--github-output', str(output_path)])
+
+    assert tier_resolver.main() == 0
+    assert output_path.read_text(encoding='utf-8') == (
+        'tier=direct_main_push_full_matrix\n'
+        'reason=pr_matrix_receipt_unavailable_full_matrix_fallback\n')
+    assert suite_execution_count('direct_main_push_full_matrix') == 4
+
+
 def test_pull_request_runs_full_supported_runtime_matrix() -> None:
     policy = load_ci_execution_policy()
     tier = resolve_event_tier("pull_request", _pull_request_event(), policy=policy)
@@ -402,20 +509,7 @@ def test_receipt_creator_cli_writes_a_verifiable_exact_tree_receipt(
 
 @pytest.mark.parametrize("conclusion", ["cancelled", "failure", None])
 def test_cancelled_failed_or_bypassed_matrix_has_no_reusable_receipt(conclusion) -> None:
-    def fetch_json(url: str, *, token: str):
-        if "/runs?" in url:
-            return {
-                "workflow_runs": [
-                    {
-                        "id": 123,
-                        "run_attempt": 2,
-                        "event": "pull_request",
-                        "conclusion": conclusion,
-                        "head_sha": HEAD_SHA,
-                    }
-                ]
-            }
-        return {"artifacts": []}
+    fetch_json, _ = _matrix_evidence_fetcher(run={'conclusion': conclusion})
 
     with pytest.raises(ValueError, match="No verified PR matrix receipt"):
         tier_resolver._verified_pr_matrix_receipt(
@@ -430,20 +524,7 @@ def test_cancelled_failed_or_bypassed_matrix_has_no_reusable_receipt(conclusion)
 
 
 def test_successful_workflow_without_receipt_artifact_cannot_reduce_main_matrix() -> None:
-    def fetch_json(url: str, *, token: str):
-        if "/runs?" in url:
-            return {
-                "workflow_runs": [
-                    {
-                        "id": 123,
-                        "run_attempt": 2,
-                        "event": "pull_request",
-                        "conclusion": "success",
-                        "head_sha": HEAD_SHA,
-                    }
-                ]
-            }
-        return {"artifacts": []}
+    fetch_json, _ = _matrix_evidence_fetcher(artifacts=[])
 
     with pytest.raises(ValueError, match="No verified PR matrix receipt"):
         tier_resolver._verified_pr_matrix_receipt(
@@ -459,29 +540,7 @@ def test_successful_workflow_without_receipt_artifact_cannot_reduce_main_matrix(
 
 def test_successful_matrix_receipt_is_reused_only_for_identical_tree() -> None:
     receipt = _receipt()
-
-    def fetch_json(url: str, *, token: str):
-        if "/runs?" in url:
-            return {
-                "workflow_runs": [
-                    {
-                        "id": 123,
-                        "run_attempt": 2,
-                        "event": "pull_request",
-                        "conclusion": "success",
-                        "head_sha": HEAD_SHA,
-                    }
-                ]
-            }
-        return {
-            "artifacts": [
-                {
-                    "name": tier_resolver.RECEIPT_ARTIFACT_NAME,
-                    "expired": False,
-                    "archive_download_url": "https://api.github.com/artifact/1",
-                }
-            ]
-        }
+    fetch_json, _ = _matrix_evidence_fetcher()
 
     result = tier_resolver._verified_pr_matrix_receipt(
         _push_event(),
