@@ -40,6 +40,33 @@
     "runtime_versions_source": "pyproject.toml#tool.nexora_sage.distribution.tested_python_versions",
     "reference_python_version": "3.12",
     "node_version": "20",
+    "environment_observation": {
+      "kind": "nexora_sage_ci_environment_observation_v1",
+      "mode": "observation_only",
+      "reuse_authorized": false,
+      "artifact_prefix": "nexora-sage-ci-environment",
+      "comparison": {
+        "kind": "nexora_sage_ci_environment_comparison_v1",
+        "mode": "shadow_only",
+        "command": "python -B tools/compare_quality_gate_ci_environment.py"
+      },
+      "runner_metadata_keys": [
+        "RUNNER_OS",
+        "RUNNER_ARCH",
+        "RUNNER_ENVIRONMENT",
+        "ImageOS",
+        "ImageVersion"
+      ],
+      "input_paths": [
+        "pyproject.toml",
+        "requirements.txt",
+        "tools/engines/package-lock.json",
+        ".github/workflows/quality-gate.yml",
+        "config/distribution_test_profiles.json",
+        "tools/run_distribution_tests.py",
+        "tools/capture_quality_gate_ci_environment.py"
+      ]
+    },
     "push_association_failure_policy": "full_matrix_with_explicit_reason",
     "event_tiers": {
       "pull_request_main": {

@@ -204,6 +204,8 @@
       "tools/tests/test_progressive_hitl.py",
       "tools/tests/test_python_runtime_env.py",
       "tools/tests/test_quality_gate_ci_contract.py",
+      "tools/tests/test_quality_gate_ci_environment.py",
+      "tools/tests/test_quality_gate_ci_environment_comparison.py",
       "tools/tests/test_quality_gate_parser_applicability.py",
       "tools/tests/test_react_contracts.py",
       "tools/tests/test_react_corpus_precision_contracts.py",

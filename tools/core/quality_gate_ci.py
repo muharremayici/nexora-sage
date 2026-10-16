@@ -120,6 +120,32 @@ def validate_ci_execution_policy(policy: dict[str, Any], *, root: Path = ROOT) -
     if cache.get("cancel_in_progress") != "pull_request_only":
         raise ValueError("CI cancellation may cancel only superseded pull-request runs")
 
+    observation = policy.get("environment_observation")
+    if (not isinstance(observation, dict)
+            or observation.get("kind") != "nexora_sage_ci_environment_observation_v1"
+            or observation.get("mode") != "observation_only"
+            or observation.get("reuse_authorized") is not False
+            or observation.get("artifact_prefix") != "nexora-sage-ci-environment"):
+        raise ValueError("CI environment observation must remain bounded metadata without reuse authority")
+    runner_keys, input_paths = observation.get('runner_metadata_keys'), observation.get('input_paths')
+    # The contract owns the selected fields/inputs, not a second hardcoded list.
+    if (not isinstance(runner_keys, list) or not 1 <= len(runner_keys) <= 8
+            or any(not isinstance(key, str) or not re.fullmatch(r'(RUNNER_[A-Z_]+|Image[A-Za-z]+)', key)
+                or re.search(r'SECRET|TOKEN|PASSWORD|PATH|HOME|AUTH|KEY', key.upper()) for key in runner_keys)
+            or len(set(runner_keys)) != len(runner_keys)
+            or not isinstance(input_paths, list) or not 1 <= len(input_paths) <= 16
+            or any(not isinstance(path, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', path)
+                or path.startswith('/') or any(part in ('', '.', '..') for part in path.split('/'))
+                for path in input_paths)
+            or len(set(input_paths)) != len(input_paths)):
+        raise ValueError('CI environment observation metadata or input selection is unsafe')
+    comparison = observation.get('comparison')
+    if (not isinstance(comparison,dict)
+            or comparison.get('kind') != 'nexora_sage_ci_environment_comparison_v1'
+            or comparison.get('mode') != 'shadow_only'
+            or comparison.get('command') != 'python -B tools/compare_quality_gate_ci_environment.py'):
+        raise ValueError('CI environment comparison must remain a shadow diagnostic')
+
 
 def resolve_event_tier(
     event_name: str,
@@ -400,6 +426,32 @@ def validate_workflow_text(
     node_version_occurrences = workflow_text.count(
         f'node-version: "{selected_policy["node_version"]}"'
     )
+    observation_command = "python -B tools/capture_quality_gate_ci_environment.py"
+    environment_bindings = {}
+    for role, block in (("matrix", matrix_block), ("reference", reference_block)):
+        runtime = ('${{ matrix.python-version }}' if role == 'matrix'
+                   else str(selected_policy['reference_python_version']))
+        artifact = selected_policy['environment_observation']['artifact_prefix'] + '-' + role + '-' + runtime
+        before = block.find(f'--role {role} --phase before_suite --python-version "{runtime}"')
+        suite = block.find(str(commands['full_suite']))
+        after = block.find(f'--role {role} --phase after_suite --python-version "{runtime}"')
+        lifecycle = block.find(str(commands['target_doctor']))
+        environment_bindings[role] = (
+            block.count(observation_command) == 2 and 0 <= before < suite < lifecycle < after
+            and f'name: {artifact}-${{{{ github.run_attempt }}}}' in block
+            and '${{ runner.temp }}/ci-environment/*.json' in block)
+    environment_bindings['legacy_receipt_separate'] = observation_command not in receipt_block
+    comparison_command = selected_policy['environment_observation']['comparison']['command']
+    comparison_position = reference_block.find(comparison_command)
+    environment_bindings['shadow_comparison'] = (
+        workflow_text.count(comparison_command) == 1
+        and reference_block.find('--role reference --phase after_suite') < comparison_position
+        < reference_block.find('name: nexora-sage-ci-environment-reference-')
+        and '--before "$RUNNER_TEMP/ci-environment/before.json"' in reference_block
+        and '--after "$RUNNER_TEMP/ci-environment/after.json"' in reference_block
+        and '--output "$RUNNER_TEMP/ci-environment-comparison.json"' in reference_block
+        and '${{ runner.temp }}/ci-environment-comparison.json' in reference_block
+        and 'GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}' in reference_block)
     passed = (
         not missing_tokens
         and not forbidden_tokens
@@ -410,6 +462,7 @@ def validate_workflow_text(
         and cache_occurrences == {"pip": 2, "npm": 2}
         and node_version_occurrences == 2
         and workflow_text.count("ref: ${{ github.sha }}") == 4
+        and all(environment_bindings.values())
     )
     return {
         "passed": passed,
@@ -421,6 +474,7 @@ def validate_workflow_text(
         "job_bindings": job_bindings,
         "cache_occurrences": cache_occurrences,
         "node_version_occurrences": node_version_occurrences,
+        "environment_observation_bindings": environment_bindings,
         "exact_checkout_occurrences": workflow_text.count("ref: ${{ github.sha }}"),
         "normal_pr_main_journey": normal_pr_main_journey(selected_policy),
         "claim_boundary": selected_policy.get("claim_boundary"),

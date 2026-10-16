@@ -30,11 +30,17 @@ claim-guard wording.
 
 ## Current Candidate And Claim Baseline
 
-The active `1.6.0` candidate is **Bounded Callback Context And Import Rule
-Evidence Delivery**. Its six reviewed delivery rows cover finite callback
-source context, three import source/policy evidence lanes, multi-component
-module-root matching and existing preparation maintenance. This is a candidate
-scope, not a publication decision or readiness verdict.
+The active `1.6.1` candidate is **CI Evidence Provenance And Shadow Environment
+Diagnostics**. Its single reviewed maintenance delivery strengthens tested-source
+and CI receipt matching, captures bounded environment observations in actual
+jobs and compares those observations in shadow mode. All four matrix suites
+and the main reference suite remain enabled. This is a candidate scope, not a
+publication decision, readiness verdict, test-reuse permission or measured
+speedup claim.
+
+The published `1.6.0` delivery remains historical: its six reviewed rows covered
+finite callback source context, three import source/policy evidence lanes,
+multi-component module-root matching and existing preparation maintenance.
 
 The existing React/TypeScript static-governance claim profile remains active:
 no third-party plugin runtime, runtime/schema/value proof, activation or

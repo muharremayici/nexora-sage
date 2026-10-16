@@ -62,6 +62,7 @@ def _associated_pull_requests(
     *,
     token: str,
     timeout_seconds: float = 20.0,
+    fetch_json: Callable[..., Any] | None = None,
 ) -> list[dict[str, Any]]:
     repository = event_payload.get("repository")
     full_name = repository.get("full_name") if isinstance(repository, dict) else None
@@ -73,7 +74,8 @@ def _associated_pull_requests(
         raise ValueError("Push event is missing an exact 40-character source commit")
     encoded_repository = urllib.parse.quote(normalized_repository, safe="/")
     url = f"https://api.github.com/repos/{encoded_repository}/commits/{sha}/pulls?per_page=100"
-    payload = _github_json(url, token=token, timeout_seconds=timeout_seconds)
+    reader = fetch_json or _github_json
+    payload = reader(url, token=token, timeout_seconds=timeout_seconds)
     if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
         raise ValueError("GitHub associated pull-request response is invalid")
     return payload
@@ -190,7 +192,7 @@ def _verified_pr_matrix_receipt(
         number = pull.get("number")
         head = pull.get("head")
         head_sha = str(head.get("sha") or "").lower() if isinstance(head, dict) else ""
-        if not isinstance(number, int) or number < 1 or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+        if type(number) is not int or number < 1 or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
             candidate_errors.append("associated_pr_identity_invalid")
             continue
         runs_url = (
@@ -207,9 +209,14 @@ def _verified_pr_matrix_receipt(
                 for run in runs
                 if isinstance(run, dict)
                 and run.get("event") == "pull_request"
+                and run.get("status") == "completed"
                 and run.get("conclusion") == "success"
+                and run.get("path") == policy["workflow_path"]
+                and isinstance(run.get("repository"), dict)
+                and run["repository"].get("full_name") == repository_name
                 and str(run.get("head_sha") or "").lower() == head_sha
-                and isinstance(run.get("id"), int)
+                and type(run.get("id")) is int and run["id"] > 0
+                and type(run.get("run_attempt")) is int and run["run_attempt"] > 0
             ),
             key=lambda run: (int(run.get("run_attempt") or 0), int(run["id"])),
             reverse=True,
@@ -221,35 +228,58 @@ def _verified_pr_matrix_receipt(
             )
             artifacts_payload = fetch_json(artifacts_url, token=token)
             artifacts = artifacts_payload.get("artifacts") if isinstance(artifacts_payload, dict) else None
-            if not isinstance(artifacts, list):
-                raise ValueError("Workflow artifact evidence response is invalid")
+            if (
+                not isinstance(artifacts, list)
+                or type(artifacts_payload.get("total_count")) is not int
+                or artifacts_payload["total_count"] != len(artifacts)
+            ):
+                raise ValueError("Workflow artifact inventory is incomplete or invalid")
             candidates = [
                 artifact
                 for artifact in artifacts
                 if isinstance(artifact, dict)
                 and artifact.get("name") == RECEIPT_ARTIFACT_NAME
-                and artifact.get("expired") is False
-                and isinstance(artifact.get("archive_download_url"), str)
             ]
-            for artifact in candidates:
-                try:
-                    receipt = _receipt_from_archive(
-                        fetch_archive(str(artifact["archive_download_url"]), token=token)
-                    )
-                    verify_pr_matrix_receipt(
-                        receipt,
-                        pull_request_number=number,
-                        pull_request_head_sha=head_sha,
-                        source_tree_sha=source_tree_sha,
-                        repository=repository_name,
-                        workflow_run_id=run_id,
-                        workflow_run_attempt=int(run.get("run_attempt") or 0),
-                        policy=policy,
-                    )
-                except ValueError as exc:
-                    candidate_errors.append(str(exc))
-                    continue
-                return receipt
+            if len(candidates) != 1:
+                candidate_errors.append("unique_matrix_receipt_artifact_required")
+                continue
+            artifact = candidates[0]
+            if (
+                artifact.get("expired") is not False
+                or type(artifact.get("id")) is not int or artifact["id"] < 1
+                or not isinstance(artifact.get("archive_download_url"), str)
+            ):
+                candidate_errors.append("matrix_receipt_artifact_invalid_or_expired")
+                continue
+            try:
+                receipt = _receipt_from_archive(
+                    fetch_archive(artifact["archive_download_url"], token=token)
+                )
+                verify_pr_matrix_receipt(
+                    receipt,
+                    pull_request_number=number,
+                    pull_request_head_sha=head_sha,
+                    source_tree_sha=source_tree_sha,
+                    repository=repository_name,
+                    workflow_run_id=run_id,
+                    workflow_run_attempt=run["run_attempt"],
+                    policy=policy,
+                )
+                tested_sha = receipt["source"]["event_sha"]
+                tested = fetch_json(
+                    f"https://api.github.com/repos/{encoded_repository}/git/commits/{tested_sha}",
+                    token=token,
+                )
+                tree = tested.get("tree") if isinstance(tested, dict) else None
+                if (
+                    not isinstance(tested, dict) or tested.get("sha") != tested_sha
+                    or not isinstance(tree, dict) or tree.get("sha") != source_tree_sha
+                ):
+                    raise ValueError("Actually tested commit tree differs from exact main tree")
+            except ValueError as exc:
+                candidate_errors.append(str(exc))
+                continue
+            return receipt
     detail = candidate_errors[-1] if candidate_errors else "receipt_not_found"
     raise ValueError(f"No verified PR matrix receipt is available: {detail}")
 
