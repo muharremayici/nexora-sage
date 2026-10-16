@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.artifact_registry import artifact_metadata
+from tools.core.audit_source_contracts import api_entry_source_contract, audit_layer_source_contract
 
 
 RAW_OUTPUT_PATH = RAW_DIR / "doctrine_audit_quality_integrity_validation.json"
@@ -45,6 +46,7 @@ def run_validation() -> dict[str, Any]:
     pipeline_policy = _read(pipeline_policy_path)
     audit_policy = _read(audit_policy_path)
     audit_source = _read(audit_path)
+    layer_resolver = _read(ROOT / "tools" / "core" / "layer_resolver.py")
     mcp_governance = _read(mcp_governance_path)
     audit_rules = _read(audit_rules_path)
     audit_report = _read(audit_report_path)
@@ -78,10 +80,7 @@ def run_validation() -> dict[str, Any]:
         ),
         _check(
             "api_entry_policy_is_centralized",
-            "def get_api_entry_filenames" in pipeline_policy
-            and '"api_entry_filenames"' in pipeline_policy
-            and "get_api_entry_filenames" in audit_source
-            and "get_api_entry_filenames" in mcp_governance
+            api_entry_source_contract(pipeline_policy, audit_source, mcp_governance)
             and '["index.ts", "index.tsx", "__init__.py", "mod.go"]' not in audit_source
             and '["index.ts", "index.tsx", "__init__.py", "mod.go"]' not in mcp_governance,
             [
@@ -105,8 +104,7 @@ def run_validation() -> dict[str, Any]:
             and "resolve_loc_finding_semantics" in audit_source
             and "get_audit_report_sections()" in audit_source
             and "get_module_root_name()" in audit_source
-            and "resolve_layer(" in audit_source
-            and "is_violation(" in audit_source,
+            and audit_layer_source_contract(audit_source, layer_resolver),
             str(audit_path.relative_to(ROOT)),
         ),
         _check(

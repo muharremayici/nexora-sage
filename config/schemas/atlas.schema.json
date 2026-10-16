@@ -1262,6 +1262,3285 @@
         }
       }
     },
+    "returned_callback_parameter_unbraced_if_call_evidence": {
+      "description": "Finite unbraced optional-call source association only; no whole-source absence, activation or runtime proof.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "version",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "records",
+        "omitted",
+        "runtime_execution",
+        "coverage"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "incomplete_scan",
+            "unavailable",
+            "not_applicable"
+          ]
+        },
+        "version": {
+          "const": "v1-returned-react-async-parameter-unbraced-if-optional-call"
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "omitted": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "callback_name",
+              "property_name",
+              "source",
+              "localName",
+              "importedName",
+              "kind",
+              "spans",
+              "parameter_name",
+              "parameter_default_empty_object",
+              "parameter_property_name",
+              "parameter_local_name",
+              "argument_name",
+              "unselected_literal_default_count",
+              "context_kind",
+              "awaited",
+              "optional_call",
+              "branch_kind"
+            ],
+            "properties": {
+              "callback_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "property_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "localName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "const": "react"
+              },
+              "importedName": {
+                "const": "useCallback"
+              },
+              "kind": {
+                "const": "named"
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "argument": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "await_expression": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "binding": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "binding_declaration": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "binding_pattern": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "binding_statement": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "body": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "branch_selector": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "branch_statement": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "callback": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "callback_binding_element": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "callback_body": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "callback_local_binding": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "callback_property_name": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "callee": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "catch_body": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "catch_clause": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "declaration": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "dependencies": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "finally_body": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "if_condition": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "if_statement": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "import_binding": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "import_declaration": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "imported_binding": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "initializer": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "invocation": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "invocation_statement": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "invoked_identifier": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "local_binding": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "module_source": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "optional_operator": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "owner": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "parameter": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "parameter_input": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "parameter_name": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "property": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "return_statement": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "returned_object": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "try_body": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "try_statement": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  },
+                  "value": {
+                    "$ref": "#/$defs/returned_callback_span"
+                  }
+                }
+              },
+              "parameter_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parameter_default_empty_object": {
+                "type": "boolean"
+              },
+              "parameter_property_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parameter_local_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "argument_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "unselected_literal_default_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "context_kind": {
+                "enum": [
+                  "immediate_callback_unbraced_if",
+                  "immediate_own_try_unbraced_if",
+                  "immediate_own_catch_unbraced_if",
+                  "immediate_own_finally_unbraced_if"
+                ]
+              },
+              "awaited": {
+                "type": "boolean"
+              },
+              "optional_call": {
+                "const": true
+              },
+              "branch_kind": {
+                "enum": [
+                  "then",
+                  "else"
+                ]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_callback_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_callback_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_callback_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_callback_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_try_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_body",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_try_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_body",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_try_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_body",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_try_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_body",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_catch_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_clause": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "catch_body",
+                        "catch_clause",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_catch_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_clause": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "catch_body",
+                        "catch_clause",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_catch_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_clause": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "catch_body",
+                        "catch_clause",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_catch_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "catch_clause": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "catch_body",
+                        "catch_clause",
+                        "declaration",
+                        "dependencies",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_finally_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "finally_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "finally_body",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_finally_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "then"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "finally_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "finally_body",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_finally_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "finally_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "finally_body",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "context_kind": {
+                      "const": "immediate_own_finally_unbraced_if"
+                    },
+                    "branch_kind": {
+                      "const": "else"
+                    },
+                    "awaited": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "context_kind",
+                    "branch_kind",
+                    "awaited"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "properties": {
+                        "argument": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "await_expression": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_pattern": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "binding_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_selector": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "branch_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_binding_element": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callback_property_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "callee": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "dependencies": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "finally_body": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_condition": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "if_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "import_declaration": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "imported_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "initializer": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invocation_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "invoked_identifier": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "local_binding": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "module_source": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "optional_operator": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "owner": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_input": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "parameter_name": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "property": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "return_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "returned_object": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "try_statement": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        },
+                        "value": {
+                          "$ref": "#/$defs/returned_callback_span"
+                        }
+                      },
+                      "required": [
+                        "argument",
+                        "await_expression",
+                        "binding",
+                        "binding_declaration",
+                        "binding_pattern",
+                        "binding_statement",
+                        "body",
+                        "branch_selector",
+                        "branch_statement",
+                        "callback",
+                        "callback_binding_element",
+                        "callback_body",
+                        "callback_local_binding",
+                        "callback_property_name",
+                        "callee",
+                        "declaration",
+                        "dependencies",
+                        "finally_body",
+                        "if_condition",
+                        "if_statement",
+                        "import_binding",
+                        "import_declaration",
+                        "imported_binding",
+                        "initializer",
+                        "invocation",
+                        "invocation_statement",
+                        "invoked_identifier",
+                        "local_binding",
+                        "module_source",
+                        "optional_operator",
+                        "owner",
+                        "parameter",
+                        "parameter_input",
+                        "parameter_name",
+                        "property",
+                        "return_statement",
+                        "returned_object",
+                        "try_statement",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "coverage": {
+          "const": "finite_source_grammar_only"
+        }
+      }
+    },
     "returned_callback_parameter_context_call_evidence": {
       "description": "Finite own control-context optional calls inside returned async React callbacks; lexical source association only, never activation, reachability, callability, value/schema or runtime proof.",
       "type": "object",
@@ -7654,6 +10933,9 @@
                   },
                   "returned_callback_parameter_context_call_evidence": {
                     "$ref": "#/$defs/returned_callback_parameter_context_call_evidence"
+                  },
+                  "returned_callback_parameter_unbraced_if_call_evidence": {
+                    "$ref": "#/$defs/returned_callback_parameter_unbraced_if_call_evidence"
                   },
                   "call_result_property_binding_evidence": {
                     "$ref": "#/$defs/call_result_property_binding_evidence"

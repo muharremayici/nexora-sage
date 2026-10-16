@@ -847,30 +847,8 @@ def _audit_findings_generation_projection(
     *,
     project: str,
 ) -> dict[str, Any]:
-    db_path = raw_dir / "codemaps.db"
-    manifest: dict[str, Any] = {}
-    if Path(native_filesystem_path(db_path)).exists():
-        try:
-            with closing(
-                sqlite3.connect(
-                    native_filesystem_path(db_path),
-                    timeout=float(sqlite_read_timeout_seconds()),
-                )
-            ) as conn:
-                conn.row_factory = sqlite3.Row
-                row = conn.execute(
-                    """
-                    SELECT fact_value
-                    FROM artifact_facts
-                    WHERE artifact_name = ? AND fact_key = ?;
-                    """,
-                    (AUDIT_FINDINGS_FACT_ARTIFACT, AUDIT_FINDINGS_FACT_KEY),
-                ).fetchone()
-            if row is not None:
-                parsed = json.loads(str(row["fact_value"] or "{}"))
-                manifest = parsed if isinstance(parsed, dict) else {}
-        except (sqlite3.Error, TypeError, ValueError, json.JSONDecodeError):
-            manifest = {}
+    from tools.core.audit_finding_generation import read_audit_finding_manifest
+    manifest = read_audit_finding_manifest(raw_dir)
     return evaluate_finding_manifest(
         manifest,
         expected_snapshot_id=_analysis_snapshot_id(raw_dir),
@@ -6760,11 +6738,14 @@ def _audit_violation_work_items_from_sqlite(
         return [], 0, False
 
     doctrine = _doctrine()
+    from tools.core.audit_finding_generation import project_audit_import_subject, audit_import_rule_contract
+    from tools.core.json_syntax import loads_json_strict
+    import_evidence_cache: dict = {}
     items: list[dict[str, Any]] = []
     for row in rows:
         violation: dict[str, Any] = {}
         try:
-            parsed = json.loads(row["message"])
+            parsed = loads_json_strict(row["message"])
             if isinstance(parsed, dict):
                 violation = parsed
         except Exception:
@@ -6815,6 +6796,10 @@ def _audit_violation_work_items_from_sqlite(
                 "validation_tools": target_repo_validation_tools(),
             }
         )
+        if audit_import_rule_contract(rule_id) is not None or "finding_evidence" in violation:
+            items[-1]["finding_evidence"] = project_audit_import_subject(
+                {**violation, "rule": rule_id}, raw_dir=raw_dir, project=project_key,
+                rel_path=file_path, cache=import_evidence_cache)
     return items, total, True
 
 
@@ -6914,6 +6899,9 @@ def _module_integrity_items_from_sqlite(
         return [], 0, False
 
     doctrine = _doctrine()
+    from tools.core.audit_finding_generation import project_audit_import_subject, audit_import_rule_contract
+    from tools.core.json_syntax import loads_json_strict
+    import_evidence_cache: dict = {}
     filtered: list[dict[str, Any]] = []
     for row in rows:
         project_key = str(row["project_key"] or "")
@@ -6931,7 +6919,7 @@ def _module_integrity_items_from_sqlite(
         } if repo_rel else {}
         violation: dict[str, Any] = {}
         try:
-            parsed = json.loads(row["message"])
+            parsed = loads_json_strict(row["message"])
             if isinstance(parsed, dict):
                 violation = parsed
         except Exception:
@@ -6957,6 +6945,10 @@ def _module_integrity_items_from_sqlite(
                 "evidence": detail[:900],
             }
         )
+        if audit_import_rule_contract(rule_id) is not None or "finding_evidence" in violation:
+            filtered[-1]["finding_evidence"] = project_audit_import_subject(
+                {**violation, "rule": rule_id}, raw_dir=raw_dir, project=project_key,
+                rel_path=rel_path, cache=import_evidence_cache)
     return filtered, total, True
 
 
@@ -10194,7 +10186,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                                       _focus_local_arrow_sibling_calls, _focus_jsx_prop_callbacks,
                                       _focus_returned_local_callbacks, _focus_call_result_property_bindings,
                                       _focus_call_result_alias_invocations, _focus_parameter_config_callbacks,
-                                      _focus_returned_callback_parameter_optional, _focus_returned_callback_parameter_context)
+                                      _focus_returned_callback_parameter_optional, _focus_returned_callback_parameter_context,
+                                      _focus_returned_callback_parameter_unbraced)
 
     policy = _state_flow_brief_policy()
     limit = min(max(1, int(max_items)), policy["focus_max_items"])
@@ -10217,6 +10210,7 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
     deferred_optional_alias_invocations = {}
     deferred_returned_parameter_calls = {}
     deferred_returned_context_calls = {}
+    deferred_returned_unbraced_calls = {}
     primary_records = {}
     if selector_probe["status"] == "invalid_selector":
         result = selector_probe
@@ -10235,7 +10229,8 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                                               _deferred_optional_rest_alias_invocations=deferred_optional_rest_alias_invocations,
                                               _deferred_optional_alias_invocations=deferred_optional_alias_invocations,
                                               _deferred_returned_parameter_calls=deferred_returned_parameter_calls,
-                                              _deferred_returned_context_calls=deferred_returned_context_calls)
+                                              _deferred_returned_context_calls=deferred_returned_context_calls,
+                                              _deferred_returned_unbraced_calls=deferred_returned_unbraced_calls)
         else:
             result = {**selector_probe, 'status': 'unavailable', 'reason': 'atlas_primary_content_unavailable',
                       'source_binding': 'unavailable'}
@@ -11001,6 +10996,30 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
                                 "call-result binding": "binding", "alias invocation": "alias", "nested alias": "nested"}
                 result["next_action"] = "Omit " + "/".join(
                     short_labels.get(label, label) for label in prior_omissions + ["returned parameter"]) + "; no absence."
+    def late_omission_action(last_key):
+        # Reuse one ordered disclosure for these two late stages. Future stages
+        # are not omissions yet; retained older lanes must never be named here.
+        omissions = []
+        for deferred, old_key, label in (
+                (deferred_result_use, "local_arrow_result_uses", "result"),
+                (deferred_local_sibling, "local_arrow_sibling_calls", "sibling"),
+                (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
+                (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
+                (deferred_call_result_bindings, "call_result_property_bindings", "binding"),
+                (deferred_alias_invocations, "call_result_alias_invocations", "alias"),
+                (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested"),
+                (deferred_parameter_callbacks, "parameter_config_callback_forwardings", "param"),
+                (deferred_optional_rest_alias_invocations, "call_result_optional_rest_alias_invocations", "opt/rest"),
+                (deferred_optional_alias_invocations, "call_result_optional_alias_invocations", "opt"),
+                (deferred_returned_parameter_calls, "returned_callback_parameter_optional_calls", "returned parameter"),
+                (deferred_returned_context_calls, "returned_callback_parameter_context_calls", "context"),
+                (deferred_returned_unbraced_calls, "returned_callback_parameter_unbraced_if_calls", "unbraced")):
+            if deferred and old_key not in result["symbol_context"]:
+                omissions.append(label)
+            if old_key == last_key:
+                break
+        return "Omit " + "/".join(omissions) + "; no absence."
+
     if deferred_returned_context_calls and result["status"] == "selected":
         context = result["symbol_context"]
         remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
@@ -11039,23 +11058,44 @@ def _focused_state_flow(raw_dir: Path, *, project: str, file: str, symbol: str,
             result["next_action"] += " Contextual callback detail omitted; inspect source, not absence."
             if context_budget_profile(json.dumps(result, ensure_ascii=False),
                     budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
-                omissions = []
-                for deferred, old_key, label in (
-                        (deferred_result_use, "local_arrow_result_uses", "result"),
-                        (deferred_local_sibling, "local_arrow_sibling_calls", "sibling"),
-                        (deferred_jsx_callbacks, "jsx_prop_callbacks", "JSX"),
-                        (deferred_returned_callbacks, "returned_local_callbacks", "returned callback"),
-                        (deferred_call_result_bindings, "call_result_property_bindings", "binding"),
-                        (deferred_alias_invocations, "call_result_alias_invocations", "alias"),
-                        (deferred_nested_alias_invocations, "call_result_nested_callback_alias_invocations", "nested"),
-                        (deferred_parameter_callbacks, "parameter_config_callback_forwardings", "parameter callback"),
-                        (deferred_optional_rest_alias_invocations, "call_result_optional_rest_alias_invocations", "optional/rest"),
-                        (deferred_optional_alias_invocations, "call_result_optional_alias_invocations", "direct optional"),
-                        (deferred_returned_parameter_calls, "returned_callback_parameter_optional_calls", "returned parameter")):
-                    if deferred and old_key not in context: omissions.append(label)
-                short_labels = {"parameter callback": "param-cb", "optional/rest": "opt/rest", "direct optional": "direct-opt"}
-                result["next_action"] = "Omit " + "/".join(short_labels.get(label, label)
-                    for label in omissions + ["context"]) + "; no absence."
+                result["next_action"] = late_omission_action(key)
+    if deferred_returned_unbraced_calls and result["status"] == "selected":
+        context = result["symbol_context"]
+        remaining_scan = policy["focus_scan_limit"] - result["visited_records"]
+        current = result["source_binding"] == "snapshot_and_live_match"
+        ref = result["target"]["atlas_ref"]
+        needs_primary_visit = ref not in primary_records
+        primary = (current and atlas_read.primary_verified and remaining_scan > int(needs_primary_visit)
+            and _state_flow_jsx_primary_record_matches(raw_dir, result["target"],
+                deferred_returned_unbraced_calls["record"], primary_records, atlas_read=atlas_read))
+        if current and needs_primary_visit and remaining_scan > 0: result["visited_records"] += 1
+        if primary:
+            lane = _focus_returned_callback_parameter_unbraced(deferred_returned_unbraced_calls["record"],
+                deferred_returned_unbraced_calls["symbol"], limit, policy["focus_scan_limit"] - result["visited_records"])
+            result["visited_records"] += lane["visited_records"]
+        else:
+            exhausted = current and remaining_scan <= int(needs_primary_visit)
+            lane = {"status": "incomplete_scan" if exhausted else "unavailable",
+                "reason": "returned_unbraced_scan_budget_exhausted" if exhausted else "returned_unbraced_primary_or_source_unavailable",
+                "items": [], "returned": 0, "omitted": None, "visited_records": 0,
+                "coverage": "finite_source_grammar_only", "runtime_execution": "not_established",
+                "value_transfer": "not_established", "callability": "not_established",
+                "callback_activation": "not_established", "schema_validity": "not_established"}
+        if current and needs_primary_visit and remaining_scan > 0: lane["visited_records"] += 1
+        lane["source_binding"] = result["source_binding"]
+        key = "returned_callback_parameter_unbraced_if_calls"
+        context[key] = lane
+        while lane["items"] and context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            lane["items"].pop(); lane["returned"] -= 1; lane["omitted"] = (lane["omitted"] or 0) + 1
+            lane.update(status="incomplete_scan", reason="focus_returned_unbraced_budget_exhausted")
+        if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+            context.pop(key)
+            result["next_action"] += " Unbraced detail omitted; no absence."
+            if context_budget_profile(json.dumps(result, ensure_ascii=False),
+                    budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] != "pass":
+                result["next_action"] = late_omission_action(key)
     return result
 
 

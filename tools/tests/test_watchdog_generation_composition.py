@@ -222,7 +222,9 @@ def test_policy_tier_change_reaches_sql_packet_module_and_queue_brief(tmp_path, 
     order["severity_tiers"]["advisory"] = 0
     order["severity_tiers"]["critical"] = 3
     path = tmp_path / "policy.json"
-    path.write_text(json.dumps({"work_queue_brief_policy":{"audit_presentation_order":order}}), encoding="utf-8")
+    policy = json.loads(finding_order.AUDIT_PRESENTATION_CONTRACT_PATH.read_text(encoding="utf-8"))
+    policy["work_queue_brief_policy"]["audit_presentation_order"] = order
+    path.write_text(json.dumps(policy), encoding="utf-8")
     monkeypatch.setattr(finding_order, "AUDIT_PRESENTATION_CONTRACT_PATH", path)
     queue, total, ok = server._audit_violation_work_items_from_sqlite(raw_dir, page=1, page_size=1, project="MAIN")
     directives = contextos_mcp.build_agent_action_directives(audit_report={"violations":rows}, max_items=1)

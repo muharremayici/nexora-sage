@@ -35,6 +35,9 @@ from tools.core.atlas_ast_contract import (
     RETURNED_PARAMETER_CONTEXT_COMMON_ROLES,
     _returned_parameter_context_roles,
     _returned_parameter_context_record_valid,
+    RETURNED_PARAMETER_UNBRACED_VERSION,
+    _returned_parameter_unbraced_roles,
+    _returned_parameter_unbraced_record_valid,
     AST_CONTRACT_VERSION,
     _jsx_callback_record_valid,
     _call_result_property_binding_record_valid,
@@ -789,6 +792,10 @@ def _normalize_polyglot_symbol(
             raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context,
             _normalized_anchor=returned_anchor)}
            if "returned_callback_parameter_context_call_evidence" in raw_symbol else {}),
+        **({"returned_callback_parameter_unbraced_if_call_evidence": _normalize_returned_callback_parameter_unbraced(
+            raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context,
+            _normalized_anchor=returned_anchor)}
+           if "returned_callback_parameter_unbraced_if_call_evidence" in raw_symbol else {}),
         **({"call_result_property_binding_evidence": _normalize_call_result_property_bindings(
             raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context)}
            if "call_result_property_binding_evidence" in raw_symbol else {}),
@@ -873,6 +880,7 @@ def _normalize_polyglot_symbols(
                                 ("local_arrow_sibling_call_evidence", 9), ("returned_local_callback_evidence", 18),
                                 ("returned_callback_parameter_optional_call_evidence", 35),
                                 ("returned_callback_parameter_context_call_evidence", None),
+                                ("returned_callback_parameter_unbraced_if_call_evidence", None),
                                 ("call_result_property_binding_evidence", 14), ("call_result_alias_invocation_evidence", 17),
                                 ("call_result_optional_alias_invocation_evidence", 18),
                                 ("call_result_nested_callback_alias_invocation_evidence", 25),
@@ -881,6 +889,7 @@ def _normalize_polyglot_symbols(
                 parent = raw_symbol if lane in {"local_arrow_sibling_call_evidence", "returned_local_callback_evidence",
                                                "returned_callback_parameter_optional_call_evidence",
                                                "returned_callback_parameter_context_call_evidence",
+                                               "returned_callback_parameter_unbraced_if_call_evidence",
                                                "call_result_property_binding_evidence", "call_result_alias_invocation_evidence",
                                                "call_result_optional_alias_invocation_evidence",
                                                "call_result_nested_callback_alias_invocation_evidence",
@@ -894,7 +903,9 @@ def _normalize_polyglot_symbols(
                         for row in records:
                             spans = row.get("spans") if isinstance(row, dict) else None
                             if isinstance(spans, dict) and (len(spans) == roles if roles is not None else
-                                    set(spans) == (_returned_parameter_context_roles(row) or set())):
+                                    set(spans) == ((_returned_parameter_unbraced_roles(row)
+                                        if lane == "returned_callback_parameter_unbraced_if_call_evidence"
+                                        else _returned_parameter_context_roles(row)) or set())):
                                 for span in spans.values():
                                     if isinstance(span, dict):
                                         requested_offsets.extend(span[key] for key in ("start", "end")
@@ -1118,6 +1129,13 @@ def _native_utf16_span_validator(content: str):
                 return False
         return True
 
+    def trivia_between(start, end, expected):
+        if type(start) is not int or type(end) is not int or not 0 <= start <= end <= length:
+            return False
+        fragment = encoded[start * 2:end * 2].decode("utf-16-le")
+        return re.sub(r"/\*.*?\*/|//[^\r\n\u2028\u2029]*|[\s\ufeff]+", "", fragment, flags=re.S) == expected
+
+    valid_span.trivia_between = trivia_between
     return valid_span
 
 
@@ -1488,6 +1506,53 @@ def _normalize_returned_callback_parameter_context(raw_symbol, content, offset_m
     return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
 
 
+
+
+def _normalize_returned_callback_parameter_unbraced(raw_symbol, content, offset_map=None, context=None, *, import_context=None,
+                                                    _normalized_anchor=None):
+    """Exact independent unbraced evidence; reuse the existing coordinate/anchor batch."""
+    base = {"status": "unavailable", "version": RETURNED_PARAMETER_UNBRACED_VERSION, "offset_unit": "utf8_bytes",
+            "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [], "omitted": None,
+            "runtime_execution": "not_established", "coverage": "finite_source_grammar_only"}
+    if context is None: context = (hashlib.sha256(content.encode("utf-8")).hexdigest(), _native_utf16_span_validator(content))
+    identity, valid_span = context
+    evidence = raw_symbol.get("returned_callback_parameter_unbraced_if_call_evidence")
+    if (not isinstance(evidence, dict) or set(evidence) != set(base) - {"ast_contract_version"}
+            or raw_symbol.get("parserKind", raw_symbol.get("parser_kind")) != "typescript_compiler_api"
+            or evidence.get("version") != base["version"] or evidence.get("source_hash") != identity
+            or evidence.get("offset_unit") != "utf16_code_units" or evidence.get("runtime_execution") != "not_established"
+            or evidence.get("coverage") != base["coverage"] or not isinstance(evidence.get("status"), str)
+            or evidence["status"] not in {"observed", "incomplete_scan", "unavailable", "not_applicable"}
+            or not isinstance(evidence.get("records"), list) or len(evidence["records"]) > 64
+            or type(evidence.get("omitted")) is not int or evidence["omitted"] < 0
+            or (evidence["status"] == "observed" and evidence["omitted"] != 0)
+            or (evidence["status"] == "incomplete_scan" and evidence["omitted"] == 0)
+            or (evidence["status"] in {"unavailable", "not_applicable"} and (evidence["records"] or evidence["omitted"]))):
+        return {**base, "reason": "returned_unbraced_contract_or_identity_invalid"}
+    if evidence["status"] in {"unavailable", "not_applicable"}:
+        return {**base, "status": evidence["status"], "source_hash": identity, "omitted": 0}
+    anchor = (_normalized_anchor if _normalized_anchor is not None else
+              _normalize_returned_local_callbacks(raw_symbol, content, offset_map, context, import_context=import_context))
+    if anchor["status"] != "observed" or anchor["omitted"]:
+        return {**base, "reason": "returned_unbraced_complete_anchor_unavailable"}
+    anchors = {r["spans"]["property"]["start"]: r for r in raw_symbol.get("returned_local_callback_evidence", {}).get("records", [])}
+    outer = {**raw_symbol, "end_line": raw_symbol.get("endLine", raw_symbol.get("end_line"))}
+    seen = set()
+    for row in evidence["records"]:
+        if not _returned_parameter_unbraced_record_valid(row, outer, valid_span, source_span_validator=valid_span):
+            return {**base, "reason": "returned_unbraced_record_or_spans_invalid"}
+        if anchors.get(row["spans"]["property"]["start"]) != _returned_parameter_anchor(row):
+            return {**base, "reason": "returned_unbraced_anchor_mismatch"}
+        unique = tuple(row["spans"][key]["start"] for key in ("declaration", "callback_binding_element", "invocation"))
+        if unique in seen: return {**base, "reason": "returned_unbraced_duplicate"}
+        seen.add(unique)
+    offsets = [s[key] for r in evidence["records"] for s in r["spans"].values() for key in ("start", "end")]
+    if offset_map is None: offset_map = _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(o not in offset_map for o in offsets): return {**base, "reason": "returned_unbraced_coordinate_normalization_unavailable"}
+    records = copy.deepcopy(evidence["records"])
+    for row in records:
+        for span in row["spans"].values(): span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": evidence["status"], "source_hash": identity, "records": records, "omitted": evidence["omitted"]}
 
 
 def _normalize_local_arrow_sibling_calls(raw_symbol, content, offset_map=None, context=None):

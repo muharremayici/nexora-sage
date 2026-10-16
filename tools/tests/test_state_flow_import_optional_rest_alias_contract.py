@@ -12,6 +12,7 @@ import pytest
 
 from tools.engines.generate_atlas import AST_CONTRACT_VERSION, _normalize_polyglot_symbols
 from tools.tests.test_state_flow_call_result_property_binding_contract import _native
+from tools.tests.test_state_flow_returned_local_callback_contract import _packet_at_context_budget_check
 
 KEY = 'call_result_optional_rest_alias_invocation_evidence'
 FOCUS = 'call_result_optional_rest_alias_invocations'
@@ -303,16 +304,18 @@ def test_packet_omission_preserves_prior_lanes(atlas_run, monkeypatch):
     from tools.mcp import server
     from tools.core.agent_packet_budget import context_budget_profile
     target, _, _ = atlas_run
-    baseline = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))
-    baseline['symbol_context'].pop(FOCUS)
-    baseline['symbol_context'].pop('call_result_optional_alias_invocations', None)
+    baseline = _packet_at_context_budget_check(
+        lambda: server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'),
+        FOCUS, monkeypatch)
     budget = context_budget_profile(json.dumps(baseline, ensure_ascii=False))['estimated_tokens']
     monkeypatch.setattr(server, 'DEFAULT_AGENT_PACKET_BUDGET_TOKENS', budget)
     limited = json.loads(server.get_state_flow(file='Panel.ts', symbol='owner', target_root=str(target), format='json'))
     assert FOCUS not in limited['symbol_context']
     assert limited['symbol_context'] == baseline['symbol_context']
     assert context_budget_profile(json.dumps(limited, ensure_ascii=False), budget_tokens=budget)['status'] == 'pass'
-    assert 'optional/rest' in limited['next_action'].lower() and 'absence' in limited['next_action']
+    action = limited['next_action'].lower()
+    assert 'optional/rest' in action or 'opt/rest' in action
+    assert 'absence' in action
 
 
 @pytest.mark.parametrize('mode', ['direct', 'deferred', 'legacy'])

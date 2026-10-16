@@ -152,6 +152,7 @@ def successor_selection_policy_issues(
         or any(replanning.get(field) is not True for field in (
             "require_unselected_concrete_release", "preserve_target_release",
             "preserve_priority_and_dependencies",
+            "allow_verified_published_predecessor",
         ))
         or replanning.get("authority") != "successor_selection_only"
     ):

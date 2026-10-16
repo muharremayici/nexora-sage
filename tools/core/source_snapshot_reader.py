@@ -15,6 +15,40 @@ from tools.core.target_repository_trust import is_target_path_contained
 DB_PATH = RAW_DIR / "codemaps.db"
 
 
+def read_source_snapshot_binding(raw_dir: Path, project_key: str, rel_path: str,
+                                 *, expected_hash: str | None = None) -> dict:
+    """Selected-DB, snapshot-only read. Missing text is not live-source authority."""
+    from contextlib import closing
+    import sqlite3
+    from tools.core.operational_limits import sqlite_read_timeout_seconds
+    from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
+
+    result = {"status": "missing", "content": None, "source_hash": None}
+    db_path = Path(raw_dir) / "codemaps.db"
+    if not project_key or not rel_path or not Path(native_filesystem_path(db_path)).is_file():
+        return result
+    try:
+        with closing(sqlite3.connect(sqlite_read_only_uri(db_path), uri=True,
+                                   timeout=float(sqlite_read_timeout_seconds()))) as conn:
+            rows = conn.execute(
+                """SELECT ss.content, ss.content_hash, ss.status, f.hash
+                   FROM source_snapshots ss JOIN files f ON f.file_id = ss.file_id
+                     AND f.project_key = ss.project_key AND f.rel_path = ss.rel_path
+                   WHERE ss.project_key = ? AND ss.rel_path = ? LIMIT 2;""",
+                (project_key, rel_path),
+            ).fetchall()
+        if len(rows) != 1:
+            return {**result, "status": "ambiguous" if rows else "missing"}
+        content, digest, status, atlas_hash = rows[0]
+        checked = snapshot_content_status(content, digest, atlas_hash, status=status)
+        if checked == "ok" and expected_hash is not None and expected_hash != atlas_hash:
+            checked = "atlas_mismatch"
+        return {"status": checked, "content": content if checked == "ok" else None,
+                "source_hash": digest if checked == "ok" else None}
+    except (OSError, sqlite3.Error, TypeError, ValueError):
+        return {**result, "status": "error"}
+
+
 def _normalize_rel_path(rel_path: str | Path) -> str:
     return str(rel_path or "").replace("\\", "/").strip().lstrip("/")
 

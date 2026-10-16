@@ -1,6 +1,6 @@
 """Pure shared Atlas AST identity and finite-record validation. No producer imports."""
 
-AST_CONTRACT_VERSION = "v18.49-returned-callback-control-context-source-facts"
+AST_CONTRACT_VERSION = "v18.50-returned-callback-unbraced-if-source-facts"
 
 
 def _jsx_callback_record_valid(row, outer, valid_span, *, child=False, source_span_validator=None):
@@ -513,6 +513,98 @@ RETURNED_PARAMETER_CONTEXT_COMMON_ROLES = RETURNED_CALLBACK_ANCHOR_ROLES | {
     "parameter", "parameter_name", "parameter_input", "binding_statement", "binding_declaration", "binding_pattern",
     "callback_binding_element", "callback_property_name", "callback_local_binding", "invocation_statement",
     "invocation", "invoked_identifier", "optional_operator", "argument"}
+
+RETURNED_PARAMETER_UNBRACED_VERSION = "v1-returned-react-async-parameter-unbraced-if-optional-call"
+RETURNED_PARAMETER_UNBRACED_VARIANTS = {
+    "immediate_callback_unbraced_if": (),
+    "immediate_own_try_unbraced_if": ("try_statement", "try_body"),
+    "immediate_own_catch_unbraced_if": ("try_statement", "catch_clause", "catch_body"),
+    "immediate_own_finally_unbraced_if": ("try_statement", "finally_body"),
+}
+
+
+def _returned_parameter_unbraced_roles(row):
+    if (not isinstance(row, dict) or not isinstance(row.get("context_kind"), str)
+            or row["context_kind"] not in RETURNED_PARAMETER_UNBRACED_VARIANTS
+            or row.get("branch_kind") not in ("then", "else") or type(row.get("awaited")) is not bool):
+        return None
+    return (RETURNED_PARAMETER_CONTEXT_COMMON_ROLES | set(RETURNED_PARAMETER_UNBRACED_VARIANTS[row["context_kind"]])
+            | {"if_statement", "if_condition", "branch_selector", "branch_statement"}
+            | ({"await_expression"} if row["awaited"] else set()))
+
+
+def _returned_parameter_unbraced_record_valid(row, outer, valid_span, *, source_span_validator=None):
+    """Unbraced expression statements, never reinterpret old braced records."""
+    roles = _returned_parameter_unbraced_roles(row)
+    extra = {"parameter_name", "parameter_default_empty_object", "parameter_property_name", "parameter_local_name",
+             "argument_name", "unselected_literal_default_count", "context_kind", "branch_kind", "awaited", "optional_call"}
+    if (roles is None or set(row) != RETURNED_CALLBACK_ANCHOR_FIELDS | extra
+            or not isinstance(row.get("spans"), dict) or set(row["spans"]) != roles
+            or any(not isinstance(row.get(k), str) or not row[k] for k in
+                   ("parameter_name", "parameter_property_name", "parameter_local_name", "argument_name"))
+            or type(row.get("parameter_default_empty_object")) is not bool
+            or type(row.get("unselected_literal_default_count")) is not int
+            or not 0 <= row["unselected_literal_default_count"] <= 10000 or row.get("optional_call") is not True
+            or not all(valid_span(s) for s in row["spans"].values())
+            or not _returned_local_callback_record_valid(_returned_parameter_anchor(row), outer, valid_span,
+                                                        source_span_validator=source_span_validator)):
+        return False
+    s, kind = row["spans"], row["context_kind"]
+    root = "if_statement" if kind == "immediate_callback_unbraced_if" else "try_statement"
+    own = "catch_body" if "catch" in kind else "finally_body" if "finally" in kind else "try_body"
+    pairs = [("callback", "parameter"), ("parameter", "parameter_name"), ("callback_body", "binding_statement"),
+             ("binding_statement", "binding_declaration"), ("binding_declaration", "binding_pattern"),
+             ("binding_declaration", "parameter_input"), ("binding_pattern", "callback_binding_element"),
+             ("callback_binding_element", "callback_property_name"), ("callback_binding_element", "callback_local_binding"),
+             ("callback_body", root), ("if_statement", "if_condition"), ("if_statement", "branch_selector"),
+             ("if_statement", "branch_statement"), ("invocation_statement", "invocation"),
+             ("invocation", "invoked_identifier"), ("invocation", "optional_operator"), ("invocation", "argument")]
+    if root == "try_statement":
+        pairs += [(root, "catch_clause" if own == "catch_body" else own), (own, "if_statement")]
+        if own == "catch_body": pairs.append(("catch_clause", own))
+    if row["awaited"]: pairs += [("invocation_statement", "await_expression"), ("await_expression", "invocation")]
+    if (s["branch_statement"] != s["invocation_statement"]
+            or not all(s[a]["start"] <= s[c]["start"] < s[c]["end"] <= s[a]["end"]
+                       and s[a]["line"] <= s[c]["line"] <= s[c]["end_line"] <= s[a]["end_line"] for a,c in pairs)
+            or s["parameter"]["end"] >= s["callback_body"]["start"]
+            or s["parameter"]["start"] != s["parameter_name"]["start"]
+            or s["binding_pattern"]["end"] >= s["parameter_input"]["start"]
+            or s["binding_statement"]["end"] >= s[root]["start"]
+            or s["invocation"]["start"] != s["invoked_identifier"]["start"]
+            or s["invoked_identifier"]["end"] > s["optional_operator"]["start"]
+            or s["optional_operator"]["end"] >= s["argument"]["start"]
+            or s["argument"]["end"] >= s["invocation"]["end"]
+            or (s["callback_property_name"] != s["callback_local_binding"]
+                and s["callback_property_name"]["end"] >= s["callback_local_binding"]["start"])):
+        return False
+    if row["awaited"]:
+        if (s["await_expression"]["start"] != s["invocation_statement"]["start"]
+                or s["await_expression"]["start"] + 5 > s["invocation"]["start"]
+                or s["await_expression"]["end"] != s["invocation"]["end"]): return False
+    elif s["invocation_statement"]["start"] != s["invocation"]["start"]: return False
+    selector, condition, arm = s["branch_selector"], s["if_condition"], s["branch_statement"]
+    if condition["end"] >= arm["start"]: return False
+    if row["branch_kind"] == "then":
+        if selector["start"] != s["if_statement"]["start"] or selector["end"] >= condition["start"]: return False
+    elif not condition["end"] < selector["start"] < selector["end"] <= arm["start"]: return False
+    if source_span_validator is not None:
+        tokens = {"parameter_name": row["parameter_name"], "parameter_input": row["parameter_name"],
+                  "callback_property_name": row["parameter_property_name"], "callback_local_binding": row["parameter_local_name"],
+                  "invoked_identifier": row["parameter_local_name"], "argument": row["argument_name"], "optional_operator": "?.",
+                  "branch_selector": "if" if row["branch_kind"] == "then" else "else"}
+        if any(not source_span_validator(s[role], token) for role,token in tokens.items()): return False
+        if row["awaited"]:
+            token = {**s["await_expression"], "end": s["await_expression"]["start"] + 5,
+                     "end_line": s["await_expression"]["line"]}
+            if not source_span_validator(token, "await"): return False
+        if root == "try_statement":
+            first = {**s[own], "end": s[own]["start"] + 1, "end_line": s[own]["line"]}
+            last = {**s[own], "start": s[own]["end"] - 1, "line": s[own]["end_line"]}
+            if not source_span_validator(first, "{") or not source_span_validator(last, "}"): return False
+        gap = getattr(source_span_validator, "trivia_between", None)
+        start = condition["end"] if row["branch_kind"] == "then" else selector["end"]
+        if gap is None or not gap(start, arm["start"], ")" if row["branch_kind"] == "then" else ""): return False
+    return True
 
 
 def _returned_parameter_context_roles(row):

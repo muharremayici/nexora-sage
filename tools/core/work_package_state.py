@@ -6,6 +6,7 @@ it must not import either consumer or execute a transition.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -218,3 +219,74 @@ def publication_reconciliation_issues(
         elif row.get("status") != "closed" or row.get("delivered_release") != release:
             issues.append({"id": item_id, "issue": "published_preparation_not_reconciled"})
     return issues
+
+
+def verified_published_package_completion_binding(
+    package: dict[str, Any], policy: dict[str, Any], *, root: Path
+) -> dict[str, Any]:
+    """Verify existing local publication accounting, never activation or authority."""
+    if policy.get("version") != "v1" or not policy.get("ready_status"):
+        raise ValueError("published activation policy invalid")
+    scope = package.get("release_scope", {})
+    release = scope.get("concrete_release")
+    if (
+        package.get("status") != "in_progress"
+        or scope.get("mode") not in policy.get("accepted_release_modes", [])
+        or not release or scope.get("does_not_expand_current_release_claims") is not True
+    ):
+        raise ValueError("published predecessor scope invalid")
+    reference = package.get(policy.get("reference_field", ""))
+    if not isinstance(reference, dict) or not isinstance(reference.get("path"), str):
+        raise ValueError("missing completion reference")
+    path = _inherited_dirty_source_path(reference["path"], root)
+    completion_bytes = path.read_bytes()
+    digest = hashlib.sha256(completion_bytes).hexdigest()
+    if digest != reference.get("sha256"):
+        raise ValueError("completion content changed")
+    checkpoint = json.loads(completion_bytes.decode("utf-8"))
+    if not isinstance(checkpoint, dict):
+        raise ValueError("publication checkpoint must be an object")
+    registry = load_json_object_strict(
+        _inherited_dirty_source_path(policy["publication_registry"], root), label="Publication registry"
+    )
+    records = registry.get("publication_reconciliations", [])
+    if not isinstance(records, list):
+        raise ValueError("publication reconciliations must be a list")
+    matches = [row for row in records if isinstance(row, dict) and row.get("release") == release]
+    if len(matches) != 1:
+        raise ValueError("one reconciled publication required")
+    publication = matches[0]
+    completion = checkpoint.get("completion", {})
+    if not isinstance(completion, dict):
+        raise ValueError("publication completion must be an object")
+    for key, actual in (
+        ("release", completion.get("release")),
+        ("status", completion.get("status")),
+        ("public_commit", completion.get("public_commit")),
+        ("canonical_source_commit", checkpoint.get("canonical_source")),
+        ("clean_delivery_commit", checkpoint.get("clean_delivery")),
+        ("completion_observation_sha256", completion.get("observation_sha256")),
+    ):
+        if not publication.get(key) or publication[key] != actual:
+            raise ValueError(f"publication completion mismatch: {key}")
+    if publication.get("status") != "published":
+        raise ValueError("publication incomplete")
+    observation = publication.get("completion_observation_sha256")
+    if not isinstance(observation, str) or len(observation) != 64 or any(c not in "0123456789abcdef" for c in observation):
+        raise ValueError("publication observation identity invalid")
+    for key in ("canonical_source_commit", "clean_delivery_commit", "public_commit", "source_registry_git_blob"):
+        value = publication.get(key)
+        if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("publication identity invalid")
+    ids = publication.get("reconciled_work_item_ids")
+    if not isinstance(ids, list) or not ids or any(not isinstance(x, str) for x in ids) or len(ids) != len(set(ids)):
+        raise ValueError("publication delivery scope invalid")
+    item_rows = registry.get("work_items", [])
+    if not isinstance(item_rows, list):
+        raise ValueError("publication work registry invalid")
+    items = {row.get("id"): row for row in item_rows if isinstance(row, dict) and isinstance(row.get("id"), str)}
+    if len(items) != len(item_rows):
+        raise ValueError("publication work identities invalid or duplicated")
+    if any(items.get(x, {}).get("status") != "closed" or items[x].get("delivered_release") != release for x in ids):
+        raise ValueError("publication delivery not reconciled")
+    return publication

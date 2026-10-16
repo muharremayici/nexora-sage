@@ -644,6 +644,18 @@ def build_work_package_closeout_proposal(
     }
 
 
+def verified_published_package_completion(package: dict[str, Any]) -> dict[str, Any]:
+    """Verify existing local publication accounting, never activation or authority."""
+    from tools.core.governance_trace_contract import evaluate_governance_trace_contract
+    from tools.core.work_package_state import verified_published_package_completion_binding
+
+    if evaluate_governance_trace_contract().get("status") != "PASS":
+        raise ValueError("governance trace policy invalid")
+    policy = _receipt_contract().get("published_package_activation", {})
+    policy = policy if isinstance(policy, dict) else {}
+    return verified_published_package_completion_binding(package, policy, root=CODE_MAPS_DIR)
+
+
 def build_published_package_activation_proposal(
     *,
     package: dict[str, Any],
@@ -654,13 +666,10 @@ def build_published_package_activation_proposal(
 ) -> dict[str, Any]:
     """Separate completed delivery from current accounting and pending successor edits."""
     from tools.core.work_package_state import successor_matches_selection
-    from tools.core.governance_trace_contract import evaluate_governance_trace_contract as validate_trace_contract
 
     policy = _receipt_contract().get("published_package_activation", {})
     policy = policy if isinstance(policy, dict) else {}
     errors: list[str] = []
-    if validate_trace_contract().get("status") != "PASS":
-        errors.append("governance_trace_policy_invalid")
     if policy.get("version") != "v1" or not policy.get("ready_status"):
         errors.append("published_activation_policy_invalid")
     scope = package.get("release_scope", {})
@@ -674,60 +683,11 @@ def build_published_package_activation_proposal(
     if not successor_matches_selection(successor, successor_selection):
         errors.append("exact_successor_selection_required")
     reference = package.get(policy.get("reference_field", ""))
-    publication: dict[str, Any] = {}
     try:
-        if not isinstance(reference, dict) or not isinstance(reference.get("path"), str):
-            raise ValueError("missing completion reference")
-        path = _inherited_dirty_source_path(reference["path"], CODE_MAPS_DIR)
-        completion_bytes = path.read_bytes()
-        digest = hashlib.sha256(completion_bytes).hexdigest()
-        if digest != reference.get("sha256"):
-            raise ValueError("completion content changed")
-        checkpoint = json.loads(completion_bytes.decode("utf-8"))
-        if not isinstance(checkpoint, dict):
-            raise ValueError("publication checkpoint must be an object")
-        registry = load_json_object_strict(
-            _safe_source_path(policy["publication_registry"]), label="Publication registry"
-        )
-        records = registry.get("publication_reconciliations", [])
-        matches = [row for row in records if isinstance(row, dict) and row.get("release") == release]
-        if len(matches) != 1:
-            raise ValueError("one reconciled publication required")
-        publication = matches[0]
-        completion = checkpoint.get("completion", {})
-        if not isinstance(completion, dict):
-            raise ValueError("publication completion must be an object")
-        for key, actual in (
-            ("release", completion.get("release")),
-            ("status", completion.get("status")),
-            ("public_commit", completion.get("public_commit")),
-            ("canonical_source_commit", checkpoint.get("canonical_source")),
-            ("clean_delivery_commit", checkpoint.get("clean_delivery")),
-            ("completion_observation_sha256", completion.get("observation_sha256")),
-        ):
-            if not publication.get(key) or publication[key] != actual:
-                raise ValueError(f"publication completion mismatch: {key}")
-        if publication.get("status") != "published":
-            raise ValueError("publication incomplete")
-        observation = publication.get("completion_observation_sha256")
-        if not isinstance(observation, str) or len(observation) != 64 or any(c not in "0123456789abcdef" for c in observation):
-            raise ValueError("publication observation identity invalid")
-        for key in ("canonical_source_commit", "clean_delivery_commit", "public_commit", "source_registry_git_blob"):
-            value = publication.get(key)
-            if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value):
-                raise ValueError("publication identity invalid")
-        ids = publication.get("reconciled_work_item_ids")
-        if not isinstance(ids, list) or not ids or any(not isinstance(x, str) for x in ids) or len(ids) != len(set(ids)):
-            raise ValueError("publication delivery scope invalid")
-        item_rows = registry.get("work_items", [])
-        if not isinstance(item_rows, list):
-            raise ValueError("publication work registry invalid")
-        items = {row.get("id"): row for row in item_rows if isinstance(row, dict) and isinstance(row.get("id"), str)}
-        if len(items) != len(item_rows):
-            raise ValueError("publication work identities invalid or duplicated")
-        if any(items.get(x, {}).get("status") != "closed" or items[x].get("delivered_release") != release for x in ids):
-            raise ValueError("publication delivery not reconciled")
-    except (OSError, ValueError, KeyError, TypeError):
+        verified_published_package_completion(package)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        if str(exc) == "governance trace policy invalid":
+            errors.append("governance_trace_policy_invalid")
         errors.append("published_completion_missing_changed_or_unreconciled")
     projected = receipt_projection.get("package", {})
     if (

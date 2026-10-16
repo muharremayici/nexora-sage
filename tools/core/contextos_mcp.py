@@ -14,7 +14,9 @@ from tools.core.atlas_io import AtlasRead, load_atlas_data_with_identity
 from tools.core.config import RAW_DIR
 from tools.core.json_io import load_json_file
 from tools.core.audit_rules import build_rule_taxonomy
-from tools.core.audit_finding_generation import select_audit_presentation_rows
+from tools.core.audit_finding_generation import (
+    select_audit_presentation_rows, project_audit_import_subject, audit_import_rule_contract,
+)
 from tools.core.principle_packs import principles_for_context
 from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, context_budget_profile
 from tools.core.contextos_signal_limits import contextos_signal_limit
@@ -380,6 +382,8 @@ def _directive_for_violation(
     index: int,
     source_artifact: str = "output/.raw/audit_report.json",
     atlas_read: AtlasRead | None = None,
+    raw_dir: Path | None = None,
+    import_evidence_cache: dict | None = None,
 ) -> dict[str, Any]:
     file_path = str(violation.get("file") or violation.get("path") or "").strip()
     project_key = str(violation.get("project") or violation.get("project_key") or "").strip() or None
@@ -444,6 +448,11 @@ def _directive_for_violation(
     }
     if finding_semantics:
         directive["finding_semantics"] = finding_semantics
+    if audit_import_rule_contract(rule) is not None or "finding_evidence" in violation:
+        from tools.core.config import RAW_DIR
+        directive["finding_evidence"] = project_audit_import_subject(violation,
+            raw_dir=raw_dir or RAW_DIR, project=str(project_key or ""),
+            rel_path=str(violation.get("atlas_rel_path") or file_path), cache=import_evidence_cache)
     return directive
 
 
@@ -685,9 +694,11 @@ def build_agent_action_directives(
     scoped_violations = [row for row in violations
         if isinstance(row, dict) and _violation_matches_project_scope(row, project_scope)]
     ordered_violations, presentation = select_audit_presentation_rows(scoped_violations, limit=max_items)
+    import_evidence_cache: dict = {}
     for violation in ordered_violations:
         directive = _directive_for_violation(violation, audit_report, index=len(directives) + 1,
-            source_artifact=audit_source_artifact, atlas_read=current)
+            source_artifact=audit_source_artifact, atlas_read=current, raw_dir=raw_dir,
+            import_evidence_cache=import_evidence_cache)
         directive["presentation_order"] = dict(presentation)
         directives.append(directive)
     if len(directives) >= max_items:

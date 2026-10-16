@@ -220,6 +220,42 @@
           "recommended_action": {
             "type": "string"
           },
+          "finding_evidence": {
+            "type": "object",
+            "if": {
+              "type": "object",
+              "required": [
+                "version"
+              ],
+              "properties": {
+                "version": {
+                  "const": "v1"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/audit_import_subject"
+            },
+            "else": {
+              "if": {
+                "type": "object",
+                "required": [
+                  "version"
+                ],
+                "properties": {
+                  "version": {
+                    "const": "v2"
+                  }
+                }
+              },
+              "then": {
+                "$ref": "#/definitions/audit_import_restriction_subject"
+              },
+              "else": {
+                "$ref": "#/definitions/audit_import_module_subject"
+              }
+            }
+          },
           "symbol_name": {
             "type": "string"
           },
@@ -675,5 +711,767 @@
       }
     }
   ],
+  "definitions": {
+    "audit_import_module_subject": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "subjects",
+        "causal_relation",
+        "target_native_effective_policy",
+        "runtime_proof",
+        "rule",
+        "decision_kind"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/audit_import_subject/properties/kind"
+        },
+        "version": {
+          "const": "v3"
+        },
+        "status": {
+          "$ref": "#/definitions/audit_import_subject/properties/status"
+        },
+        "reason": {
+          "$ref": "#/definitions/audit_import_subject/properties/reason"
+        },
+        "evidence_granularity": {
+          "$ref": "#/definitions/audit_import_subject/properties/evidence_granularity"
+        },
+        "project_key": {
+          "$ref": "#/definitions/audit_import_subject/properties/project_key"
+        },
+        "atlas_rel_path": {
+          "$ref": "#/definitions/audit_import_subject/properties/atlas_rel_path"
+        },
+        "atlas_snapshot_id": {
+          "$ref": "#/definitions/audit_import_subject/properties/atlas_snapshot_id"
+        },
+        "source_hash": {
+          "$ref": "#/definitions/audit_import_subject/properties/source_hash"
+        },
+        "ast_contract_version": {
+          "$ref": "#/definitions/audit_import_subject/properties/ast_contract_version"
+        },
+        "language": {
+          "$ref": "#/definitions/audit_import_subject/properties/language"
+        },
+        "binding_id": {
+          "$ref": "#/definitions/audit_import_subject/properties/binding_id"
+        },
+        "omitted_subject_count": {
+          "$ref": "#/definitions/audit_import_subject/properties/omitted_subject_count"
+        },
+        "policy": {
+          "$ref": "#/definitions/audit_import_subject/properties/policy"
+        },
+        "live_source_currentness": {
+          "$ref": "#/definitions/audit_import_subject/properties/live_source_currentness"
+        },
+        "causal_relation": {
+          "$ref": "#/definitions/audit_import_subject/properties/causal_relation"
+        },
+        "target_native_effective_policy": {
+          "$ref": "#/definitions/audit_import_subject/properties/target_native_effective_policy"
+        },
+        "runtime_proof": {
+          "$ref": "#/definitions/audit_import_subject/properties/runtime_proof"
+        },
+        "subjects": {
+          "$ref": "#/definitions/audit_import_subject/properties/subjects"
+        },
+        "rule": {
+          "enum": [
+            "deep_imports",
+            "own_api_imports"
+          ]
+        },
+        "decision_kind": {
+          "const": "module_api_import_path_decision"
+        },
+        "module_trace": {
+          "type": "object",
+          "required": [
+            "module_container",
+            "primary_alias",
+            "module_import_prefix",
+            "source_container_component_index",
+            "source_module",
+            "raw_prefix_offset",
+            "imported_module",
+            "decision_branch",
+            "raw_api_terminal",
+            "raw_contains_api",
+            "source_api_entry_exemption",
+            "api_entry_policy"
+          ],
+          "properties": {
+            "module_container": {
+              "type": "string"
+            },
+            "primary_alias": {
+              "type": "string"
+            },
+            "module_import_prefix": {
+              "type": "string"
+            },
+            "source_module": {
+              "type": "string"
+            },
+            "imported_module": {
+              "type": "string"
+            },
+            "source_container_component_index": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "raw_prefix_offset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "decision_branch": {
+              "enum": [
+                "cross_module_literal_api_path",
+                "same_module_literal_api_path"
+              ]
+            },
+            "raw_api_terminal": {
+              "type": "boolean"
+            },
+            "raw_contains_api": {
+              "type": "boolean"
+            },
+            "source_api_entry_exemption": {},
+            "api_entry_policy": {}
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "bound_record_set",
+                  "partial"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "evidence_granularity",
+              "project_key",
+              "atlas_rel_path",
+              "atlas_snapshot_id",
+              "source_hash",
+              "ast_contract_version",
+              "language",
+              "binding_id",
+              "omitted_subject_count",
+              "policy",
+              "live_source_currentness",
+              "module_trace"
+            ],
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "bound_record_set",
+                  "partial"
+                ]
+              }
+            }
+          },
+          "then": {
+            "if": {
+              "type": "object",
+              "required": [
+                "rule"
+              ],
+              "properties": {
+                "rule": {
+                  "const": "deep_imports"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "module_trace": {
+                  "type": "object",
+                  "properties": {
+                    "decision_branch": {
+                      "const": "cross_module_literal_api_path"
+                    },
+                    "source_api_entry_exemption": {
+                      "type": "null"
+                    },
+                    "api_entry_policy": {
+                      "type": "null"
+                    },
+                    "raw_api_terminal": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  }
+                }
+              }
+            },
+            "else": {
+              "type": "object",
+              "properties": {
+                "module_trace": {
+                  "type": "object",
+                  "properties": {
+                    "decision_branch": {
+                      "const": "same_module_literal_api_path"
+                    },
+                    "source_api_entry_exemption": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "api_entry_policy": {
+                      "type": "object",
+                      "required": [
+                        "owner",
+                        "configured_entries",
+                        "names",
+                        "identity",
+                        "pointer"
+                      ],
+                      "properties": {
+                        "owner": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "configured_entries": {
+                          "type": "array"
+                        },
+                        "names": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "identity": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "pointer": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "raw_contains_api": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "omitted_subject_count"
+            ],
+            "properties": {
+              "omitted_subject_count": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "omitted_subject_count": {
+                "type": "integer",
+                "const": 0
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "audit_import_restriction_subject": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "rule",
+        "decision_kind",
+        "status",
+        "subjects",
+        "causal_relation",
+        "target_native_effective_policy",
+        "runtime_proof"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/audit_import_subject/properties/kind"
+        },
+        "version": {
+          "const": "v2"
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_kind": {
+          "const": "declared_layer_import_restriction"
+        },
+        "status": {
+          "$ref": "#/definitions/audit_import_subject/properties/status"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "evidence_granularity": {
+          "$ref": "#/definitions/audit_import_subject/properties/evidence_granularity"
+        },
+        "project_key": {
+          "$ref": "#/definitions/audit_import_subject/properties/project_key"
+        },
+        "atlas_rel_path": {
+          "$ref": "#/definitions/audit_import_subject/properties/atlas_rel_path"
+        },
+        "atlas_snapshot_id": {
+          "$ref": "#/definitions/audit_import_subject/properties/atlas_snapshot_id"
+        },
+        "source_hash": {
+          "$ref": "#/definitions/audit_import_subject/properties/source_hash"
+        },
+        "ast_contract_version": {
+          "$ref": "#/definitions/audit_import_subject/properties/ast_contract_version"
+        },
+        "language": {
+          "type": "string"
+        },
+        "binding_id": {
+          "$ref": "#/definitions/audit_import_subject/properties/binding_id"
+        },
+        "omitted_subject_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "policy": {
+          "type": "object"
+        },
+        "source_layer": {
+          "type": "object"
+        },
+        "subjects": {
+          "$ref": "#/definitions/audit_import_subject/properties/subjects"
+        },
+        "live_source_currentness": {
+          "const": "not_evaluated"
+        },
+        "causal_relation": {
+          "const": "not_evaluated"
+        },
+        "target_native_effective_policy": {
+          "const": "not_evaluated"
+        },
+        "runtime_proof": {
+          "const": "not_performed"
+        },
+        "restriction_trace": {
+          "type": "object",
+          "required": [
+            "pointer",
+            "row",
+            "actual_language",
+            "matched_source_glob",
+            "fragment_index",
+            "fragment",
+            "match_form",
+            "candidate_field",
+            "primary_alias",
+            "violated"
+          ],
+          "properties": {
+            "pointer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "row": {
+              "type": "object"
+            },
+            "actual_language": {
+              "type": "string",
+              "minLength": 1
+            },
+            "matched_source_glob": {
+              "type": "null"
+            },
+            "fragment_index": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fragment": {
+              "type": "string",
+              "minLength": 1
+            },
+            "match_form": {
+              "enum": [
+                "declared_fragment",
+                "primary_alias_fragment"
+              ]
+            },
+            "candidate_field": {
+              "enum": [
+                "source",
+                "raw_source"
+              ]
+            },
+            "primary_alias": {
+              "type": "string"
+            },
+            "violated": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "bound_record_set",
+                  "partial"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "evidence_granularity",
+              "project_key",
+              "atlas_rel_path",
+              "atlas_snapshot_id",
+              "source_hash",
+              "ast_contract_version",
+              "language",
+              "binding_id",
+              "omitted_subject_count",
+              "policy",
+              "source_layer",
+              "restriction_trace",
+              "live_source_currentness"
+            ],
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "omitted_subject_count"
+            ],
+            "properties": {
+              "omitted_subject_count": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "omitted_subject_count": {
+                "const": 0
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "audit_import_subject": {
+      "type": "object",
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "subjects",
+        "causal_relation",
+        "target_native_effective_policy",
+        "runtime_proof"
+      ],
+      "properties": {
+        "kind": {
+          "const": "nexora.audit_import_subject"
+        },
+        "version": {
+          "const": "v1"
+        },
+        "status": {
+          "enum": [
+            "bound_record_set",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "evidence_granularity": {
+          "const": "captured_import_record_set_not_occurrence"
+        },
+        "project_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "atlas_rel_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "atlas_snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{32}|[0-9a-f]{64})$"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language": {
+          "type": "string"
+        },
+        "binding_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "omitted_subject_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "policy": {
+          "type": "object"
+        },
+        "source_layer": {
+          "type": "object"
+        },
+        "target_layer": {
+          "type": "object"
+        },
+        "mapping": {
+          "type": "object"
+        },
+        "live_source_currentness": {
+          "const": "not_evaluated"
+        },
+        "causal_relation": {
+          "const": "not_evaluated"
+        },
+        "target_native_effective_policy": {
+          "const": "not_evaluated"
+        },
+        "runtime_proof": {
+          "const": "not_performed"
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "record",
+              "source_range",
+              "occurrence_binding",
+              "target_file_binding"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "record": {
+                "type": "object",
+                "required": [
+                  "source",
+                  "raw_source",
+                  "name",
+                  "kind",
+                  "scope"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "raw_source": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "source_range": {
+                "type": "null"
+              },
+              "occurrence_binding": {
+                "const": "not_recorded"
+              },
+              "target_file_binding": {
+                "const": "not_established"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "bound_record_set",
+                  "partial"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "evidence_granularity",
+              "project_key",
+              "atlas_rel_path",
+              "atlas_snapshot_id",
+              "source_hash",
+              "ast_contract_version",
+              "language",
+              "binding_id",
+              "omitted_subject_count",
+              "policy",
+              "source_layer",
+              "target_layer",
+              "mapping",
+              "live_source_currentness"
+            ],
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "subjects": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
   "additionalProperties": true
 }

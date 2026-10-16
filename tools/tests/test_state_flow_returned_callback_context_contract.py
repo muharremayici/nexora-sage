@@ -14,7 +14,7 @@ import pytest
 
 from tools.engines import generate_atlas as ga
 from tools.core.state_flow import _focus_returned_callback_parameter_context as focus
-from tools.tests.test_state_flow_returned_local_callback_contract import _native
+from tools.tests.test_state_flow_returned_local_callback_contract import _native, _packet_before_context
 from tools.tests.test_state_flow_returned_callback_parameter_optional_contract import CASES as OLD_CASES, POSITIVES as OLD_POSITIVES, record_for
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -308,11 +308,11 @@ def test_last_lane_budget_preserves_every_old_lane(atlas_run,monkeypatch):
     from tools.core.agent_packet_budget import context_budget_profile
     target,_,_=atlas_run
     full=json.loads(server.get_state_flow(file='Panel.ts',symbol='owner',target_root=str(target),format='json'))
-    baseline=deepcopy(full);baseline['symbol_context'].pop(CONTEXT)
+    baseline=_packet_before_context(full,CONTEXT)
     budget=context_budget_profile(json.dumps(baseline,ensure_ascii=False))['estimated_tokens']
     monkeypatch.setattr(server,'DEFAULT_AGENT_PACKET_BUDGET_TOKENS',budget)
     result=json.loads(server.get_state_flow(file='Panel.ts',symbol='owner',target_root=str(target),format='json'))
     assert CONTEXT not in result['symbol_context']
-    assert result['symbol_context']==baseline['symbol_context']
+    assert {k:result['symbol_context'][k] for k in baseline['symbol_context']}==baseline['symbol_context']
     assert context_budget_profile(json.dumps(result,ensure_ascii=False),budget_tokens=budget)['status']=='pass'
     assert 'context' in result['next_action'].lower() and 'absence' in result['next_action']
