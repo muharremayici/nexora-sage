@@ -128,6 +128,9 @@ def validate_ci_execution_policy(policy: dict[str, Any], *, root: Path = ROOT) -
             or observation.get("artifact_prefix") != "nexora-sage-ci-environment"):
         raise ValueError("CI environment observation must remain bounded metadata without reuse authority")
     runner_keys, input_paths = observation.get('runner_metadata_keys'), observation.get('input_paths')
+    metadata_limit = observation.get('maximum_distribution_metadata_bytes')
+    if type(metadata_limit) is not int or not 1 <= metadata_limit <= 262144:
+        raise ValueError('CI environment observation distribution metadata bound is invalid')
     # The contract owns the selected fields/inputs, not a second hardcoded list.
     if (not isinstance(runner_keys, list) or not 1 <= len(runner_keys) <= 8
             or any(not isinstance(key, str) or not re.fullmatch(r'(RUNNER_[A-Z_]+|Image[A-Za-z]+)', key)

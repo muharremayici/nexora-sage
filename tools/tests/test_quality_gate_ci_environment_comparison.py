@@ -7,7 +7,7 @@ import pytest
 from tools import compare_quality_gate_ci_environment as comparison
 from tools import capture_quality_gate_ci_environment as observation
 from tools.core.quality_gate_ci import ROOT, build_pr_matrix_receipt, load_ci_execution_policy, validate_workflow_text
-from tools.tests.test_quality_gate_ci_environment import collect, _env
+from tools.tests.test_quality_gate_ci_environment import collect, _env, native_editable_pair
 
 
 def _rehash(payload):
@@ -42,6 +42,27 @@ def test_matching_metadata_is_not_full_equivalence_or_reuse_authority(evidence):
     assert result['environment_equivalence'] == 'not_proven'
     assert result['provenance_status'] == 'supplied_context_bindings_checked_only'
     assert result['difference_count'] == 0
+
+
+def test_native_editable_inventory_reaches_existing_shadow_comparison(evidence, native_editable_pair, collect):
+    pr, reference, _source, env = evidence
+    for phase in ('before_suite', 'after_suite'):
+        pr[phase] = collect(phase=phase)
+        reference[phase] = collect(environ=env, role='reference', phase=phase)
+    result = _compare(evidence)
+    assert result['status'] == 'MATCHING_CAPTURED_METADATA'
+    assert result['reuse_authorized'] is False
+    assert result['environment_equivalence'] == 'not_proven'
+
+
+def test_historical_policy_digest_does_not_gain_origin_admission(evidence):
+    previous = load_ci_execution_policy()
+    previous['environment_observation'].pop('maximum_distribution_metadata_bytes')
+    payload = evidence[0]['before_suite']
+    payload['policy_sha256'] = observation._digest(previous)
+    _rehash(payload)
+    with pytest.raises(ValueError, match='workflow/policy'):
+        _compare(evidence)
 
 
 @pytest.mark.parametrize('section,key,value', [

@@ -45,6 +45,7 @@
       "mode": "observation_only",
       "reuse_authorized": false,
       "artifact_prefix": "nexora-sage-ci-environment",
+      "maximum_distribution_metadata_bytes": 262144,
       "comparison": {
         "kind": "nexora_sage_ci_environment_comparison_v1",
         "mode": "shadow_only",

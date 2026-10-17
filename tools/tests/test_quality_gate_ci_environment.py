@@ -104,6 +104,160 @@ def test_duplicate_normalized_packages_are_not_silently_collapsed(collect, monke
     assert len(result['python']['installed_distributions']) == 2
 
 
+@pytest.fixture
+def native_editable_pair(tmp_path, monkeypatch):
+    """Native importlib discovery, not a fake name/version-only distribution."""
+    project = tmp_path / 'Türkçe project DO_NOT_RECORD'
+    site = tmp_path / 'installed DO_NOT_RECORD'
+    source_info = project / 'demo_package.egg-info'
+    installed_info = site / 'demo_package-1.0.dist-info'
+    source_info.mkdir(parents=True)
+    installed_info.mkdir(parents=True)
+    content = 'Metadata-Version: 2.4\nName: Demo-Package\nVersion: 1.0\nSummary: bounded fixture\n'
+    (source_info/'PKG-INFO').write_text(content, encoding='utf-8')
+    (installed_info/'METADATA').write_text(content, encoding='utf-8')
+    (installed_info/'direct_url.json').write_text(json.dumps({
+        'url': project.as_uri(), 'dir_info': {'editable': True}}), encoding='utf-8')
+    distributions = list(observer.metadata.Distribution.discover(path=[str(project), str(site)]))
+    assert len(distributions) == 2
+    assert all(isinstance(dist, observer.metadata.PathDistribution) for dist in distributions)
+    monkeypatch.setattr(observer.metadata, 'distributions', lambda: distributions)
+    return SimpleNamespace(project=project, site=site, source=source_info,
+        installed=installed_info, content=content, distributions=distributions)
+
+
+def test_native_editable_source_pair_is_not_false_incomplete(collect, native_editable_pair):
+    result = collect()
+    assert result['status'] == 'OBSERVED_METADATA_ONLY'
+    assert result['unknowns'] == []
+    assert result['python']['installed_distributions'] == [{'name': 'demo-package', 'version': '1.0'}]
+    assert result['reuse_authorized'] is False
+    assert 'DO_NOT_RECORD' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('reverse', [False, True])
+def test_native_editable_pair_reads_each_metadata_record_once(
+        native_editable_pair, monkeypatch, reverse):
+    distributions = native_editable_pair.distributions[::(-1 if reverse else 1)]
+    calls = []
+    native_read = observer.metadata.PathDistribution.read_text
+
+    def read_once(dist, filename):
+        calls.append((id(dist), filename))
+        return native_read(dist, filename)
+
+    monkeypatch.setattr(observer.metadata.PathDistribution, 'read_text', read_once)
+    assert observer._editable_metadata_pair(distributions, maximum_bytes=4096) is True
+    expected = {(id(dist), filename) for dist in distributions
+        for filename in ('METADATA', 'PKG-INFO', 'direct_url.json')}
+    assert set(calls) == expected
+    assert len(calls) == len(expected)  # Distinct records, never repeated reads of one record.
+
+
+def test_native_same_name_version_without_source_binding_stays_unknown(collect, native_editable_pair):
+    (native_editable_pair.installed/'direct_url.json').unlink()
+    result = collect()
+    assert result['status'] == 'INCOMPLETE_METADATA_ONLY'
+    assert 'python.installed_distributions' in result['unknowns']
+    assert len(result['python']['installed_distributions']) == 2
+
+
+@pytest.mark.parametrize('change', [
+    'different_version', 'different_metadata', 'wrong_source', 'noneditable',
+    'bool_as_int', 'missing_editable', 'remote_url', 'url_host', 'url_query', 'url_fragment',
+    'relative_url', 'raw_url_control', 'malformed_json', 'duplicate_origin_key',
+    'extra_origin_field', 'subdirectory', 'source_origin', 'both_metadata_files',
+    'third_observation', 'unknown_origin_location', 'exceeded_metadata_bound',
+    'custom_path_provider', 'unresolvable_origin', 'same_source_install_root', 'exceeded_origin_bound',
+])
+def test_native_duplicate_admission_refuses_conflict_or_unknown(
+        collect, native_editable_pair, monkeypatch, change):
+    pair = native_editable_pair
+    direct = pair.installed/'direct_url.json'
+    origin = json.loads(direct.read_text(encoding='utf-8'))
+    if change == 'different_version':
+        (pair.installed/'METADATA').write_text(pair.content.replace('Version: 1.0', 'Version: 2.0'), encoding='utf-8')
+    elif change == 'different_metadata':
+        (pair.installed/'METADATA').write_text(pair.content+'Requires-Dist: other\n', encoding='utf-8')
+    elif change == 'wrong_source': origin['url'] = pair.site.as_uri()
+    elif change == 'noneditable': origin['dir_info']['editable'] = False
+    elif change == 'bool_as_int': origin['dir_info']['editable'] = 1
+    elif change == 'missing_editable': origin['dir_info'] = {}
+    elif change == 'remote_url': origin['url'] = 'https://example.invalid/project'
+    elif change == 'url_host': origin['url'] = 'file://remote.invalid/project'
+    elif change == 'url_query': origin['url'] += '?token=DO_NOT_RECORD'
+    elif change == 'url_fragment': origin['url'] += '#DO_NOT_RECORD'
+    elif change == 'relative_url': origin['url'] = 'file:relative'
+    elif change == 'raw_url_control': origin['url'] = '\n'+origin['url']
+    elif change == 'malformed_json': direct.write_text('{', encoding='utf-8')
+    elif change == 'duplicate_origin_key':
+        direct.write_text('{"url":"file:wrong","url":'+json.dumps(pair.project.as_uri())+
+            ',"dir_info":{"editable":true}}', encoding='utf-8')
+    elif change == 'extra_origin_field': origin['archive_info'] = {}
+    elif change == 'subdirectory': origin['subdirectory'] = 'nested'
+    elif change == 'source_origin':
+        (pair.source/'direct_url.json').write_text(json.dumps(origin), encoding='utf-8')
+    elif change == 'both_metadata_files':
+        (pair.source/'METADATA').write_text(pair.content, encoding='utf-8')
+    elif change == 'third_observation': pair.distributions.append(pair.distributions[0])
+    elif change == 'custom_path_provider':
+        class CustomDistribution(observer.metadata.PathDistribution):
+            pass
+        pair.distributions[0] = CustomDistribution(pair.source)
+    elif change == 'unresolvable_origin':
+        def resolve(*_a, **_kw): raise RuntimeError('origin cycle DO_NOT_RECORD')
+        monkeypatch.setattr(observer.Path, 'resolve', resolve)
+    elif change == 'same_source_install_root':
+        monkeypatch.setattr(observer.metadata.PathDistribution, 'locate_file', lambda *_a: pair.project)
+    elif change == 'exceeded_origin_bound':
+        direct.write_text(' '*262145+json.dumps(origin), encoding='utf-8')
+    elif change == 'unknown_origin_location':
+        monkeypatch.setattr(observer.metadata.PathDistribution, 'locate_file',
+            lambda *_a: pair.project/'missing DO_NOT_RECORD')
+    elif change == 'exceeded_metadata_bound':
+        original = observer.load_ci_execution_policy
+        def policy(root):
+            result = original(root)
+            result['environment_observation']['maximum_distribution_metadata_bytes'] = 1
+            return result
+        monkeypatch.setattr(observer, 'load_ci_execution_policy', policy)
+    if change not in ('malformed_json', 'duplicate_origin_key', 'exceeded_origin_bound'):
+        direct.write_text(json.dumps(origin), encoding='utf-8')
+    result = collect()
+    assert result['status'] == 'INCOMPLETE_METADATA_ONLY'
+    assert 'python.installed_distributions' in result['unknowns']
+    assert result['reuse_authorized'] is False
+    assert 'DO_NOT_RECORD' not in json.dumps(result)
+    assert len(result['python']['installed_distributions']) >= 2
+
+
+def test_editable_metadata_pair_is_order_independent(collect, native_editable_pair):
+    first = collect()
+    native_editable_pair.distributions.reverse()
+    assert collect()['observation_sha256'] == first['observation_sha256']
+
+
+def test_separate_installed_origins_with_identical_metadata_are_not_equal(
+        collect, native_editable_pair):
+    pair = native_editable_pair
+    (pair.source/'METADATA').write_text(pair.content, encoding='utf-8')
+    (pair.source/'PKG-INFO').unlink()
+    (pair.source/'direct_url.json').write_text(
+        (pair.installed/'direct_url.json').read_text(encoding='utf-8'), encoding='utf-8')
+    result = collect()
+    assert result['status'] == 'INCOMPLETE_METADATA_ONLY'
+    assert len(result['python']['installed_distributions']) == 2
+
+
+@pytest.mark.parametrize('limit', [None, True, 0, -1, 262145, '262144'])
+def test_distribution_metadata_limit_cannot_be_missing_or_unbounded(limit):
+    from tools.core.quality_gate_ci import validate_ci_execution_policy
+    policy = load_ci_execution_policy()
+    policy['environment_observation']['maximum_distribution_metadata_bytes'] = limit
+    with pytest.raises(ValueError, match='distribution metadata bound'):
+        validate_ci_execution_policy(policy)
+
+
 def test_distribution_scan_failure_is_explicit_unknown(collect, monkeypatch):
     monkeypatch.setattr(observer.metadata, 'distributions', lambda: (_ for _ in ()).throw(OSError('private')))
     result = collect()
