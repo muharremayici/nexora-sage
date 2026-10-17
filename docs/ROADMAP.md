@@ -30,13 +30,21 @@ claim-guard wording.
 
 ## Current Candidate And Claim Baseline
 
-The active `1.6.1` candidate is **CI Evidence Provenance And Shadow Environment
-Diagnostics**. Its single reviewed maintenance delivery strengthens tested-source
-and CI receipt matching, captures bounded environment observations in actual
-jobs and compares those observations in shadow mode. All four matrix suites
+The active `1.6.2` candidate is **Native Editable CI Metadata Inventory Repair**.
+Its single reviewed maintenance delivery repairs an incomplete CI inventory
+observation by folding only a full-equal native source/installed metadata pair
+with a verified local editable origin. Conflicting or unknown origins remain
+incomplete; privacy and input budgets remain enforced. All four matrix suites
 and the main reference suite remain enabled. This is a candidate scope, not a
-publication decision, readiness verdict, test-reuse permission or measured
-speedup claim.
+publication decision, readiness verdict, test-reuse permission, environment
+equivalence or measured speedup claim. Private controller maintenance is not
+part of the public source distribution.
+
+The published `1.6.1` delivery remains historical: its reviewed CI evidence
+maintenance slice strengthens tested-source and receipt matching and records
+bounded actual-job environment observations/comparison in shadow mode. Its
+recorded unknowns and no-reuse decisions are not retroactively changed by this
+candidate.
 
 The published `1.6.0` delivery remains historical: its six reviewed rows covered
 finite callback source context, three import source/policy evidence lanes,

@@ -12,6 +12,8 @@ import re
 import subprocess
 import sys
 import sysconfig
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -60,8 +62,64 @@ def _binding(env: dict[str, str], role: str, policy: dict) -> dict:
     return result
 
 
-def _distributions(unknowns: list[str]) -> list[dict]:
+def _editable_metadata_pair(distributions: list, maximum_bytes: int) -> bool:
+    """Admit one native source/installed pair, never name/version equality alone.
+
+    Paths and direct URLs are inspected locally and never enter the observation.
+    This establishes metadata association, not installed-code or hook equivalence.
+    """
+    if len(distributions) != 2 or not all(type(dist) is metadata.PathDistribution for dist in distributions):
+        return False
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('Duplicate origin field')
+            result[key] = value
+        return result
+
+    try:
+        source, installed = [], []
+        for dist in distributions:
+            meta, pkg = dist.read_text('METADATA'), dist.read_text('PKG-INFO')
+            if (meta is None) == (pkg is None):
+                return False
+            text = pkg if pkg is not None else meta
+            if not isinstance(text, str) or not 1 <= len(text.encode('utf-8')) <= maximum_bytes:
+                return False
+            (source if pkg is not None else installed).append((dist, text))
+        if len(source) != 1 or len(installed) != 1 or source[0][1] != installed[0][1]:
+            return False
+        if source[0][0].read_text('direct_url.json') is not None:
+            return False
+        direct = installed[0][0].read_text('direct_url.json')
+        if not isinstance(direct, str) or not 1 <= len(direct.encode('utf-8')) <= maximum_bytes:
+            return False
+        origin = json.loads(direct, object_pairs_hook=unique)
+        if (not isinstance(origin, dict) or set(origin) != {'url', 'dir_info'}
+                or origin['dir_info'] != {'editable': True}
+                or type(origin['dir_info'].get('editable')) is not bool
+                or not isinstance(origin['url'], str)
+                or re.search(r'[\x00-\x20\x7f]', origin['url'])):
+            return False
+        url = urlsplit(origin['url'])
+        if url.scheme != 'file' or url.netloc or url.query or url.fragment:
+            return False
+        declared = Path(url2pathname(url.path))
+        if not declared.is_absolute():
+            return False
+        source_root = Path(source[0][0].locate_file('')).resolve(strict=True)
+        installed_root = Path(installed[0][0].locate_file('')).resolve(strict=True)
+        return (source_root.is_dir() and installed_root.is_dir() and source_root != installed_root
+            and declared.resolve(strict=True) == source_root)
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+        return False
+
+
+def _distributions(unknowns: list[str], *, maximum_metadata_bytes: int) -> list[dict]:
     rows = []
+    groups = {}
     try:
         for dist in metadata.distributions():
             if len(rows) >= 2000:
@@ -71,6 +129,13 @@ def _distributions(unknowns: list[str]) -> list[dict]:
                     or _text(version) is None):
                 raise ValueError('Invalid distribution metadata')
             rows.append({'name': re.sub(r'[-_.]+', '-', name).lower(), 'version': version})
+            groups.setdefault(rows[-1]['name'], []).append((rows[-1], dist))
+        # Keep conflicting/unbound rows visible. Only an independently associated
+        # native editable source/installation pair may become one metadata row.
+        for entries in groups.values():
+            if (len(entries) == 2 and entries[0][0] == entries[1][0]
+                    and _editable_metadata_pair([entry[1] for entry in entries], maximum_metadata_bytes)):
+                rows.remove(entries[1][0])
         if not rows or len({row['name'] for row in rows}) != len(rows):
             unknowns.append('python.installed_distributions')
     except (OSError, ValueError, TypeError, KeyError):
@@ -135,7 +200,8 @@ def capture_environment(*, root: Path = ROOT, environ=None, role: str, phase: st
     python = {'version': actual_python, 'implementation': _text(platform.python_implementation()),
         'cache_tag': _text(sys.implementation.cache_tag), 'soabi': _text(sysconfig.get_config_var('SOABI')),
         'system': _text(platform.system()), 'machine': _text(platform.machine()),
-        'installed_distributions': _distributions(unknowns)}
+        'installed_distributions': _distributions(unknowns,
+            maximum_metadata_bytes=contract['maximum_distribution_metadata_bytes'])}
     unknowns.extend('python.' + key for key, value in python.items() if value is None)
     node = _node(root, unknowns)
     core = {'meta': {'kind': contract['kind'], 'version': 'v1'}, 'role': role, 'phase': phase,

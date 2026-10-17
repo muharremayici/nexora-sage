@@ -40,6 +40,9 @@
       "minimum_occurrences": 2,
       "freshness_boundary": "enclosing_function",
       "declared_independent_reads": {
+        "tools/capture_quality_gate_ci_environment.py|_editable_metadata_pair|read_text|dist": {
+          "reason": "PathDistribution.read_text uses its filename argument as the metadata record path. METADATA and PKG-INFO are distinct records, each read once per native distribution; both are required to reject ambiguous source/installed metadata. A focused native-pair call-count test must keep repeated reads of the same (distribution, filename) visible."
+        },
         "tools/core/sage_active_work_package.py|save_package_transition|load_json_object_strict|ledger_path": {
           "reason": "The first acquisition constructs the transition from the live ledger; the final acquisition occurs after receipt, closure and dirty-source checks and rejects any intervening writer before the atomic save. These are distinct freshness boundaries, guarded by test_closed_activation_does_not_overwrite_changed_ledger."
         },

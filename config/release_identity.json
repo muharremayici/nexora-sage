@@ -1,15 +1,15 @@
 {
   "_meta": {
     "kind": "nexora_sage_public_release_identity",
-    "version": "1.6.1",
+    "version": "1.6.2",
     "authority": "human_authorized_public_release_identity"
   },
   "product": {
     "name": "Nexora SAGE",
     "package_name": "nexora-sage",
-    "public_version": "1.6.1",
+    "public_version": "1.6.2",
     "release_status": "public_release",
-    "public_release_date": "2026-10-16",
+    "public_release_date": "2026-10-17",
     "primary_entrypoint": "python sage.py",
     "internal_compatibility_module": "codemaps.py"
   },
@@ -19,7 +19,7 @@
     "private_ownership_evidence": "RETAINED_OUTSIDE_PUBLIC_DISTRIBUTION",
     "qualified_legal_review": "NOT_COMPLETED_AND_NOT_A_V1_PUBLICATION_GATE",
     "human_publication_authority": "RECORDED_OUTSIDE_PUBLIC_DISTRIBUTION",
-    "publication_authority_receipt_sha256": "5ca5a2a3fad549c032430a4b0b93dabe37bb4026299af6f8a1eed6d9e5b6be80"
+    "publication_authority_receipt_sha256": "e72b61bd382ad61e3525c8b889f119011dc2ff808fe44b56100480f20327470c"
   },
   "license": {
     "expression": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0",
@@ -42,7 +42,7 @@
     "active_profile_id": "v1_react_architecture_governance",
     "allowed": "evidence_backed_bounded_react_typescript_static_governance",
     "public_sentence": "A living architecture atlas, governance engine, and AI-agent safety layer for React/TypeScript systems, built on a modular polyglot substrate.",
-    "profile_boundary": "Release candidate 1.6.1: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
+    "profile_boundary": "Release candidate 1.6.2: Preserve the existing release claim boundary without activating the wider roadmap milestone profile. All existing proof and human-seal requirements remain mandatory. Preparation is not proof of readiness or publication. Not claimed: full runtime React determinism; equal-depth nanometric analysis for every language; full SAST or AppSec replacement; hosted CI or IDE extension product; third-party executable plugin runtime.",
     "not_claimed": [
       "full runtime React determinism",
       "equal-depth nanometric analysis for every language",

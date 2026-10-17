@@ -128,6 +128,20 @@ engine-resolved TypeScript version, runner image metadata and selected source
 input hashes. Arbitrary environment variables, secrets, paths and source text
 are not exported. Missing or ambiguous inventory is explicitly incomplete.
 
+Native editable installations can expose both source `.egg-info/PKG-INFO`
+and installed `.dist-info/METADATA` to Python metadata discovery. Equal normalized
+name/version strings alone never authorize collapsing those rows. The producer
+admits only one native source/installed pair with identical complete metadata,
+an exact local editable `direct_url.json` source-directory binding, distinct
+existing source/install roots and no conflicting source-origin record.
+The contract owns `maximum_distribution_metadata_bytes` for metadata/origin
+admission; reading through Python's metadata API is not a filesystem sandbox.
+Extra, conflicting, unsupported, malformed or unbound observations remain
+incomplete. Origin paths and URLs are checked locally, never serialized.
+This finite association is not package-code, loader or startup-hook equivalence.
+The unchanged comparator still rejects duplicate rows and historical policy
+digests; it does not reconstruct or repair the producer's identity.
+
 Artifacts named `nexora-sage-ci-environment-<role>-<python>-<attempt>` are retained
 for 30 days, separately from `nexora-sage-pr-matrix-receipt`. They are bounded
 diagnostic evidence for a subsequent comparison, not proof of successful tests,
@@ -137,8 +151,9 @@ permission to skip execution. Incomplete observations do not claim equivalence;
 invalid CI bindings or failed writes fail the observation step explicitly.
 
 All four PR suites, the post-merge reference suite and existing full-matrix
-fallback remain. This addition has not yet run in a newly published GitHub
-workflow; no end-to-end speed or token saving is claimed.
+fallback remain. The origin-admission repair has local native-fixture evidence;
+its first exact-source hosted run remains separate. No end-to-end speed or
+token saving is claimed.
 
 The reference job now compares its completed before/after observations with the
 reference-Python PR cell in shadow mode. It reuses the existing PR association,
