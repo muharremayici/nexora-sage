@@ -7,6 +7,7 @@ from unittest.mock import patch
 from tools.core.artifact_validator import validate_payload
 from tools.core.contextos_mcp import _directive_for_violation
 from tools.core.pipeline_policy import resolve_loc_finding_semantics
+from tools.core.target_policy_profile import _payload_sha256, load_target_policy_contract
 from tools.engines import mcp_governance_engine
 from tools.engines.mcp_governance_engine import _loc_violation_key
 
@@ -73,7 +74,7 @@ class LocFindingSemanticsTests(unittest.TestCase):
         self.assertEqual(finding["threshold_kind"], "default")
         self.assertEqual(finding["limit"], 400)
 
-    def test_literal_target_policy_changes_audit_limit_without_claiming_native_execution(self):
+    def test_literal_biome_policy_cannot_change_declaration_limit_without_matching_metric(self):
         effective_policy = {
             "projects": {
                 "MAIN": {
@@ -86,6 +87,13 @@ class LocFindingSemanticsTests(unittest.TestCase):
                                     "sha256": "a" * 64,
                                     "static_projection": {
                                         "status": "partial_literal_projection",
+                                        "rule_level_contract": "tool_specific_literal_v1",
+                                        "scope_match_contract": "tool_specific_segment_glob_v1",
+                                        "literal_applicability": {
+                                            "contract": "bounded_literal_applicability_v1",
+                                            "policy_sha256": _payload_sha256(load_target_policy_contract()["static_projection"]["literal_applicability"]),
+                                            "status": "bounded_declared_subset", "reasons": [],
+                                        },
                                         "extends_unresolved": False,
                                         "rules_truncated": False,
                                         "rules": [
@@ -116,12 +124,13 @@ class LocFindingSemanticsTests(unittest.TestCase):
             effective_target_policy=effective_policy,
         )
 
-        self.assertEqual(finding["limit"], 100)
+        self.assertEqual(finding["limit"], 400)
         self.assertEqual(
             finding["limit_authority"],
-            "declared_literal_policy_not_native_execution_proof",
+            "sage_default",
         )
-        self.assertEqual(finding["target_policy_resolution"]["status"], "resolved_declared_literal_policy")
+        self.assertEqual(finding["target_policy_resolution"]["status"], "unresolved_fallback_to_sage_default")
+        self.assertEqual(finding["target_policy_resolution"]["matched_rules"][0]["limit"], 100)
         self.assertEqual(finding["target_policy_resolution"]["native_execution"], "not_run")
 
     def test_unresolved_target_policy_retains_sage_default_with_reason(self):

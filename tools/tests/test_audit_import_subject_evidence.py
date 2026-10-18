@@ -358,7 +358,7 @@ def test_module_v3_production_schema_negatives(module_fixture, case):
     ('modules/a/x.ts', '@/modules/b/api/index.ts', 'modules', True),
     ('modules/a/api/index.ts', '@/modules/a/api', 'modules', False),
     ('modules/a/x.ts', '@/modules/a/apiary', 'modules', True),
-    ('modules/a/x.ts', 'pkg/@/modules/b/private', 'modules', True),
+    ('modules/a/x.ts', 'pkg/@/modules/b/private', 'modules', False),
     ('src/modules/a/x.ts', '@/src/modules/b/private', 'src/modules', True),
     ('modules/a/x.ts', '../b/private', 'modules', False)])
 def test_module_v3_shared_literal_decisions_preserved(rel, raw, container, expected):

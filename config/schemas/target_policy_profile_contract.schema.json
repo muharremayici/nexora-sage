@@ -105,11 +105,281 @@
     "static_projection": {
       "type": "object",
       "required": [
+        "literal_applicability",
+        "scope_matcher",
+        "rule_level_contract",
+        "rule_level_boundary",
         "max_rules_per_config",
         "typescript_compiler_options",
         "sonar_property_allowlist"
       ],
       "properties": {
+        "literal_applicability": {
+          "type": "object",
+          "required": [
+            "id",
+            "max_identity_chars",
+            "boundary",
+            "loc_option_boundary",
+            "tools",
+            "measurement_contract"
+          ],
+          "properties": {
+            "id": {
+              "const": "bounded_literal_applicability_v1"
+            },
+            "max_identity_chars": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 256
+            },
+            "measurement_contract": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "sage_basis",
+                "tool",
+                "rule",
+                "reviewed_declared_versions",
+                "false_counting_flags",
+                "boundary"
+              ],
+              "properties": {
+                "id": {
+                  "const": "bounded_declared_loc_measurement_v1"
+                },
+                "sage_basis": {
+                  "const": "inclusive_declaration_span_lines"
+                },
+                "tool": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "rule": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reviewed_declared_versions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                  }
+                },
+                "false_counting_flags": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "boundary": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "boundary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "loc_option_boundary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tools": {
+              "type": "object",
+              "required": [
+                "eslint",
+                "biome"
+              ],
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "requires_declared_version",
+                  "supported_declared_majors",
+                  "unsupported_root_paths",
+                  "unsupported_override_paths",
+                  "loc_options"
+                ],
+                "properties": {
+                  "loc_options": {
+                    "type": "object",
+                    "required": [
+                      "rule_path",
+                      "rule_id",
+                      "format",
+                      "numeric_option",
+                      "supported_minimum",
+                      "supported_maximum",
+                      "boolean_options",
+                      "version_maximums"
+                    ],
+                    "properties": {
+                      "rule_path": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "rule_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "format": {
+                        "enum": [
+                          "eslint_array_object",
+                          "biome_object_options"
+                        ]
+                      },
+                      "numeric_option": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "supported_minimum": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "supported_maximum": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "boolean_options": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "version_maximums": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "before",
+                            "maximum"
+                          ],
+                          "properties": {
+                            "before": {
+                              "type": "array",
+                              "minItems": 3,
+                              "maxItems": 3,
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "maximum": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "requires_declared_version": {
+                    "type": "boolean"
+                  },
+                  "minimum_declared_version": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "supported_declared_majors": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "schema_version_pattern": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "unsupported_root_paths": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "unsupported_override_paths": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "scope_matcher": {
+          "type": "object",
+          "required": [
+            "id",
+            "max_path_chars",
+            "max_pattern_chars",
+            "max_segments",
+            "max_globstars",
+            "boundary"
+          ],
+          "properties": {
+            "id": {
+              "const": "tool_specific_segment_glob_v1"
+            },
+            "max_path_chars": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            },
+            "max_pattern_chars": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024
+            },
+            "max_segments": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 128
+            },
+            "max_globstars": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "boundary": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "rule_level_contract": {
+          "const": "tool_specific_literal_v1"
+        },
+        "rule_level_boundary": {
+          "type": "string",
+          "minLength": 1
+        },
         "max_rules_per_config": {
           "type": "integer",
           "minimum": 1

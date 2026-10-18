@@ -346,6 +346,75 @@ def test_exact_settled_packet_cap_preserves_prior_lanes(callback_atlas_run, monk
     assert 'returned callback' in limited['next_action'].lower() and 'absence' in limited['next_action']
 
 
+def _assert_budgeted_callback_semantics(packet, source_hash, expected_omitted):
+    """Retained incomplete evidence is not a fully removed callback lane."""
+    disclosure = packet['next_action'].casefold()
+    assert 'absence' in disclosure
+    lane = packet.get('symbol_context', {}).get('returned_local_callbacks')
+    if lane is None:
+        assert 'returned callback' in disclosure
+        return
+    assert lane['status'] == 'incomplete_scan'
+    assert lane['returned'] == 0 and lane['items'] == []
+    assert lane['omitted'] == expected_omitted
+    assert lane['reason'] == 'focus_returned_callback_context_budget_exhausted'
+    assert lane['source_binding'] == 'snapshot_and_live_match'
+    assert lane['source_hash'] == source_hash
+    assert lane['ast_contract_version'] == AST_CONTRACT_VERSION
+    for field in ('value_transfer', 'runtime_execution', 'callback_activation', 'schema_validity'):
+        assert lane[field] == 'not_established'
+
+
+@pytest.fixture
+def budgeted_callback_packet():
+    return {'next_action': 'Earlier detail omitted; no absence.', 'symbol_context': {
+        'returned_local_callbacks': {
+            'status': 'incomplete_scan', 'items': [], 'returned': 0, 'omitted': 2,
+            'reason': 'focus_returned_callback_context_budget_exhausted',
+            'source_binding': 'snapshot_and_live_match', 'source_hash': 'a' * 64,
+            'ast_contract_version': AST_CONTRACT_VERSION,
+            'value_transfer': 'not_established', 'runtime_execution': 'not_established',
+            'callback_activation': 'not_established', 'schema_validity': 'not_established',
+        }}}
+
+
+@pytest.mark.parametrize('removed', [False, True])
+def test_budget_semantics_accepts_retained_or_removed_lane(budgeted_callback_packet, removed):
+    if removed:
+        budgeted_callback_packet['symbol_context'].pop('returned_local_callbacks')
+        budgeted_callback_packet['next_action'] = 'Returned callback omitted; no absence.'
+    _assert_budgeted_callback_semantics(budgeted_callback_packet, 'a' * 64, 2)
+
+
+@pytest.mark.parametrize('field,value', [
+    ('status', 'observed'), ('status', 'unavailable'), ('returned', 1), ('items', [{}]),
+    ('omitted', 0), ('omitted', None), ('reason', None),
+    ('source_binding', 'unavailable'), ('source_hash', 'b' * 64),
+    ('ast_contract_version', 'old'), ('value_transfer', 'proven'),
+    ('runtime_execution', 'proven'), ('callback_activation', 'proven'),
+    ('schema_validity', 'proven'),
+])
+def test_budget_semantics_rejects_lost_or_overstated_evidence(budgeted_callback_packet, field, value):
+    budgeted_callback_packet['symbol_context']['returned_local_callbacks'][field] = value
+    with pytest.raises(AssertionError):
+        _assert_budgeted_callback_semantics(budgeted_callback_packet, 'a' * 64, 2)
+
+
+@pytest.mark.parametrize('removed', [False, True])
+def test_budget_semantics_requires_no_absence_warning(budgeted_callback_packet, removed):
+    if removed:
+        budgeted_callback_packet['symbol_context'].pop('returned_local_callbacks')
+    budgeted_callback_packet['next_action'] = 'Returned callback detail omitted.'
+    with pytest.raises(AssertionError):
+        _assert_budgeted_callback_semantics(budgeted_callback_packet, 'a' * 64, 2)
+
+
+def test_budget_semantics_requires_removed_lane_disclosure(budgeted_callback_packet):
+    budgeted_callback_packet['symbol_context'].pop('returned_local_callbacks')
+    with pytest.raises(AssertionError):
+        _assert_budgeted_callback_semantics(budgeted_callback_packet, 'a' * 64, 2)
+
+
 @pytest.mark.parametrize('damage', ['none', 'legacy', 'source_drift', 'corrupt_primary', 'packet_budget', 'poison_cache', 'scan_budget'])
 @pytest.mark.parametrize('target_path_length', ['short', 'long'])
 def test_real_primary_source_and_packet_refusal(callback_atlas_run, tmp_path, monkeypatch, damage, target_path_length):
@@ -410,7 +479,8 @@ def test_real_primary_source_and_packet_refusal(callback_atlas_run, tmp_path, mo
     if damage == 'packet_budget':
         profile = context_budget_profile(json.dumps(result, ensure_ascii=False), budget_tokens=2600)
         assert profile['status'] == 'pass', (profile, result.get('next_action'), list(result))
-        disclosure = result['next_action'].casefold()
-        assert 'returned callback' in disclosure and 'absence' in disclosure
+        owner = next(row for row in original['MAIN']['files']['Panel.ts']['symbols'] if row['name'] == 'owner')
+        _assert_budgeted_callback_semantics(result, original['MAIN']['files']['Panel.ts']['hash'],
+                                            len(owner[KEY]['records']))
     if damage == 'scan_budget':
         assert result['visited_records'] <= 7

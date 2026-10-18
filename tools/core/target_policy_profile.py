@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import fnmatch
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
 
 from tools.core.jsonc import loads_jsonc
 from tools.core.json_syntax import loads_json_strict
+from tools.core.target_policy_applicability import literal_loc_limit, project_literal_applicability, loc_measurement_admission
 
 
 CODE_MAPS_DIR = Path(__file__).resolve().parents[2]
@@ -71,7 +73,25 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _rule_level(value: Any) -> str | None:
+def _rule_level(value: Any, *, tool_id: str) -> str | None:
+    """Interpret each supported tool's syntax, never Python bool/int equality."""
+    if tool_id == "eslint":
+        raw = value[0] if isinstance(value, list) and value else value
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            return {0: "disabled", 1: "advisory", 2: "enforced"}.get(raw)
+        if isinstance(raw, str):
+            return {"off": "disabled", "warn": "advisory", "error": "enforced"}.get(raw)
+        return None
+    if tool_id == "biome":
+        raw = value.get("level") if isinstance(value, dict) else value
+        if isinstance(raw, str):
+            return {"off": "disabled", "info": "advisory", "warn": "advisory",
+                    "error": "enforced", "on": "default"}.get(raw)
+        return None
+    if tool_id != "stylelint":
+        return None
+    # Retain the pre-existing inventory-only stylelint projection. It is not a
+    # supported LOC adapter or a native/effective severity interpretation.
     raw = value[0] if isinstance(value, list) and value else value
     if isinstance(raw, dict):
         raw = raw.get("level")
@@ -126,12 +146,14 @@ def _literal_rule_rows(
         for override in payload.get("overrides", []) if isinstance(payload.get("overrides"), list) else []:
             if isinstance(override, dict):
                 containers.append((override, _scope_payload(override)))
-        for container, scope in containers:
+        for index, (container, scope) in enumerate(containers):
             rules = container.get("rules") if isinstance(container.get("rules"), dict) else {}
             for rule_id, value in sorted(rules.items()):
-                level = _rule_level(value)
-                if level:
-                    row = {"id": str(rule_id), "state": level, "scope": scope}
+                level = _rule_level(value, tool_id=tool_id)
+                if level or tool_id == "eslint":
+                    row = {"id": str(rule_id), "state": level or "unknown", "scope": scope}
+                    if tool_id == "eslint":
+                        row["container"] = "root" if index == 0 else f"override[{index - 1}]"
                     option_payload = (
                         value[1]
                         if isinstance(value, list) and len(value) > 1 and isinstance(value[1], dict)
@@ -144,6 +166,7 @@ def _literal_rule_rows(
                             str(key): number
                             for key, number in option_payload.items()
                             if isinstance(number, (int, float)) and not isinstance(number, bool)
+                            and (isinstance(number, int) or math.isfinite(number))
                         }
                         if numeric:
                             row["numeric_options"] = numeric
@@ -153,31 +176,34 @@ def _literal_rule_rows(
         for override in payload.get("overrides", []) if isinstance(payload.get("overrides"), list) else []:
             if isinstance(override, dict):
                 containers.append((override, _scope_payload(override, biome=True)))
-        for container, scope in containers:
+        for index, (container, scope) in enumerate(containers):
             linter = container.get("linter") if isinstance(container.get("linter"), dict) else {}
             rules = linter.get("rules") if isinstance(linter.get("rules"), dict) else {}
             for group, group_rules in sorted(rules.items()):
                 if group == "recommended" or not isinstance(group_rules, dict):
                     continue
                 for rule_id, value in sorted(group_rules.items()):
-                    level = _rule_level(value)
-                    if level:
-                        row = {"id": f"{group}/{rule_id}", "state": level, "scope": scope}
-                        option_payload = value.get("options") if isinstance(value, dict) else None
-                        if isinstance(option_payload, dict):
-                            numeric = {
-                                str(key): number
-                                for key, number in option_payload.items()
-                                if isinstance(number, (int, float)) and not isinstance(number, bool)
-                            }
-                            if numeric:
-                                row["numeric_options"] = numeric
-                        rows.append(row)
+                    level = _rule_level(value, tool_id=tool_id)
+                    row = {"id": f"{group}/{rule_id}", "state": level or "unknown", "scope": scope,
+                        "container": "root" if index == 0 else f"override[{index - 1}]"}
+                    option_payload = value.get("options") if isinstance(value, dict) else None
+                    if isinstance(option_payload, dict):
+                        numeric = {
+                            str(key): number
+                            for key, number in option_payload.items()
+                            if isinstance(number, (int, float)) and not isinstance(number, bool)
+                            and (isinstance(number, int) or math.isfinite(number))
+                        }
+                        if numeric:
+                            row["numeric_options"] = numeric
+                    rows.append(row)
     truncated = len(rows) > max_rules
     return rows[:max_rules], truncated
 
 
-def _static_projection(path: Path, tool_id: str, policy: dict[str, Any]) -> dict[str, Any]:
+def _static_projection(
+    path: Path, tool_id: str, policy: dict[str, Any], *, declared_versions: list[str] | None = None,
+) -> dict[str, Any]:
     suffix = path.suffix.lower()
     name = path.name.lower()
     executable_suffixes = {".js", ".cjs", ".mjs", ".ts", ".cts", ".mts"}
@@ -225,10 +251,20 @@ def _static_projection(path: Path, tool_id: str, policy: dict[str, Any]) -> dict
         payload,
         max_rules=max(1, int(static_policy.get("max_rules_per_config", 500) or 500)),
     )
+    applicability = (
+        {"literal_applicability": {
+            **project_literal_applicability(tool_id, payload, policy, declared_versions=declared_versions),
+            "policy_sha256": _payload_sha256(static_policy["literal_applicability"]),
+        }}
+        if tool_id in policy["static_projection"]["literal_applicability"]["tools"] else {}
+    )
     return {
         "status": "partial_literal_projection",
         "tool_state": tool_state,
+        **applicability,
         "rules": rules,
+        "rule_level_contract": static_policy["rule_level_contract"],
+        "scope_match_contract": static_policy["scope_matcher"]["id"],
         "rules_truncated": truncated,
         "extends_unresolved": bool(payload.get("extends")),
     }
@@ -242,6 +278,7 @@ def _config_rows(
     *,
     tool_id: str,
     policy: dict[str, Any],
+    declared_versions: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
     for group in groups:
@@ -259,7 +296,7 @@ def _config_rows(
                     "sha256": _sha256(resolved),
                     "bytes": resolved.stat().st_size,
                     "interpretation": "source_identity_only",
-                    "static_projection": _static_projection(resolved, tool_id, policy),
+                    "static_projection": _static_projection(resolved, tool_id, policy, declared_versions=declared_versions),
                 }
     return [rows[key] for key in sorted(rows)]
 
@@ -318,6 +355,9 @@ def inventory_project_target_policy(
             markers,
             tool_id=str(tool_id),
             policy=policy,
+            declared_versions=[str(values[name]) for section in policy.get("package_sections", [])
+                if isinstance((values := package_payload.get(section)), dict)
+                for name in sorted(values) if name in tool_payload.get("package_exact", [])],
         )
         package_hits = [
             {"name": name, "declared_version": packages[name]}
@@ -517,45 +557,73 @@ def compile_effective_target_policy(
     )
 
 
-def _static_scope_pattern_matches(file_path: str, pattern: str) -> bool | None:
-    normalized_path = str(file_path or "").replace("\\", "/").strip("/")
-    normalized_pattern = str(pattern or "").replace("\\", "/").strip()
-    if not normalized_pattern or normalized_pattern.startswith("!"):
+def _static_scope_pattern_matches(
+    file_path: str, pattern: str, *, tool_id: str = "biome", scope_policy: dict[str, Any] | None = None,
+) -> bool | None:
+    """Match only bounded, case-sensitive literal/*/** path segments.
+
+    ESLint legacy overrides use matchBase, except an explicit ./ anchor.
+    Biome admits only agreement between documented v1 implicit-prefix and v2
+    rooted semantics while version identity is unresolved. No dialect guessing.
+    """
+    limits = scope_policy or load_target_policy_contract()["static_projection"]["scope_matcher"]
+    if tool_id not in {"eslint", "biome"} or not isinstance(file_path, str) or not isinstance(pattern, str):
         return None
-    if any(token in normalized_pattern for token in ("{", "}", "!(", "@(", "+(", "?(", "*(")):
+    path = file_path.replace("\\", "/")
+    if path.startswith("./"):
+        path = path[2:]
+    anchored = pattern.startswith("./")
+    if anchored:
+        if tool_id != "eslint":
+            return None
+        pattern = pattern[2:]
+    if (not path or not pattern or len(path) > limits["max_path_chars"]
+            or len(pattern) > limits["max_pattern_chars"] or pattern.startswith(("!", "#"))
+            or any(token in pattern for token in "\\{}?[]():") or ":" in path
+            or (tool_id == "eslint" and ".." in pattern)):
         return None
-    if normalized_pattern.count("**/") > 4:
+    parts, patterns = path.split("/"), pattern.split("/")
+    if (max(len(parts), len(patterns)) > limits["max_segments"]
+            or any(part in {"", ".", ".."} for part in parts + patterns)
+            or patterns.count("**") > limits["max_globstars"]
+            or any("**" in part and part != "**" for part in patterns)
+            or any(left == right == "**" for left, right in zip(patterns, patterns[1:]))):
         return None
-    normalized_pattern = normalized_pattern.lstrip("./")
-    if normalized_pattern in {"*", "**", "**/*"}:
-        return True
-    candidates = {normalized_pattern}
-    pending = [normalized_pattern]
-    while pending:
-        candidate = pending.pop()
-        marker = candidate.find("**/")
-        if marker < 0:
-            continue
-        collapsed = candidate[:marker] + candidate[marker + 3 :]
-        if collapsed not in candidates:
-            candidates.add(collapsed)
-            pending.append(collapsed)
-    return any(fnmatch.fnmatchcase(normalized_path, candidate) for candidate in candidates)
+    if tool_id == "eslint" and not anchored and len(patterns) == 1:
+        parts = parts[-1:]
+    # Iterative reachable positions avoid recursive/exponential globstar walks.
+    starts = [{0}, set(range(len(parts)))] if tool_id == "biome" else [{0}]
+    results = set()
+    for positions in starts:
+        for part in patterns:
+            if not positions:
+                break
+            if part == "**":
+                positions = set(range(min(positions), len(parts) + 1))
+            else:
+                positions = {index + 1 for index in positions
+                    if index < len(parts) and fnmatch.fnmatchcase(parts[index], part)}
+        results.add(len(parts) in positions)
+    return next(iter(results)) if len(results) == 1 else None
 
 
-def _static_scope_matches(file_path: str, scope: dict[str, Any]) -> bool | None:
+def _static_scope_matches(
+    file_path: str, scope: dict[str, Any], *, tool_id: str, scope_policy: dict[str, Any],
+) -> bool | None:
     if str(scope.get("resolution") or "").startswith("unresolved"):
         return None
     includes = scope.get("includes") if isinstance(scope.get("includes"), list) else ["**/*"]
     excludes = scope.get("excludes") if isinstance(scope.get("excludes"), list) else []
-    include_results = [_static_scope_pattern_matches(file_path, str(pattern)) for pattern in includes]
-    exclude_results = [_static_scope_pattern_matches(file_path, str(pattern)) for pattern in excludes]
+    include_results = [_static_scope_pattern_matches(file_path, pattern, tool_id=tool_id, scope_policy=scope_policy)
+        for pattern in includes]
+    exclude_results = [_static_scope_pattern_matches(file_path, pattern, tool_id=tool_id, scope_policy=scope_policy)
+        for pattern in excludes]
     if any(result is None for result in include_results + exclude_results):
         return None
     return any(include_results) and not any(exclude_results)
 
 
-def resolve_target_symbol_loc_policy(
+def _resolve_target_symbol_loc_declaration(
     effective_target_policy: dict[str, Any] | None,
     *,
     project: str,
@@ -564,7 +632,7 @@ def resolve_target_symbol_loc_policy(
     sage_default_limit: int,
     contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Resolve a bounded literal target LOC rule without claiming native execution."""
+    """Resolve declared numbers/options only; this never authorizes a symbol comparison."""
 
     policy = effective_target_policy if isinstance(effective_target_policy, dict) else {}
     projects = policy.get("projects") if isinstance(policy.get("projects"), dict) else {}
@@ -617,6 +685,25 @@ def resolve_target_symbol_loc_policy(
         if projection.get("status") != "partial_literal_projection":
             unresolved.append(f"{tool_id}:config_not_literal")
             continue
+        expected_levels = policy_contract.get("static_projection", {}).get("rule_level_contract")
+        if not expected_levels or projection.get("rule_level_contract") != expected_levels:
+            unresolved.append(f"{tool_id}:severity_admission_refresh_required")
+            continue
+        scope_policy = policy_contract.get("static_projection", {}).get("scope_matcher", {})
+        if not scope_policy.get("id") or projection.get("scope_match_contract") != scope_policy["id"]:
+            unresolved.append(f"{tool_id}:scope_match_refresh_required")
+            continue
+        admission = projection.get("literal_applicability")
+        expected_admission = policy_contract["static_projection"]["literal_applicability"]["id"]
+        if (not isinstance(admission, dict) or admission.get("contract") != expected_admission
+                or admission.get("policy_sha256") != _payload_sha256(policy_contract["static_projection"]["literal_applicability"])):
+            unresolved.append(f"{tool_id}:literal_applicability_refresh_required")
+            continue
+        if admission.get("status") != "bounded_declared_subset" or admission.get("reasons") != []:
+            reasons = admission.get("reasons")
+            reasons = [reason for reason in reasons if isinstance(reason, str) and reason] if isinstance(reasons, list) else []
+            unresolved.extend(f"{tool_id}:applicability:{reason}" for reason in (reasons or ["unresolved_admission_record"]))
+            continue
         if projection.get("extends_unresolved"):
             unresolved.append(f"{tool_id}:extends_unresolved")
             continue
@@ -632,22 +719,29 @@ def resolve_target_symbol_loc_policy(
             if not mapping:
                 continue
             scope = rule.get("scope") if isinstance(rule.get("scope"), dict) else {}
-            scope_match = _static_scope_matches(result["file"], scope)
+            scope_match = _static_scope_matches(result["file"], scope, tool_id=tool_id, scope_policy=scope_policy)
             if scope_match is None:
                 unresolved.append(f"{tool_id}:{rule_id}:scope_unresolved")
                 continue
             if not scope_match:
                 continue
+            state = rule.get("state")
+            if not isinstance(state, str) or state not in {"disabled", "advisory", "enforced"}:
+                reason = "rule_default_severity_unresolved" if state == "default" else "unsupported_literal_rule_level"
+                unresolved.append(f"{tool_id}:{rule_id}:{reason}")
+                continue
             numeric_options = rule.get("numeric_options") if isinstance(rule.get("numeric_options"), dict) else {}
             option_name = str(mapping.get("numeric_option") or "")
             raw_limit = numeric_options.get(option_name)
-            limit = (
-                int(raw_limit)
-                if isinstance(raw_limit, (int, float))
-                and not isinstance(raw_limit, bool)
-                and int(raw_limit) > 0
-                else None
-            )
+            limit = literal_loc_limit(raw_limit, tool_id, policy_contract,
+                declared_versions=admission.get("declared_package_versions"), declared_schema=admission.get("declared_schema"))
+            if raw_limit is not None and limit is None and state != "disabled":
+                unresolved.append(f"{tool_id}:{rule_id}:numeric_limit_outside_supported_subset")
+                continue
+            option_evidence = admission.get("loc_option_evidence")
+            option_rows = [row for row in (option_evidence if isinstance(option_evidence, list) else [])
+                if isinstance(row, dict) and row.get("container") == rule.get("container") and row.get("rule") == rule_id]
+            option = option_rows[0] if len(option_rows) == 1 else {}
             tool_matches[rule_id] = {
                 "tool": tool_id,
                 "rule": rule_id,
@@ -656,6 +750,9 @@ def resolve_target_symbol_loc_policy(
                 "config_path": configs[0].get("path"),
                 "config_sha256": configs[0].get("sha256"),
                 "scope": scope,
+                "declared_package_versions": admission.get("declared_package_versions"),
+                "counting_options": option.get("counting_options", {}),
+                "option_admission": option.get("status") if type(option.get("numeric_limit")) is int and option["numeric_limit"] == limit else None,
             }
         matches.extend(tool_matches.values())
     result["matched_rules"] = matches
@@ -679,4 +776,21 @@ def resolve_target_symbol_loc_policy(
     result["status"] = "resolved_declared_literal_policy"
     result["limit"] = next(iter(limits))
     result["limit_authority"] = str(adapter.get("authority") or "declared_literal_policy")
+    return result
+
+
+def resolve_target_symbol_loc_policy(effective_target_policy, *, project, file_path, symbol_kind,
+    sage_default_limit, contract=None, measurement_context=None):
+    """Apply declared limits only after source-bound unit/callable compatibility."""
+    policy = contract or load_target_policy_contract()
+    result = _resolve_target_symbol_loc_declaration(effective_target_policy, project=project,
+        file_path=file_path, symbol_kind=symbol_kind, sage_default_limit=sage_default_limit, contract=policy)
+    if result["status"] != "resolved_declared_literal_policy":
+        return result
+    checks = [loc_measurement_admission(row, measurement_context, policy) for row in result["matched_rules"]]
+    result["measurement_compatibility"] = checks
+    reasons = sorted({reason for check in checks for reason in check["reasons"]})
+    if reasons:
+        result.update(status="unresolved_fallback_to_sage_default", limit=int(sage_default_limit),
+            limit_authority="sage_default", unresolved_reasons=reasons)
     return result

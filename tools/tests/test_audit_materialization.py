@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.core import pipeline_policy
+from tools.core.target_policy_profile import _payload_sha256, load_target_policy_contract
 from tools.engines import audit
 
 
@@ -103,7 +104,7 @@ class AuditMaterializationTests(unittest.TestCase):
         self.assertEqual(finding["threshold_kind"], "function")
         self.assertEqual(finding["limit"], 150)
 
-    def test_audit_materializes_literal_target_loc_limit_for_exact_project_and_file(self):
+    def test_audit_retains_sage_signal_when_native_measurement_is_unavailable(self):
         effective_policy = {
             "projects": {
                 "MAIN": {
@@ -116,6 +117,13 @@ class AuditMaterializationTests(unittest.TestCase):
                                     "sha256": "b" * 64,
                                     "static_projection": {
                                         "status": "partial_literal_projection",
+                                        "rule_level_contract": "tool_specific_literal_v1",
+                                        "scope_match_contract": "tool_specific_segment_glob_v1",
+                                        "literal_applicability": {
+                                            "contract": "bounded_literal_applicability_v1",
+                                            "policy_sha256": _payload_sha256(load_target_policy_contract()["static_projection"]["literal_applicability"]),
+                                            "status": "bounded_declared_subset", "reasons": [],
+                                        },
                                         "extends_unresolved": False,
                                         "rules_truncated": False,
                                         "rules": [
@@ -138,7 +146,7 @@ class AuditMaterializationTests(unittest.TestCase):
             "MAIN": {
                 "files": {
                     "src/Calendar.tsx": {
-                        "loc": 120,
+                        "loc": 420,
                         "features": [],
                         "imports": [],
                         "symbols": [
@@ -146,7 +154,7 @@ class AuditMaterializationTests(unittest.TestCase):
                                 "name": "Calendar",
                                 "type": "Component",
                                 "canonical_symbol_type": "component",
-                                "source_lines": "L1-L120",
+                                "source_lines": "L1-L420",
                                 "features": [],
                             }
                         ],
@@ -178,14 +186,14 @@ class AuditMaterializationTests(unittest.TestCase):
         self.assertTrue(result)
         violations = write.call_args.args[0]
         finding = violations["loc_limits_component"][0]
-        self.assertEqual(finding["limit"], 100)
+        self.assertEqual(finding["limit"], 400)
         self.assertEqual(
             finding["limit_authority"],
-            "declared_literal_policy_not_native_execution_proof",
+            "sage_default",
         )
         self.assertEqual(
             finding["target_policy_resolution"]["status"],
-            "resolved_declared_literal_policy",
+            "unresolved_fallback_to_sage_default",
         )
 
     def test_empty_project_is_covered_but_missing_project_is_not(self):

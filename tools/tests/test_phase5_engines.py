@@ -10,6 +10,7 @@ from tools.engines.ui_runtime_contract_analyzer import _smoke_plan, _smoke_route
 from tools.core.import_classifier import should_enforce_alias_for_local_import
 from tools.core.audit_rules import violates_canonical_alias_boundary
 from tools.core import audit_rules, pipeline_policy
+from tools.core.target_policy_profile import _payload_sha256, load_target_policy_contract
 
 
 def test_ui_smoke_route_requires_explicit_route_evidence() -> None:
@@ -124,7 +125,7 @@ def test_mcp_governance_preserves_safe_sibling_and_barrel_imports():
         assert "relative_imports_no_alias" not in [item["rule"] for item in result["violations"]]
 
 
-def test_mcp_governance_uses_exact_target_loc_policy(monkeypatch, tmp_path):
+def test_mcp_governance_keeps_sage_limit_without_measurement_proof(monkeypatch, tmp_path):
     effective_policy = {
         "projects": {
             "MAIN": {
@@ -137,6 +138,13 @@ def test_mcp_governance_uses_exact_target_loc_policy(monkeypatch, tmp_path):
                                 "sha256": "a" * 64,
                                 "static_projection": {
                                     "status": "partial_literal_projection",
+                                    "rule_level_contract": "tool_specific_literal_v1",
+                                    "scope_match_contract": "tool_specific_segment_glob_v1",
+                                    "literal_applicability": {
+                                        "contract": "bounded_literal_applicability_v1",
+                                        "policy_sha256": _payload_sha256(load_target_policy_contract()["static_projection"]["literal_applicability"]),
+                                        "status": "bounded_declared_subset", "reasons": [],
+                                    },
                                     "extends_unresolved": False,
                                     "rules_truncated": False,
                                     "rules": [
@@ -161,7 +169,7 @@ def test_mcp_governance_uses_exact_target_loc_policy(monkeypatch, tmp_path):
         mcp_governance,
         "run_ast_sequencer",
         lambda *_args, **_kwargs: [
-            {"type": "Component", "name": "Panel", "line": 1, "endLine": 120, "features": []}
+            {"type": "Component", "name": "Panel", "line": 1, "endLine": 420, "features": []}
         ],
     )
     monkeypatch.setattr(
@@ -178,10 +186,10 @@ def test_mcp_governance_uses_exact_target_loc_policy(monkeypatch, tmp_path):
 
     loc_findings = [row for row in result["violations"] if row["rule"] == "loc_limits_component"]
     assert len(loc_findings) == 1
-    assert loc_findings[0]["limit"] == 100
+    assert loc_findings[0]["limit"] == 400
     assert (
         loc_findings[0]["limit_authority"]
-        == "declared_literal_policy_not_native_execution_proof"
+        == "sage_default"
     )
     assert loc_findings[0]["target_policy_resolution"]["project"] == "MAIN"
     assert loc_findings[0]["target_policy_resolution"]["file"] == "src/Panel.tsx"

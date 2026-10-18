@@ -393,19 +393,8 @@ def _directive_for_violation(
     current = atlas_read if atlas_read is not None else load_atlas_data_with_identity()
     file_fields = _agent_file_fields([file_path] if file_path else [], default_project=project_key, atlas_read=current)
     related_files = _import_evidence_related_files(file_path, detail, default_project=project_key, atlas_read=current)
-    finding_semantics = {
-        field: violation.get(field)
-        for field in (
-            "symbol_name",
-            "symbol_kind",
-            "threshold_kind",
-            "start_line",
-            "end_line",
-            "observed_loc",
-            "limit",
-        )
-        if field in violation
-    }
+    from tools.core.pipeline_policy import project_loc_finding_semantics
+    finding_semantics = project_loc_finding_semantics(violation)
     if finding_semantics and rule.startswith("loc_limits_"):
         start_line = finding_semantics.get("start_line")
         end_line = finding_semantics.get("end_line")

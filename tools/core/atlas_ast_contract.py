@@ -1,6 +1,60 @@
 """Pure shared Atlas AST identity and finite-record validation. No producer imports."""
 
-AST_CONTRACT_VERSION = "v18.50-returned-callback-unbraced-if-source-facts"
+AST_CONTRACT_VERSION = "v18.51-direct-callable-loc-source-facts"
+
+LOC_MEASUREMENT_VERSION = "v1-direct-js-callable-all-lines"
+
+
+
+
+
+
+
+
+def loc_measurement_record_valid(record, outer, *, offset_unit, valid_span=None):
+    """Finite syntax facts only; native policy admission belongs to its own owner."""
+    fields = {"version", "status", "offset_unit", "source_hash", "parser_kind", "parser_version",
+        "callable_kind", "non_iife", "runtime_execution", "spans"}
+    if offset_unit == "utf8_bytes":
+        fields |= {"ast_contract_version", "atlas_source_hash"}
+    if (not isinstance(record, dict) or set(record) != fields or not isinstance(outer, dict)
+            or record.get("version") != LOC_MEASUREMENT_VERSION or record.get("status") != "observed"
+            or record.get("offset_unit") != offset_unit or record.get("non_iife") is not True
+            or record.get("runtime_execution") != "not_established"
+            or record.get("parser_kind") != "typescript_compiler_api"
+            or not isinstance(record.get("callable_kind"), str)
+            or record["callable_kind"] not in {"function_declaration", "arrow_function", "function_expression"}
+            or not isinstance(record.get("parser_version"), str) or not record["parser_version"]
+            or record["parser_kind"] != outer.get("parser_kind", outer.get("parserKind"))
+            or record["parser_version"] != outer.get("parser_version", outer.get("parserVersion"))):
+        return False
+    identity = record.get("source_hash")
+    if not isinstance(identity, str) or len(identity) != 64 or any(c not in "0123456789abcdef" for c in identity):
+        return False
+    if offset_unit == "utf8_bytes" and record.get("ast_contract_version") != AST_CONTRACT_VERSION:
+        return False
+    if offset_unit == "utf8_bytes":
+        atlas_hash = record.get("atlas_source_hash")
+        if not isinstance(atlas_hash, str) or len(atlas_hash) != 32 or any(c not in "0123456789abcdef" for c in atlas_hash):
+            return False
+    spans = record.get("spans")
+    if not isinstance(spans, dict) or set(spans) != {"declaration", "callable"}:
+        return False
+    for span in spans.values():
+        if (not isinstance(span, dict) or set(span) != {"start", "end", "line", "end_line"}
+                or any(type(v) is not int for v in span.values())
+                or not 0 <= span["start"] < span["end"] or not 1 <= span["line"] <= span["end_line"]
+                or (valid_span is not None and not valid_span(span))):
+            return False
+    if any(type(outer.get(key)) is not int for key in ("start", "end", "line")) or type(outer.get("end_line", outer.get("endLine"))) is not int:
+        return False
+    decl, call = spans["declaration"], spans["callable"]
+    return (decl == {"start": outer.get("start"), "end": outer.get("end"), "line": outer.get("line"),
+                    "end_line": outer.get("end_line", outer.get("endLine"))}
+        and decl["start"] <= call["start"] < call["end"] == decl["end"]
+        and decl["line"] <= call["line"] <= call["end_line"] == decl["end_line"])
+
+
 
 
 def _jsx_callback_record_valid(row, outer, valid_span, *, child=False, source_span_validator=None):

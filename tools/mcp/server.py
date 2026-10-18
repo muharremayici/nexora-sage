@@ -6739,6 +6739,7 @@ def _audit_violation_work_items_from_sqlite(
 
     doctrine = _doctrine()
     from tools.core.audit_finding_generation import project_audit_import_subject, audit_import_rule_contract
+    from tools.core.pipeline_policy import project_loc_finding_semantics
     from tools.core.json_syntax import loads_json_strict
     import_evidence_cache: dict = {}
     items: list[dict[str, Any]] = []
@@ -6796,6 +6797,9 @@ def _audit_violation_work_items_from_sqlite(
                 "validation_tools": target_repo_validation_tools(),
             }
         )
+        loc_semantics = project_loc_finding_semantics({**violation, "rule": rule_id})
+        if loc_semantics:
+            items[-1]["finding_semantics"] = loc_semantics
         if audit_import_rule_contract(rule_id) is not None or "finding_evidence" in violation:
             items[-1]["finding_evidence"] = project_audit_import_subject(
                 {**violation, "rule": rule_id}, raw_dir=raw_dir, project=project_key,

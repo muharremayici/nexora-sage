@@ -1,6 +1,6 @@
 # Nexora SAGE Licensing
 
-Nexora SAGE 1.6.2 uses two alternative, unchanged public grants.
+Nexora SAGE 1.7.0 uses two alternative, unchanged public grants.
 
 ## Current Public Grants
 
