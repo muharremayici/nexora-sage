@@ -58,6 +58,7 @@ def resolve_loc_finding_semantics(
     project: str | None = None,
     file_path: str | None = None,
     effective_target_policy: dict | None = None,
+    measurement_context: dict | None = None,
 ):
     kind = str(symbol_kind or "unknown").strip().lower() or "unknown"
     limits = get_audit_loc_limits()
@@ -82,6 +83,8 @@ def resolve_loc_finding_semantics(
             file_path=str(file_path),
             symbol_kind=kind,
             sage_default_limit=limit,
+            measurement_context={**(measurement_context if isinstance(measurement_context, dict) else {}),
+                "observed_loc": observed_loc, "start_line": start_line, "end_line": end_line},
         )
         limit = int(target_policy_resolution["limit"])
     contract = get_loc_finding_contract()
@@ -101,6 +104,14 @@ def resolve_loc_finding_semantics(
     if missing_fields:
         raise ValueError(f"LOC finding contract fields are not produced: {missing_fields}")
     return finding
+
+
+def project_loc_finding_semantics(violation):
+    """Transport the canonical LOC fields without recomputing finding authority."""
+    contract = get_loc_finding_contract()
+    if violation.get("rule") not in {contract["generic_rule"], *contract["kind_rule_map"].values()}:
+        return {}
+    return deepcopy({key: violation[key] for key in contract["required_evidence_fields"] if key in violation})
 
 
 def get_api_entry_filenames():

@@ -98,9 +98,11 @@ evidence for the consumed module container, raw alias/path criterion and
 winning API-entry policy/exemption. Consumers verify current relevant configuration
 and the complete selected SQLite finding without re-discovering live topology.
 Source-module matching supports exact contiguous multi-component containers;
-first-match and single-component behavior are retained. This repairs the previous
-single-component-only source matching, not dot-root inference or alias/API heuristics.
-This preserves the existing literal import heuristics and earlier evidence versions;
+first-match and anchored single-component behavior are retained. The declared
+alias/container prefix must start the raw import specifier; embedded alias text
+in a foreign specifier does not establish module ownership. These repairs do
+not add dot-root inference or change the existing literal API criteria.
+Earlier evidence versions and source/policy verification remain in place;
 it does not prove package exports or correctness of every architectural inference.
 
 The binding uses the selected Atlas/source snapshot and current finding generation.

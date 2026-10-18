@@ -1240,6 +1240,7 @@ def analyze_project(changed_files=None, atlas=None):
                             end_line=end,
                             project=pkey,
                             file_path=rel_path,
+                            measurement_context={"symbol": sym, "source_hash": a_data.get("hash")},
                         )
                         if sym_loc > finding["limit"]:
                             _add_violation(

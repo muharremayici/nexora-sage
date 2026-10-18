@@ -6374,6 +6374,7 @@ function analyzeFile(targetFile) {
     const sourceFile = ts.createSourceFile(targetFile, sourceCode, ts.ScriptTarget.Latest, true);
     const parseDiagnostics = Array.isArray(sourceFile.parseDiagnostics) ? sourceFile.parseDiagnostics : [];
     const parserStatus = parseDiagnostics.length ? 'degraded' : 'observed';
+    const locSourceHash = generateDna(sourceCode);
     const importBindings = collectImportBindings(sourceFile);
     const symbolAt = createFileSymbolResolver(sourceFile);
     const bindingWrites = createBindingWriteCollector(symbolAt);
@@ -6619,6 +6620,33 @@ function analyzeFile(targetFile) {
         return sourceFile.getLineAndCharacterOfPosition(Math.max(0, position)).line + 1;
     }
 
+    function directLocMeasurement(node, symbol) {
+        if (parserStatus !== 'observed') return null;
+        let callable = node;
+        if (ts.isVariableDeclaration(node)) {
+            if (!ts.isIdentifier(node.name) || !(node.parent.flags & ts.NodeFlags.Const)) return null;
+            callable = node.initializer; // No parentheses/as/call-wrapper inference.
+        }
+        if (!callable || !(ts.isFunctionDeclaration(callable) || ts.isFunctionExpression(callable)
+            || ts.isArrowFunction(callable)) || !callable.body || callable.asteriskToken
+            || callable.type || callable.typeParameters?.length
+            || callable.modifiers?.some(m => m.kind !== ts.SyntaxKind.ExportKeyword && m.kind !== ts.SyntaxKind.DefaultKeyword)
+            || callable.parameters.some(p => p.type || p.questionToken || p.modifiers?.length)) return null;
+        const kind = ts.isFunctionDeclaration(callable) ? 'function_declaration'
+            : ts.isArrowFunction(callable) ? 'arrow_function' : 'function_expression';
+        // A direct initializer is not an IIFE. Other expression contexts are excluded.
+        if (kind !== 'function_declaration' && (!ts.isVariableDeclaration(node) || node.initializer !== callable)) return null;
+        const keyword = kind === 'function_declaration'
+            ? callable.getChildren(sourceFile).find(child => child.kind === ts.SyntaxKind.FunctionKeyword) : null;
+        if (kind === 'function_declaration' && !keyword) return null;
+        const start = (keyword || callable).getStart(sourceFile), end = callable.end;
+        return {version: 'v1-direct-js-callable-all-lines', status: 'observed', offset_unit: 'utf16_code_units',
+            source_hash: locSourceHash, parser_kind: 'typescript_compiler_api', parser_version: ts.version,
+            callable_kind: kind, non_iife: true, runtime_execution: 'not_established',
+            spans: {declaration: {start: symbol.start, end: symbol.end, line: symbol.line, end_line: symbol.endLine},
+                callable: {start, end, line: lineNumberAtPosition(start), end_line: lineNumberAtPosition(end - 1)}}};
+    }
+
     function addSymbolEntry(name, type, node, container, extra = {}) {
         const { spanStartNode, spanEndNode, ...symbolExtra } = extra;
         const startNode = spanStartNode || container;
@@ -6684,6 +6712,8 @@ function analyzeFile(targetFile) {
                     store_hook_selector_evidence: collectStoreHookSelectors(node)} : {}),
             ...symbolExtra,
         };
+        const measurement = directLocMeasurement(node, symbol);
+        if (measurement) symbol.loc_measurement_evidence = measurement;
 
         if (symbol.exported) {
             const contract = detectRuntimeExportContract(targetFile, fileFeatures, name);
@@ -6763,7 +6793,7 @@ function analyzeFile(targetFile) {
 
     // Global Sentinel
     const loc = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
-    const sourceHash = generateDna(sourceCode);
+    const sourceHash = locSourceHash;
     symbols.push({
         name: '__file_meta__',
         type: 'Meta',

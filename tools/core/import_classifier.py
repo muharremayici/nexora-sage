@@ -60,7 +60,11 @@ def module_source_context(rel_path: str, module_container: str) -> dict:
 
 def module_api_import_evidence(source_context: dict, raw_import: str, *, module_container: str,
                                primary_alias: str, api_entry_policy: dict | None = None) -> dict:
-    """Trace current literal path criteria, not target export or import legality."""
+    """Trace anchored literal path criteria, not target export or import legality.
+
+    Module ownership requires the declared prefix at the start of the raw
+    specifier; embedded alias text in a foreign specifier is not that prefix.
+    """
     prefix = f"{primary_alias}{module_container}/"
     trace = {"module_container": module_container, "primary_alias": primary_alias,
         "module_import_prefix": prefix,
@@ -70,12 +74,12 @@ def module_api_import_evidence(source_context: dict, raw_import: str, *, module_
         "raw_api_terminal": None, "raw_contains_api": None, "source_api_entry_exemption": None,
         "api_entry_policy": None}
     module = source_context["source_module"]
-    if not module or prefix not in raw_import:
+    if not module or not raw_import.startswith(prefix):
         return {"violated": False, "trace": trace}
     trace["raw_api_terminal"] = raw_import.endswith("/api") or raw_import.endswith("/api/")
     trace["raw_contains_api"] = "/api" in raw_import
-    trace["raw_prefix_offset"] = raw_import.index(prefix)
-    trace["imported_module"] = raw_import.split(prefix)[1].split("/")[0]
+    trace["raw_prefix_offset"] = 0
+    trace["imported_module"] = raw_import[len(prefix):].split("/")[0]
     if trace["imported_module"] != module:
         trace["decision_branch"] = "cross_module_literal_api_path"
         return {"violated": not trace["raw_api_terminal"], "trace": trace}

@@ -13,7 +13,7 @@ from tools.core.target_policy_profile import (
     aggregate_effective_target_policy,
     compile_effective_target_policy,
     inventory_project_target_policy,
-    resolve_target_symbol_loc_policy,
+    _resolve_target_symbol_loc_declaration as resolve_target_symbol_loc_policy,  # Declaration-unit tests; application is tested separately.
 )
 from tools.engines.capability_activation_planner import activation_plan_requires_refresh
 from tools.engines.quality_gate import _audit_enforcement_authority
@@ -111,6 +111,7 @@ def test_formatter_and_test_runner_configs_join_existing_policy_inventory(tmp_pa
 
 def test_biome_literal_policy_projects_tool_and_scoped_rule_states(tmp_path: Path) -> None:
     biome = {
+        "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
         "linter": {
             "enabled": True,
             "rules": {
@@ -227,6 +228,7 @@ def test_biome_nested_files_scope_is_applied_and_conflicting_scope_shapes_fail_c
     _write_json(
         tmp_path / "biome.json",
         {
+            "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
             "files": {"includes": ["src/**/*.ts"]},
             "linter": {
                 "rules": {
@@ -266,6 +268,7 @@ def test_biome_nested_files_scope_is_applied_and_conflicting_scope_shapes_fail_c
     _write_json(
         tmp_path / "biome.json",
         {
+            "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
             "includes": ["src/**/*.ts"],
             "files": {"includes": ["packages/**/*.ts"]},
             "linter": {

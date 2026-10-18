@@ -46,6 +46,10 @@ from tools.core.atlas_ast_contract import (
     _local_arrow_result_use_record_valid,
 )
 from tools.core.json_io import load_json_file, raw_artifact_content_fingerprint
+from tools.core.source_coordinates import (
+    _utf16_offset_to_utf8_byte_offset, _utf16_offsets_to_utf8_byte_offsets,
+    _native_utf16_span_validator, _normalize_loc_measurement_evidence,
+)
 from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
 from tools.core.polyglot_imports import (
     extract_direct_import_binding_evidence,
@@ -184,6 +188,8 @@ def atlas_staging_producer_contract() -> str:
         GO_SEQUENCER,
         CODE_MAPS_DIR / "tools" / "core" / "config.py",
         CODE_MAPS_DIR / "tools" / "core" / "source_files.py",
+        CODE_MAPS_DIR / "tools" / "core" / "atlas_ast_contract.py",
+        CODE_MAPS_DIR / "tools" / "core" / "source_coordinates.py",
         CODE_MAPS_DIR / "tools" / "core" / "language_registry.py",
         CODE_MAPS_DIR / "tools" / "core" / "language_agnostic_symbols.py",
         CODE_MAPS_DIR / "tools" / "core" / "polyglot_imports.py",
@@ -498,70 +504,8 @@ def file_contract_is_current(file_data: Dict) -> bool:
     return True
 
 
-def _utf16_offset_to_utf8_byte_offset(content: str, offset: int) -> int:
-    """Translate a JavaScript/TypeScript parser offset into the byte contract."""
-
-    if offset < 0:
-        raise ValueError(f"negative UTF-16 offset: {offset}")
-    utf16_units = 0
-    utf8_bytes = 0
-    for char in content:
-        if utf16_units == offset:
-            return utf8_bytes
-        char_units = 2 if ord(char) > 0xFFFF else 1
-        if utf16_units + char_units > offset:
-            raise ValueError(f"UTF-16 offset splits a surrogate pair: {offset}")
-        utf16_units += char_units
-        utf8_bytes += len(char.encode("utf-8"))
-    if utf16_units == offset:
-        return utf8_bytes
-    raise ValueError(
-        f"UTF-16 offset exceeds source length: offset={offset}, units={utf16_units}"
-    )
 
 
-def _utf16_offsets_to_utf8_byte_offsets(content: str, offsets) -> Dict[int, int]:
-    """Resolve many compiler offsets with one bounded pass over source content."""
-
-    requested_set = set()
-    for offset in offsets:
-        try:
-            normalized_offset = int(offset)
-        except (TypeError, ValueError):
-            continue
-        if normalized_offset >= 0:
-            requested_set.add(normalized_offset)
-    requested = sorted(requested_set)
-    if not requested:
-        return {}
-    if content.isascii():
-        return {offset: offset for offset in requested if offset <= len(content)}
-
-    resolved: Dict[int, int] = {}
-    requested_index = 0
-    utf16_units = 0
-    utf8_bytes = 0
-    for char in content:
-        while requested_index < len(requested) and requested[requested_index] == utf16_units:
-            resolved[requested[requested_index]] = utf8_bytes
-            requested_index += 1
-
-        char_units = 2 if ord(char) > 0xFFFF else 1
-        next_utf16_units = utf16_units + char_units
-        while (
-            requested_index < len(requested)
-            and utf16_units < requested[requested_index] < next_utf16_units
-        ):
-            # Keep invalid surrogate-splitting offsets unresolved so the canonical
-            # single-offset validator raises its existing precise error on use.
-            requested_index += 1
-        utf16_units = next_utf16_units
-        utf8_bytes += len(char.encode("utf-8"))
-
-    while requested_index < len(requested) and requested[requested_index] == utf16_units:
-        resolved[requested[requested_index]] = utf8_bytes
-        requested_index += 1
-    return resolved
 
 
 def _normalize_polyglot_symbol(
@@ -574,6 +518,7 @@ def _normalize_polyglot_symbol(
     canonical_type_cache=None,
     local_call_context=None,
     jsx_import_context=None,
+    loc_atlas_source_hash=None,
 ) -> Dict:
     """Normalize TS/JS and polyglot sequencer outputs into the Atlas symbol contract."""
     name = str(raw_symbol.get("name") or "anonymous")
@@ -724,7 +669,10 @@ def _normalize_polyglot_symbol(
         raw_symbol, content, utf16_offset_map, local_call_context, import_context=jsx_import_context)
         if "returned_local_callback_evidence" in raw_symbol else None)
 
+    measurement = (_normalize_loc_measurement_evidence(raw_symbol, content, utf16_offset_map, local_call_context, loc_atlas_source_hash)
+        if "loc_measurement_evidence" in raw_symbol else None)
     return {
+        **({"loc_measurement_evidence": measurement} if measurement is not None else {}),
         "name": name,
         "type": symbol_type,
         "signature": signature,
@@ -861,6 +809,14 @@ def _normalize_polyglot_symbols(
                 except (TypeError, ValueError):
                     # Preserve the canonical per-symbol validation error.
                     continue
+            measurement = raw_symbol.get("loc_measurement_evidence")
+            if isinstance(measurement, dict):
+                has_local_calls = True
+                spans = measurement.get("spans")
+                if isinstance(spans, dict) and set(spans) == {"declaration", "callable"}:
+                    for span in spans.values():
+                        if isinstance(span, dict):
+                            requested_offsets.extend(span[key] for key in ("start", "end") if type(span.get(key)) is int)
             call_evidence = raw_symbol.get("import_call_evidence")
             for key in ("jsx_prop_callback_evidence", "jsx_parameter_callback_call_evidence"):
                 lane = raw_symbol.get(key)
@@ -931,6 +887,8 @@ def _normalize_polyglot_symbols(
             jsx_import_context[identity_key] = jsx_import_context.get(identity_key, 0) + 1
     local_call_context = (hashlib.sha256(content.encode("utf-8")).hexdigest(),
                           _native_utf16_span_validator(content)) if has_local_calls else None
+    loc_atlas_source_hash = (_atlas_text_hash(content)
+        if any(isinstance(row, dict) and "loc_measurement_evidence" in row for row in raw_symbols) else None)
     if normalization_profile_context is None:
         normalization_profile_context = normalization_profile_for_language(language)
     if canonical_type_cache is None:
@@ -945,6 +903,7 @@ def _normalize_polyglot_symbols(
             canonical_type_cache=canonical_type_cache,
             local_call_context=local_call_context,
             jsx_import_context=jsx_import_context,
+            loc_atlas_source_hash=loc_atlas_source_hash,
         )
         for raw_symbol in raw_symbols
     ]
@@ -1098,45 +1057,8 @@ def _structured_output_evidence(raw_results) -> Dict[str, object]:
     }
 
 
-def _native_utf16_span_validator(content: str):
-    """Validate parser spans before the existing batch byte-offset conversion."""
-    encoded = content.encode("utf-16-le")
-    length = len(encoded) // 2
-    # ECMAScript line terminators; CRLF contributes one completed break.
-    breaks = [index for index in range(length)
-              if encoded[index * 2:index * 2 + 2] in {b"\n\x00", b"\r\x00", b"\x28\x20", b"\x29\x20"}
-              and not (encoded[index * 2:index * 2 + 4] == b"\r\x00\n\x00")]
 
-    def valid_span(span, expected_text=None, quoted=False):
-        if (not isinstance(span, dict) or set(span) != {"start", "end", "line", "end_line"}
-                or any(type(value) is not int for value in span.values())
-                or not 0 <= span["start"] < span["end"] <= length):
-            return False
-        for offset in (span["start"], span["end"]):
-            if offset < length and 0xDC00 <= int.from_bytes(encoded[offset * 2:offset * 2 + 2], "little") <= 0xDFFF:
-                return False
-        if (span["line"] != bisect_left(breaks, span["start"]) + 1
-                or span["end_line"] != bisect_left(breaks, span["end"] - 1) + 1):
-            return False
-        if expected_text is not None:
-            token = encoded[span["start"] * 2:span["end"] * 2].decode("utf-16-le")
-            if quoted:
-                # Finite literal path grammar: no JS escape interpretation here.
-                if len(token) < 2 or token[0] not in {"'", '"'} or token[-1] != token[0] or "\\" in token:
-                    return False
-                token = token[1:-1]
-            if token != expected_text:
-                return False
-        return True
 
-    def trivia_between(start, end, expected):
-        if type(start) is not int or type(end) is not int or not 0 <= start <= end <= length:
-            return False
-        fragment = encoded[start * 2:end * 2].decode("utf-16-le")
-        return re.sub(r"/\*.*?\*/|//[^\r\n\u2028\u2029]*|[\s\ufeff]+", "", fragment, flags=re.S) == expected
-
-    valid_span.trivia_between = trivia_between
-    return valid_span
 
 
 
@@ -3819,6 +3741,9 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
 
             all_exports = _extract_exports_for_language(scan_content, f_lang, ast_symbols)
 
+            # Keep the captured Python stat value, as cache and staging lifts do.
+            # Node's millisecond conversion can round the same timestamp
+            # differently and must not change canonical Atlas payload identity.
             f_mtime = entry["mtime"]
             f_size = entry.get("size", -1)
             f_hash = ""
@@ -3827,8 +3752,6 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     for feat in nr.get('features', []):
                         if feat.startswith('Hash:'):
                             f_hash = feat.split(':', 1)[1]
-                        elif feat.startswith('MTime:'):
-                            f_mtime = float(feat.split(':', 1)[1])
                     break
 
             if not f_hash:

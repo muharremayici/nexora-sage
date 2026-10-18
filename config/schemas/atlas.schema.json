@@ -4,6 +4,159 @@
   "description": "JSON Schema contract for the Atlas artifact produced by AST Sequencers and Orchestrators.",
   "type": "object",
   "$defs": {
+    "loc_measurement_evidence": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "unavailable"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "version",
+              "status",
+              "offset_unit",
+              "source_hash",
+              "atlas_source_hash",
+              "ast_contract_version",
+              "parser_kind",
+              "parser_version",
+              "callable_kind",
+              "non_iife",
+              "runtime_execution",
+              "spans"
+            ],
+            "properties": {
+              "version": {
+                "const": "v1-direct-js-callable-all-lines"
+              },
+              "status": {
+                "const": "observed"
+              },
+              "offset_unit": {
+                "const": "utf8_bytes"
+              },
+              "source_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "atlas_source_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              "ast_contract_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parser_kind": {
+                "const": "typescript_compiler_api"
+              },
+              "parser_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "callable_kind": {
+                "enum": [
+                  "function_declaration",
+                  "arrow_function",
+                  "function_expression"
+                ]
+              },
+              "non_iife": {
+                "type": "boolean",
+                "const": true
+              },
+              "runtime_execution": {
+                "const": "not_established"
+              },
+              "spans": {
+                "type": "object",
+                "required": [
+                  "declaration",
+                  "callable"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "declaration": {
+                    "$ref": "#/$defs/loc_measurement_span"
+                  },
+                  "callable": {
+                    "$ref": "#/$defs/loc_measurement_span"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "reason"
+            ],
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "loc_measurement_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "line",
+        "end_line"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
     "parameter_config_callback_forwarding_evidence": {
       "description": "Finite owner parameter configuration property to optional rest forwarding inside a literal object-property arrow. Source syntax only, not effective registration, callable identity or execution.",
       "type": "object",
@@ -10772,6 +10925,9 @@
                   },
                   "source_lines": {
                     "type": "string"
+                  },
+                  "loc_measurement_evidence": {
+                    "$ref": "#/$defs/loc_measurement_evidence"
                   },
                   "signature": {
                     "type": "string"

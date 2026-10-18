@@ -310,7 +310,7 @@ def _sequence_existing_symbols(existing_content: str, file_ext: str) -> list[dic
     temp_dir.mkdir(parents=True, exist_ok=True)
     temp_file = temp_dir / f"temp_mcp_existing_{uuid.uuid4().hex}{file_ext}"
     try:
-        with open(temp_file, "w", encoding="utf-8") as f:
+        with open(temp_file, "w", encoding="utf-8", newline="") as f:
             f.write(existing_content)
         symbols = run_ast_sequencer(temp_file, file_ext)
     except Exception as exc:
@@ -325,16 +325,24 @@ def _sequence_existing_symbols(existing_content: str, file_ext: str) -> list[dic
     return [row for row in symbols if isinstance(row, dict)]
 
 
+def _loc_measurement_contexts(symbols, content):
+    """The actual before/proposed buffer owns its facts, never a neighboring Atlas."""
+    from tools.core.source_coordinates import native_loc_measurement_contexts
+    return native_loc_measurement_contexts(symbols, content)
+
+
 def _existing_loc_violation_keys(
     symbols: list[dict[str, Any]],
     *,
     project: str | None = None,
     file_path: str | None = None,
+    source_content: str | None = None,
 ) -> set[tuple[str, str]]:
     """Return LOC violations already present before the proposed patch."""
 
     keys: set[tuple[str, str]] = set()
-    for sym in symbols:
+    contexts = _loc_measurement_contexts(symbols, source_content)
+    for index, sym in enumerate(symbols):
         if not isinstance(sym, dict):
             continue
         sym_type = str(
@@ -352,6 +360,8 @@ def _existing_loc_violation_keys(
             symbol_name=sym_name,
             project=project,
             file_path=file_path,
+            start_line=_symbol_line_bounds(sym)[0], end_line=_symbol_line_bounds(sym)[1],
+            measurement_context=contexts[index],
         )
         if sym_loc > finding["limit"]:
             keys.add((finding["rule"], sym_name))
@@ -580,7 +590,7 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
     temp_file = temp_dir / f"temp_mcp_validate_{uuid.uuid4().hex}{file_ext}"
     
     try:
-        with open(temp_file, "w", encoding="utf-8") as f:
+        with open(temp_file, "w", encoding="utf-8", newline="") as f:
             f.write(proposed_content)
     except Exception as e:
         return {
@@ -626,7 +636,8 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
     # 4. Check Architecture Doctrine Constraints
     
     # Rule 1: Complexity Checks (LOC limits)
-    for sym in symbols:
+    loc_contexts = _loc_measurement_contexts(symbols, proposed_content)
+    for index, sym in enumerate(symbols):
         if not isinstance(sym, dict):
             continue
         sym_type = str(
@@ -647,6 +658,7 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
                 end_line=end_line,
                 project=project_id if project_id != "UNKNOWN" else None,
                 file_path=policy_file_path or None,
+                measurement_context=loc_contexts[index],
             )
             if sym_loc > finding["limit"]:
                 violations.append({
@@ -730,6 +742,7 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
 
     existing_loc_keys = _existing_loc_violation_keys(
         existing_symbols,
+        source_content=existing_content,
         project=project_id if project_id != "UNKNOWN" else None,
         file_path=policy_file_path or None,
     )

@@ -628,9 +628,12 @@ def test_local_arrow_import_call_extra_spans_do_not_expand_offset_work(local_arr
         requested.append(len(offsets))
         return original(content, offsets)
     monkeypatch.setattr(engine, "_utf16_offsets_to_utf8_byte_offsets", bounded)
+    without_import_lane = deepcopy(pristine)
+    del without_import_lane["import_call_evidence"]["local_arrow_import_call_evidence"]
+    engine._normalize_polyglot_symbols([without_import_lane], source, "typescript")
     result = engine._normalize_polyglot_symbols([raw], source, "typescript")[0]
     assert result["local_arrow_import_call_evidence"]["status"] == "unavailable"
-    assert requested == [2], "Malformed span keys must not expand the prevalidation offset batch"
+    assert len(requested) == 2 and requested[0] == requested[1], "Malformed spans must add no work beyond the same source's legitimate non-import evidence"
 
 
 @pytest.fixture(scope="module")

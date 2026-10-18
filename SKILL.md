@@ -702,6 +702,8 @@ A matching identifier is not an import edge, historical execution or source faul
   Audit, the raw alias/path decision and any evaluated API-entry exemption.
   Source-module matching uses the first exact contiguous container path sequence,
   not a substring or a guessed architecture; multi-component roots are supported.
+  The declared alias/container prefix must start the raw import specifier;
+  embedded alias text in a foreign specifier does not establish module ownership.
   Verify selected source, configuration, policy and complete SQLite finding;
   do not rediscover module topology on the host or treat a literal `/api`
   match as package-export legality. Legacy/corrupt/unsupported evidence stays

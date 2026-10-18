@@ -29,6 +29,145 @@
     "optionalDependencies"
   ],
   "static_projection": {
+    "literal_applicability": {
+      "id": "bounded_literal_applicability_v1",
+      "max_identity_chars": 256,
+      "measurement_contract": {
+        "id": "bounded_declared_loc_measurement_v1",
+        "sage_basis": "inclusive_declaration_span_lines",
+        "tool": "eslint",
+        "rule": "max-lines-per-function",
+        "reviewed_declared_versions": [
+          "9.39.1"
+        ],
+        "false_counting_flags": [
+          "skipBlankLines",
+          "skipComments"
+        ],
+        "boundary": "Static compatibility for the source-bound direct JS-compatible callable subset only, not native execution. Matching declaration/callable line bounds, current AST identity and exact source binding are mandatory. Biome body counting, unsupported syntax/options and unresolved declared semantics retain SAGE defaults. Never reinterpret observed_loc or suppress SAGE analysis."
+      },
+      "loc_option_boundary": "Bounded explicit-object LOC options only. Preserve boolean counting flags without claiming measurement compatibility. Unknown keys/types, nonfinite/fractional values and values outside the declared supported range retain SAGE defaults. Zero/default/shorthand support remains unavailable, not native-invalid. ESLint's maximum is an exact JSON-number support bound, not a native schema maximum. Biome version widths are distinct from group availability. This is not complete native config validation or execution.",
+      "boundary": "Conservative source-only applicability admission, not complete native config validation. Unsupported context and unknown/conflicting declared identity retain SAGE defaults. Exact declarations do not prove installed/executed identity; no URL is fetched. Biome requires an explicit supported schema or exact package declaration. Unversioned ESLint legacy literals remain shape-only evidence. Ranges/prereleases are not resolved. Global-filter/override composition and unsupported native fields require separate proof; this guard never disables SAGE native analysis.",
+      "tools": {
+        "eslint": {
+          "requires_declared_version": false,
+          "supported_declared_majors": [
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "loc_options": {
+            "rule_path": [
+              "rules",
+              "max-lines-per-function"
+            ],
+            "rule_id": "max-lines-per-function",
+            "format": "eslint_array_object",
+            "numeric_option": "max",
+            "supported_minimum": 1,
+            "supported_maximum": 9007199254740991,
+            "boolean_options": [
+              "skipBlankLines",
+              "skipComments",
+              "IIFEs"
+            ],
+            "version_maximums": []
+          },
+          "unsupported_root_paths": [
+            "ignorePatterns",
+            "processor",
+            "files",
+            "excludedFiles"
+          ],
+          "unsupported_override_paths": [
+            "overrides",
+            "ignorePatterns",
+            "processor"
+          ]
+        },
+        "biome": {
+          "requires_declared_version": true,
+          "supported_declared_majors": [
+            2
+          ],
+          "minimum_declared_version": [
+            2,
+            2,
+            0
+          ],
+          "loc_options": {
+            "rule_path": [
+              "linter",
+              "rules",
+              "complexity",
+              "noExcessiveLinesPerFunction"
+            ],
+            "rule_id": "complexity/noExcessiveLinesPerFunction",
+            "format": "biome_object_options",
+            "numeric_option": "maxLines",
+            "supported_minimum": 1,
+            "supported_maximum": 65535,
+            "boolean_options": [
+              "skipBlankLines",
+              "skipIifes"
+            ],
+            "version_maximums": [
+              {
+                "before": [
+                  2,
+                  2,
+                  7
+                ],
+                "maximum": 255
+              }
+            ]
+          },
+          "schema_version_pattern": "https://biomejs\\.dev/schemas/([0-9]+\\.[0-9]+\\.[0-9]+)/schema\\.json",
+          "unsupported_root_paths": [
+            "root",
+            "vcs",
+            "include",
+            "ignore",
+            "includes",
+            "ignores",
+            "files.include",
+            "files.ignore",
+            "files.ignores",
+            "files.maxSize",
+            "files.experimentalScannerIgnores",
+            "linter.includes",
+            "linter.include",
+            "linter.ignore",
+            "linter.ignores",
+            "javascript.linter"
+          ],
+          "unsupported_override_paths": [
+            "overrides",
+            "files",
+            "include",
+            "ignore",
+            "ignores",
+            "linter.includes",
+            "linter.include",
+            "linter.ignore",
+            "linter.ignores",
+            "javascript.linter"
+          ]
+        }
+      }
+    },
+    "scope_matcher": {
+      "id": "tool_specific_segment_glob_v1",
+      "max_path_chars": 4096,
+      "max_pattern_chars": 1024,
+      "max_segments": 128,
+      "max_globstars": 4,
+      "boundary": "Bounded literal/*/whole-segment ** matching only, case-sensitive including dot names. Stars within a segment never cross /. ESLint legacy override basename matching is separate from Biome. Without resolved Biome version identity, admit only agreement between documented v1 implicit **/ prefix and v2 rooted semantics; disagreement is unknown. Explicit ./ anchors are supported only for ESLint legacy. Brace/class/question/extglob/negation/escape, malformed paths and over-budget forms remain unresolved, not native negatives. Earlier scope projections require refresh. No native config validity, execution or full per-file effective policy is proven."
+    },
+    "rule_level_contract": "tool_specific_literal_v1",
+    "rule_level_boundary": "ESLint admits only numeric 0/1/2 or off/warn/error, including array-first severity, never booleans or Biome objects. Biome explicit off/info/warn/error is distinct from on (unresolved rule default). Unsupported relevant levels remain unknown rows and force LOC fallback. Earlier projections require refresh. Stylelint retains legacy inventory-only classification and has no LOC adapter. This is literal evidence, not native config validation or execution.",
     "max_rules_per_config": 500,
     "typescript_compiler_options": [
       "allowJs",

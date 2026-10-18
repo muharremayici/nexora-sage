@@ -1,7 +1,9 @@
 from copy import deepcopy
 import hashlib
 import json
+import math
 import os
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -121,6 +123,91 @@ def atlas_run(tmp_path, monkeypatch):
         baseline.update(deepcopy(atlas))
         return atlas
     return root, baseline, calls, run
+
+
+@pytest.fixture(params=[-math.inf, math.inf], ids=["rounded-down", "rounded-up"])
+def atlas_with_rounded_parser_clock(atlas_run, monkeypatch, request):
+    root, baseline, calls, run = atlas_run
+    sequence = generator.run_observed_subprocess
+
+    def rounded_clock(*args, **kwargs):
+        result, duration = sequence(*args, **kwargs)
+        payload = json.loads(result.stdout)
+        # A deterministic one-ULP mismatch models Node's millisecond conversion
+        # without depending on a host filesystem's subsecond resolution.
+        mtime = math.nextafter((root / "a.ts").stat().st_mtime, request.param)
+        for records in payload["results"].values():
+            records[0]["features"].append(f"MTime:{mtime!r}")
+        result.stdout = json.dumps(payload)
+        return result, duration
+
+    monkeypatch.setattr(generator, "run_observed_subprocess", rounded_clock)
+    return root, baseline, calls, run
+
+
+def test_cold_cached_cold_atlas_uses_one_file_stat_clock(atlas_with_rounded_parser_clock):
+    from tools.core.atlas_integrity import build_atlas_commit, payload_sha256
+
+    root, baseline, calls, run = atlas_with_rounded_parser_clock
+    expected_mtime = (root / "a.ts").stat().st_mtime
+    cold = run()
+    cached = run()
+    assert len(calls) == 1
+    baseline.clear()
+    cold_again = run()
+    assert len(calls) == 2
+    for atlas in (cold, cached, cold_again):
+        assert atlas["MAIN"]["files"]["a.ts"]["mtime"] == expected_mtime
+        assert atlas["MAIN"]["files"]["a.ts"]["hash"] == hashlib.sha256((root / "a.ts").read_bytes()).hexdigest()
+        assert payload_sha256(atlas) == payload_sha256(cold)
+        assert build_atlas_commit(atlas)["snapshot_id"] == build_atlas_commit(cold)["snapshot_id"]
+
+
+def test_staged_atlas_retry_keeps_cold_file_stat_clock(atlas_with_rounded_parser_clock, monkeypatch):
+    from tools.core.atlas_integrity import build_atlas_commit, payload_sha256
+
+    root, _, calls, run = atlas_with_rounded_parser_clock
+    save = generator.save_json_atomic
+    interrupted_payloads = []
+
+    def interrupted(path, payload, **kwargs):
+        if Path(path).stem == "atlas":
+            interrupted_payloads.append(deepcopy(payload))
+            raise RuntimeError("fixture interrupted before Atlas commit")
+        return save(path, payload, **kwargs)
+
+    monkeypatch.setattr(generator, "save_json_atomic", interrupted)
+    with pytest.raises(RuntimeError, match="fixture interrupted before Atlas commit"):
+        run()
+    monkeypatch.setattr(generator, "save_json_atomic", save)
+    resumed = run()
+    assert len(calls) == 1  # Completed-file staging, not a new parse.
+    assert resumed["MAIN"]["files"]["a.ts"]["mtime"] == (root / "a.ts").stat().st_mtime
+    assert payload_sha256(resumed) == payload_sha256(interrupted_payloads[0])
+    assert build_atlas_commit(resumed)["snapshot_id"] == build_atlas_commit(interrupted_payloads[0])["snapshot_id"]
+
+
+def test_native_node_cold_cached_cold_atlas_identity_is_stable(atlas_run, monkeypatch):
+    from tools.core.atlas_integrity import build_atlas_commit, payload_sha256
+    from tools.core.subprocess_telemetry import run_observed_subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("Node is required for the native timestamp producer control")
+    root, baseline, _, run = atlas_run
+    source = root / "a.ts"
+    os.utime(source, ns=(1789256005423505200, 1789256005423505200))
+    expected_mtime = source.stat().st_mtime
+    monkeypatch.setattr(generator, "run_observed_subprocess", run_observed_subprocess)
+    cold = run()
+    cached = run()
+    baseline.clear()
+    cold_again = run()
+    for atlas in (cold, cached, cold_again):
+        row = atlas["MAIN"]["files"]["a.ts"]
+        assert row["mtime"] == expected_mtime
+        assert row["parser_evidence"]["status"] == "observed"
+        assert payload_sha256(atlas) == payload_sha256(cold)
+        assert build_atlas_commit(atlas)["snapshot_id"] == build_atlas_commit(cold)["snapshot_id"]
 
 
 @pytest.mark.parametrize("mutation", ["same_mtime", "config_only", "unknown_hash", "missing_context", "unchanged"])

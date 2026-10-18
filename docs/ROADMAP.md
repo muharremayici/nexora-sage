@@ -30,15 +30,23 @@ claim-guard wording.
 
 ## Current Candidate And Claim Baseline
 
-The active `1.6.2` candidate is **Native Editable CI Metadata Inventory Repair**.
-Its single reviewed maintenance delivery repairs an incomplete CI inventory
-observation by folding only a full-equal native source/installed metadata pair
-with a verified local editable origin. Conflicting or unknown origins remain
-incomplete; privacy and input budgets remain enforced. All four matrix suites
-and the main reference suite remain enabled. This is a candidate scope, not a
-publication decision, readiness verdict, test-reuse permission, environment
-equivalence or measured speedup claim. Private controller maintenance is not
+The active `1.7.0` candidate is **Literal LOC Policy Guards And Module Import Correctness**.
+Its three reviewed delivery slices cover bounded declared LOC policy admission
+and source-measurement compatibility, anchored module-import ownership, and
+separately bound private publication-completion accounting. Unsupported native
+semantics retain explicit SAGE defaults; captured static source facts do not
+prove native execution, complete effective configuration or runtime behavior.
+All four matrix suites and the main reference suite remain enabled. This is a
+candidate scope, not a publication decision, readiness verdict, test-reuse
+permission or measured speedup claim. Private controller maintenance is not
 part of the public source distribution.
+
+The published `1.6.2` delivery remains historical: its reviewed maintenance
+slice repairs incomplete CI inventory observations by folding only a full-equal
+native source/installed metadata pair with a verified local editable origin.
+Conflicting or unknown origins remain incomplete; privacy and input budgets
+remain enforced. That delivery does not establish environment equivalence or
+test-reuse permission.
 
 The published `1.6.1` delivery remains historical: its reviewed CI evidence
 maintenance slice strengthens tested-source and receipt matching and records
@@ -57,7 +65,7 @@ original v1 claim baseline is preserved, not expanded by a new version label.
 
 ## Future Planning Phase
 
-`1.7.0` is **Dormant React And Extension Continuity** in the phase registry.
+`1.8.0` is **Dormant React And Extension Continuity** in the phase registry.
 It holds unactivated React, static-governance and extension intentions apart
 from the later polyglot phase. It is future planning only, not a selected public
 release, feature commitment, capability activation or license change.
