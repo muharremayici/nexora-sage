@@ -4,6 +4,748 @@
   "description": "JSON Schema contract for the Atlas artifact produced by AST Sequencers and Orchestrators.",
   "type": "object",
   "$defs": {
+    "manifest_source_links": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "scope",
+        "status",
+        "policy_sha256",
+        "manifest_policy_sha256",
+        "project_root",
+        "project_key",
+        "atlas_rel_path",
+        "ast_contract_version",
+        "auxiliary_context_identity",
+        "source_text_identity",
+        "records",
+        "shown_count",
+        "producer_omitted",
+        "reasons",
+        "runtime_execution",
+        "resolution_status"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-literal-manifest-source-links"
+        },
+        "scope": {
+          "const": "top_level_types_typings_indexed_source_correspondence"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial"
+          ]
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "manifest_policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "project_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "atlas_rel_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "auxiliary_context_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_text_identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "algorithm",
+            "basis"
+          ],
+          "properties": {
+            "value": {
+              "type": "string",
+              "pattern": "^[0-9a-f]+$"
+            },
+            "algorithm": {
+              "type": "string",
+              "minLength": 1
+            },
+            "basis": {
+              "const": "atlas_file_text_identity_not_auxiliary_raw_capture"
+            }
+          }
+        },
+        "shown_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "producer_omitted": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "resolution_status": {
+          "const": "not_evaluated"
+        },
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_manifest",
+              "source_manifest_sha256",
+              "field_path",
+              "sibling_order",
+              "condition_path",
+              "subpath",
+              "version_selector",
+              "target_literal",
+              "resolution_status",
+              "link_status",
+              "reason"
+            ],
+            "properties": {
+              "source_manifest": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "field_path": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                }
+              },
+              "sibling_order": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "condition_path": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "subpath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version_selector": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "target_literal": {
+                "type": "string"
+              },
+              "resolution_status": {
+                "const": "not_evaluated"
+              },
+              "link_status": {
+                "const": "observed"
+              },
+              "reason": {
+                "const": "literal_indexed_source_correspondence"
+              }
+            }
+          }
+        }
+      }
+    },
+    "declaration_contract_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "coverage",
+        "project_root",
+        "policy_sha256",
+        "status",
+        "reason",
+        "selected_files",
+        "omitted_files",
+        "files",
+        "runtime_execution"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-top-level-declaration-headers"
+        },
+        "coverage": {
+          "const": "finite_top_level_headers_only"
+        },
+        "project_root": {
+          "type": "string"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "selected_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "manifest_type_links": {
+          "$ref": "#/$defs/manifest_declaration_links"
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/declaration_contract_file"
+          }
+        }
+      }
+    },
+    "declaration_contract_file": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason"
+          ],
+          "properties": {
+            "status": {
+              "const": "unavailable"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "coverage",
+            "status",
+            "policy_sha256",
+            "parser_kind",
+            "parser_version",
+            "parser_input_sha256",
+            "size_bytes",
+            "offset_unit",
+            "records",
+            "record_count",
+            "omitted_statements",
+            "omitted_name_nodes",
+            "uninspected_module_bodies",
+            "reasons",
+            "runtime_execution"
+          ],
+          "properties": {
+            "version": {
+              "const": "v1-top-level-declaration-headers"
+            },
+            "coverage": {
+              "const": "finite_top_level_headers_only"
+            },
+            "status": {
+              "enum": [
+                "observed",
+                "partial"
+              ]
+            },
+            "policy_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "parser_kind": {
+              "const": "typescript_compiler_api"
+            },
+            "parser_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "parser_input_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "offset_unit": {
+              "const": "utf8_bytes"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "omitted_statements": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "omitted_name_nodes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "uninspected_module_bodies": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reasons": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "runtime_execution": {
+              "const": "not_established"
+            },
+            "records": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "syntax_kind",
+                  "names",
+                  "module_specifier",
+                  "export_modifier",
+                  "declare_modifier",
+                  "default_modifier",
+                  "global_augmentation",
+                  "start_byte",
+                  "end_byte"
+                ],
+                "properties": {
+                  "syntax_kind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "module_specifier": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "export_modifier": {
+                    "type": "boolean"
+                  },
+                  "declare_modifier": {
+                    "type": "boolean"
+                  },
+                  "default_modifier": {
+                    "type": "boolean"
+                  },
+                  "global_augmentation": {
+                    "type": "boolean"
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end_byte": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "manifest_declaration_links": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "scope",
+        "status",
+        "policy_sha256",
+        "manifest_policy_sha256",
+        "declaration_policy_sha256",
+        "capture_sha256",
+        "project_root",
+        "records",
+        "shown_count",
+        "omitted_count",
+        "reasons",
+        "runtime_execution"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-literal-manifest-declaration-links"
+        },
+        "scope": {
+          "const": "top_level_types_typings_literal_path_correspondence"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "manifest_policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "declaration_policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "capture_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "project_root": {
+          "type": "string"
+        },
+        "shown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_manifest",
+              "source_manifest_sha256",
+              "field_path",
+              "sibling_order",
+              "condition_path",
+              "subpath",
+              "version_selector",
+              "target_literal",
+              "resolution_status",
+              "candidate_declaration_ref",
+              "captured_declaration_sha256",
+              "link_status",
+              "reason"
+            ],
+            "properties": {
+              "source_manifest": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "field_path": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                }
+              },
+              "sibling_order": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "condition_path": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "subpath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version_selector": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "target_literal": {
+                "type": "string"
+              },
+              "candidate_declaration_ref": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "captured_declaration_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "link_status": {
+                "enum": [
+                  "observed",
+                  "unresolved"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "resolution_status": {
+                "const": "not_evaluated"
+              }
+            }
+          }
+        }
+      }
+    },
+    "package_type_entry_evidence": {
+      "type": "object",
+      "required": [
+        "version",
+        "status",
+        "source_manifest",
+        "source_hash",
+        "hash_basis",
+        "policy_sha256",
+        "scope",
+        "records",
+        "shown_count",
+        "omitted_count",
+        "reasons",
+        "runtime_execution"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "source_manifest": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hash_basis": {
+          "const": "sha256_raw_bytes"
+        },
+        "policy_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scope": {
+          "const": "literal_type_fields_and_explicit_type_conditions"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "shown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "field_path",
+              "sibling_order",
+              "condition_path",
+              "subpath",
+              "version_selector",
+              "target_literal",
+              "resolution_status"
+            ],
+            "properties": {
+              "field_path": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                }
+              },
+              "sibling_order": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "condition_path": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "subpath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version_selector": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "target_literal": {
+                "type": "string"
+              },
+              "resolution_status": {
+                "const": "not_evaluated"
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "observed",
+                  "partial"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_hash": {
+                "type": "string"
+              },
+              "policy_sha256": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
     "loc_measurement_evidence": {
       "type": "object",
       "required": [
@@ -10692,6 +11434,9 @@
             "type": {
               "type": "string"
             },
+            "manifest_type_entry_links": {
+              "$ref": "#/$defs/manifest_source_links"
+            },
             "structured_output_evidence": {
               "type": "object",
               "required": [
@@ -11446,6 +12191,9 @@
           }
         }
       },
+      "declaration_contract_evidence": {
+        "$ref": "#/$defs/declaration_contract_evidence"
+      },
       "public_contracts": {
         "type": "object",
         "properties": {
@@ -11480,6 +12228,9 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "type_entry_evidence": {
+                  "$ref": "#/$defs/package_type_entry_evidence"
                 },
                 "entry_patterns": {
                   "type": "array",

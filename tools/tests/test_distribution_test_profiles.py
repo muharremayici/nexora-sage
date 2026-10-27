@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -78,6 +79,76 @@ def test_private_recovery_guards_are_not_shipped_but_remain_canonical() -> None:
     assert classified[private_path] == "private_maintainer"
     partitions, _, _ = distribution_tests.resolve_test_partitions("canonical_all")
     assert sum(private_path in paths for paths in partitions.values()) == 1
+
+
+def _assert_oracle_lineage_authority():
+    public_path = "tools/tests/test_repository_observation_oracle_lineage.py"
+    private_path = "tools/tests/test_distribution_source_contract_consumer.py"
+    public, _ = distribution_tests.resolve_tests("public_target_repository")
+    assert public_path in public and private_path not in public
+    source = ast.parse((distribution_tests.ROOT / public_path).read_text(encoding="utf-8"))
+    # Public integration must not invoke whole private source validation, even
+    # indirectly through importing its regression module.
+    private_modules = {"tools.validate_data_lineage_contract",
+                       "tools.tests.test_distribution_source_contract_consumer"}
+    for node in ast.walk(source):
+        if isinstance(node, ast.ImportFrom):
+            imports = [node.module] + [f"{node.module}.{alias.name}" for alias in node.names]
+        elif isinstance(node, ast.Import):
+            imports = [alias.name for alias in node.names]
+        else:
+            continue
+        assert not private_modules.intersection(imports)
+    assert not any(isinstance(node, ast.Attribute) and node.attr == "build_validation"
+                   for node in ast.walk(source))
+    tests = {node.name for node in source.body if isinstance(node, ast.FunctionDef)
+             and node.name.startswith("test_")}
+    assert tests == {
+        "test_actual_oracle_consumes_committed_normal_observation",
+        "test_actual_oracle_keeps_absent_source_distinct_from_zero_bytes",
+        "test_actual_oracle_withholds_unbound_scope",
+        "test_actual_oracle_does_not_promote_a_bounded_projection",
+    }
+    if distribution_tests.PUBLIC_MANIFEST.is_file():
+        assert not (distribution_tests.ROOT / private_path).exists()
+        return
+    canonical, _ = distribution_tests.resolve_tests("canonical_all")
+    assert private_path in canonical
+    assert distribution_tests.validate_canonical_distribution_test_inventory()[private_path] == "private_maintainer"
+    from tools.tests import test_distribution_source_contract_consumer as private
+    for name in (
+        "test_system_kind_lineage_names_actual_delegate_and_producer_calls",
+        "test_system_kind_lineage_and_sibling_fields_match_live_sources",
+        "test_system_kind_lineage_refuses_a_missing_producer_delegate_or_consumer",
+        "test_system_kind_lineage_rejects_the_historical_preflight_classifier_location",
+    ):
+        assert callable(getattr(private, name))
+
+
+def test_oracle_lineage_authority_preserves_private_source_controls():
+    _assert_oracle_lineage_authority()
+
+
+@pytest.mark.parametrize("injected", [
+    "from tools import validate_data_lineage_contract as other_name\n",
+    "import tools.validate_data_lineage_contract as other_name\n",
+    "from tools.tests import test_distribution_source_contract_consumer\n",
+    "from tools.validate_data_lineage_contract import build_validation\n",
+    "from tools.tests.test_distribution_source_contract_consumer import test_system_kind_lineage_and_sibling_fields_match_live_sources\n",
+    "def test_accidental_private_source_guard():\n    other_name.build_validation()\n",
+])
+def test_oracle_lineage_authority_rejects_private_source_regression(monkeypatch, injected):
+    read_text = Path.read_text
+
+    def changed(path, *args, **kwargs):
+        text = read_text(path, *args, **kwargs)
+        if path == distribution_tests.ROOT / "tools/tests/test_repository_observation_oracle_lineage.py":
+            return text + "\n" + injected
+        return text
+
+    monkeypatch.setattr(Path, "read_text", changed)
+    with pytest.raises(AssertionError):
+        _assert_oracle_lineage_authority()
 
 
 def _assert_primary_followup_public_variant_authority():

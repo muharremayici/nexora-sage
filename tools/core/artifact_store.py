@@ -675,6 +675,22 @@ class ArtifactStore:
                     max_value_bytes=self.atlas_staging_file_aggregate_limit_bytes)
             return value if isinstance(value, dict) else None
 
+    def load_sqlite_atlas_declaration_metadata(self, project: str) -> tuple[Any, str] | None:
+        """Select one project plane and its same-read identity, never a shadow.
+
+        Only selected metadata is materialized; integrity verification still
+        scans/spools primary bytes. Missing metadata is not an empty contract.
+        """
+        with self._verified_atlas_stream() as verified:
+            if verified is None:
+                return None
+            stream, identity = verified
+            with io.TextIOWrapper(stream, encoding="utf-8", newline="") as text_stream:
+                value = select_json_object_path(text_stream, (project, "declaration_contract_evidence"),
+                    chunk_size=max(1, self.state_payload_part_size_bytes // 4),
+                    max_value_bytes=self.atlas_staging_file_aggregate_limit_bytes)
+            return value, identity
+
     def load_raw(self, name: str, default: Any = None) -> Any:
         # Trigger path resolution/validation first to prevent path traversal bypass!
         json_path = self.raw_path(name)

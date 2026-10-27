@@ -40,9 +40,8 @@ from tools.core.language_registry import (
 from tools.core.installation_identity import runtime_installation_excluded_roots
 from tools.core.target_inventory import (
     TARGET_OBSERVATION_IDENTITY_ALGORITHM,
-    repository_and_selected_project_inventory,
 )
-from tools.core.repository_topology import classify_project_system_kinds
+from tools.core.repository_observation import observe_repository_projects
 from tools.core.analysis_scope_authority import (
     INCOMPLETE_EVIDENCE,
     build_preflight_scope_authority,
@@ -506,7 +505,7 @@ def build_preflight(
     target_dependencies = _target_dependency_names(target)
     target_bundler = _infer_target_bundler(target, target_dependencies)
     target_architecture = _infer_target_architecture(target, target_dependencies, target_bundler)
-    scope_projection = external_target_scope_projection(target, target_architecture)
+    scope_projection = external_target_scope_projection(target, path_boundary_state=path_boundary_state)
     repository_topology = external_target_repository_topology(
         target,
         scope_projection,
@@ -638,22 +637,25 @@ def build_preflight(
     )
     target_observation: dict[str, Any] = {}
     inventory_classification: dict[str, Any] = {}
-    repository_inventory, selected_inventory = repository_and_selected_project_inventory(
+    project_observation = observe_repository_projects(
         target,
         repository_topology,
         policy,
+        polyglot_capabilities,
+        DOCTRINE.get("discovery_project_system_kind_policy", {}),
         config_patterns,
         manifest_patterns,
-        package_react_ownership,
+        package_react_ownership=package_react_ownership,
+        package_payload=package_payload,
         excluded_roots=embedded_sage_roots,
         projects=effective_runtime_projects,
-        observation_state=target_observation,
-        classification_projection=inventory_classification,
         path_boundary_state=path_boundary_state,
-    ) if target.exists() and target.is_dir() else (
-        (0, False, {}, {}, 0, 0, [], {}),
-        (0, False, {}, {}, 0, 0, [], {}, {}, {}),
     )
+    project_facts = project_observation.payload()
+    repository_inventory, selected_inventory = project_facts["repository_inventory"], project_facts["selected_inventory"]
+    target_observation = project_facts["target_observation"]
+    inventory_classification = project_facts["inventory_classification"]
+    repository_topology["project_observation"] = project_facts
     if not inventory_classification:
         classification_policy = policy.get("inventory_classification", {})
         unavailable_projection = {
@@ -721,24 +723,8 @@ def build_preflight(
         analysis_project_file_counts,
         analysis_project_inventory_evidence,
     ) = selected_inventory
-    project_manifest_payloads: dict[str, dict[str, Any]] = {}
-    for project_key, relative_path in effective_runtime_projects.items():
-        project_root = target if str(relative_path) == "." else target / str(relative_path)
-        payload = package_payload(project_root / "package.json")
-        project_manifest_payloads[str(project_key)] = payload if isinstance(payload, dict) else {}
-    system_kind_policy = (
-        DOCTRINE.get("discovery_project_system_kind_policy", {})
-        if isinstance(DOCTRINE, dict)
-        else {}
-    )
-    repository_topology["project_candidate_system_kinds"] = classify_project_system_kinds(
-        analysis_project_inventory_evidence,
-        project_manifest_payloads,
-        system_kind_policy,
-    )
-    repository_topology["system_kind_contract"] = str(
-        system_kind_policy.get("contract") or "technical_system_kind_unresolved_v1"
-    )
+    repository_topology["project_candidate_system_kinds"] = project_facts["project_system_kinds"]
+    repository_topology["system_kind_contract"] = project_facts["system_kind_contract"]
     has_react_signal = bool(all_package_names & react_packages) or react_source_files > 0
     scope_authority = build_preflight_scope_authority(
         topology=repository_topology,
@@ -945,6 +931,7 @@ def build_preflight(
                 "project_file_counts": analysis_project_file_counts,
                 "truncated": analysis_truncated,
                 "scope_authority": scope_authority,
+                "project_observation": project_facts,
             },
             "repository_language_counts": repository_language_counts,
             "repository_analysis_language_counts": repository_analysis_language_counts,

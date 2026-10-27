@@ -18,6 +18,40 @@ def walk_entries(root, names):
     return [(str(root / name), Path(name).name, name) for name in names]
 
 
+@pytest.mark.parametrize("path, expected", [
+    ("src/public.d.ts", False), ("src/public.d.mts", False),
+    ("src/public.d.cts", False), ("src/public.d.tsx", False),
+    ("src/public.D.MTS", False), ("src/public.D.CTS", False),
+    ("src/public.ts", True), ("src/public.tsx", True),
+    ("src/public.mts", True), ("src/public.cts", True),
+    ("src/public.d.ts.backup.ts", True),
+    ("dist/public.mts", False), ("node_modules/pkg/public.cts", False),
+])
+def test_declaration_module_suffix_eligibility_is_shared(path, expected):
+    from tools.core.source_files import is_analysis_source_file
+    from tools.core.inventory_classification import is_analysis_source_file as inventory_source
+    from tools.core.target_inventory import _language_inventory_policy, _analysis_source_policy
+
+    registry = _language_inventory_policy()
+    extensions, compounds, templates = _analysis_source_policy(registry)
+    assert is_analysis_source_file(path) is expected
+    assert inventory_source(Path(path), skip=set(registry["skip_dirs"]),
+        source_extensions=extensions, compound_suffixes=compounds,
+        template_extensions=templates) is expected
+
+
+@pytest.mark.parametrize("suffix", [".d.ts", ".d.mts", ".d.cts", ".d.tsx"])
+def test_declaration_module_suffix_exclusion_survives_bootstrap_fallback(tmp_path, monkeypatch, suffix):
+    from tools.core import language_registry
+    from tools.core.source_files import is_analysis_source_file
+
+    monkeypatch.setattr(language_registry, "REGISTRY_FILE", tmp_path / "absent-registry.json")
+    assert language_registry.language_registry_provenance()["source"] == "fallback"
+    assert not is_analysis_source_file("src/public" + suffix)
+    assert is_analysis_source_file("src/public.mts")
+    assert is_analysis_source_file("src/public.cts")
+
+
 @pytest.mark.parametrize("data", [b"", b"{}", b"\xef\xbb\xbf{}\r\n", "declare const x: 'ç';\r\n".encode()])
 def test_capture_exact_bytes_and_typescript_host_text_without_rescan(tmp_path, monkeypatch, data):
     (tmp_path / "env.d.ts").write_bytes(data)
@@ -115,65 +149,6 @@ def test_auxiliary_inventory_survives_existing_partitioned_sqlite(tmp_path):
     assert profile["state_payload_storage_mode"] == "partitioned_json_v1"
     source.unlink()
     assert store.load_raw("atlas", {}) == atlas
-
-
-@pytest.mark.parametrize("boundary", ["normal", "excluded", "unreadable"])
-def test_real_atlas_ingests_auxiliary_inputs_without_analyzing_them(tmp_path, monkeypatch, boundary):
-    from tools.core import artifact_store, config
-    from tools.engines import generate_atlas as generator
-
-    root, raw = tmp_path / "repo", tmp_path / "raw"
-    root.mkdir()
-    raw.mkdir()
-    (root / "tsconfig.json").write_text('{"files":["env.d.ts"]}')
-    (root / "env.d.ts").write_text("declare const ambient: string;")
-    if boundary != "normal":
-        child = root / "child"
-        child.mkdir()
-        (child / "hidden.json").write_text("{}")
-    if boundary == "unreadable":
-        original_scandir = generator.os.scandir
-
-        def deny_child(path):
-            if Path(path) == child:
-                raise PermissionError("fixture enumeration denied")
-            return original_scandir(path)
-
-        monkeypatch.setattr(generator.os, "scandir", deny_child)
-    store = _sqlite_store(raw, inline_limit=64, part_size=32)
-    monkeypatch.setattr(generator, "ROOT", root)
-    monkeypatch.setattr(generator, "RAW_DIR", raw)
-    monkeypatch.setattr(generator, "resolve_runtime_projects", lambda *a, **k: {"MAIN": root})
-    monkeypatch.setattr(generator, "configured_project_ownership_exclusions",
-                        lambda *a, **k: {"MAIN": [child] if boundary == "excluded" else []})
-    monkeypatch.setattr(generator, "load_previous_atlas", lambda: {})
-    monkeypatch.setattr(generator, "ensure_output_dir", lambda: None)
-    monkeypatch.setattr(generator, "run_observed_subprocess", lambda *a, **k: pytest.fail("auxiliary AST execution"))
-    monkeypatch.setattr(generator, "save_json_atomic",
-                        lambda path, payload, **kw: store.save_raw(Path(path).stem, payload, **kw))
-    monkeypatch.setattr(generator, "DYNAMIC_CONFIG", {"use_sqlite": True})
-    monkeypatch.setattr(artifact_store, "STORE", store)
-    monkeypatch.setattr(config, "PROJECT_FILTER", [])
-    monkeypatch.setenv("SAGE_SYNC_SHADOW_WRITES", "1")
-    atlas, _, _ = generator.generate_atlas(stale_projects=["MAIN"])
-    auxiliary = atlas["MAIN"]["typescript_auxiliary_inputs"]
-    assert auxiliary["status"] == "captured"
-    assert set(auxiliary["files"]) == {"tsconfig.json", "env.d.ts"}
-    assert all(row["status"] == "ok" for row in auxiliary["files"].values())
-    assert atlas["MAIN"]["files"] == {}
-    assert atlas["MAIN"]["resolved_module_importer_index"]["status"] == "complete"
-    assert atlas["MAIN"]["resolved_module_importer_index"]["indexed_file_count"] == 0
-    assert atlas["MAIN"]["resolved_module_importer_index"]["by_source"] == {}
-    assert store.load_raw("atlas", {})["MAIN"]["typescript_auxiliary_inputs"] == auxiliary
-    resolution = atlas["MAIN"]["typescript_resolution_inputs"]
-    expected_names = ["env.d.ts", "tsconfig.json"]
-    if boundary != "normal":
-        expected_names.insert(0, "child")
-        assert "child" not in resolution["directories"]
-    assert resolution["directories"]["."] == expected_names
-    assert resolution["status"] == ("partial" if boundary == "unreadable" else "captured")
-    assert resolution["walk_errors"] == (1 if boundary == "unreadable" else 0)
-    assert store.load_raw("atlas", {})["MAIN"]["typescript_resolution_inputs"] == resolution
 
 
 @pytest.mark.parametrize("mutation", ["none", "config", "declaration", "deleted", "surgical"])

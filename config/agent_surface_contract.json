@@ -4,6 +4,27 @@
     "version": "v1",
     "description": "Machine-readable MCP and AI-agent surface contract. This owns required target-agent tools, allowed MCP tool roles, and AI-agent readiness operating sequences."
   },
+  "patch_input": {
+    "version": 1,
+    "mode": "workspace_file",
+    "required_fields": [
+      "version",
+      "mode",
+      "path",
+      "byte_count",
+      "sha256",
+      "source_sha256",
+      "analysis_snapshot_id"
+    ],
+    "maximum_patch_bytes": 2000000,
+    "maximum_source_bytes": 2000000,
+    "maximum_snapshot_id_characters": 256,
+    "encoding": "utf-8",
+    "digest": "sha256",
+    "scope": "single_existing_target_unambiguous_unified_diff",
+    "path_boundary": "selected_target_root_relative_regular_unlinked_file",
+    "claim_boundary": "Input receipt proves admitted bytes only. Logical governance, exact applicability, target-native evidence and mutation authority remain separate. No hostile-filesystem sandbox, remote upload, byte-exact resulting-file or apply-time continuity is promised."
+  },
   "audit_import_subject_evidence": {
     "kind": "nexora.audit_import_subject",
     "version": "v1",
@@ -170,6 +191,10 @@
     }
   },
   "patch_validation_next_actions": {
+    "repair_patch_input_before_validation": {
+      "instruction": "Repair only the explicit patch input envelope, file bytes or supported single-target format before validation. Read the admission reason; no governance or applicability verdict was produced.",
+      "agent_rule": "Do not treat a pre-validation input refusal as a target defect or apply authority; do not retry a large payload through shell argv."
+    },
     "provide_valid_patch_before_validation": {
       "instruction": "Stop patch validation and provide a parseable bounded unified diff or explicit replacement content before asking SAGE to validate again.",
       "agent_rule": "Do not edit files from this result; the proposed patch is not valid input."
@@ -235,6 +260,13 @@
     "agent_rule": "Default work-queue briefs must show a small patch-sized queue, preserve total counts, and require follow-up pagination or filters for omitted items. Audit rule and severity filters and Module Integrity path filters treat user text literally; percent and underscore are not pattern operators."
   },
   "symbol_search_policy": {
+    "declaration_search": {
+      "version": "v1-stored-declaration-search",
+      "default_plane": "indexed",
+      "plane": "declaration",
+      "scope": "one_exact_project_retained_named_headers",
+      "rule": "Explicit opt-in only: reuse verified selected-primary retained declaration headers, current file/plane guards and existing search/compact budgets. One exact project, literal recorded name/path matching and same-read stored identity; no normal/derived search union, live source, native/type/runtime/edit authority or absence claim. Named header occurrences, producer omissions, candidate cap and display omissions remain separate. Primary verification still reads/spools bytes; bounded selected memory is not a measured low-I/O/latency claim."
+    },
     "max_candidate_rows_per_source": 500,
     "ambiguity_preview_items": 12,
     "brief_max_visible_items": 10,

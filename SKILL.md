@@ -164,6 +164,42 @@ SAGE-self-only context must not be routed through a target-profile bypass.
   `identity_unavailable` is not grounded evidence. Refresh the affected Atlas
   scope before relying on snippets or proposing a mutation; matching file size
   or timestamps cannot repair missing content identity.
+- For `.d.ts`, `.d.mts` and `.d.cts`, `inspect_file` accepts an exact
+  `PROJECT::project_relative_declaration_path` and returns a separate
+  `declaration_contract` view. Its `declaration_ref` is a query reference, not
+  an ordinary repo-relative `target_ref` or editor path. Only stored finite
+  top-level headers are shown, with UTF-8 byte spans, parser/policy provenance,
+  independent project/file status and producer/display omissions. A selected
+  empty file is not complete project/type coverage. The bounded reader uses the
+  selected SQLite or JSON primary; JSON identity hashes that same raw read
+  through EOF, including BOM/newline bytes. This bounds retained metadata, not
+  total I/O or file immutability. Legacy, stale policy, corrupt or missing
+  evidence stays unavailable, without backend/shadow fallback. Neither the
+  stored Atlas identity nor captured parser-input hash checks live source or
+  grants source snippets, edit readiness, resolved exports/types or runtime
+  proof. Line-range requests are unsupported for this metadata-only view;
+  ordinary implementation inspection and patch validation remain separate.
+- The optional `manifest_type_links` section in declaration inspection records
+  same-project stored top-level `types`/`typings` literal path correspondence.
+  It preserves the manifest field/order and raw manifest/declaration identities;
+  it does not select the effective package entry or resolve conditions/types.
+  Legacy/malformed/stale link evidence stays independently unavailable while
+  valid headers remain usable. Link producer/display omissions are separate
+  from header omissions; an absent or empty bounded section proves no global
+  absence. Conditional exports, version selectors and unsupported targets remain
+  unresolved. Neither a link nor its stored identity grants live-source,
+  editor-path, runtime, semantic type-safety or mutation authority.
+- Ordinary TypeScript `inspect_file` may also show `manifest_type_entry_links`:
+  stored top-level `types`/`typings` literals point to that exact already-indexed
+  source file, without reclassifying it as a declaration. Raw manifest identity
+  and the source's tagged Atlas text identity are different facts. This uses
+  the same selected file metadata read, not native condition/type resolution
+  or live manifest validation. Missing/old/malformed evidence and surgical or
+  partial auxiliary scope stay unavailable; retained positive links may coexist
+  with partial manifest coverage. Producer and display omissions are separate; an empty or
+  omitted section proves no absence. This late section shares remaining syntax
+  records/tokens and the existing whole-packet budget, without evicting older
+  source grounding or changing snapshot/edit/runtime authority.
 - `get_test_impact` returns repo-relative test files and commands. Run listed
   tests from the target repository only when the command is clearly a
   target-repository package script; SAGE validation commands run from the SAGE
@@ -338,7 +374,7 @@ call unchanged or infer that its underlying capability is absent.
 | `validate_actor_proposal(proposal, target_root?, request_id?, request_actor_id?, request_purpose?, repository_snapshot?, declared_scope?)` | Validate a proposal's request identity, actor identity, snapshot reference and category-specific affected scope. Use it through `dispatch_actor_request(operation="propose")`; canonical request fields are injected by the gateway. `PROPOSAL_CONFORMANT` is not authorization, technical validation or acceptance.                                                                                                                                                                                                                                                           |
 | `dispatch_actor_request(request, tool_name, tool_arguments?)`                                                                              | Dispatch a canonical purpose/operation/scope request only to an eligible tool visible in the active MCP profile. The bounded scope supports `get_violation_work_queue` for `inspect`, the snapshot-bound `get_surgical_operation_packet` for `advise`, `validate_actor_proposal` for non-authorizing `propose`, and `validate_patch` for `validate`; it returns canonical terminal `status`, separate `completed_states`, the exact raw `tool_result`, and `INCOMPLETE_EVIDENCE` for unknown or failed dispatch. Legacy direct tool calls remain partial Actor Contract paths. |
 | `external_target_preflight(target_root)`                                                                                                   | Validate an external target folder.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `search_symbols(query, project?, target_root?, format?)`                                                                                   | Find symbol/file candidates across the active atlas. Defaults to `project="MAIN"` for target-repository coding; use `project="all"` or a concrete project key only for merge, variation, or cross-project review. `target_root` reads isolated external-target output and default `format=brief` returns a Markdown/YAML search brief.                                                                                                                                                                                                                                         |
+| `search_symbols(query, project?, target_root?, format?, evidence_plane?)` | Default `evidence_plane="indexed"` preserves normal symbol/file/derived search, MAIN scope and machine-list compatibility. Explicit `evidence_plane="declaration"` searches retained named declaration headers for one exact project only, returning a bounded metadata envelope even when unavailable/empty. No live source, resolved types, runtime or edit authority. Follow exact declaration refs with `inspect_file`, not `inspect_symbol`. Selected-primary verification still reads primary bytes; it is not a measured cheap-I/O mode. |
 | `check_module_integrity(module_path, target_root?, format?, max_items?)`                                                                   | Filter audit violations for a module or path. `target_root` reads isolated external-target audit evidence and default `format=brief` returns Markdown/YAML.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `get_surgical_context(symbol, project?, target_root?, format?)`                                                                            | Build a concise symbol briefing from atlas data. `target_root` reads isolated external-target output and default `format=brief` returns Markdown/YAML.                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `get_dead_code(path?, target_root?, format?, max_items?)`                                                                                  | Read dead-code findings, including public-contract protections. `target_root` reads isolated external-target output; default `format=brief` returns a bounded Markdown/YAML context brief and fails closed when the target artifact is missing. A grounded empty filter result is explicit `no_actionable_items`/`no_action`, keeps candidate evidence fields non-applicable, and never claims that the repository is clean.                                                                                                                                                                           |
@@ -350,7 +386,7 @@ call unchanged or infer that its underlying capability is absent.
 | `get_hexagonal_bindings(target_root?, format?, max_items?)`                                                                                | Inspect port-adapter bindings. `target_root` reads isolated external-target output and default `format=brief` returns Markdown/YAML.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `get_merge_review_queue(action?, max_items?, target_root?, format?)`                                                                       | Review human-approval-gated merge/import candidates as a bounded Markdown/YAML queue. It is advisory only and must not be used to apply file copies or imports automatically.                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `get_ui_architecture(component?, max_items?, full?, target_root?, format?)`                                                                | Inspect UI architecture and component surface evidence. `target_root` reads isolated external-target output; default `format=brief` returns a bounded Markdown/YAML context brief. Use `full=true` or `format=json` only for machine inspection.                                                                                                                                                                                                                                                                                                                               |
-| `validate_patch(target_file, patch_content, target_root?, format?, actor_id?)`                                                             | Validate a proposed patch in memory before writing it to disk. `target_root` validates path safety and current content against the selected target repository root; when `actor_id` is supplied, it must own a current matching target-write lease; default `format=brief` returns Markdown/YAML.                                                                                                                                                                                                                                                                              |
+| `validate_patch(target_file, patch_content, target_root?, format?, actor_id?, patch_input?)`                                                             | Validate a proposed patch in memory before writing it to disk. `target_root` validates path safety and current content against the selected target repository root; when `actor_id` is supplied, it must own a current matching target-write lease; default `format=brief` returns Markdown/YAML.                                                                                                                                                                                                                                                                              |
 | `manage_target_write_lease(action, target_file, actor_id, target_root?, ttl_seconds?, format?)`                                            | Follow-up-only acquire/release protocol for cooperating agents before and after an external patch attempt. It is SQLite-backed coordination within one SAGE target-analysis deployment, not a cross-deployment filesystem lock.                                                                                                                                                                                                                                                                                                                                                |
 | `get_impact_radius(target_node, target_root?, format?, depth?)`                                                                            | Read impact radius evidence for a target node. `target_root` reads isolated external-target output and default `format=brief`, `depth=2` returns a bounded Markdown/YAML directive with shown/omitted dependent counts. Use `depth=3` only when direct evidence cannot explain a failure or the human asks for broader impact. `depth=0` is target-reachability debug, not a whole-repository graph export: SQLite counts at most 128 hops and returns at most 200 transitive rows (the direct list is separate); Atlas fallback reaches only its loaded graph. Missing dependency graph evidence fails closed. |
 | `get_test_impact(target_file, target_root?, format?)`                                                                                      | Identify tests likely affected by a changed file. `target_root` reads isolated external-target output and default `format=brief` returns Markdown/YAML.                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -410,6 +446,42 @@ targetless forms. A central installation keeps `--target-root` on every
 repository-specific command.
 
 ## Usage Guidance
+
+### Large patch input
+
+`validate_patch` also accepts optional `patch_input` with empty `patch_content`.
+This local file mode avoids putting large Unicode payloads in shell argv; it
+does not add another validator or grant apply authority. Send the small envelope
+through the existing structured MCP client:
+
+```json
+{"version":1,"mode":"workspace_file","path":"change.diff","byte_count":123,"sha256":"<raw patch SHA-256>","source_sha256":"<current target raw SHA-256>","analysis_snapshot_id":"<current Atlas snapshot>"}
+```
+
+Replace every placeholder and compute the integer byte count from original
+binary bytes, not rendered terminal text. Use binary file APIs when preparing or
+copying the patch (Python `read_bytes`/`write_bytes`, PowerShell
+`[IO.File]::ReadAllBytes`/`WriteAllBytes`); text redirection/default encodings and
+base64-in-argv do not establish byte fidelity. The caller owns its payload file
+and cleanup. The explicit path is relative to the selected target root and must
+be visible on the server's local filesystem, regular, unlinked and contained.
+No arbitrary outside-root reads, remote upload or payload execution is provided.
+
+File-v1 admits at most 2,000,000 bytes each for patch and source, strict UTF-8,
+and one existing indexed target with unambiguous `--- a/<target>` and
+`+++ b/<target>` unified-diff headers. Quoted/ambiguous paths, binary, rename,
+multi-file, creation/deletion, mode-only and replacement payloads are unsupported
+in this mode. Existing inline behavior is unchanged. Preserve CRLF/LF and Unicode
+normalization; do not strip a patch BOM or repair a malformed input silently.
+
+`patch_input_receipt` separates byte admission and sampled source/snapshot
+continuity from logical governance, exact non-mutating Git applicability and
+target-native validation. An input refusal is not a target defect. The logical
+parser is not byte-exact resulting-file proof; a matching digest is not proof of
+human intent, a hostile-filesystem sandbox or apply-time continuity. Keep existing
+actor/profile, lease, seal and target-native obligations; `safe_to_apply` is not
+enabled by transport success. A failure before the server receives the request
+has no server receipt. Do not claim otherwise or retry the large text via argv.
 
 - **ONLY use the unified public CLI**. Use `python sage.py ...`; do not call internal implementation files directly:
   - `python sage.py init --target-root <repository>` (Prepares explicit target truth)

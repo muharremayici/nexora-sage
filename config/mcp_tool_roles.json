@@ -343,7 +343,7 @@
     "search_symbols": {
       "role": "primary_agent",
       "audience": "target_repo_agent",
-      "default_use": "find symbol/file candidates under the selected explicit target scope; SAGE maintainers reuse it only through the sage_self profile",
+      "default_use": "find indexed symbol/file candidates by default; explicit evidence_plane=declaration searches one project's stored named headers only. That opt-in read verifies primary bytes, not a measured cheap-I/O operation or edit/type/runtime proof. SAGE maintainers reuse it only through the sage_self profile",
       "mutates": false,
       "heavy": false
     },

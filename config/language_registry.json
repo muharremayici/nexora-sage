@@ -25,6 +25,29 @@
       "zustand"
     ]
   },
+  "repository_main_root_policy": {
+    "contract": "acquisition_neutral_main_root_v1",
+    "source_directories": [
+      "src"
+    ],
+    "workspace_root_files": [
+      "turbo.json",
+      "nx.json",
+      "lerna.json"
+    ],
+    "router_dependency_sections": [
+      "dependencies",
+      "devDependencies"
+    ],
+    "router_dependency_names": [
+      "next"
+    ],
+    "router_config_marker_group": "nextjs",
+    "router_directories": [
+      "app",
+      "src/app"
+    ]
+  },
   "languages": {
     "typescript": {
       "extensions": [
@@ -128,6 +151,8 @@
   ],
   "non_source_compound_suffixes": [
     ".d.ts",
+    ".d.mts",
+    ".d.cts",
     ".d.tsx"
   ],
   "watch_extra_extensions": [

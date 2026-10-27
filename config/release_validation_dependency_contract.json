@@ -12,6 +12,64 @@
     "source_classification": "config/source_layer_classification_policy.json",
     "test_inventory": "config/distribution_test_profiles.json"
   },
+  "diagnostic_test_unit_pilots": {
+    "jsonc_parser": {
+      "authority": "diagnostic_only_no_release_reuse",
+      "canonical_profile_reuse_enabled": false,
+      "test_path": "tools/tests/test_jsonc_parser.py",
+      "review_digest_algorithm": "sha256_utf8_lf_v1",
+      "expected_tests": [
+        "test_jsonc_parser_preserves_alias_globs_and_comment_like_strings",
+        "test_jsonc_parser_supports_block_comments_without_hiding_strings",
+        "test_jsonc_parser_rejects_unterminated_block_comment",
+        "test_jsonc_parser_accepts_one_utf8_bom"
+      ],
+      "reviewed_source_sha256": {
+        "tools/tests/test_jsonc_parser.py": "c71710c5ae7adb686333e2bf337dda34ae64bd2d90b0e9e56a6f649bd54c0dce",
+        "tools/core/jsonc.py": "b452e45c656f8992465ff98f0d50f9affb2df87e4f789213a105e6084c932168",
+        "tools/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tools/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tools/tests/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "pyproject.toml": "4b8ea653db52ff022fe667fca4b2e4e2ae424aa3807feed3ec31a579bc1df0b0"
+      },
+      "required_absent_paths": [
+        "pytest.ini",
+        "setup.cfg",
+        "tox.ini",
+        "conftest.py",
+        "tools/conftest.py",
+        "tools/tests/conftest.py"
+      ],
+      "runtime_distributions": [
+        "pytest",
+        "pluggy",
+        "packaging",
+        "iniconfig",
+        "pygments",
+        "colorama"
+      ],
+      "timeout_seconds": 30
+    }
+  },
+  "diagnostic_unit_output_observation": {
+    "schema": "nexora_sage_diagnostic_unit_output_observation_v1",
+    "authority": "diagnostic_only_no_test_or_release_admission",
+    "protocol": "isolated_no_site_exact_env_closed_stdin_xunit2_v2",
+    "digest_algorithm": "sha256_json_utf8_canonical_v1",
+    "units": [
+      "jsonc_parser"
+    ],
+    "limits": {
+      "junit_bytes": 1048576,
+      "xml_elements": 4096,
+      "xml_depth": 16
+    },
+    "rationale": "Conservative operational refusal bounds for the four-case diagnostic, not measured workload sufficiency or canonical evidence admission. Stream limits retain their separate shared subprocess-policy owner.",
+    "reuse": false,
+    "may_skip_tests": false,
+    "fresh_native_baseline": false,
+    "canonical_profile_reuse_enabled": false
+  },
   "defaults": {
     "undeclared_step": "global_source_fingerprint_execute",
     "unknown_source_layer": "global_source_fingerprint_execute",

@@ -1669,6 +1669,23 @@ def pipeline_process_exit_code(result) -> int:
     return 2 if result is False else 0
 
 
+def _runtime_project_observation(mode_policy, run_id):
+    """One explicit producer seam; narrow modes and admitted external runs do not walk."""
+    if isinstance(DYNAMIC_CONFIG.get("_target_root_override"), dict):
+        return None
+    if mode_policy.get("project_observation") != "refresh_static_facts":
+        return None
+    from tools.core.analysis_scope_authority import topology_projection
+    from tools.core.repository_topology import runtime_project_projection
+    from tools.core.repository_observation import observe_current_repository
+    topology = topology_projection(DYNAMIC_CONFIG)
+    return observe_current_repository(
+        ROOT, topology,
+        projects=runtime_project_projection(topology, get_runtime_project_filter())["effective_runtime_projects"],
+        run_id=run_id,
+    )
+
+
 @_release_pipeline_lock_on_exit
 def main(args=None, changed_files_override=None):
     global _PROJECT_FILTER, _PIPELINE_RUN_RECEIPT, _PIPELINE_TERMINAL_DETAILS, _PIPELINE_SHADOW_RUN_ID
@@ -1858,11 +1875,14 @@ def main(args=None, changed_files_override=None):
 
     atlas_completion = cache_manager.completed_atlas_identity() if isinstance(atlas_data, dict) else None
     scope_atlas = atlas_data if isinstance(atlas_data, dict) else load_atlas_data()
+    project_observation = _runtime_project_observation(run_mode_policy, _PIPELINE_SHADOW_RUN_ID)
     analysis_scope_authority = runtime_scope_authority(
         dynamic_config=DYNAMIC_CONFIG,
         projects=get_runtime_project_filter(),
         atlas=scope_atlas if isinstance(scope_atlas, dict) else {},
         raw_dir=RAW_DIR,
+        project_observation=project_observation,
+        observation_run_id=_PIPELINE_SHADOW_RUN_ID,
     )
     scope_authority_artifact = _scope_authority_artifact(
         analysis_scope_authority,

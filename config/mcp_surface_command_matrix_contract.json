@@ -174,7 +174,9 @@
       "main_scoped_by_default_or_explicit_all_scope"
     ],
     "search_symbols": [
-      "main_scoped_by_default_or_explicit_all_scope"
+      "main_scoped_by_default_or_explicit_all_scope",
+      "explicit_declaration_plane_single_project_stored_only",
+      "declaration_candidate_and_display_omissions_separate"
     ],
     "get_surgical_operation_packet": [
       "source_grounding_or_explicit_missing_status",

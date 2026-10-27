@@ -225,6 +225,19 @@ MCP servers:
 python sage.py mcp --print-config --profile target_repository_default
 ```
 
+Generate this configuration with the intended local Python interpreter (the
+same environment used to initialize SAGE). Its server `command` binds to that
+running interpreter's absolute path, preserving a virtual-environment entry
+point rather than searching the IDE's `PATH`. This is local connection data,
+not a portable configuration to commit or copy between machines. Regenerate it
+with the command above after moving the checkout/environment or changing Python.
+If the interpreter identity is unavailable, configuration generation fails with
+an explicit action instead of silently substituting another Python.
+
+Interpreter binding alone does not prove dependencies are available in every
+client environment or that an IDE connection succeeds. Keep the command and
+arguments as literal configuration values, not a shell command string.
+
 Start ordinary coding turns in `target_repository_default`. Reconnect with
 `target_repository_followup` only after a concrete supporting-context or HITL
 need exists. Both profiles govern `SAGE_ON_REPOSITORY`; the public distribution

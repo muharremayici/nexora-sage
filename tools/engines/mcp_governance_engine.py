@@ -489,7 +489,8 @@ def run_ast_sequencer(temp_path: Path, file_ext: str) -> List[Dict[str, Any]]:
             
     return []
 
-def validate_proposed_patch(target_file: str, patch_content: str, workspace_root: str | Path | None = None) -> Dict[str, Any]:
+def validate_proposed_patch(target_file: str, patch_content: str, workspace_root: str | Path | None = None,
+                            *, _existing_source: str | None = None) -> Dict[str, Any]:
     """
     Main entry point for codemaps.validate_patch tool.
     Applies the patch, runs AST sequencing, and checks constraints against the Architecture Doctrine.
@@ -533,7 +534,13 @@ def validate_proposed_patch(target_file: str, patch_content: str, workspace_root
     
     # 1. Read existing content if present
     existing_content = ""
-    if target_path.exists():
+    if _existing_source is not None:
+        # Internal captured input from byte-bound MCP admission, not a public
+        # caller-supplied source override. Legacy callers retain their reader.
+        if not isinstance(_existing_source, str):
+            raise ValueError("Invalid internal captured source")
+        existing_content = _existing_source
+    elif target_path.exists():
         try:
             with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
                 existing_content = f.read()

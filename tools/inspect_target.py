@@ -15,12 +15,14 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tools.core.audit_rules import build_rule_taxonomy
-from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, context_budget_profile
+from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, DEFAULT_AGENT_PACKET_BUDGET_TOKENS, context_budget_profile
 from tools.core.agent_snippet_renderer import render_target_source_snippets
 from tools.core.atlas_io import load_atlas_data
 from tools.core.config import DOCTRINE, RAW_DIR, REPORTS_DIR, ROOT as ANALYZED_REPOSITORY_ROOT, save_json_atomic, save_text_atomic
 from tools.core.honesty_telemetry import record_honesty_event
+from tools.core.declaration_contract_view import render_declaration_inspection
 from tools.core.json_io import load_json_file
+from tools.core.manifest_source_links import manifest_source_link_group_valid
 from tools.core.operational_limits import sqlite_read_timeout_seconds
 
 
@@ -297,6 +299,45 @@ def project_client_local_parser_evidence(file_info: Any, source_status: dict[str
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def project_manifest_source_links(payload: dict, file_info: Any, project: str, rel: str, *, syntax_sections: dict | None = None) -> None:
+    """Add optional stored-only orientation without another read or edit promotion."""
+    from copy import deepcopy
+
+    section = {"status": "unavailable", "reason": "manifest_source_links_missing_or_invalid",
+        "records": [], "shown": 0, "omitted": None, "source_binding": "stored_metadata_only",
+        "resolution_status": "not_evaluated", "semantic_type_safety": "not_established", "runtime_execution": "not_established"}
+    group = file_info.get("manifest_type_entry_links") if isinstance(file_info, dict) else None
+    valid = manifest_source_link_group_valid(group, file_info, project, rel)
+    if valid:
+        section.update(status=group["status"], reason="stored_literal_indexed_source_correspondence_only",
+            matching_stored_records=group["shown_count"], omitted=group["shown_count"], producer_omitted=group["producer_omitted"],
+            source_text_identity=deepcopy(group["source_text_identity"]), policy_sha256=group["policy_sha256"],
+            producer_reasons=list(group["reasons"]))
+    older = syntax_sections or {}
+    used_records = sum(len(value.get("records", [])) for value in older.values()
+        if isinstance(value, dict) and isinstance(value.get("records"), list))
+    candidate = {**payload, "manifest_type_entry_links": section}
+    def fits(value):
+        syntax = {**older, "manifest_type_entry_links": value["manifest_type_entry_links"]}
+        return (context_budget_profile(json.dumps(syntax, ensure_ascii=False), budget_tokens=COMPACT_AGENT_PACKET_TOKENS)["status"] == "pass"
+            and all(context_budget_profile(text, budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] == "pass"
+                for text in (json.dumps(value, ensure_ascii=False), render_agent_inspection_brief(value))))
+    if not fits(candidate):
+        return  # No room: absence grants no link authority; never evict old facts.
+    if valid:
+        for row in group["records"][:max(0, AGENT_INSPECTION_MAX_TARGET_SPANS - used_records)]:
+            next_section = deepcopy(section)
+            next_section["records"].append(deepcopy(row))
+            next_section["shown"] += 1
+            next_section["omitted"] -= 1
+            if not fits({**payload, "manifest_type_entry_links": next_section}):
+                break
+            section = next_section
+        if section["omitted"]:
+            section["reason"] = "compact_source_link_display_omission"
+    payload["manifest_type_entry_links"] = section
 
 
 def _with_context_budget(yaml_lines: list[str]) -> list[str]:
@@ -1207,6 +1248,8 @@ def _agent_findings(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def render_agent_inspection_brief(payload: dict[str, Any], *, debug: bool = False) -> str:
+    if payload.get("inspection_plane") == "declaration_contract":
+        return render_declaration_inspection(payload)
     target = payload.get("target", {}) if isinstance(payload.get("target"), dict) else {}
     summary = payload.get("summary", {}) if isinstance(payload.get("summary"), dict) else {}
     analysis_root = payload.get("analysis_root") or ""
@@ -1431,6 +1474,9 @@ def render_agent_inspection_brief(payload: dict[str, Any], *, debug: bool = Fals
     response_returns = payload.get("response_json_return_evidence")
     if isinstance(response_returns, dict):
         yaml_lines.append("response_json_return_evidence: " + json.dumps(response_returns, ensure_ascii=False))
+    source_links = payload.get("manifest_type_entry_links")
+    if isinstance(source_links, dict):
+        yaml_lines.append("manifest_type_entry_links: " + json.dumps(source_links, ensure_ascii=False))
     yaml_lines.extend(
         [
             "path_contract:",

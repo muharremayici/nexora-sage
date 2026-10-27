@@ -1604,6 +1604,15 @@ def validate_pipeline_execution_contract() -> dict[str, Any]:
                     "protocol_surfaces": protocol_surfaces,
                 }
             )
+        if "raw_observation" in subprocess_runtime_policy:
+            try:
+                from tools.core.subprocess_telemetry import load_raw_observation_policy
+
+                load_raw_observation_policy(policy)
+            except (OSError, ValueError, TypeError, UnicodeError) as exc:
+                invalid_subprocess_runtime_policy.append(
+                    {"reason": "raw_observation_policy_invalid", "error": str(exc)}
+                )
 
     if not isinstance(manual_validator_execution_policy, dict):
         invalid_manual_validator_execution_policy.append({"reason": "manual_validator_execution_policy_not_object"})

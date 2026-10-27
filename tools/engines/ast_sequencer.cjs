@@ -6340,7 +6340,100 @@ function collectModuleImportEvidence(sourceFile) {
     return records;
 }
 
+function analyzeDeclarationFile(targetFile) {
+    // Separate syntax plane: never feed declaration nodes to implementation
+    // collectors, symbol classification, LOC, dependency or runtime heuristics.
+    const policyBytes = fs.readFileSync(path.resolve(__dirname, '../../config/analysis_snapshot_lineage_contract.json'));
+    const auxiliaryPolicy = JSON.parse(policyBytes.toString('utf8')).artifacts.ts_diagnostics.atlas_auxiliary_inputs;
+    const policy = auxiliaryPolicy.declaration_contract_evidence;
+    if (!policy || policy.version !== 'v1-top-level-declaration-headers'
+        || !Array.isArray(policy.statement_kinds) || !policy.statement_kinds.length
+        || !Array.isArray(policy.supported_suffixes) || !policy.supported_suffixes.length
+        || !['max_records', 'max_statements', 'max_names', 'max_name_bytes'].every(
+            key => Number.isSafeInteger(policy[key]) && policy[key] > 0)
+        || !Number.isSafeInteger(auxiliaryPolicy.max_file_bytes) || auxiliaryPolicy.max_file_bytes < 1) {
+        throw new Error('invalid_declaration_contract_policy');
+    }
+    const evidence = {version: policy.version, coverage: 'finite_top_level_headers_only',
+        status: 'unavailable', policy_sha256: crypto.createHash('sha256').update(policyBytes).digest('hex'),
+        parser_kind: 'typescript_compiler_api', parser_version: ts.version,
+        parser_input_sha256: null, size_bytes: null, offset_unit: 'utf8_bytes',
+        records: [], record_count: 0, omitted_statements: 0, omitted_name_nodes: 0,
+        uninspected_module_bodies: 0, reasons: {}, runtime_execution: 'not_established'};
+    const result = () => [{name: '__file_meta__', type: 'Meta', declarationContractEvidence: evidence}];
+    const reason = name => { evidence.reasons[name] = (evidence.reasons[name] || 0) + 1; };
+    let data, fd;
+    try {
+        // Read at most the existing per-file auxiliary limit plus a sentinel.
+        fd = fs.openSync(targetFile, 'r');
+        const buffer = Buffer.alloc(auxiliaryPolicy.max_file_bytes + 1);
+        let count = 0, read = 0;
+        while (count < buffer.length && (read = fs.readSync(fd, buffer, count, buffer.length - count, null)) > 0) count += read;
+        if (count > auxiliaryPolicy.max_file_bytes) { reason('byte_budget_exceeded'); return result(); }
+        data = buffer.subarray(0, count);
+    } catch (_) { reason('unreadable'); return result(); }
+    finally { if (fd !== undefined) fs.closeSync(fd); }
+    const sourceCode = data.toString('utf8');
+    if (!Buffer.from(sourceCode, 'utf8').equals(data)) { reason('unsupported_encoding'); return result(); }
+    evidence.parser_input_sha256 = crypto.createHash('sha256').update(data).digest('hex');
+    evidence.size_bytes = data.length;
+    const sourceFile = ts.createSourceFile(targetFile, sourceCode, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    if (sourceFile.parseDiagnostics.length) { reason('parse_diagnostics'); return result(); }
+    const allowed = new Set(policy.statement_kinds);
+    for (const node of sourceFile.statements.slice(0, policy.max_statements)) {
+        // VariableStatement shares its enum value with FirstStatement; the
+        // reverse enum label is not the native node predicate's wire kind.
+        const kind = ts.isVariableStatement(node) ? 'VariableStatement' : ts.SyntaxKind[node.kind];
+        if (!allowed.has(kind) || evidence.records.length >= policy.max_records) {
+            evidence.omitted_statements += 1;
+            reason(allowed.has(kind) ? 'record_budget_exceeded' : 'unsupported_statement');
+            continue;
+        }
+        const names = [];
+        const nameNodes = ts.isVariableStatement(node) ? node.declarationList.declarations.map(row => row.name)
+            : ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)
+                ? node.exportClause.elements.map(row => row.name) : node.name ? [node.name] : [];
+        for (const name of nameNodes) {
+            if ((!ts.isIdentifier(name) && !ts.isStringLiteral(name))
+                || names.length >= policy.max_names || Buffer.byteLength(name.text, 'utf8') > policy.max_name_bytes) {
+                evidence.omitted_name_nodes += 1; reason('unsupported_or_bounded_name');
+            } else names.push(name.text);
+        }
+        let moduleSpecifier = null;
+        if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) moduleSpecifier = node.moduleSpecifier.text;
+        if (ts.isModuleDeclaration(node) && ts.isStringLiteral(node.name)) moduleSpecifier = node.name.text;
+        if (moduleSpecifier !== null && Buffer.byteLength(moduleSpecifier, 'utf8') > policy.max_name_bytes) {
+            evidence.omitted_statements += 1; reason('module_name_budget_exceeded'); continue;
+        }
+        if (ts.isModuleDeclaration(node) && node.body) { evidence.uninspected_module_bodies += 1; reason('nested_scope_not_traversed'); }
+        const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) || [] : [];
+        evidence.records.push({syntax_kind: kind, names, module_specifier: moduleSpecifier,
+            export_modifier: modifiers.some(row => row.kind === ts.SyntaxKind.ExportKeyword),
+            declare_modifier: modifiers.some(row => row.kind === ts.SyntaxKind.DeclareKeyword),
+            default_modifier: modifiers.some(row => row.kind === ts.SyntaxKind.DefaultKeyword),
+            global_augmentation: ts.isModuleDeclaration(node) && Boolean(node.flags & ts.NodeFlags.GlobalAugmentation),
+            start_byte: node.getStart(sourceFile), end_byte: node.getEnd()});
+    }
+    const overflow = Math.max(0, sourceFile.statements.length - policy.max_statements);
+    evidence.omitted_statements += overflow;
+    if (overflow) reason('statement_budget_exceeded');
+    // One ordered pass converts all admitted native UTF-16 boundaries. Slices
+    // end at native node boundaries, not inside a surrogate pair.
+    const offsets = [...new Set(evidence.records.flatMap(row => [row.start_byte, row.end_byte]))].sort((a, b) => a - b);
+    const bytes = new Map();
+    let previous = 0, byteOffset = 0;
+    for (const offset of offsets) {
+        byteOffset += Buffer.byteLength(sourceCode.slice(previous, offset), 'utf8');
+        bytes.set(offset, byteOffset); previous = offset;
+    }
+    for (const row of evidence.records) { row.start_byte = bytes.get(row.start_byte); row.end_byte = bytes.get(row.end_byte); }
+    evidence.record_count = evidence.records.length;
+    evidence.status = Object.keys(evidence.reasons).length ? 'partial' : 'observed';
+    return result();
+}
+
 function analyzeFile(targetFile) {
+    if (ts.isDeclarationFileName(String(targetFile).toLowerCase())) return analyzeDeclarationFile(targetFile);
     let sourceCode;
     try {
         sourceCode = fs.readFileSync(targetFile, 'utf8');

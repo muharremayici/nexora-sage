@@ -27,6 +27,7 @@ from tools.core.overrides_validator import overrides_match_discovery
 from tools.core.quality_gate_policy import quality_gate_contract_defaults
 from tools.core.runtime_config_identity import runtime_config_content_identity
 from tools.core.target_policy_profile import compile_effective_target_policy
+from tools.core.repository_topology import canonical_main_ownership_is_complete
 
 
 def load_json(path: Path):
@@ -302,8 +303,8 @@ def compile_runtime_config():
                 compiled["project_display_names"].pop(r_key, None)
 
     # --- [Compiler Nested Overlap Shield] ---
-    # If MAIN points to workspace root and specific nested projects exist, MAIN can shadow
-    # those projects and inflate metrics by duplicate scanning. In that case, drop MAIN.
+    # Legacy root MAIN can double-scan nested projects. Retain it only when the
+    # canonical proposal and shared ownership exclusions prove all boundaries.
     variations = compiled.get("variations", {}) or {}
     if "MAIN" in variations and len(variations) > 1:
         main_path = _norm_rel_path(variations.get("MAIN"))
@@ -312,7 +313,13 @@ def compile_runtime_config():
             for key, value in variations.items()
             if key != "MAIN" and _is_ancestor_path(main_path, str(value))
         ]
-        if descendants and main_path == ".":
+        workspace_root = Path(compiled.get("workspace_root") or ".")
+        if not workspace_root.is_absolute():
+            workspace_root = CODE_MAPS_DIR / workspace_root
+        canonical_ownership = (canonical_main_ownership_is_complete(
+            workspace_root, variations, compiled.get("_repository_topology", {}),
+        ) if descendants and main_path == "." else False)
+        if descendants and main_path == "." and not canonical_ownership:
             print(
                 f"     [COMPILER] MAIN root '{main_path}' overlaps nested projects "
                 f"{descendants}. Dropping MAIN to prevent double-scan inflation."

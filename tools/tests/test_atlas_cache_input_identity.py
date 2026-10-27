@@ -569,10 +569,11 @@ def test_allowed_compiler_main_remap_reaches_real_atlas_and_cache(atlas_run, mon
     assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=atlas) == {"MAIN": ""}
 
 
-def test_generator_fingerprint_tracks_shared_ownership_source(tmp_path, monkeypatch):
+@pytest.mark.parametrize("source_name", ["repository_topology.py", "repository_root.py"])
+def test_generator_fingerprint_tracks_shared_ownership_source(tmp_path, monkeypatch, source_name):
     from tools.core import atlas_integrity
 
-    source = tmp_path / "tools/core/repository_topology.py"
+    source = tmp_path / "tools" / "core" / source_name
     source.parent.mkdir(parents=True)
     source.write_text("# old ownership\n")
     monkeypatch.setattr(atlas_integrity, "__file__", str(tmp_path / "tools/core/atlas_integrity.py"))
@@ -580,6 +581,81 @@ def test_generator_fingerprint_tracks_shared_ownership_source(tmp_path, monkeypa
     assert atlas_integrity.generator_fingerprint() == before
     source.write_text("# repaired ownership\n")
     assert atlas_integrity.generator_fingerprint() != before
+
+
+def test_shared_root_repair_reaches_real_atlas_sqlite_and_rejects_old_scope(atlas_run, monkeypatch):
+    """Real compiler, walk, Atlas and SQLite; only AST responses are fixtures."""
+    import base64
+    from tools import config_compiler
+    from tools.core import artifact_store
+    from tools.core.repository_topology import configured_project_ownership_exclusions
+    from tools.orchestrators import discovery
+
+    root, baseline, _, run = atlas_run
+    for relative in ("src/index.ts", "tests/root.test.ts", "packages/widget/child.ts", "Variations/Legacy/old.ts"):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("export const value = 1;", encoding="utf-8")
+    for relative, payload in (("package.json", {"workspaces": ["packages/*"]}),
+                               ("packages/widget/package.json", {"name": "widget"}),
+                               ("Variations/Legacy/package.json", {"name": "legacy"})):
+        (root / relative).write_text(json.dumps(payload))
+    requested = []
+
+    def sequence(command, **kwargs):
+        paths = [Path(base64.b64decode(command[i + 1]).decode("utf-8"))
+                 for i, value in enumerate(command) if value == "--path-entry"]
+        requested.extend(path.relative_to(root).as_posix() for path in paths)
+        request_id = command[command.index("--request-id") + 1]
+        return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps({
+            "batchMeta": {"protocolVersion": 1, "requestId": request_id,
+                "filesRequested": len(paths), "filesReported": len(paths)},
+            "results": {path.resolve().as_posix(): [{
+                "name": "__file_meta__", "type": "Meta", "start": 0, "end": 0,
+                "parserStatus": "observed", "parserKind": "typescript_compiler_api",
+                "semanticDepth": "ast_normalized", "features": ["Hash:" + hashlib.sha256(path.read_bytes()).hexdigest()],
+            }] for path in paths},
+        })), 0.01
+
+    monkeypatch.setattr(generator, "run_observed_subprocess", sequence)
+    old_roots = {"MAIN": root / "src"}
+    monkeypatch.setattr(generator, "resolve_runtime_projects", lambda *a, **k: old_roots)
+    old = run()
+    assert set(old["MAIN"]["files"]) == {"index.ts"}
+    monkeypatch.setattr(discovery, "ROOT_DIR", root)
+    monkeypatch.setattr(discovery, "DYNAMIC_CONFIG", {})
+    topology = discovery.resolve_discovery_topology()
+    declared = {"workspace_root": str(root), "variations": topology["selected_projects"],
+        "_repository_topology": topology, "project_roles": topology["selected_project_roles"],
+        "source_extensions": [".ts"], "skip_dirs": [], "use_sqlite": True}
+    for key, value in (("DISCOVERY_PATH", declared), ("OVERRIDES_PATH", {}), ("CONFIG_PATH", {})):
+        path = root.parent / (key + ".json")
+        path.write_text(json.dumps(value))
+        monkeypatch.setattr(config_compiler, key, path)
+    compiled = config_compiler.compile_runtime_config()
+    assert compiled["variations"] == {"MAIN": ".", "WIDGET": "packages/widget", "LEGACY": "Variations/Legacy"}
+    projects = {key: root / path for key, path in compiled["variations"].items()}
+    monkeypatch.setattr(generator, "resolve_runtime_projects", lambda *a, **k: projects)
+    monkeypatch.setattr(generator, "DYNAMIC_CONFIG", compiled)
+    monkeypatch.setattr(generator, "configured_project_ownership_exclusions", configured_project_ownership_exclusions)
+    monkeypatch.setattr(cache_manager, "ROOT", root)
+    monkeypatch.setattr(cache_manager.runtime_config, "DYNAMIC_CONFIG", compiled)
+    assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=old) == {"MAIN": ""}
+    requested.clear()
+    current = run()
+    assert set(current["MAIN"]["files"]) == {"a.ts", "src/index.ts", "tests/root.test.ts"}
+    assert set(current["WIDGET"]["files"]) == {"child.ts"}
+    assert set(current["LEGACY"]["files"]) == {"old.ts"}
+    assert len(requested) == len(set(requested)) == 5
+    persisted = artifact_store.STORE.load_raw("atlas", {})
+    assert {key: set(value["files"]) for key, value in persisted.items() if key != "symbols"} == {
+        key: set(value["files"]) for key, value in current.items() if key != "symbols"}
+    before = cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=current)
+    assert before["MAIN"]
+    (root / "packages/widget/child.ts").write_text("export const changed = 2;")
+    assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=current) == before
+    (root / "src/index.ts").write_text("export const changed = 2;")
+    assert cache_manager.get_project_source_fingerprints({"MAIN": root}, expected_atlas=current) == {"MAIN": ""}
 
 
 @pytest.mark.parametrize("unselected", ["unchanged", "changed_atlas", "absent_atlas"])

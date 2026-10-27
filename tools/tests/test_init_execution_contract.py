@@ -791,6 +791,117 @@ def test_bootstrap_children_use_the_shared_utf8_runtime_environment(monkeypatch)
     assert observed["env"]["PYTHONUTF8"] == "1"
 
 
+@pytest.mark.parametrize("projects", [None, "MAIN,WEB"])
+def test_setup_next_action_keeps_literal_target_and_selected_projects(capsys, monkeypatch, projects):
+    target = "C:/repos/Türkçe O'Brien & $target/with spaces"
+    monkeypatch.setenv("CODEMAPS_TARGET_ROOT", "C:/wrong-repository")
+    monkeypatch.setenv("CODEMAPS_TARGET_PROJECTS", "WRONG")
+
+    bootstrap_env._print_setup_next_action(target, projects)
+
+    lines = capsys.readouterr().out.splitlines()
+    assert "not a shell string" in lines[0]
+    expected = ["python", "sage.py", "run", "--profile", "daily", "--target-root", target]
+    if projects:
+        expected += ["--projects", projects]
+    assert json.loads(lines[1]) == expected
+
+
+def test_setup_next_action_embedded_hint_does_not_borrow_environment_scope(capsys, monkeypatch):
+    monkeypatch.setenv("CODEMAPS_TARGET_ROOT", "C:/wrong-repository")
+    monkeypatch.setenv("CODEMAPS_TARGET_PROJECTS", "WRONG")
+    bootstrap_env._print_setup_next_action()
+    output = capsys.readouterr().out
+    assert "python sage.py run --profile daily" in output
+    assert "--target-root" not in output and "--projects" not in output
+    assert "wrong-repository" not in output
+
+
+@pytest.mark.parametrize("blocked,plan_only", [(False, False), (True, False), (False, True)])
+def test_setup_main_emits_target_bound_next_action_only_after_success(
+    monkeypatch, tmp_path, capsys, blocked, plan_only,
+):
+    target = tmp_path / "Türkçe target"
+    target.mkdir()
+    monkeypatch.setattr(bootstrap_env, "PUBLIC_DISTRIBUTION_MANIFEST", tmp_path / "public.json")
+    argv = ["bootstrap", "--mode", "setup", "--target-root", str(target), "--projects", "MAIN,WEB"]
+    if plan_only:
+        argv.append("--plan-only")
+    monkeypatch.setattr(bootstrap_env.sys, "argv", argv)
+    monkeypatch.setattr(bootstrap_env, "_build_installation_plan_with_progress",
+                        lambda *_args, **_kwargs: {"summary": {"status": "BLOCKED" if blocked else "PASS"}})
+    monkeypatch.setattr(bootstrap_env, "write_installation_plan", Mock())
+    monkeypatch.setattr(bootstrap_env, "check_env", Mock())
+    refresh = Mock()
+    monkeypatch.setattr(bootstrap_env, "run_refresh", refresh)
+    monkeypatch.setattr(bootstrap_env, "generate_mcp_snippet", Mock())
+    monkeypatch.setattr(bootstrap_env, "record_execution_duration", Mock())
+    monkeypatch.setenv("CODEMAPS_TARGET_ROOT", "")
+    monkeypatch.setenv("CODEMAPS_TARGET_PROJECTS", "")
+
+    assert bootstrap_env.main() == (2 if blocked else 0)
+    lines = capsys.readouterr().out.splitlines()
+    if blocked or plan_only:
+        refresh.assert_not_called()
+        assert not any("[NEXT]" in line for line in lines)
+    else:
+        refresh.assert_called_once_with()
+        command = next(json.loads(line) for line in lines if line.startswith('["python"'))
+        assert command[-4:] == ["--target-root", str(target.resolve()), "--projects", "MAIN,WEB"]
+
+
+@pytest.mark.parametrize("mode", ["setup", "full"])
+@pytest.mark.parametrize("config_failure", [False, True])
+def test_bootstrap_consumes_mcp_config_outcome_without_claiming_rollback(
+    monkeypatch, tmp_path, capsys, mode, config_failure,
+):
+    target = tmp_path / "Türkçe target"
+    target.mkdir()
+    monkeypatch.setattr(bootstrap_env, "PUBLIC_DISTRIBUTION_MANIFEST", tmp_path / "missing-public.json")
+    monkeypatch.setattr(bootstrap_env.sys, "argv", ["bootstrap", "--mode", mode, "--target-root", str(target)])
+    monkeypatch.setattr(bootstrap_env.sys, "executable", str(tmp_path / ".venv" / "python.exe"))
+    if config_failure:
+        # Inject at the config boundary, not before argparse initializes: a
+        # globally absent executable also affects Python's own parser startup.
+        builder = bootstrap_env.build_mcp_runtime_contract
+        def unavailable_at_generation(**kwargs):
+            with monkeypatch.context() as patch:
+                patch.setattr(bootstrap_env.sys, "executable", None)
+                return builder(**kwargs)
+        monkeypatch.setattr(bootstrap_env, "build_mcp_runtime_contract", unavailable_at_generation)
+    monkeypatch.setenv("SAGE_MCP_TOOL_PROFILE", "target_repository_default")
+    monkeypatch.setattr(bootstrap_env, "_build_installation_plan_with_progress",
+        Mock(return_value={"summary": {"status": "PASS"}, "actions": [{"id": "synthetic-action"}]}))
+    monkeypatch.setattr(bootstrap_env, "write_installation_plan", Mock())
+    monkeypatch.setattr(bootstrap_env, "check_env", Mock())
+    install, refresh, pulse = Mock(return_value=True), Mock(), Mock()
+    monkeypatch.setattr(bootstrap_env, "_install_and_verify", install)
+    monkeypatch.setattr(bootstrap_env, "run_refresh", refresh)
+    monkeypatch.setattr(bootstrap_env, "run_pulse", pulse)
+    monkeypatch.setattr(bootstrap_env, "record_execution_duration", Mock())
+    assert bootstrap_env.main() == (2 if config_failure else 0)
+    install.assert_called_once()
+    refresh.assert_called_once_with()
+    assert pulse.call_count == (1 if mode == "full" else 0)
+    output = capsys.readouterr().out
+    if config_failure:
+        assert "MCP configuration unavailable" in output and "Regenerate MCP configuration" in output
+        assert "Earlier setup actions may already have completed" in output
+        assert '"mcpServers"' not in output and "[NEXT]" not in output
+        assert "[OK] Bootstrap completed" not in output and "[OK] Setup-only bootstrap completed" not in output
+    else:
+        assert '"mcpServers"' in output and "[NEXT]" in output
+        assert "MCP configuration unavailable" not in output
+
+
+def test_bootstrap_preview_does_not_mask_unexpected_errors(monkeypatch):
+    def unexpected(**_kwargs):
+        raise RuntimeError("unexpected producer failure")
+    monkeypatch.setattr(bootstrap_env, "build_mcp_runtime_contract", unexpected)
+    with pytest.raises(RuntimeError, match="unexpected producer failure"):
+        bootstrap_env.generate_mcp_snippet()
+
+
 def test_external_target_preflight_receives_runtime_project_filter(monkeypatch, tmp_path):
     commands = []
     monkeypatch.setattr(codemaps, "run_command", lambda command: commands.append(command) or 0)

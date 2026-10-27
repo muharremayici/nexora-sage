@@ -14,6 +14,154 @@
     "semantic_closures"
   ],
   "properties": {
+    "diagnostic_unit_output_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "authority",
+        "protocol",
+        "digest_algorithm",
+        "units",
+        "limits",
+        "rationale",
+        "reuse",
+        "may_skip_tests",
+        "fresh_native_baseline",
+        "canonical_profile_reuse_enabled"
+      ],
+      "properties": {
+        "schema": {
+          "const": "nexora_sage_diagnostic_unit_output_observation_v1"
+        },
+        "authority": {
+          "const": "diagnostic_only_no_test_or_release_admission"
+        },
+        "protocol": {
+          "const": "isolated_no_site_exact_env_closed_stdin_xunit2_v2"
+        },
+        "digest_algorithm": {
+          "const": "sha256_json_utf8_canonical_v1"
+        },
+        "units": {
+          "const": [
+            "jsonc_parser"
+          ]
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "junit_bytes",
+            "xml_elements",
+            "xml_depth"
+          ],
+          "properties": {
+            "junit_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "xml_elements": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "xml_depth": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "rationale": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "reuse": {
+          "const": false
+        },
+        "may_skip_tests": {
+          "const": false
+        },
+        "fresh_native_baseline": {
+          "const": false
+        },
+        "canonical_profile_reuse_enabled": {
+          "const": false
+        }
+      }
+    },
+    "diagnostic_test_unit_pilots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jsonc_parser": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "authority",
+            "canonical_profile_reuse_enabled",
+            "test_path",
+            "expected_tests",
+            "reviewed_source_sha256",
+            "review_digest_algorithm",
+            "required_absent_paths",
+            "runtime_distributions",
+            "timeout_seconds"
+          ],
+          "properties": {
+            "authority": {
+              "const": "diagnostic_only_no_release_reuse"
+            },
+            "canonical_profile_reuse_enabled": {
+              "const": false
+            },
+            "test_path": {
+              "const": "tools/tests/test_jsonc_parser.py"
+            },
+            "review_digest_algorithm": {
+              "const": "sha256_utf8_lf_v1"
+            },
+            "expected_tests": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^test_jsonc_parser_"
+              }
+            },
+            "reviewed_source_sha256": {
+              "type": "object",
+              "minProperties": 6,
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required_absent_paths": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/relativePath"
+              }
+            },
+            "runtime_distributions": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "timeout_seconds": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
     "meta": {
       "type": "object",
       "additionalProperties": false,

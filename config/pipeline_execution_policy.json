@@ -494,6 +494,20 @@
   },
   "subprocess_runtime_policy": {
     "default_rule": "Long-running or captured child processes must use tools.core.subprocess_telemetry.run_observed_subprocess so waits, timeouts, and process-tree termination are observable and cross-platform.",
+    "raw_observation": {
+      "protocol": "sha256_stream_bytes_exact_env_closed_stdin_v1",
+      "authority": "diagnostic_only_no_test_or_release_admission",
+      "limits": {
+        "stdout_bytes": 4194304,
+        "stderr_bytes": 4194304,
+        "total_bytes": 6291456,
+        "read_chunk_bytes": 65536,
+        "queue_chunks": 2,
+        "poll_seconds": 0.1,
+        "cleanup_grace_seconds": 2
+      },
+      "rationale": "Opt-in diagnostic refusal bounds: at most 4 MiB observed per channel and 6 MiB combined, with 64 KiB reads and two queued chunks. These are conservative operational limits, not measured workload sufficiency or byte-production ceilings; one read and queued/in-flight data can cross a threshold before termination. No output payload is retained. Existing text callers remain unchanged. Calibration and native unit/JUnit admission are separate work."
+    },
     "protocol_surfaces": {
       "rule": "Protocol-bound tools such as MCP may use the shared helper with log=null so stdout is not polluted while still preserving bounded timeout behavior."
     },
@@ -1416,6 +1430,7 @@
   },
   "execution_modes": {
     "first_repo_onboarding": {
+      "project_observation": "refresh_static_facts",
       "profile": "full",
       "purpose": "Initial repository entry. Establish Discovery, Atlas, Project DNA, Architecture Oracle proposal, doctrine inputs, and baseline reports before narrow governance claims are trusted.",
       "trigger": "sage init, codemaps init, first full run, or a target root with missing/stale atlas_commit",
@@ -1438,6 +1453,7 @@
       "claim_boundary": "setup_and_baseline_only"
     },
     "normal_full": {
+      "project_observation": "refresh_static_facts",
       "profile": "full",
       "purpose": "Normal complete local analysis after onboarding. Refreshes current structural truth and broad governance artifacts without forcing every release-deep proof drill.",
       "trigger": "codemaps run --full without release-deep intent",

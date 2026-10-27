@@ -21,6 +21,11 @@ from tools.core.language_registry import language_for_extension
 from tools.core.source_snapshot_reader import load_source_text
 from tools.core.projects_registry import resolve_runtime_projects
 
+NO_STATIC_RISK_INDICATORS_REASON = (
+    "No additional risk indicators were found by the inspected static checks. "
+    "This does not prove runtime correctness or authorize a merge or deployment."
+)
+
 # Dynamic indicators representing runtime framework magic, reflection, dynamic imports, etc.
 REFLECTIVE_INDICATORS = {
     # Python
@@ -308,7 +313,7 @@ def evaluate_file_confidence(target_path_or_node: str, content: str = None) -> D
             "blast_radius_dependents": dep_count,
             "cyclic_member": is_cyclic,
             "reflection_indicators_found": indicators,
-            "risk_mitigation_reasons": reasons if reasons else ["File adheres completely to standard static and architectural safety constraints."]
+            "risk_mitigation_reasons": reasons if reasons else [NO_STATIC_RISK_INDICATORS_REASON]
         },
         "input_evidence": {"circular_deps": dependency_evidence},
         "verdict": verdict,

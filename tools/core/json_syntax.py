@@ -1,6 +1,7 @@
 """Strict JSON syntax without configuration, telemetry or storage dependencies."""
 from __future__ import annotations
 
+import hashlib
 import json
 import io
 import re
@@ -204,3 +205,40 @@ def select_json_object_path(stream, path: tuple[str, ...], *, chunk_size: int, m
     if selector._peek():
         raise ValueError("Trailing data after the JSON document.")
     return loads_json_strict(selector.selected) if selector.selected is not None else None
+
+
+class _HashingBinaryReader(io.RawIOBase):
+    """Hash only bytes delivered to the decoder; do not own the source handle."""
+
+    def __init__(self, source, digest):
+        super().__init__()
+        self.source, self.digest = source, digest
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        count = self.source.readinto(buffer)
+        if count:
+            self.digest.update(memoryview(buffer)[:count])
+        return count
+
+
+def select_json_object_path_with_sha256(stream, path: tuple[str, ...], *,
+                                       chunk_size: int, max_value_bytes: int) -> tuple[Any, str]:
+    """Select bounded metadata and hash the same complete raw UTF-8 JSON read.
+
+    Identity includes any BOM and original newline bytes. Validation reaches
+    EOF before returning either a selection or its digest; failures return
+    neither. The caller owns the binary stream and its current read position.
+    This bounds retained selection memory, not total I/O or file immutability.
+    """
+    if not path or any(not isinstance(key, str) for key in path):
+        raise ValueError("An exact non-empty JSON object-member path is required.")
+    if chunk_size < 1 or max_value_bytes < 1:
+        raise ValueError("JSON selection budgets must be positive.")
+    digest = hashlib.sha256()
+    reader = _HashingBinaryReader(stream, digest)
+    with io.TextIOWrapper(io.BufferedReader(reader, buffer_size=chunk_size), encoding="utf-8-sig", newline="") as text:
+        value = select_json_object_path(text, path, chunk_size=chunk_size, max_value_bytes=max_value_bytes)
+    return value, digest.hexdigest()
