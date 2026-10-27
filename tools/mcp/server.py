@@ -236,6 +236,7 @@ from tools.hitl_decision_requests import create_request, init_requests, update_r
 from tools.inspect_target import (
     AGENT_INSPECTION_MAX_TARGET_SPANS,
     project_client_local_parser_evidence,
+    project_manifest_source_links,
     project_dead_code_matches_for_file,
     render_agent_inspection_brief,
     write_inspection,
@@ -253,6 +254,7 @@ from tools.core.json_io import (
 )
 from tools.core.artifact_freshness_contract import artifact_state_meta
 from tools.core.atlas_io import load_atlas_data, load_atlas_data_with_identity, load_atlas_file_metadata, AtlasRead
+from tools.core.declaration_contract_view import declaration_file_inspection, declaration_symbol_search, render_declaration_inspection
 from tools.core.text_normalizer import deep_repair, repair_text
 from tools.core.config import DOCTRINE, ROOT as ANALYZED_REPOSITORY_ROOT
 from tools.core.doctrine_contract import require_doctrine_mapping
@@ -619,10 +621,12 @@ def _trust_warning_names(summary: dict[str, Any]) -> set[str]:
     return {str(row.get("name") or "") for row in warnings if isinstance(row, dict)}
 
 
-def _ensure_agent_artifact_chain_current(raw_dir: Path, target_root: str = "") -> dict[str, Any]:
+def _ensure_agent_artifact_chain_current(raw_dir: Path, target_root: str = "", *,
+                                         system_scope: str | None = None) -> dict[str, Any]:
     """Inspect agent-facing evidence freshness without mutating repository state."""
 
-    summary = build_artifact_trust_summary(raw_dir)
+    summary = (build_artifact_trust_summary(raw_dir) if system_scope is None
+               else build_artifact_trust_summary(raw_dir, system_scope=system_scope))
     if summary.get("status") == "PASS":
         summary["auto_refresh"] = {"attempted": False, "reason": "already_current"}
         return summary
@@ -6262,7 +6266,11 @@ def _render_patch_validation_brief(payload: dict[str, Any], target_file: str, ta
     applicability = payload.get("patch_applicability") if isinstance(payload.get("patch_applicability"), dict) else {}
     target_native = payload.get("target_native_policy_validation") if isinstance(payload.get("target_native_policy_validation"), dict) else {}
     safe_to_apply = (status == "PASS" and not violations) if payload.get("safe_to_apply") is None else bool(payload.get("safe_to_apply"))
-    if not target_grounded:
+    input_receipt = payload.get("patch_input_receipt") if isinstance(payload.get("patch_input_receipt"), dict) else {}
+    if input_receipt.get("status") == "REJECTED":
+        safe_to_apply = False
+        next_action = "repair_patch_input_before_validation"
+    elif not target_grounded:
         safe_to_apply = False
         next_action = "refresh_target_analysis_or_request_create_file_approval"
     elif invalid_patch:
@@ -6317,6 +6325,7 @@ def _render_patch_validation_brief(payload: dict[str, Any], target_file: str, ta
         f"  analysis_snapshot_id: {json.dumps(payload.get('analysis_snapshot_id') or '', ensure_ascii=False)}",
         f"  target_exists: {str(target_exists).lower()}",
         f"  target_indexed: {str(target_indexed).lower()}",
+        *(["patch_input_receipt: " + json.dumps(input_receipt, ensure_ascii=False)] if input_receipt else []),
         "patch_applicability:",
         "  status: " + json.dumps(applicability.get("status") or "NOT_RUN", ensure_ascii=False),
         "  oracle: " + json.dumps(applicability.get("oracle") or "", ensure_ascii=False),
@@ -7015,10 +7024,16 @@ def _calibrate_confidence_with_sqlite_impact(
         elif direct_count >= 1 and calibrated_safety not in {"CRITICAL", "LOW"}:
             calibrated_safety = "MEDIUM"
         if direct_count >= 1:
+            from tools.engines.confidence_engine import NO_STATIC_RISK_INDICATORS_REASON
+
             reasons = [
                 item
                 for item in reasons
-                if str(item) != "File adheres completely to standard static and architectural safety constraints."
+                if str(item) not in {
+                    NO_STATIC_RISK_INDICATORS_REASON,
+                    # Retain recognition of older engine payloads.
+                    "File adheres completely to standard static and architectural safety constraints.",
+                }
             ]
             sqlite_reason = (
                 f"SQLite impact radius reports {direct_count} direct dependents and "
@@ -7611,7 +7626,7 @@ def get_architecture_oracle_resource() -> str:
 
 
 @mcp.tool()
-def search_symbols(query: str, project: str = "MAIN", target_root: str = "", format: str = "brief") -> str:
+def search_symbols(query: str, project: str = "MAIN", target_root: str = "", format: str = "brief", evidence_plane: str = "indexed") -> str:
     """Search symbols and files for target-repository work.
 
     Defaults to MAIN so coding agents do not treat variations as edit targets.
@@ -7619,8 +7634,23 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
     Counts describe collected indexed declaration, file and derived-syntax candidates,
     not distinct files or the source tree.
     Display omissions are separate from source candidate caps; machine output stays a list.
+    Explicit evidence_plane="declaration" instead returns a bounded stored-header
+    envelope for one exact project, without live-source, runtime, type or edit authority.
     """
     requested_format = str(format or "brief").strip().lower()
+    if evidence_plane != "indexed":
+        raw_dir, invalid_context = None, False
+        if evidence_plane == "declaration":
+            try:
+                raw_dir = _raw_dir_for_target(target_root)
+            except ValueError:
+                invalid_context = True
+        payload = declaration_symbol_search(raw_dir, query, project, evidence_plane=evidence_plane,
+            search_policy=_agent_surface_contract()["symbol_search_policy"], score=_symbol_search_match_score,
+            rank=_symbol_search_candidate_sort_key, target_root=target_root,
+            machine=requested_format in {"json", "machine"}, invalid_context=invalid_context)
+        return (json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                if requested_format in {"json", "machine"} else render_declaration_inspection(payload))
     analysis_root = _analysis_root_display(target_root)
     try:
         raw_dir = _raw_dir_for_target(target_root)
@@ -8230,6 +8260,56 @@ def _operator_projection_access_denied(*, requested_format: str) -> str:
     )
 
 
+def _current_operator_agent_surface(agent_surface: dict[str, Any], *, raw_dir: Path,
+                                    target_root: str, requested_format: str) -> str:
+    """A cached projection cannot outlive its canonical scope/evidence chain."""
+    identity = _resolve_mcp_execution_identity(target_root=target_root)
+    trust = _ensure_agent_artifact_chain_current(raw_dir, target_root=target_root,
+                                                system_scope=identity["system_scope"])
+    trust = {**trust, "checks": list(trust.get("checks") or []),
+             "failures": list(trust.get("failures") or [])}
+    scope = agent_surface.get("scope_authority")
+    scope = scope if isinstance(scope, dict) else {}
+    current = trust.get("scope") or {}
+    identity_matches = bool(current.get("scope_authority_id")) and all(
+        scope.get(key) == current.get(key)
+        for key in ("scope_authority_id", "evidence_status", "claim_scope", "full_repository_claim_eligible")
+    )
+    expected_root = _analysis_root_display(target_root)
+    actual_root = str(agent_surface.get("analysis_root") or "")
+    try:
+        root_matches = bool(actual_root) and Path(actual_root).resolve() == Path(expected_root).resolve()
+    except (OSError, ValueError):
+        root_matches = False
+    packet_meta = artifact_state_meta(raw_dir, "nexora_operator_packet")
+    packet_time = float(packet_meta.get("validation_mtime") or packet_meta.get("mtime") or 0)
+    newest_input = max((float(value or 0) for value in (trust.get("freshness") or {}).values()), default=0)
+    checks = [
+        {"name": "operator_packet:current_scope_and_target", "passed": identity_matches and root_matches,
+         "severity": "error", "details": "Cached agent scope and target must equal the current canonical context."},
+        {"name": "operator_packet:not_older_than_canonical_inputs",
+         "passed": bool(packet_time and newest_input) and packet_time >= newest_input,
+         "severity": "error", "details": "Cached projection must not predate current Atlas/scope/Audit/Quality evidence."},
+    ]
+    trust["checks"].extend(checks)
+    trust["failures"].extend(row for row in checks if not row["passed"])
+    if trust["failures"]:
+        trust["status"] = "FAIL"
+    if _artifact_trust_blocks_actor_context(trust):
+        invalid = _invalid_actor_context_payload("get_operator_packet", trust)
+        return (json.dumps(invalid, indent=2, ensure_ascii=False)
+                if requested_format in {"json", "machine"} else _render_invalid_actor_context_brief(invalid))
+    compact = dict(agent_surface)
+    compact["analysis_root"] = expected_root
+    compact["primary_tool_followup"] = _target_primary_tool_followup(target_root)
+    directives = agent_surface.get("directives")
+    if isinstance(directives, list):
+        compact.update(directives=directives[:3], directive_count=len(directives),
+                       returned_directives=min(len(directives), 3))
+    return (json.dumps(compact, indent=2, ensure_ascii=False)
+            if requested_format in {"json", "machine"} else _render_operator_agent_surface_brief(compact))
+
+
 @mcp.tool()
 def get_operator_packet(refresh: bool = False, human_report: bool = False, projection: str = "agent", target_root: str = "", format: str = "brief") -> str:
     """Return the operator packet; default projection is target-repository agent context."""
@@ -8260,18 +8340,8 @@ def get_operator_packet(refresh: bool = False, human_report: bool = False, proje
         if not isinstance(agent_surface, dict):
             return _missing_target_artifact_brief("get_operator_packet", "target_repository_agent_surface", target_root,
                 ["nexora_operator_packet.json:target_repository_agent_surface"])
-        compact_surface = dict(agent_surface)
-        compact_surface["analysis_root"] = _analysis_root_display(target_root)
-        compact_surface["primary_tool_followup"] = _target_primary_tool_followup(target_root)
-        directives = agent_surface.get("directives")
-        if isinstance(directives, list):
-            max_directives = 3
-            compact_surface["directives"] = directives[:max_directives]
-            compact_surface["directive_count"] = len(directives)
-            compact_surface["returned_directives"] = min(len(directives), max_directives)
-        if requested_format in {"json", "machine"}:
-            return json.dumps(compact_surface, indent=2, ensure_ascii=False)
-        return _render_operator_agent_surface_brief(compact_surface)
+        return _current_operator_agent_surface(agent_surface, raw_dir=raw_dir,
+            target_root=target_root, requested_format=requested_format)
 
     if refresh or not (RAW_DIR / "nexora_operator_packet.json").exists():
         run_nexora_brief()
@@ -8295,17 +8365,8 @@ def get_operator_packet(refresh: bool = False, human_report: bool = False, proje
     agent_surface = packet.get("target_repository_agent_surface")
     if not isinstance(agent_surface, dict):
         return "Target repository agent surface not found in operator packet. Refresh the operator packet first."
-    compact_surface = dict(agent_surface)
-    compact_surface["primary_tool_followup"] = _target_primary_tool_followup(target_root)
-    directives = agent_surface.get("directives")
-    if isinstance(directives, list):
-        max_directives = 3
-        compact_surface["directives"] = directives[:max_directives]
-        compact_surface["directive_count"] = len(directives)
-        compact_surface["returned_directives"] = min(len(directives), max_directives)
-    if requested_format in {"json", "machine"}:
-        return json.dumps(compact_surface, indent=2, ensure_ascii=False)
-    return _render_operator_agent_surface_brief(compact_surface)
+    return _current_operator_agent_surface(agent_surface, raw_dir=RAW_DIR,
+        target_root=target_root, requested_format=requested_format)
 
 
 @mcp.tool()
@@ -9085,12 +9146,18 @@ def inspect_file(
     line_start: int = 0,
     line_end: int = 0,
 ) -> str:
-    """Inspect one file from existing artifacts and return targeted evidence."""
+    """Inspect one file; qualified declaration paths return stored-only headers."""
     try:
         raw_dir = _raw_dir_for_target(target_root)
         reports_dir = _reports_dir_for_target(target_root)
     except ValueError as exc:
         return _invalid_external_target_brief("inspect_file", target_root)
+    declaration = declaration_file_inspection(raw_dir, file_path,
+        record_limit=AGENT_INSPECTION_MAX_TARGET_SPANS, line_requested=bool(line_start or line_end))
+    if declaration is not None:
+        if str(format or "brief").strip().lower() in {"brief", "md", "markdown", "brief_debug", "debug"}:
+            return render_agent_inspection_brief(declaration)
+        return json.dumps(declaration, ensure_ascii=False)
     payload = _sqlite_file_inspection_payload(raw_dir, file_path, target_root=target_root)
     if payload is None:
         payload = write_inspection("file", file_path, raw_dir=raw_dir, reports_dir=reports_dir)
@@ -9153,6 +9220,7 @@ def inspect_file(
         for section in local_syntax.values():
             section["reason"] = metadata_reason
     payload.update(local_syntax)
+    project_manifest_source_links(payload, file_info, project if file_info is not None else "", atlas_rel if file_info is not None else "", syntax_sections=local_syntax)
     requested_format = str(format or "brief").strip().lower()
     if requested_format in {"brief", "md", "markdown"}:
         return render_agent_inspection_brief(payload)
@@ -11852,10 +11920,12 @@ def _release_target_write_lease_for_mcp(target_file: str, actor_id: str, target_
 
 
 @mcp.tool()
-def validate_patch(target_file: str, patch_content: str, target_root: str = "", format: str = "brief", actor_id: str = "") -> str:
+def validate_patch(target_file: str, patch_content: str, target_root: str = "", format: str = "brief", actor_id: str = "", patch_input: dict[str, Any] | None = None) -> str:
     """
     Validate a proposed code block or git patch/diff against the sealed Architecture Doctrine layer rules in-memory.
     Checks layer purity, forbidden imports, alias hygiene, and LOC complexity limits before physical disk write.
+    Optional patch_input selects bounded workspace-file v1 acquisition with empty
+    patch_content. Receipt is not native validation, a sandbox or apply authority.
     """
     started = time.perf_counter()
 
@@ -11868,16 +11938,46 @@ def validate_patch(target_file: str, patch_content: str, target_root: str = "", 
         if target_root and target is None:
             return _done(_invalid_external_target_brief("validate_patch", target_root), status="fail_closed", fail_closed_reason="invalid_external_target")
         workspace_root = Path(target if target is not None else ANALYZED_REPOSITORY_ROOT).resolve()
-        result = validate_proposed_patch(
-            target_file,
-            patch_content,
-            workspace_root=workspace_root,
-        )
+        prepared_input = None
+        if patch_input is not None:
+            from tools.core.patch_input import PatchInputError, prepare_patch_input, check_patch_input_continuity
+
+            input_raw_dir = _raw_dir_for_target(target_root)
+            input_target = _target_path_status(input_raw_dir, target_file, target_root=target_root)
+            try:
+                prepared_input = prepare_patch_input(
+                    patch_input, patch_content, root=workspace_root, raw_dir=input_raw_dir,
+                    target=input_target, snapshot_id=_analysis_snapshot_id(input_raw_dir),
+                )
+            except PatchInputError as exc:
+                payload = {
+                    "status": "FAIL" if exc.stage == "acquisition" else "INVALID_CONTEXT",
+                    "safe_to_apply": False,
+                    "patch_input_receipt": {**getattr(exc, "receipt", {}), "stage": exc.stage, "reason": exc.reason,
+                                            "status": "REJECTED" if exc.stage == "acquisition" else "RECEIVED_SOURCE_REFUSED"},
+                    "governance_status": "NOT_RUN",
+                    "patch_applicability": {"status": "NOT_RUN", "mutation_performed": False},
+                    "target_native_policy_validation": {"status": "NOT_RUN"},
+                    "violations": [{"rule": exc.reason, "detail": "Patch input admission refused; governance and applicability were not run."}],
+                }
+                rendered = json.dumps(payload, indent=2, ensure_ascii=False) if str(format).lower() in {"json", "machine"} else _render_patch_validation_brief(payload, target_file, target_root=target_root)
+                return _done(rendered, status="fail_closed", fail_closed_reason=exc.reason)
+            patch_content = prepared_input.text
+            result = validate_proposed_patch(
+                prepared_input.target_file, patch_content, workspace_root=workspace_root,
+                _existing_source=prepared_input.source_text,
+            )
+        else:
+            result = validate_proposed_patch(
+                target_file,
+                patch_content,
+                workspace_root=workspace_root,
+            )
         raw_dir = _raw_dir_for_target(target_root)
-        target_status = _target_path_status(raw_dir, target_file, target_root=target_root)
+        target_status = input_target if prepared_input is not None else _target_path_status(raw_dir, target_file, target_root=target_root)
         target_ref = target_file if "::" in str(target_file or "") else str(target_status.get("target_ref") or "")
         if isinstance(result, dict):
-            analysis_snapshot_id = _analysis_snapshot_id(raw_dir)
+            analysis_snapshot_id = prepared_input.analysis_snapshot_id if prepared_input is not None else _analysis_snapshot_id(raw_dir)
             target_project = _project_from_ref(target_ref)
             target_file_value = str(target_status.get("target_file") or str(target_file).split("::", 1)[-1])
             audit_baseline, audit_baseline_count, audit_query_ok = _audit_violation_work_items_from_sqlite(
@@ -12206,6 +12306,20 @@ def validate_patch(target_file: str, patch_content: str, target_root: str = "", 
             ):
                 result["status"] = "INCOMPLETE_EVIDENCE"
             result["overall_status"] = str(result.get("status") or "UNKNOWN").upper()
+        if prepared_input is not None and isinstance(result, dict):
+            result["patch_input_receipt"] = dict(prepared_input.receipt)
+            try:
+                check_patch_input_continuity(
+                    prepared_input, root=workspace_root, raw_dir=raw_dir,
+                    snapshot_id=_analysis_snapshot_id(raw_dir),
+                )
+                result["patch_input_receipt"]["source_binding"] = "CURRENT_AT_RETURN_CHECK"
+            except PatchInputError as exc:
+                result["status"] = result["overall_status"] = "INVALID_CONTEXT"
+                result["safe_to_apply"] = False
+                result["application_readiness"] = "INPUT_BINDING_CHANGED"
+                result["patch_input_receipt"].update(source_binding="REFUSED_AT_RETURN", reason=exc.reason)
+                result.setdefault("violations", []).append({"rule": exc.reason, "detail": "Source or snapshot continuity is unavailable; do not apply."})
         requested_format = str(format or "brief").strip().lower()
         if requested_format in {"json", "machine"}:
             response = json.dumps(result, indent=2, ensure_ascii=False)

@@ -448,7 +448,7 @@ def test_operator_packet_withholds_directives_when_quality_scope_identity_differ
         lambda path: payloads.get(path.name, {}),
     )
     monkeypatch.setattr(operator, "load_capability_registry", lambda: {})
-    monkeypatch.setattr(operator, "load_capability_activation_plan", lambda: {})
+    monkeypatch.setattr(operator, "load_capability_activation_plan", lambda *, raw_dir: {})
     monkeypatch.setattr(operator, "relevant_capability_contracts", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(operator, "relevant_activation_context", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(operator, "architecture_governance_context", lambda *_args, **_kwargs: {})

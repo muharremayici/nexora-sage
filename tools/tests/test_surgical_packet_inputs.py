@@ -187,6 +187,46 @@ def test_target_activation_regeneration_rejected_but_private_operator_retained(t
         planner.assert_called_once_with()
 
 
+@pytest.mark.parametrize("content,expected", [
+    (None, "UNAVAILABLE"),
+    ("{broken", "UNAVAILABLE"),
+    ('{"meta":{"kind":"other"}}', "UNAVAILABLE"),
+    (json.dumps(_activation_plan("MAIN")), "UNVERIFIED"),
+])
+@pytest.mark.parametrize("foreign_cache", [False, True])
+def test_operator_activation_reads_only_its_bound_namespace(tmp_path, monkeypatch, content, expected, foreign_cache):
+    from tools import generate_nexora_operator_packet as operator
+
+    raw = tmp_path / "target" / ".raw"
+    raw.mkdir(parents=True)
+    foreign = tmp_path / "installation"
+    foreign.mkdir()
+    if foreign_cache:
+        (foreign / "capability_activation_plan.json").write_text(
+            json.dumps(_activation_plan("FOREIGN_PRIVATE")), encoding="utf-8",
+        )
+    if content is not None:
+        (raw / "capability_activation_plan.json").write_text(content, encoding="utf-8")
+    before = {path.name: path.read_bytes() for path in raw.iterdir()}
+    monkeypatch.setattr(operator, "RAW_DIR", raw)
+    monkeypatch.setattr(operator, "_load", lambda _path: {})
+    monkeypatch.setattr(capability_activation, "RAW_DIR", foreign)
+    with patch.object(capability_activation, "build_capability_activation_plan",
+                      side_effect=AssertionError("Private planner must not run")) as planner:
+        packet = operator.build_operator_packet()
+    context = packet["capability_activation"]
+    assert context["input_evidence"]["status"] == expected
+    assert context["input_evidence"]["source_artifact"] == str(raw / "capability_activation_plan.json")
+    assert context["input_evidence"]["regenerated"] is False
+    assert context["input_evidence"]["decision_use"] == "orientation_only"
+    assert context["summary"]["project_ids"] == (["MAIN"] if expected == "UNVERIFIED" else [])
+    assert packet["mission_control"]["capability_activation_plan"] == (
+        "PASS" if expected == "UNVERIFIED" else "UNAVAILABLE")
+    assert "capability_activation" not in packet["target_repository_agent_surface"]
+    assert {path.name: path.read_bytes() for path in raw.iterdir()} == before
+    planner.assert_not_called()
+
+
 def test_documented_first_call_without_activation_plan_keeps_real_packet_builder(tmp_path: Path) -> None:
     raw = tmp_path / ".raw"
     raw.mkdir()

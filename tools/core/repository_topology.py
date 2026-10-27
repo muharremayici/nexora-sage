@@ -4,8 +4,9 @@ import fnmatch
 import hashlib
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable
+from tools.core.repository_root import workspace_patterns
 
 TOPOLOGY_MODES = {"auto", "single_project", "multi_project"}
 
@@ -258,7 +259,7 @@ def _canonical_identity_payload(
     topology: dict[str, Any],
     runtime_projection: dict[str, Any],
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "ontology_contract": topology.get("ontology_contract"),
         "selection_mode": topology.get("selection_mode"),
         "project_candidates": topology.get("project_candidates", {}),
@@ -273,6 +274,9 @@ def _canonical_identity_payload(
         "effective_runtime_projects": runtime_projection.get("effective_runtime_projects", {}),
         "unavailable_requested_projects": runtime_projection.get("unavailable_requested_projects", []),
     }
+    if isinstance(topology.get("main_root_decision"), dict):
+        payload["main_root_decision"] = topology["main_root_decision"]
+    return payload
 
 
 def scope_authority_id(
@@ -287,49 +291,6 @@ def scope_authority_id(
         separators=(",", ":"),
     ).encode("utf-8")
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
-
-
-def workspace_patterns(root: Path, *, path_boundary_state: dict[str, Any] | None = None) -> list[str]:
-    patterns: set[str] = set()
-    pnpm_workspace = root / "pnpm-workspace.yaml"
-    if _is_target_path_contained(root, pnpm_workspace, state=path_boundary_state) and pnpm_workspace.is_file():
-        in_packages = False
-        package_indent = 0
-        for line in pnpm_workspace.read_text(encoding="utf-8", errors="replace").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if re.match(r"^packages\s*:\s*$", stripped):
-                in_packages = True
-                package_indent = len(line) - len(line.lstrip())
-                continue
-            if in_packages and not line.startswith(" " * (package_indent + 1)):
-                in_packages = False
-            if in_packages and stripped.startswith("-"):
-                pattern = stripped[1:].strip().strip("'\"").rstrip("/")
-                if pattern and not pattern.startswith("@"):
-                    patterns.add(pattern)
-
-    package_json = root / "package.json"
-    if _is_target_path_contained(root, package_json, state=path_boundary_state) and package_json.is_file():
-        try:
-            payload = json.loads(package_json.read_text(encoding="utf-8-sig"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            payload = {}
-        workspaces = payload.get("workspaces", []) if isinstance(payload, dict) else []
-        if isinstance(workspaces, list):
-            patterns.update(
-                str(item).strip().rstrip("/")
-                for item in workspaces
-                if str(item).strip()
-            )
-        elif isinstance(workspaces, dict):
-            patterns.update(
-                str(item).strip().rstrip("/")
-                for item in workspaces.get("packages", [])
-                if str(item).strip()
-            )
-    return sorted(patterns)
 
 
 def _project_key(path: Path, existing: dict[str, str]) -> str:
@@ -477,6 +438,50 @@ def configured_project_ownership_exclusions(
         for path in paths
     )
     return attach_declared_exclusions_to_nearest_owner(projects, exclusions, declared_paths)
+
+
+def canonical_main_ownership_is_complete(root: Path, projects: dict, topology: dict) -> bool:
+    """Admit root MAIN only with current canonical selection and child boundaries.
+
+    This is structural evidence from SAGE's proposal, not target authenticity or
+    permission. Unproven/legacy proposals retain the compiler's overlap shield.
+    """
+    if (not isinstance(topology, dict) or topology.get("status") != "resolved"
+            or topology.get("ontology_contract") != "canonical_repository_topology_v1"
+            or topology.get("file_ownership_contract") != "nearest_discovered_project_root_v1"
+            or projects.get("MAIN") != "."
+            or not isinstance(topology.get("selected_projects"), dict)
+            or topology["selected_projects"].get("MAIN") != "."
+            or topology.get("topology_authority_id") != scope_authority_id(topology, None)):
+        return False
+    candidates = topology.get("project_candidates")
+    selected = topology.get("selected_projects")
+    declared = topology.get("project_ownership_exclusions")
+    if not all(isinstance(value, dict) for value in (candidates, selected, declared)):
+        return False
+    values = list(candidates.values()) + list(selected.values()) + list(projects.values())
+    if any(not isinstance(paths, list) for paths in declared.values()):
+        return False
+    values += [path for paths in declared.values() for path in paths]
+    if any(not isinstance(p, str) or not p or PurePosixPath(p).is_absolute()
+           or ".." in PurePosixPath(p).parts or any(c in p for c in ("\\", ":", "\0")) for p in values):
+        return False
+    root = Path(root).resolve()
+    if any(not _is_target_path_contained(root, root / p) or not (root / p).is_dir() for p in values):
+        return False
+    if not set(projects.values()).issubset(set(selected.values())):
+        return False
+    owned = {str(key): (root / p).resolve() for key, p in projects.items()}
+    exclusions = configured_project_ownership_exclusions(
+        owned, root=root, dynamic_config={"_repository_topology": topology})
+    for relative in candidates.values():
+        candidate = (root / relative).resolve()
+        if candidate != root and not any(
+            candidate == excluded or candidate.is_relative_to(excluded)
+            for excluded in exclusions["MAIN"]
+        ):
+            return False
+    return True
 
 
 def attach_declared_exclusions_to_nearest_owner(
@@ -699,6 +704,7 @@ def resolve_repository_topology(
     config_or_manifest_predicate: Callable[[str], bool] | None = None,
     skipped_names: Iterable[str] = (),
     path_boundary_state: dict[str, Any] | None = None,
+    main_root_decision: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if requested_mode not in TOPOLOGY_MODES:
         raise ValueError(f"Unsupported repository topology mode: {requested_mode}")
@@ -860,5 +866,10 @@ def resolve_repository_topology(
         "selected_project_count": len(selected_projects),
         "topology_is_independent_of_source_mode": True,
     }
+    if main_root_decision is not None:
+        if (main_root_decision.get("status") != "resolved"
+                or main_root_decision.get("project_relative_path") != main_project_path):
+            raise ValueError("MAIN root decision does not match topology input")
+        topology["main_root_decision"] = main_root_decision
     topology["topology_authority_id"] = scope_authority_id(topology, None)
     return topology

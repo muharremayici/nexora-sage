@@ -3,10 +3,15 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from copy import deepcopy
 
 import pytest
 
+from tools.core.language_registry import load_language_registry
+from tools.core.repository_root import resolve_main_project_root
 from tools.core.repository_topology import (
+    canonical_main_ownership_is_complete,
+    scope_authority_id,
     attach_declared_exclusions_to_nearest_owner,
     configured_project_ownership_exclusions,
     classify_project_system_kind,
@@ -16,6 +21,97 @@ from tools.core.repository_topology import (
     resolve_repository_topology,
 )
 
+
+@pytest.mark.parametrize("workspace,extra,expected", [
+    ([], [], "src"), (["packages/*"], [], "."),
+    ({"packages": ["packages/*"]}, [], "."),
+    ({"packages": []}, [], "src"),
+    ([], ["turbo.json"], "."), ([], ["nx.json"], "."), ([], ["lerna.json"], "."),
+    ([], ["packages"], "src"),
+])
+def test_shared_main_root_uses_declared_static_facts(tmp_path, workspace, extra, expected):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "package.json").write_text(json.dumps({"workspaces": workspace}))
+    for path in extra:
+        if path.endswith(".json"):
+            (tmp_path / path).write_text("{}")
+        else:
+            (tmp_path / path).mkdir()
+    result = resolve_main_project_root(tmp_path, load_language_registry())
+    assert result["status"] == "resolved"
+    assert result["project_relative_path"] == expected
+    assert result["source_orientation_hint"] == "src"
+    assert result == resolve_main_project_root(tmp_path, load_language_registry())
+
+
+@pytest.mark.parametrize("workspaces", [None, False, "packages/*", [1], {"packages": "packages/*"}])
+def test_main_root_invalid_declarations_stay_unknown(tmp_path, workspaces):
+    (tmp_path / "package.json").write_text(json.dumps({"workspaces": workspaces}))
+    result = resolve_main_project_root(tmp_path, load_language_registry())
+    assert result["status"] == "unresolved"
+    assert result["project_relative_path"] is None
+
+
+@pytest.mark.parametrize("mutation", ["missing", "version", "group", "markers", "unsafe_path"])
+def test_main_root_invalid_policy_does_not_invent_local_defaults(tmp_path, mutation):
+    registry = deepcopy(load_language_registry())
+    policy = registry["repository_main_root_policy"]
+    if mutation == "missing":
+        registry.pop("repository_main_root_policy")
+    elif mutation == "version":
+        policy["contract"] = "future"
+    elif mutation == "group":
+        policy["router_config_marker_group"] = {}
+    elif mutation == "markers":
+        registry["config_file_markers"] = []
+    else:
+        policy["source_directories"] = ["../outside"]
+    result = resolve_main_project_root(tmp_path, registry)
+    assert result["status"] == "unresolved"
+    assert result["resolution_basis"] == "main_root_policy_unavailable"
+
+
+def test_main_root_distinguishes_src_file_and_missing_repo(tmp_path):
+    (tmp_path / "src").write_text("not a directory")
+    registry = load_language_registry()
+    assert resolve_main_project_root(tmp_path, registry)["project_relative_path"] == "."
+    assert resolve_main_project_root(tmp_path / "missing", registry)["status"] == "invalid"
+    (tmp_path / "package.json").write_text("invalid JSON")
+    assert resolve_main_project_root(tmp_path, registry)["status"] == "unresolved"
+
+
+def test_main_root_policy_change_is_bound_without_breaking_legacy_identity(tmp_path):
+    registry = deepcopy(load_language_registry())
+    first = resolve_main_project_root(tmp_path, registry)
+    registry["repository_main_root_policy"]["source_directories"].append("source")
+    second = resolve_main_project_root(tmp_path, registry)
+    assert first["project_relative_path"] == second["project_relative_path"] == "."
+    topology = {"selected_projects": {"MAIN": "."}, "main_root_decision": first}
+    assert scope_authority_id(topology, None) != scope_authority_id({**topology, "main_root_decision": second}, None)
+
+
+@pytest.mark.parametrize("damage", [None, "legacy", "identity", "exclusions", "foreign_path", "malformed"])
+def test_canonical_main_retention_requires_complete_current_ownership(tmp_path, damage):
+    (tmp_path / "src").mkdir()
+    child = tmp_path / "packages" / "child"
+    child.mkdir(parents=True)
+    (child / "package.json").write_text("{}")
+    topology = resolve_repository_topology(tmp_path, main_project_path=".", requested_mode="single_project",
+        config_or_manifest_predicate=lambda name: name == "package.json")
+    projects = {"MAIN": "."}
+    assert topology["excluded_projects"]
+    assert canonical_main_ownership_is_complete(tmp_path, projects, topology)
+    if damage == "legacy":
+        topology.pop("ontology_contract")
+    elif damage == "identity":
+        topology["topology_authority_id"] = "stale"
+    elif damage == "exclusions":
+        topology["project_ownership_exclusions"] = {"MAIN": []}
+    elif damage == "foreign_path":
+        projects["FOREIGN"] = "not-selected"
+    elif damage == "malformed":
+        topology["selected_projects"] = []
+    assert canonical_main_ownership_is_complete(tmp_path, projects, topology) is (damage is None)
 
 def _system_kind_policy() -> dict:
     return {

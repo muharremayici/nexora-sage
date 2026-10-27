@@ -218,6 +218,11 @@
       "status": "accepted",
       "reason": "deterministic governed-source fingerprint for proof currentness and pre-seal stabilization"
     },
+    "tools/core/distribution_test_unit_pilot.py": {
+      "class": "source_governance_identity",
+      "status": "accepted",
+      "reason": "opt-in diagnostic runtime identity captures the interpreter, its stdlib excluding site-packages, DLLs and base runtime files; not a target repository scan, Atlas fallback, complete loaded-runtime attestation or canonical test-reuse authority"
+    },
     "tools/core/clean_delivery.py": {
       "class": "source_governance_identity",
       "status": "accepted",

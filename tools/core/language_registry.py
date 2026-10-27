@@ -27,7 +27,7 @@ _FALLBACK_REGISTRY: dict[str, Any] = {
         "rust": {"extensions": [".rs"], "reason": "Rust source remains visible while Rust AST and Cargo semantics are outside the active capability contract."},
     },
     "non_source_template_extensions": [".ejs", ".hbs", ".handlebars", ".mustache", ".liquid", ".njk", ".twig", ".html", ".md", ".mdx", ".txt"],
-    "non_source_compound_suffixes": [".d.ts", ".d.tsx"],
+    "non_source_compound_suffixes": [".d.ts", ".d.mts", ".d.cts", ".d.tsx"],
     "watch_extra_extensions": [".json"],
     "skip_dirs": ["node_modules", ".git", "dist", "build", ".next", "coverage", "__pycache__", "venv", ".idea", ".vscode", "output", "external_fixture_seed"],
     "root_level_app_markers": ["app", "pages", "widgets", "features", "entities", "shared", "components", "hooks", "services", "server", "contexts", "types", "interfaces"],

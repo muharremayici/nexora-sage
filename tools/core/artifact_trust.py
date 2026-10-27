@@ -132,14 +132,18 @@ def _check(name: str, passed: bool, details: str, *, severity: str = "error") ->
     }
 
 
-def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
+def build_artifact_trust_summary(raw_dir: Path | None = None, *, system_scope: str | None = None) -> dict[str, Any]:
     """Build a compact trust/freshness summary for agent-facing surfaces.
 
     This does not replace full artifact validation. It answers the question an
     agent needs before acting: are the Atlas, audit, and quality artifacts from
     the same current evidence chain, and is the audit scope explicit?
+    An explicit system scope is supplied by the execution-identity owner, not
+    inferred from the caller's output namespace and not an authority grant.
     """
 
+    if system_scope is not None and system_scope not in {"SAGE_ON_SAGE", "SAGE_ON_REPOSITORY"}:
+        raise ValueError("Artifact trust requires a recognized execution system scope")
     raw_dir = Path(raw_dir or RAW_DIR)
     sqlite_summary = _sqlite_truth_summary(raw_dir)
     if sqlite_summary is not None:
@@ -339,11 +343,9 @@ def build_artifact_trust_summary(raw_dir: Path | None = None) -> dict[str, Any]:
             f"release_gate_status={release_gate_status}",
         )
     )
-    system_scope = (
-        "SAGE_ON_SAGE"
-        if raw_dir.resolve() == RAW_DIR.resolve()
-        else "SAGE_ON_REPOSITORY"
-    )
+    if system_scope is None:
+        # Compatibility for callers without a resolved execution identity.
+        system_scope = "SAGE_ON_SAGE" if raw_dir.resolve() == RAW_DIR.resolve() else "SAGE_ON_REPOSITORY"
     freshness_contract = evaluate_artifact_freshness_contract(
         raw_dir,
         system_scope=system_scope,

@@ -450,12 +450,16 @@ def run_pulse():
 
 def generate_mcp_snippet():
     log("Generating MCP configuration preview...", "[MCP]")
-    runtime = build_mcp_runtime_contract(
-        source_env=os.environ,
-        code_maps_dir=CODE_MAPS_DIR,
-        vendor_paths=VENDOR_PATHS,
-        mcp_script=MCP_SCRIPT,
-    )
+    try:
+        runtime = build_mcp_runtime_contract(
+            source_env=os.environ,
+            code_maps_dir=CODE_MAPS_DIR,
+            vendor_paths=VENDOR_PATHS,
+            mcp_script=MCP_SCRIPT,
+        )
+    except ValueError as exc:
+        log(f"MCP configuration unavailable: {exc} Earlier setup actions may already have completed.", "[FAIL]")
+        return False
 
     print("\n" + "=" * 60)
     print("NEXORA SAGE MCP CONFIGURATION".center(60))
@@ -463,6 +467,7 @@ def generate_mcp_snippet():
     print(json.dumps(runtime["client_config"], indent=2, ensure_ascii=False))
     print("=" * 60)
     print("Copy the JSON above into your MCP settings if needed.\n")
+    return True
 
 
 def _install_and_verify(installation_plan, target_root):
@@ -480,6 +485,18 @@ def _install_and_verify(installation_plan, target_root):
         log("Dependency verification remains blocked after planned actions.", "[FAIL]")
         return False
     return True
+
+
+def _print_setup_next_action(target_root=None, projects=None):
+    """Keep explicit acquisition scope without guessing a caller's shell syntax."""
+    if target_root is None:
+        print("[NEXT] Run 'python sage.py run --profile daily' or another explicit analysis profile.\n")
+        return
+    command = ["python", "sage.py", "run", "--profile", "daily", "--target-root", str(target_root)]
+    if projects:
+        command.extend(["--projects", str(projects)])
+    print("[NEXT] Daily analysis argv (not a shell string; run from the SAGE checkout):")
+    print(json.dumps(command, ensure_ascii=False) + "\n")
 
 
 def main():
@@ -577,10 +594,11 @@ def main():
         if installation_plan.get("actions") and not _install_and_verify(installation_plan, target_root):
             return 2
         run_refresh()
-        generate_mcp_snippet()
+        if generate_mcp_snippet() is False:
+            return 2
         record_execution_duration("subprocess_execution", "bootstrap_setup_only", time.perf_counter() - started)
         print("[OK] Setup-only bootstrap completed without running analysis.")
-        print("[NEXT] Run 'python sage.py run --profile daily' or another explicit analysis profile.\n")
+        _print_setup_next_action(target_root if args.target_root else None, args.projects)
         return 0
 
     if installation_plan.get("actions") and not _install_and_verify(installation_plan, target_root):
@@ -588,7 +606,8 @@ def main():
 
     run_refresh()
     run_pulse()
-    generate_mcp_snippet()
+    if generate_mcp_snippet() is False:
+        return 2
 
     print("[OK] Bootstrap completed.")
     print("[NEXT] Run 'python sage.py watch' for live monitoring.")

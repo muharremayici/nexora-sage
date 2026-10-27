@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+import sys
 from typing import Any
 
 from tools.core.mcp_tool_profiles import MCP_TOOL_PROFILE_ENV, resolve_mcp_tool_profile
@@ -25,6 +26,25 @@ MCP_PUBLIC_ENV_KEYS = (
 )
 
 
+def _current_python_command() -> str:
+    """Bind local config to this runtime without dereferencing its venv entry point."""
+    command = sys.executable
+    unavailable_message = (
+        "Current Python executable identity is unavailable or invalid. "
+        "Regenerate MCP configuration with the intended local Python interpreter."
+    )
+    valid = False
+    if isinstance(command, str) and command and "\x00" not in command:
+        try:
+            command.encode("utf-8")
+            valid = Path(command).is_absolute()
+        except UnicodeError as exc:
+            raise ValueError(unavailable_message) from exc
+    if not valid:
+        raise ValueError(unavailable_message)
+    return command
+
+
 def build_mcp_runtime_contract(
     *,
     source_env: Mapping[str, str],
@@ -36,6 +56,7 @@ def build_mcp_runtime_contract(
     """Build one authoritative runtime and client configuration for the MCP server."""
 
     profile = resolve_mcp_tool_profile(code_maps_dir, requested_profile)
+    python_command = _current_python_command()
     process_env = python_subprocess_env(
         source_env,
         code_maps_dir=code_maps_dir,
@@ -54,7 +75,7 @@ def build_mcp_runtime_contract(
         "client_config": {
             "mcpServers": {
                 MCP_SERVER_NAME: {
-                    "command": "python",
+                    "command": python_command,
                     "args": [str(mcp_script)],
                     "env": public_env,
                 }

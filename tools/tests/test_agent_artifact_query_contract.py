@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import subprocess
+import pytest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -271,6 +272,30 @@ def test_sqlite_confidence_zero_dependents_does_not_invent_risk_reason() -> None
 
     assert calibrated["confidence_matrix"]["merge_safety"] == "SAFE"
     assert not any("SQLite impact radius reports" in reason for reason in calibrated["reasons"])
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("direct_count", [0, 2])
+def test_sqlite_confidence_fallback_consumes_current_and_legacy_wording(legacy, direct_count):
+    from tools.engines.confidence_engine import NO_STATIC_RISK_INDICATORS_REASON
+
+    result = _confidence_engine_result("MAIN::src/value.ts")
+    reason = (result["metrics"]["risk_mitigation_reasons"][0] if legacy
+              else NO_STATIC_RISK_INDICATORS_REASON)
+    result["metrics"]["risk_mitigation_reasons"] = [reason]
+    with (
+        patch.object(server, "_sqlite_impact_radius_from_raw", return_value={
+            "direct_dependents_count": direct_count, "blast_radius_size": direct_count,
+        }),
+        patch.object(server, "require_doctrine_mapping", return_value={"critical_dep_threshold": 10, "low_dep_threshold": 5}),
+    ):
+        calibrated = server._calibrate_confidence_with_sqlite_impact(Path("unused"), "src/value.ts", "", result)
+
+    assert (reason in calibrated["reasons"]) is (direct_count == 0)
+    assert calibrated["confidence_matrix"]["merge_safety"] == ("MEDIUM" if direct_count else "SAFE")
+    assert result["metrics"]["risk_mitigation_reasons"] == [reason]
+    if direct_count:
+        assert any("SQLite impact radius reports 2 direct dependents" in row for row in calibrated["reasons"])
 
 
 def test_agent_artifact_query_is_read_only_when_evidence_is_stale(tmp_path: Path) -> None:

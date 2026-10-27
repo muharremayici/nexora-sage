@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from tools.engines.confidence_engine import scan_reflection_indicators
 from tools.engines.blast_radius_engine import _atlas_dependency_coverage
 from tools.engines.local_telemetry_engine import get_hybrid_telemetry_analysis, record_trace
@@ -454,6 +456,46 @@ def test_confidence_engine_detects_dynamic_magic_tokens():
     indicators = scan_reflection_indicators("value = getattr(obj, name)\nmodule = importlib.import_module(name)\n")
     assert any("getattr" in item for item in indicators)
     assert len(indicators) >= 2
+
+
+@pytest.mark.parametrize("dependency_status,dependent_count", [("PASS", 0), ("PASS", 2), ("UNKNOWN", 0)])
+def test_confidence_static_fallback_is_bounded_without_changing_metrics(
+    monkeypatch, dependency_status, dependent_count,
+):
+    from tools.engines import confidence_engine as engine
+    from tools.core import layer_resolver
+
+    node = "MAIN::src/value.ts"
+    atlas = {"MAIN": {"files": {"src/value.ts": {"import_records": []}}}}
+    monkeypatch.setattr(engine, "load_atlas_data", lambda: atlas)
+    monkeypatch.setattr(engine, "project_runtime_atlas", lambda data: (data, {}))
+    monkeypatch.setattr(engine, "load_source_text", lambda *_args, **_kwargs: "export const value = 1;\n")
+    monkeypatch.setattr(engine, "require_doctrine_mapping", lambda _name: {})
+    monkeypatch.setattr(layer_resolver, "resolve_layer", lambda *_args: None)
+    edges = [{"source": f"MAIN::src/consumer{i}.ts", "target": node} for i in range(dependent_count)]
+    monkeypatch.setattr(engine, "_dependency_graph_evidence", lambda: (
+        {"edges": edges, "cycles": []}, {"status": dependency_status},
+    ))
+
+    result = engine.evaluate_file_confidence(node)
+    assert result["confidence_matrix"] == {
+        "dead_code_confidence": 0.97,
+        "merge_safety": "UNKNOWN" if dependency_status != "PASS" else "MEDIUM" if dependent_count else "SAFE",
+        "architecture_drift_certainty": 0.1, "dynamic_magic_hazard": 0.0,
+    }
+    assert result["metrics"]["blast_radius_dependents"] == dependent_count
+    assert result["input_evidence"]["circular_deps"]["status"] == dependency_status
+    reasons = result["metrics"]["risk_mitigation_reasons"]
+    if dependency_status != "PASS":
+        assert any("unavailable" in reason for reason in reasons)
+        assert "unavailable" in result["verdict"]
+    elif dependent_count:
+        assert any("Moderate dependent count" in reason for reason in reasons)
+    else:
+        assert reasons == [engine.NO_STATIC_RISK_INDICATORS_REASON]
+        assert "does not prove runtime correctness" in reasons[0]
+        assert "authorize a merge or deployment" in reasons[0]
+    assert "not a standalone merge or deploy approval" in result["decision_boundary"]
 
 
 def test_local_telemetry_records_and_maps_trace_shape():

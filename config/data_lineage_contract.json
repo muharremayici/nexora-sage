@@ -753,6 +753,10 @@
       "producer_markers": [
         {
           "file": "tools/external_target_preflight.py",
+          "contains": "observe_repository_projects("
+        },
+        {
+          "file": "tools/core/repository_observation.py",
           "contains": "classify_project_system_kinds("
         },
         {

@@ -394,11 +394,29 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--all-shards", action="store_true")
     mode.add_argument("--shard")
+    mode.add_argument("--unit-pilot", help="Opt-in diagnostic unit experiment; never release-profile reuse")
     parser.add_argument("--receipt")
     parser.add_argument("--basetemp-root")
     args = parser.parse_args()
 
     try:
+        if args.unit_pilot:
+            if not args.receipt or args.collect_only or args.basetemp_root or args.profile != "auto":
+                raise ValueError("--unit-pilot requires --receipt and forbids profile/collect-only/basetemp options")
+            from tools.core.distribution_test_unit_pilot import run_pilot
+
+            receipt_path = Path(args.receipt)
+            if not receipt_path.is_absolute():
+                receipt_path = ROOT / receipt_path
+            if (not receipt_path.resolve().is_relative_to((ROOT / "output/reports").resolve())
+                    or receipt_path.suffix != ".json" or receipt_path.exists()):
+                raise ValueError("Pilot requires a new diagnostic JSON report; managed/canonical or existing receipts are forbidden")
+            receipt = run_pilot(ROOT, args.unit_pilot)
+            if receipt_path.exists():
+                raise ValueError("Pilot receipt appeared during execution; refusing overwrite")
+            _write_json_atomic(receipt_path, receipt)
+            print(f"[distribution-unit-pilot] {receipt['status']} canonical_profile_reuse_enabled=False", flush=True)
+            return 0 if receipt["status"] == "DIAGNOSTIC_PASS" else 1
         if args.receipt and not (args.all_shards or args.shard):
             raise ValueError("--receipt requires --all-shards or --shard")
         if args.basetemp_root and not (args.all_shards or args.shard):
@@ -415,7 +433,7 @@ def main() -> int:
             tests = [path for shard_tests in partitions.values() for path in shard_tests]
         else:
             tests, target_fixture = _resolve_tests_from_payload(profile_payload, args.profile)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
         print(f"[distribution-tests] FAIL: {exc}", file=sys.stderr)
         return 2
 

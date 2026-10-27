@@ -48,6 +48,116 @@
         "max_files": 4096,
         "max_file_bytes": 1048576,
         "max_total_bytes": 16777216,
+        "declaration_contract_evidence": {
+          "version": "v1-top-level-declaration-headers",
+          "supported_suffixes": [
+            ".d.ts",
+            ".d.mts",
+            ".d.cts"
+          ],
+          "max_files": 16,
+          "max_captured_bytes": 8388608,
+          "max_records": 64,
+          "max_statements": 4096,
+          "max_names": 16,
+          "max_name_bytes": 512,
+          "statement_kinds": [
+            "InterfaceDeclaration",
+            "TypeAliasDeclaration",
+            "FunctionDeclaration",
+            "ClassDeclaration",
+            "VariableStatement",
+            "ModuleDeclaration",
+            "ExportDeclaration"
+          ],
+          "parser_reason_codes": [
+            "byte_budget_exceeded",
+            "unreadable",
+            "unsupported_encoding",
+            "parse_diagnostics",
+            "record_budget_exceeded",
+            "unsupported_statement",
+            "unsupported_or_bounded_name",
+            "module_name_budget_exceeded",
+            "nested_scope_not_traversed",
+            "statement_budget_exceeded"
+          ],
+          "rule": "Observe bounded top-level declaration headers only over canonical owned auxiliary inputs. max_captured_bytes admits selected capture sizes, not atomic I/O: each native reread separately uses the existing auxiliary per-file byte limit plus a sentinel. Bind exact bytes actually parsed, policy bytes and parser version. Retain UTF-8 byte spans, literal names/modifiers and module specifiers; report unsupported statements, uninspected nested module bodies and omissions. This is not resolved type/export, runtime, implementation symbol/LOC or complete declaration coverage. Reuse existing Node batch transport and Atlas metadata; surgical input is unavailable, never fresh empty authority."
+        },
+        "manifest_declaration_links": {
+          "version": "v1-literal-manifest-declaration-links",
+          "scope": "top_level_types_typings_literal_path_correspondence",
+          "literal_fields": [
+            "types",
+            "typings"
+          ],
+          "max_packages": 256,
+          "max_candidates": 4096,
+          "max_records": 256,
+          "max_text_bytes": 1024,
+          "max_record_bytes": 4096,
+          "max_total_bytes": 262144,
+          "reason_codes": [
+            "auxiliary_scope_unavailable",
+            "declaration_scope_unavailable",
+            "package_scope_unavailable",
+            "auxiliary_scope_partial",
+            "declaration_scope_partial",
+            "manifest_evidence_unavailable",
+            "manifest_evidence_partial",
+            "package_budget_exceeded",
+            "candidate_budget_exceeded",
+            "record_budget_exceeded",
+            "record_shape_unavailable",
+            "record_byte_budget_exceeded",
+            "group_byte_budget_exceeded",
+            "literal_target_correspondence",
+            "conditional_or_versioned_entry",
+            "unsupported_target_form",
+            "outside_declaration_subset",
+            "target_not_in_captured_headers",
+            "declaration_headers_unavailable",
+            "declaration_capture_mismatch"
+          ],
+          "rule": "Derive once from the same owned Atlas project's auxiliary inputs, bound manifest type-entry provenance and admitted declaration headers. Observe top-level literal types/typings path correspondence only; preserve all other bounded literal rows as unresolved. Project-wide package/candidate/record limits and UTF-8 text/serialized-record/group byte limits have distinct units. Never resolve conditions, walk/read live targets, manufacture negative filesystem authority, modify implementation graphs or grant runtime/type/edit authority. An optional separately versioned group does not redefine the existing header grammar; current header admission still binds whole lineage-policy bytes."
+        },
+        "manifest_source_links": {
+          "version": "v1-literal-manifest-source-links",
+          "scope": "top_level_types_typings_indexed_source_correspondence",
+          "literal_fields": [
+            "types",
+            "typings"
+          ],
+          "max_packages": 256,
+          "max_candidates": 4096,
+          "max_records": 256,
+          "max_text_bytes": 1024,
+          "max_record_bytes": 4096,
+          "max_group_bytes": 65536,
+          "max_total_bytes": 262144,
+          "reason_codes": [
+            "auxiliary_scope_unavailable",
+            "manifest_evidence_unavailable",
+            "manifest_evidence_partial",
+            "package_budget_exceeded",
+            "candidate_budget_exceeded",
+            "record_budget_exceeded",
+            "record_shape_unavailable",
+            "record_byte_budget_exceeded",
+            "group_or_project_byte_budget_exceeded",
+            "conditional_or_versioned_entry",
+            "unsupported_target_form",
+            "outside_source_subset"
+          ],
+          "rule": "Build one bounded index from current complete owned auxiliary context and raw-bound literal manifest observations. Attach only exact top-level types/typings correspondence to already indexed canonical TypeScript source files after final source identity exists, including fresh/cache/staged paths. Project-wide retained records and reserved serialized envelopes share max_total_bytes; each optional group also has max_group_bytes and must fit the existing base-file storage cap. Source text identity is tagged using the existing snapshot hash owner, never substituted for raw declaration capture. No second target scan/read, native condition selection, absence, runtime/type safety or edit authority. Missing or partial input stays unknown. Preserve completed declaration links and independent source inspection."
+        },
+        "package_type_entry_evidence": {
+          "version": "v1",
+          "max_nodes": 4096,
+          "max_records": 256,
+          "max_depth": 32,
+          "rule": "Observe literal types/typings/typesVersions fields and explicit exports types/types@ conditions only from exact auxiliary-bound canonical manifest bytes. Preserve field paths, sibling order and literal conditions; do not select conditions, resolve targets, execute configuration or grant runtime/type-safety authority. Bounds apply to the new projection, not legacy public-pattern traversal. Omitted totals remain unknown when traversal stops."
+        },
         "rule": "Capture bounded UTF-8 input identities from the existing owned Atlas walk, not a second scan. Preserve raw-byte and TypeScript host-text identities without contents. The same resolved path used for the bounded auxiliary read also records whether its exact literal file path was canonical; an internal file link is false. Missing, unreadable, oversized, non-UTF-8, excluded or surgical-only inputs remain unavailable. The canonicality bit is enumeration-time auxiliary evidence only, not source-file or atomic link authority. Inventory absence never proves a negative module-resolution result."
       },
       "atlas_resolution_inputs": {

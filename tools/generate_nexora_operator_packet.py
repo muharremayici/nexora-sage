@@ -191,7 +191,8 @@ def build_operator_packet() -> dict[str, Any]:
         _load(RAW_DIR / "analysis_scope_authority.json")
     ) or fail_closed_scope_authority("analysis_scope_authority_missing_at_operator_packet")
     capability_registry = load_capability_registry()
-    capability_activation_plan = load_capability_activation_plan()
+    # Consume this namespace's producer output; missing context cannot run the private planner.
+    capability_activation_plan = load_capability_activation_plan(raw_dir=RAW_DIR)
 
     brief_summary = brief.get("summary", {}) if isinstance(brief.get("summary"), dict) else {}
     contract_posture = contract.get("current_posture", {}) if isinstance(contract.get("current_posture"), dict) else {}

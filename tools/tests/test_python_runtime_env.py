@@ -5,7 +5,7 @@ from pathlib import Path
 
 import codemaps
 import pytest
-from tools.core import bootstrap_env
+from tools.core import bootstrap_env, mcp_runtime_config
 from tools.core.mcp_tool_profiles import (
     available_mcp_tool_profiles,
     project_mcp_tool_names,
@@ -177,3 +177,78 @@ def test_public_distribution_exposes_only_target_repository_mcp_profiles(tmp_pat
         resolve_mcp_tool_profile(tmp_path, "sage_operator_debug")
     with pytest.raises(ValueError, match="Unknown MCP tool profile"):
         project_mcp_tool_names(tmp_path, "sage_operator_debug")
+
+
+@pytest.mark.parametrize("profile", ["target_repository_default", "target_repository_followup"])
+@pytest.mark.parametrize("path_case", ["ordinary", "venv_unicode", "long_literal"])
+def test_mcp_config_binds_exact_running_interpreter_without_client_path_selection(monkeypatch, tmp_path, profile, path_case):
+    # These are literal configuration values, not installed or executed runtimes.
+    paths = {
+        "ordinary": str(tmp_path / "python.exe"),
+        "venv_unicode": str(tmp_path / "Türkçe O'Brien & $env" / ".venv" / "Scripts" / "python.exe"),
+        "long_literal": str(tmp_path / ("long-component-" * 30) / "python.exe"),
+    }
+    command = paths[path_case]
+    monkeypatch.setattr(mcp_runtime_config.sys, "executable", command)
+    source = {"PATH": "unrelated-client-python", "PYTHONPATH": "custom-imports",
+              "API_TOKEN": "synthetic-private", "CODEMAPS_HITL_SECRET": "synthetic-private"}
+    before = dict(source)
+    runtime = mcp_runtime_config.build_mcp_runtime_contract(source_env=source,
+        code_maps_dir=codemaps.CODE_MAPS_DIR, vendor_paths=[], mcp_script=codemaps.MCP_SCRIPT, requested_profile=profile)
+    client = runtime["client_config"]["mcpServers"]["nexora-sage"]
+    assert client["command"] == command and client["args"] == [str(codemaps.MCP_SCRIPT)]
+    assert json.loads(json.dumps(client, ensure_ascii=False))["command"] == command
+    assert source == before and runtime["process_env"]["PATH"] == source["PATH"]
+    assert set(client["env"]) == {"PYTHONIOENCODING", "PYTHONUTF8", "PYTHONPATH", "SAGE_MCP_TOOL_PROFILE", "SAGE_ACTOR_PROFILE"}
+    assert client["env"]["SAGE_MCP_TOOL_PROFILE"] == client["env"]["SAGE_ACTOR_PROFILE"] == profile
+    assert not set(client["env"]) & {"PATH", "VIRTUAL_ENV", "PYTHONHOME", "API_TOKEN", "CODEMAPS_HITL_SECRET"}
+
+
+def test_mcp_interpreter_spelling_is_not_resolved_to_base_python(monkeypatch, tmp_path):
+    command = str(tmp_path / ".venv" / "Scripts" / ".." / "Scripts" / "python.exe")
+    def forbidden(*_a, **_k):
+        raise AssertionError("No symlink/base-executable or filesystem-availability promotion")
+    with monkeypatch.context() as patch:
+        patch.setattr(mcp_runtime_config.sys, "executable", command)
+        patch.setattr(Path, "resolve", forbidden)
+        patch.setattr(Path, "is_file", forbidden)
+        assert mcp_runtime_config._current_python_command() == command
+
+
+@pytest.mark.parametrize("command", [None, "", " ", "python", "../python", "C:python.exe", "\x00", "\ud800", 3, []],
+    ids=["none", "empty", "blank", "bare", "relative", "drive_relative", "nul", "surrogate", "number", "list"])
+def test_unavailable_interpreter_refuses_config_without_fallback(monkeypatch, command):
+    monkeypatch.setattr(mcp_runtime_config.sys, "executable", command)
+    with pytest.raises(ValueError, match="Regenerate MCP configuration"):
+        mcp_runtime_config.build_mcp_runtime_contract(source_env={}, code_maps_dir=codemaps.CODE_MAPS_DIR,
+            vendor_paths=[], mcp_script=codemaps.MCP_SCRIPT, requested_profile="target_repository_default")
+
+
+@pytest.mark.parametrize("invalid_unit", ["\ud800", "\udfff"], ids=["high_surrogate", "low_surrogate"])
+def test_invalid_interpreter_encoding_has_explicit_refusal_cause(monkeypatch, tmp_path, invalid_unit):
+    command = str(tmp_path / ("private-" + invalid_unit) / "python.exe")
+    monkeypatch.setattr(mcp_runtime_config.sys, "executable", command)
+
+    with pytest.raises(ValueError) as caught:
+        mcp_runtime_config._current_python_command()
+
+    assert isinstance(caught.value.__cause__, UnicodeEncodeError)
+    assert str(caught.value) == (
+        "Current Python executable identity is unavailable or invalid. "
+        "Regenerate MCP configuration with the intended local Python interpreter."
+    )
+    assert "private-" not in str(caught.value)
+    assert invalid_unit not in str(caught.value)
+
+
+@pytest.mark.parametrize("print_config", [False, True])
+def test_mcp_cli_reports_invalid_identity_before_dependency_probe_or_launch(monkeypatch, capsys, print_config):
+    def forbidden(*_a, **_k):
+        raise AssertionError("Config failure must not install, probe optional MCP or launch")
+    monkeypatch.setattr(mcp_runtime_config.sys, "executable", None)
+    monkeypatch.setattr(codemaps, "run_command", forbidden)
+    monkeypatch.setattr(codemaps, "import_target_available", forbidden)
+    assert codemaps.cmd_mcp(argparse.Namespace(profile="target_repository_default", print_config=print_config)) == 2
+    output = capsys.readouterr().out
+    assert "[ERROR]" in output and "Regenerate MCP configuration" in output
+    assert '"mcpServers"' not in output

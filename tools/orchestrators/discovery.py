@@ -53,8 +53,9 @@ from tools.core.distribution_policy import is_managed_clean_mirror_path
 from tools.core.repository_topology import (
     classify_project_roles as classify_repository_project_roles,
     resolve_repository_topology,
-    workspace_patterns,
 )
+from tools.core.repository_root import resolve_main_project_root, workspace_patterns
+from tools.core.repository_observation import observe_current_repository
 
 PUBLIC_DISTRIBUTION_MANIFEST = CODE_MAPS_DIR / "PUBLIC_DISTRIBUTION_MANIFEST.json"
 
@@ -761,6 +762,10 @@ def resolve_discovery_topology(*, profile: str = "full") -> dict:
             ],
             "ontology_contract": target_override["ontology_contract"],
             "topology_authority_id": target_override["topology_authority_id"],
+            **({"main_root_decision": target_override["main_root_decision"]}
+               if isinstance(target_override.get("main_root_decision"), dict) else {}),
+            **({"project_observation": target_override["project_observation"]}
+               if isinstance(target_override.get("project_observation"), dict) else {}),
             "source_mode": "external_target_preflight_receipt",
             "repository_root": str(ROOT_DIR.resolve()),
         }
@@ -768,9 +773,13 @@ def resolve_discovery_topology(*, profile: str = "full") -> dict:
     if ws_patterns:
         print(f"     [SIGNAL] Workspace boundaries detected: {', '.join(ws_patterns)}")
     structural_markers = set(ROOT_LEVEL_APP_MARKERS)
-    for profile in ARCH_PROFILES.values():
-        structural_markers.update(str(marker).lower() for marker in profile.get("markers", []) if str(marker).strip())
-    main_module_root, main_scan_root = detect_module_root(ROOT_DIR)
+    for architecture_profile in ARCH_PROFILES.values():
+        structural_markers.update(str(marker).lower() for marker in architecture_profile.get("markers", []) if str(marker).strip())
+    main_decision = resolve_main_project_root(ROOT_DIR, LANGUAGE_REGISTRY)
+    if main_decision["status"] != "resolved":
+        raise RuntimeError(f"MAIN root decision unavailable: {main_decision['resolution_basis']}")
+    main_module_root = main_decision["project_relative_path"]
+    main_scan_root = ROOT_DIR / main_module_root
     if profile == "entrypoint-smoke":
         projects = {"MAIN": main_module_root} if main_scan_root.exists() else {}
         return {
@@ -791,6 +800,7 @@ def resolve_discovery_topology(*, profile: str = "full") -> dict:
         excluded_path_predicate=is_managed_clean_mirror_path,
         config_or_manifest_predicate=is_config_or_manifest_file,
         skipped_names=skip_dirs(),
+        main_root_decision=main_decision,
     )
     for key, rel_path in topology["selected_projects"].items():
         if key != "MAIN":
@@ -853,6 +863,18 @@ def run_discovery(*, profile: str = "full", output_path: Path | None = None, wri
     print("=" * 80 + "\n")
 
     repository_topology = resolve_discovery_topology(profile=profile)
+    project_observation = None
+    if profile == "full":
+        # One nearest-owner inventory replaces the redundant per-project language walks.
+        # An admitted external receipt already carries these facts; do not re-observe it.
+        inherited_observation = repository_topology.get("project_observation")
+        if isinstance(inherited_observation, dict):
+            project_observation = inherited_observation
+        else:
+            project_observation = observe_current_repository(ROOT_DIR, repository_topology).payload()
+        repository_topology["project_observation"] = project_observation
+        repository_topology["project_candidate_system_kinds"] = project_observation["project_system_kinds"]
+        repository_topology["system_kind_contract"] = project_observation["system_kind_contract"]
     projects = repository_topology["selected_projects"]
     project_roles = repository_topology["selected_project_roles"]
     metadata_report = {}
@@ -868,7 +890,13 @@ def run_discovery(*, profile: str = "full", output_path: Path | None = None, wri
             profile=profile,
             workspace_signals=workspace_signals,
         )
-        languages, is_polyglot = detect_languages(abs_path, profile=profile)
+        if project_observation is None:
+            languages, is_polyglot = detect_languages(abs_path, profile=profile)
+        else:
+            counts = project_observation["selected_inventory"][9].get(name, {}).get("language_counts", {})
+            total = sum(counts.values())
+            languages = sorted(key for key, count in counts.items() if count / max(1, total) > 0.05)
+            is_polyglot = len(languages) > 1
 
         metadata_report[name] = {
             "path": rel_path,

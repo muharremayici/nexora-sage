@@ -541,12 +541,48 @@ def _fallback_scope_authority(
     }
 
 
+def _observed_scope_authority(observation, *, dynamic_config, topology, projects, run_id):
+    from tools.core.config import CODE_MAPS_DIR
+    from tools.core.repository_observation import current_observation_inputs, validate_run_observation
+    root = Path(dynamic_config.get("workspace_root") or ".")
+    if not root.is_absolute():
+        root = CODE_MAPS_DIR / root
+    effective = runtime_project_projection(topology, projects)["effective_runtime_projects"]
+    facts, reason = validate_run_observation(
+        observation, target=root, topology=topology, projects=effective, run_id=run_id,
+    )
+    if reason:
+        return None, reason
+    repository, inventory = facts["repository_inventory"], facts["selected_inventory"]
+    rows = {key: inventory[9][key] for key in effective}
+    observed, analyzed = {}, {}
+    for row in rows.values():
+        for destination, field in ((observed, "language_counts"), (analyzed, "analysis_language_counts")):
+            for language, count in row[field].items():
+                destination[language] = destination.get(language, 0) + count
+    enriched = {**topology, "project_candidate_system_kinds": facts["project_system_kinds"]}
+    authority = build_preflight_scope_authority(
+        topology=enriched, projects=projects, repository_file_count=repository[0],
+        repository_inventory_truncated=repository[1], repository_language_counts=repository[2],
+        repository_analysis_language_counts=repository[3],
+        effective_file_count=sum(row["file_count"] for row in rows.values()),
+        effective_inventory_truncated=inventory[1], effective_language_counts=observed,
+        effective_analysis_language_counts=analyzed,
+        effective_project_file_counts={key: row["file_count"] for key, row in rows.items()},
+        effective_project_inventory_evidence=rows, polyglot_capabilities=current_observation_inputs()[1],
+    )
+    authority["project_observation_identity"] = facts["identity"]
+    return authority, None
+
+
 def runtime_scope_authority(
     *,
     dynamic_config: dict[str, Any],
     projects: Iterable[str] | str | None,
     atlas: dict[str, Any] | None = None,
     raw_dir: Path | None = None,
+    project_observation: Any = None,
+    observation_run_id: str = "",
 ) -> dict[str, Any]:
     """Resolve one runtime scope authority for Preflight, Atlas and consumers."""
 
@@ -557,7 +593,30 @@ def runtime_scope_authority(
     expected_id = scope_authority_id(topology, projects)
     external = isinstance(dynamic_config.get("_target_root_override"), dict)
     authority: dict[str, Any] = {}
-    if external and raw_dir is not None:
+    observation_error = None
+    if not external and project_observation is not None:
+        authority, observation_error = _observed_scope_authority(
+            project_observation, dynamic_config=dynamic_config, topology=topology,
+            projects=projects, run_id=observation_run_id,
+        )
+    external_observation_source = topology.get("observation_source") if external else None
+    if external_observation_source == "external_target_preflight_receipt":
+        # Config's native receipt admission already validated the exact transported
+        # bytes. Its embedded scope is immutable run transport, unlike the mutable
+        # raw latest projection, which another Preflight can legitimately replace.
+        admitted_scope = topology.get("analysis_scope")
+        candidate = extract_scope_authority(admitted_scope)
+        run_id = topology.get("preflight_run_id")
+        receipt_hash = topology.get("preflight_receipt_sha256")
+        if (candidate and isinstance(run_id, str) and run_id.strip()
+                and isinstance(receipt_hash, str) and len(receipt_hash) == 64
+                and all(char in "0123456789abcdef" for char in receipt_hash.lower())):
+            authority = candidate
+        else:
+            observation_error = "external_admitted_preflight_scope_transport_incomplete"
+    elif external and not external_observation_source and raw_dir is not None:
+        # Compatibility for legacy callers without generated receipt/bypass
+        # provenance. Explicit runtime bypass must never borrow a stale latest.
         preflight_path = Path(raw_dir) / "external_target_preflight.json"
         native_preflight_path = Path(native_filesystem_path(preflight_path))
         native_db_path = Path(native_filesystem_path(Path(raw_dir) / "codemaps.db"))
@@ -569,11 +628,19 @@ def runtime_scope_authority(
             if isinstance(candidate, dict):
                 authority = dict(candidate)
     if not authority:
+        fallback_topology = topology
+        if not external and isinstance(topology.get("project_observation"), dict):
+            # Serialized Discovery facts remain descriptive, not fresh run admission.
+            fallback_topology = {**topology, "project_candidate_system_kinds": {}}
         authority = _fallback_scope_authority(
-            topology,
+            fallback_topology,
             projects,
             external_preflight_missing=external,
         )
+        if observation_error:
+            authority.update(evidence_status=INCOMPLETE_EVIDENCE, claim_scope="incomplete_evidence_only",
+                             full_repository_claim_eligible=False)
+            authority["incomplete_reasons"].append(observation_error)
     topology_identity_matches = (
         str(authority.get("topology_authority_id") or "") == expected_topology_id
     )

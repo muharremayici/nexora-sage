@@ -78,8 +78,13 @@ from tools.core.workload_profile import (
     atlas_project_worker_count as resolve_atlas_project_worker_count,
     build_workload_profile,
 )
-from tools.core.package_contracts import build_package_public_contracts
-from tools.core.atlas_typescript_inputs import ResolutionInputCapture, auxiliary_context_identity, auxiliary_input_policy, capture_auxiliary_inputs
+from tools.core.package_contracts import build_package_public_contracts, unavailable_type_entry_evidence
+from tools.core.manifest_declaration_links import build_manifest_declaration_links
+from tools.core.manifest_source_links import build_manifest_source_link_index, attach_manifest_source_links
+from tools.core.atlas_typescript_inputs import (
+    ResolutionInputCapture, auxiliary_context_identity, auxiliary_input_policy, capture_auxiliary_inputs,
+    declaration_input_paths, build_declaration_contract_evidence,
+)
 from tools.core.source_snapshot_integrity import source_text_hash
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.operational_limits import atlas_batch_sequencer_timeout_seconds
@@ -198,6 +203,9 @@ def atlas_staging_producer_contract() -> str:
         CODE_MAPS_DIR / "tools" / "core" / "repository_topology.py",
         CODE_MAPS_DIR / "tools" / "core" / "projects_registry.py",
         CODE_MAPS_DIR / "tools" / "core" / "atlas_typescript_inputs.py",
+        CODE_MAPS_DIR / "tools" / "core" / "manifest_declaration_links.py",
+        CODE_MAPS_DIR / "tools" / "core" / "manifest_source_links.py",
+        CODE_MAPS_DIR / "tools" / "core" / "package_contracts.py",
         CODE_MAPS_DIR / "tools" / "core" / "source_snapshot_integrity.py",
         CODE_MAPS_DIR / "config" / "source_snapshot_store_policy.json",
         Path(CONFIG_FILE),
@@ -3228,6 +3236,8 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             project_root, walk_items, surgical=surgical_mode,
         )
         auxiliary_identity = auxiliary_context_identity(atlas["typescript_auxiliary_inputs"])
+        declaration_paths = declaration_input_paths(project_root, atlas["typescript_auxiliary_inputs"])
+        declaration_path_set = set(declaration_paths)
         package_contract_changed = any(file == "package.json" for _, file, _ in walk_items)
         if surgical_mode and package_contract_changed:
             package_manifest_paths = []
@@ -3243,7 +3253,23 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     ):
                         package_manifest_paths.append(manifest_path)
         if not surgical_mode or package_contract_changed:
-            atlas["public_contracts"] = build_package_public_contracts(project_root, package_manifest_paths)
+            atlas["public_contracts"] = build_package_public_contracts(
+                project_root, package_manifest_paths, auxiliary_inputs=atlas["typescript_auxiliary_inputs"])
+        else:
+            # A surgical walk has no current project-wide auxiliary authority.
+            for package in atlas.get("public_contracts", {}).get("packages", []):
+                if isinstance(package, dict):
+                    package["type_entry_evidence"] = unavailable_type_entry_evidence(
+                        str(package.get("manifest") or ""), "surgical_scope_unavailable")
+
+        source_link_index = build_manifest_source_link_index(
+            pkey, atlas["typescript_auxiliary_inputs"], atlas["public_contracts"])
+        source_link_file_limit = STORE.atlas_staging_file_aggregate_limit_bytes if not dry_run else None
+        if surgical_mode:
+            # Unchanged inherited files cannot retain project-wide manifest
+            # authority when the current operation only visits surgical paths.
+            for inherited_file in atlas.get("files", {}).values():
+                inherited_file.pop("manifest_type_entry_links", None)
 
         for full_path, file, rel_path in walk_items:
                 if surgical_mode and not os.path.exists(full_path):
@@ -3291,6 +3317,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                         lifted_staged["size"] = f_size
                         if rel_path in source_file_canonicality:
                             lifted_staged["canonical_file_path"] = source_file_canonicality[rel_path]
+                        attach_manifest_source_links(lifted_staged, pkey, rel_path, source_link_index, max_file_bytes=source_link_file_limit)
                         atlas["files"][rel_path] = lifted_staged
                         atlas["dependencies"][rel_path] = lifted_staged.get("internal_deps", [])
                         project_changed_files.append(scoped_change_ref(pkey, rel_path))
@@ -3310,6 +3337,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                     lifted_cached.update(mtime=f_mtime, size=f_size)
                     if rel_path in source_file_canonicality:
                         lifted_cached["canonical_file_path"] = source_file_canonicality[rel_path]
+                    attach_manifest_source_links(lifted_cached, pkey, rel_path, source_link_index, max_file_bytes=source_link_file_limit)
                     atlas["files"][rel_path] = lifted_cached
                     atlas["dependencies"][rel_path] = lifted_cached.get("internal_deps", [])
                     lifted_by_hash += 1
@@ -3458,15 +3486,26 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             for extension in extensions_for_language(language)
             for path in files_by_ext.get(extension, [])
         ]
-        if js_ts_files:
+        declaration_results = {}
+
+        if js_ts_files or declaration_paths:
             res, strat = _sequence_via_node_batch(
-                js_ts_files,
+                js_ts_files + declaration_paths,
                 atlas_project_workers=atlas_workers,
                 on_chunk=checkpoint_sequencer_results,
             )
-            node_results_by_file.update(res)
+            declaration_results = {key: value for key, value in res.items() if key in declaration_path_set}
+            node_results_by_file.update({key: value for key, value in res.items() if key not in declaration_path_set})
             strategies.append(strat["strategy"])
             strategy_details.append(strat)
+
+        atlas["declaration_contract_evidence"] = build_declaration_contract_evidence(
+            project_root, atlas["typescript_auxiliary_inputs"], declaration_results)
+        manifest_links = build_manifest_declaration_links(
+            atlas["typescript_auxiliary_inputs"], atlas["public_contracts"], atlas["declaration_contract_evidence"],
+            max_plane_bytes=STORE.atlas_staging_file_aggregate_limit_bytes if not dry_run else None)
+        if manifest_links is not None:
+            atlas["declaration_contract_evidence"]["manifest_type_links"] = manifest_links
             
         ast_strategy = {
             "strategy": "+".join(strategies) if strategies else "none",
@@ -3850,6 +3889,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
 
             if rel_path in source_file_canonicality:
                 f_data["canonical_file_path"] = source_file_canonicality[rel_path]
+            attach_manifest_source_links(f_data, pkey, rel_path, source_link_index, max_file_bytes=source_link_file_limit)
             atlas["dependencies"][rel_path] = internal_deps
             atlas["files"][rel_path] = f_data
             project_changed_files.append(scoped_change_ref(pkey, rel_path))

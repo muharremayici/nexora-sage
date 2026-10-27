@@ -12,12 +12,14 @@ from tools.core.language_registry import (
     is_config_or_manifest_file,
     language_extensions,
     load_language_registry,
+    language_registry_provenance,
     manifest_file_marker_map,
     plugins_for_bundler,
     plugins_for_dependencies,
     skip_dirs as registry_skip_dirs,
 )
 from tools.core.repository_topology import resolve_repository_topology
+from tools.core.repository_root import resolve_main_project_root, main_root_policy_fingerprint
 from tools.core.distribution_policy import is_managed_clean_mirror_path
 from tools.core.installation_identity import (
     prune_walk_directories,
@@ -524,10 +526,19 @@ def _infer_target_architecture(root: Path, deps: set[str], bundler: str) -> dict
     }
 
 
-def external_target_scope_projection(root: Path, architecture: dict | None = None) -> dict:
+def external_target_scope_projection(
+    root: Path, architecture: dict | None = None, *, path_boundary_state: dict | None = None,
+) -> dict:
     """Resolve the bounded project scope inside an external repository root."""
     root = Path(root).resolve()
-    raw_scope = str((architecture or {}).get("module_root") or ".").replace("\\", "/").strip()
+    decision = None
+    if architecture is None:
+        decision = resolve_main_project_root(root, load_language_registry(), path_boundary_state=path_boundary_state)
+        if decision["status"] != "resolved":
+            return {"status": decision["status"], "repository_root": str(root),
+                    "project_root": None, "project_relative_path": None,
+                    "resolution_basis": decision["resolution_basis"], "main_root_decision": decision}
+    raw_scope = str(decision["project_relative_path"] if decision else (architecture or {}).get("module_root") or ".").replace("\\", "/").strip()
     normalized_scope = raw_scope.strip("/") or "."
     candidate = (root / normalized_scope).resolve()
     try:
@@ -540,7 +551,7 @@ def external_target_scope_projection(root: Path, architecture: dict | None = Non
             "project_relative_path": normalized_scope,
             "resolution_basis": "unsafe_inferred_scope_outside_repository",
         }
-    if not candidate.is_dir():
+    if not is_target_path_contained(root, candidate, state=path_boundary_state) or not candidate.is_dir():
         return {
             "status": "invalid",
             "repository_root": str(root),
@@ -558,6 +569,7 @@ def external_target_scope_projection(root: Path, architecture: dict | None = Non
             if normalized_scope != "."
             else "repository_root_project"
         ),
+        **({"main_root_decision": decision} if decision else {}),
     }
 
 
@@ -634,6 +646,8 @@ def external_target_repository_topology(
         config_or_manifest_predicate=is_config_or_manifest_file,
         skipped_names=registry_skip_dirs(),
         path_boundary_state=path_boundary_state,
+        main_root_decision=(scope_projection.get("main_root_decision")
+                            if scope_projection.get("status") == "resolved" else None),
     )
     return {
         **topology,
@@ -740,6 +754,17 @@ def load_external_target_preflight_receipt(
     }
     if not required_scope_fields.issubset(scope):
         raise RuntimeError("External target Preflight receipt scope projection is incomplete")
+    recorded_registry = receipt.get("meta", {}).get("language_registry")
+    if isinstance(recorded_registry, dict) and recorded_registry.get("identity") != language_registry_provenance()["identity"]:
+        raise RuntimeError("External target Preflight language registry identity is stale")
+    decision = scope.get("main_root_decision")
+    current_root_policy = main_root_policy_fingerprint(load_language_registry()) if decision is not None else None
+    if decision is not None and (
+        not isinstance(decision, dict) or decision.get("status") != "resolved"
+        or current_root_policy is None or decision.get("policy_fingerprint") != current_root_policy
+        or decision.get("project_relative_path") != scope.get("project_relative_path")
+    ):
+        raise RuntimeError("External target Preflight MAIN root decision is stale or invalid")
     if not isinstance(summary.get("target_policy"), dict):
         raise RuntimeError("External target Preflight receipt target policy is missing")
     required_runtime_fields = {
@@ -880,6 +905,10 @@ def _apply_target_root_override(config: dict) -> dict:
             )
         }
         topology["requested_mode"] = topology.pop("topology_mode")
+        if isinstance(scope_projection.get("main_root_decision"), dict):
+            topology["main_root_decision"] = scope_projection["main_root_decision"]
+        if isinstance(scope_projection.get("project_observation"), dict):
+            topology["project_observation"] = scope_projection["project_observation"]
         bundler = str(runtime_observation.get("bundler") or "unknown")
         path_aliases = dict(runtime_observation.get("path_aliases") or {})
         observed_path_aliases = dict(runtime_observation.get("observed_path_aliases") or {})
@@ -894,7 +923,7 @@ def _apply_target_root_override(config: dict) -> dict:
         observed_path_aliases = _observe_target_path_aliases(target_path)
         plugins = _infer_target_plugins(target_path, deps, bundler)
         architecture = _infer_target_architecture(target_path, deps, bundler)
-        scope_projection = external_target_scope_projection(target_path, architecture)
+        scope_projection = external_target_scope_projection(target_path)
         if scope_projection.get("status") != "resolved":
             raise RuntimeError(
                 "External target project scope is invalid: "
@@ -972,6 +1001,10 @@ def _apply_target_root_override(config: dict) -> dict:
         "comparative_analysis_enabled": topology["comparative_analysis_enabled"],
         "ontology_contract": topology["ontology_contract"],
         "topology_authority_id": topology["topology_authority_id"],
+        **({"main_root_decision": topology["main_root_decision"]}
+           if isinstance(topology.get("main_root_decision"), dict) else {}),
+        **({"project_observation": topology["project_observation"]}
+           if isinstance(topology.get("project_observation"), dict) else {}),
         "inferred_bundler": bundler,
         "inferred_plugins": plugins,
         "inferred_architecture": architecture,

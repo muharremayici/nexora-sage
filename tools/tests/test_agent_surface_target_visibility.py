@@ -612,7 +612,12 @@ def test_primary_followup_real_operator_packet_keeps_target_connection_binding(t
     raw.mkdir()
     (raw / "nexora_operator_packet.json").write_text("{}", encoding="utf-8")
     target_root = str(tmp_path / "Örnek repo") if external else ""
-    surface = {"analysis_root": str(mcp_server.ANALYZED_REPOSITORY_ROOT),
+    if external:
+        Path(target_root).mkdir()
+    scope = {"scope_authority_id": "routing-only-unit-fixture", "evidence_status": "COMPLETE_REPOSITORY",
+             "claim_scope": "supported_source_repository", "full_repository_claim_eligible": True}
+    surface = {"analysis_root": target_root or str(mcp_server.ANALYZED_REPOSITORY_ROOT),
+        "scope_authority": scope,
         "directives": [{"id": "orientation", "target_files": ["src/Örnek.tsx"]}]}
     before = deepcopy(surface)
     monkeypatch.setattr(mcp_server, "RAW_DIR", raw)
@@ -621,6 +626,11 @@ def test_primary_followup_real_operator_packet_keeps_target_connection_binding(t
     original_load = mcp_server._load_json
     monkeypatch.setattr(mcp_server, "_load_json", lambda path: {"target_repository_agent_surface": deepcopy(surface)}
                         if path.name == "nexora_operator_packet.json" else original_load(path))
+    # This unit tests connection templates, not producer/trust admission. The
+    # acquisition differential suite proves that admission with real artifacts.
+    monkeypatch.setattr(mcp_server, "_ensure_agent_artifact_chain_current", lambda *a, **k:
+        {"status": "PASS", "checks": [], "failures": [], "scope": scope, "freshness": {"atlas_mtime": 1}})
+    monkeypatch.setattr(mcp_server, "artifact_state_meta", lambda *a, **k: {"validation_mtime": 2})
     monkeypatch.setattr(mcp_server, "_run_cli", lambda *a, **k: pytest.fail("Read-only advice ran CLI"))
     body = mcp_server.get_operator_packet(target_root=target_root, format=output_format)
     _assert_primary_followup(_primary_followup_from_body(body), target_root, visible)
