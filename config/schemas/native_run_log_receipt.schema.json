@@ -1,6 +1,352 @@
 {
   "type": "object",
   "$defs": {
+    "eslint_observations": {
+      "type": "object",
+      "required": [
+        "format_id",
+        "status",
+        "reason_code",
+        "coverage",
+        "parser_contract_sha256",
+        "run_sha256",
+        "streams_sha256",
+        "input_observation_sha256",
+        "file_results",
+        "items",
+        "stderr_interpretation",
+        "source_locations",
+        "cleanliness",
+        "payload_retention"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format_id": {
+          "const": "eslint_9_39_1_json_v1"
+        },
+        "status": {
+          "enum": [
+            "OBSERVED",
+            "NO_SUPPORTED_OBSERVATIONS",
+            "UNAVAILABLE",
+            "UNSUPPORTED_FORMAT",
+            "LIMIT_EXCEEDED",
+            "UNREADABLE_FORMAT"
+          ]
+        },
+        "reason_code": {
+          "enum": [
+            "supported_family_observed",
+            "supported_family_not_seen",
+            "input_not_ingested",
+            "format_or_tool_not_supported",
+            "normalization_budget_exceeded",
+            "invalid_json_result",
+            "unsupported_result_shape",
+            "reported_count_mismatch"
+          ]
+        },
+        "coverage": {
+          "const": "declared_eslint_json_results_only"
+        },
+        "parser_contract_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "run_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "streams_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "input_observation_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "stderr_interpretation": {
+          "const": "not_parsed"
+        },
+        "source_locations": {
+          "const": "reported_not_source_verified"
+        },
+        "cleanliness": {
+          "const": "not_established"
+        },
+        "payload_retention": {
+          "const": "no_raw_messages_source_output_or_fixes"
+        },
+        "file_results": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "result_index",
+              "identifier_sha256",
+              "identifier_status",
+              "source_input_index",
+              "reported_counts",
+              "suppressed_count",
+              "source_present",
+              "output_present"
+            ],
+            "properties": {
+              "result_index": {
+                "$ref": "#/$defs/source_identifier_role/then/properties/source_input_index"
+              },
+              "identifier_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "identifier_status": {
+                "enum": [
+                  "DECLARED_SOURCE_INPUT",
+                  "UNRESOLVED_IDENTIFIER"
+                ]
+              },
+              "source_input_index": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "reported_counts": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "errorCount",
+                  "fatalErrorCount",
+                  "warningCount",
+                  "fixableErrorCount",
+                  "fixableWarningCount"
+                ],
+                "properties": {
+                  "errorCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "fatalErrorCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "warningCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "fixableErrorCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "fixableWarningCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "suppressed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "source_present": {
+                "type": "boolean"
+              },
+              "output_present": {
+                "type": "boolean"
+              }
+            },
+            "if": {
+              "type": "object",
+              "properties": {
+                "identifier_status": {
+                  "const": "DECLARED_SOURCE_INPUT"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "source_input_index": {
+                  "$ref": "#/$defs/source_identifier_role/then/properties/source_input_index"
+                }
+              }
+            },
+            "else": {
+              "type": "object",
+              "properties": {
+                "source_input_index": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "category",
+              "reported_rule_id",
+              "reported_severity",
+              "reported_fatal",
+              "reported_location",
+              "message_sha256",
+              "result_index",
+              "occurrences"
+            ],
+            "properties": {
+              "code": {
+                "const": "eslint_reported_diagnostic"
+              },
+              "category": {
+                "enum": [
+                  "active",
+                  "suppressed"
+                ]
+              },
+              "reported_rule_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^(?=.{1,16384}$)@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+              },
+              "reported_severity": {
+                "type": "integer",
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "reported_fatal": {
+                "type": "boolean"
+              },
+              "reported_location": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "line",
+                  "column",
+                  "endLine",
+                  "endColumn"
+                ],
+                "properties": {
+                  "line": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "column": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "endLine": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "endColumn": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  }
+                }
+              },
+              "message_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "result_index": {
+                "$ref": "#/$defs/source_identifier_role/then/properties/source_input_index"
+              },
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "stream",
+                    "result_index",
+                    "message_index"
+                  ],
+                  "properties": {
+                    "stream": {
+                      "const": "stdout"
+                    },
+                    "result_index": {
+                      "$ref": "#/$defs/source_identifier_role/then/properties/source_input_index"
+                    },
+                    "message_index": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "OBSERVED",
+                  "NO_SUPPORTED_OBSERVATIONS"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "input_observation_sha256": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "file_results": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
     "source_identifier_role": {
       "type": "object",
       "required": [
@@ -756,133 +1102,150 @@
     },
     "diagnostic_observations": {
       "type": "object",
-      "required": [
-        "format_id",
-        "status",
-        "reason_code",
-        "coverage",
-        "parser_contract_sha256",
-        "run_sha256",
-        "streams_sha256",
-        "items",
-        "unmatched_nonempty_lines",
-        "performance_impact"
-      ],
-      "properties": {
-        "format_id": {
-          "enum": [
-            "vite_5_4_21_mixed_import_console_v1",
-            null
-          ]
-        },
-        "status": {
-          "enum": [
-            "OBSERVED",
-            "NO_SUPPORTED_OBSERVATIONS",
-            "UNAVAILABLE",
-            "UNSUPPORTED_FORMAT",
-            "LIMIT_EXCEEDED",
-            "UNREADABLE_FORMAT"
-          ]
-        },
-        "reason_code": {
-          "enum": [
-            "supported_family_observed",
-            "supported_family_not_seen",
-            "input_not_ingested",
-            "format_or_tool_not_supported",
-            "normalization_budget_exceeded",
-            "invalid_utf8"
-          ]
-        },
-        "coverage": {
-          "const": "single_warning_family_only"
-        },
-        "parser_contract_sha256": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "run_sha256": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "streams_sha256": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "items": {
-          "type": "array",
-          "maxItems": 256,
-          "items": {
-            "type": "object",
-            "required": [
-              "code",
-              "reported_severity",
-              "message_sha256",
-              "occurrences"
-            ],
-            "properties": {
-              "code": {
-                "const": "vite_mixed_static_dynamic_import"
-              },
-              "reported_severity": {
-                "const": "warning"
-              },
-              "message_sha256": {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
-              },
-              "source_correspondence": {
-                "$ref": "#/$defs/source_correspondence"
-              },
-              "occurrences": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 256,
-                "uniqueItems": true,
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "stream",
-                    "line"
-                  ],
-                  "properties": {
-                    "stream": {
-                      "enum": [
-                        "stdout",
-                        "stderr"
-                      ]
-                    },
-                    "line": {
-                      "type": "integer",
-                      "minimum": 1
-                    }
-                  },
-                  "additionalProperties": false
-                }
-              }
-            },
-            "additionalProperties": false
+      "if": {
+        "type": "object",
+        "required": [
+          "format_id"
+        ],
+        "properties": {
+          "format_id": {
+            "const": "eslint_9_39_1_json_v1"
           }
-        },
-        "unmatched_nonempty_lines": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "performance_impact": {
-          "const": "not_measured"
         }
       },
-      "additionalProperties": false
+      "then": {
+        "$ref": "#/$defs/eslint_observations"
+      },
+      "else": {
+        "type": "object",
+        "required": [
+          "format_id",
+          "status",
+          "reason_code",
+          "coverage",
+          "parser_contract_sha256",
+          "run_sha256",
+          "streams_sha256",
+          "items",
+          "unmatched_nonempty_lines",
+          "performance_impact"
+        ],
+        "properties": {
+          "format_id": {
+            "enum": [
+              "vite_5_4_21_mixed_import_console_v1",
+              null
+            ]
+          },
+          "status": {
+            "enum": [
+              "OBSERVED",
+              "NO_SUPPORTED_OBSERVATIONS",
+              "UNAVAILABLE",
+              "UNSUPPORTED_FORMAT",
+              "LIMIT_EXCEEDED",
+              "UNREADABLE_FORMAT"
+            ]
+          },
+          "reason_code": {
+            "enum": [
+              "supported_family_observed",
+              "supported_family_not_seen",
+              "input_not_ingested",
+              "format_or_tool_not_supported",
+              "normalization_budget_exceeded",
+              "invalid_utf8"
+            ]
+          },
+          "coverage": {
+            "const": "single_warning_family_only"
+          },
+          "parser_contract_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "run_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "streams_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "reported_severity",
+                "message_sha256",
+                "occurrences"
+              ],
+              "properties": {
+                "code": {
+                  "const": "vite_mixed_static_dynamic_import"
+                },
+                "reported_severity": {
+                  "const": "warning"
+                },
+                "message_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_correspondence": {
+                  "$ref": "#/$defs/source_correspondence"
+                },
+                "occurrences": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 256,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stream",
+                      "line"
+                    ],
+                    "properties": {
+                      "stream": {
+                        "enum": [
+                          "stdout",
+                          "stderr"
+                        ]
+                      },
+                      "line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "unmatched_nonempty_lines": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "performance_impact": {
+            "const": "not_measured"
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "claim_boundary": {
       "type": "string",
@@ -1086,7 +1449,10 @@
             "type": "object",
             "properties": {
               "format_id": {
-                "const": "vite_5_4_21_mixed_import_console_v1"
+                "enum": [
+                  "vite_5_4_21_mixed_import_console_v1",
+                  "eslint_9_39_1_json_v1"
+                ]
               },
               "run_sha256": {
                 "type": "string",

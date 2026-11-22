@@ -1,0 +1,145 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "output_schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "config_limit_profile",
+    "compiler_version",
+    "project_virtual_root",
+    "roster",
+    "extends_literal",
+    "declared_source_name",
+    "selected_option",
+    "max_ast_nodes",
+    "ast_budget_basis",
+    "success_status",
+    "refusal_status",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-config-extends"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_config_extends.schema.json"
+    },
+    "output_schema": {
+      "type": "string",
+      "const": "config/schemas/owned_config_extends_observation.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "config_limit_profile": {
+      "type": "string",
+      "const": "private_owned_config_handoff"
+    },
+    "compiler_version": {
+      "type": "string",
+      "const": "5.9.3"
+    },
+    "project_virtual_root": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project"
+    },
+    "roster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "base"
+      ],
+      "properties": {
+        "root": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "atlas_path",
+            "virtual_path"
+          ],
+          "properties": {
+            "atlas_path": {
+              "type": "string",
+              "const": "tsconfig.json"
+            },
+            "virtual_path": {
+              "type": "string",
+              "const": "/__sage_ts_image__/project/tsconfig.json"
+            }
+          }
+        },
+        "base": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "atlas_path",
+            "virtual_path"
+          ],
+          "properties": {
+            "atlas_path": {
+              "type": "string",
+              "const": "configs/tsconfig.base.json"
+            },
+            "virtual_path": {
+              "type": "string",
+              "const": "/__sage_ts_image__/project/configs/tsconfig.base.json"
+            }
+          }
+        }
+      }
+    },
+    "extends_literal": {
+      "type": "string",
+      "const": "./configs/tsconfig.base.json"
+    },
+    "declared_source_name": {
+      "type": "string",
+      "const": "entry.ts"
+    },
+    "selected_option": {
+      "type": "string",
+      "const": "strict"
+    },
+    "max_ast_nodes": {
+      "type": "integer",
+      "const": 16384
+    },
+    "ast_budget_basis": {
+      "type": "string",
+      "const": "Twice the inherited 8 KiB per-file config byte ceiling; an explicit finite traversal budget, not a parser/RSS or OS guarantee."
+    },
+    "success_status": {
+      "type": "string",
+      "const": "PRIVATE_CONFIG_EXTENDS_CORRESPONDENCE_NOT_BOUND"
+    },
+    "refusal_status": {
+      "type": "string",
+      "const": "PRIVATE_CONFIG_EXTENDS_INCOMPLETE_NOT_BOUND"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "const": "One private two-config source declaration/native-selection correspondence. No Program, source existence, atomic snapshot, production semantics/cache/native-project/loaded-code or publication authority."
+    }
+  }
+}

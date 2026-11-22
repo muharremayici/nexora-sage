@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "max_source_files",
+    "max_auxiliary_files",
+    "max_auxiliary_bytes",
+    "max_request_bytes",
+    "bridge_profile",
+    "image_profile",
+    "parser_virtual_path",
+    "compiler_virtual_path",
+    "atlas_relative_path",
+    "auxiliary_virtual_path",
+    "auxiliary_atlas_path",
+    "input_observation_version",
+    "input_observation_schema",
+    "input_observation_authority",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "const": "v2-private-single-declaration"
+    },
+    "schema": {
+      "const": "config/schemas/owned_declaration_handoff.schema.json"
+    },
+    "default_enabled": {
+      "const": false,
+      "type": "boolean"
+    },
+    "production_enabled": {
+      "const": false,
+      "type": "boolean"
+    },
+    "semantic_lineage": {
+      "const": false,
+      "type": "boolean"
+    },
+    "max_source_files": {
+      "const": 1,
+      "type": "integer"
+    },
+    "max_auxiliary_files": {
+      "const": 1,
+      "type": "integer"
+    },
+    "max_auxiliary_bytes": {
+      "const": 65536,
+      "type": "integer"
+    },
+    "max_request_bytes": {
+      "const": 1600000,
+      "type": "integer"
+    },
+    "bridge_profile": {
+      "const": "private_owned_text_bridge"
+    },
+    "image_profile": {
+      "const": "private_input_image_experiment"
+    },
+    "parser_virtual_path": {
+      "const": "/__sage_owned_text__/entry.ts"
+    },
+    "compiler_virtual_path": {
+      "const": "/__sage_ts_image__/project/entry.ts"
+    },
+    "atlas_relative_path": {
+      "const": "entry.ts"
+    },
+    "auxiliary_virtual_path": {
+      "const": "/__sage_ts_image__/project/types.d.ts"
+    },
+    "auxiliary_atlas_path": {
+      "const": "types.d.ts"
+    },
+    "input_observation_version": {
+      "const": "v2-private-declaration-input-summary"
+    },
+    "input_observation_schema": {
+      "const": "config/schemas/compiler_declaration_input_observation.schema.json"
+    },
+    "input_observation_authority": {
+      "const": "producer_observed_only"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "native_execution_enabled",
+    "project_key",
+    "config_profile",
+    "phase_order",
+    "counter_limits",
+    "refusal_codes",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-source-config-preparation"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_source_parent_preparation.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_execution_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "project_key": {
+      "type": "string",
+      "const": "MAIN"
+    },
+    "config_profile": {
+      "type": "string",
+      "const": "private_owned_config_extends"
+    },
+    "phase_order": {
+      "type": "array",
+      "const": [
+        "captured_inputs_held",
+        "source_parser_observed",
+        "atlas_parent_validated",
+        "parent_frozen",
+        "config_chain_observed"
+      ]
+    },
+    "counter_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "createSourceFile",
+        "createProgram"
+      ],
+      "properties": {
+        "createSourceFile": {
+          "type": "integer",
+          "const": 1
+        },
+        "createProgram": {
+          "type": "integer",
+          "const": 1
+        }
+      }
+    },
+    "refusal_codes": {
+      "type": "array",
+      "const": [
+        "join_preparation_owner_unavailable",
+        "join_phase_order_refused",
+        "join_preparation_byte_budget_exceeded",
+        "join_stage_metadata_refused",
+        "join_capture_reference_refused",
+        "join_source_parser_reference_refused",
+        "join_source_counter_context_refused",
+        "join_attempt_cost_unknown",
+        "join_source_counter_incomplete",
+        "join_parent_reference_refused",
+        "join_parent_schema_refused",
+        "join_parent_source_refused",
+        "join_parent_freeze_refused",
+        "join_config_reference_refused",
+        "join_stage_receipts_incomplete"
+      ]
+    },
+    "claim_boundary": {
+      "type": "string",
+      "const": "Declared-metadata order/correspondence preflight and private outer API-call observation only. No actual capture/native execution/validator/loaded-code attestation, semantic/cache or publication authority."
+    }
+  },
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "basis",
+        "code",
+        "context_sha256",
+        "accepted_phases",
+        "next_phase",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "execution_attested"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-source-config-preparation"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "UNKNOWN_JOIN_PREPARATION_CONTEXT",
+            "JOIN_PREPARATION_METADATA_CONFORMANT_NOT_EXECUTED",
+            "INCOMPLETE_JOIN_PREPARATION_METADATA",
+            "REFUSED_JOIN_PREPARATION_METADATA"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "const": "declared_metadata_only"
+        },
+        "code": {
+          "type": "string"
+        },
+        "context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "accepted_phases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "captured_inputs_held",
+              "source_parser_observed",
+              "atlas_parent_validated",
+              "parent_frozen",
+              "config_chain_observed"
+            ]
+          }
+        },
+        "next_phase": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "captured_inputs_held",
+            "source_parser_observed",
+            "atlas_parent_validated",
+            "parent_frozen",
+            "config_chain_observed",
+            null
+          ]
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "execution_attested": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  }
+}

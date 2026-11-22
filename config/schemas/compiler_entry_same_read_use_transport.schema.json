@@ -1,0 +1,1690 @@
+{
+  "$id": "config/schemas/compiler_entry_same_read_use_transport.schema.json",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "scope",
+        "status",
+        "child_id",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "denied_flags",
+        "limits",
+        "source_sha256",
+        "child_source_sha256",
+        "lifecycle_source_sha256",
+        "dispatch_policy_sha256",
+        "guard_source_sha256",
+        "observation_source_sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-same-read-use-transport"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_entry_same_read_use_transport.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scope": {
+          "const": "authored_temporary_five_role_fixed_use"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIXED_USE_TRANSPORT_SETTLED_NOT_COMPILER_ADMISSION"
+        },
+        "child_id": {
+          "const": "v1-fixed-synthetic-entry-same-read-use"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "denied_flags": {
+          "const": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "actual_entry_observed",
+            "atomic_snapshot_verified",
+            "complete_compiler_inputs",
+            "snapshot_bound"
+          ]
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_bytes",
+            "metadata_bytes",
+            "image_bytes",
+            "child_input_bytes",
+            "child_output_bytes",
+            "result_bytes",
+            "operation_ms",
+            "wrapper_steps"
+          ],
+          "properties": {
+            "context_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "image_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_input_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "result_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "operation_ms": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "wrapper_steps": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "lifecycle_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "guard_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observation_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "implementation_sha256",
+        "child_source_sha256",
+        "dispatch_policy_sha256",
+        "dispatch_expected_sha256",
+        "dispatch_decision_sha256",
+        "probe_context_sha256",
+        "child_id",
+        "lifecycle_source_sha256",
+        "guard_source_sha256",
+        "observation_source_sha256",
+        "use_context_sha256"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_decision_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_id": {
+          "const": "v1-fixed-synthetic-entry-same-read-use"
+        },
+        "lifecycle_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "guard_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observation_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "use_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "child_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "request",
+        "expected",
+        "transport_expected",
+        "probe",
+        "transport_binding_sha256",
+        "request_binding_sha256",
+        "operation_ms",
+        "wrapper_steps",
+        "limits",
+        "core_bounds"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-fixed-synthetic-entry-same-read-use"
+        },
+        "request": {
+          "type": "object"
+        },
+        "expected": {
+          "type": "object"
+        },
+        "transport_expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "probe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "root",
+            "expected",
+            "profiles",
+            "schema_refs"
+          ],
+          "properties": {
+            "root": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected": {
+              "type": "object"
+            },
+            "profiles": {
+              "type": "object"
+            },
+            "schema_refs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "probe",
+                "entry",
+                "use"
+              ],
+              "properties": {
+                "probe": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "entry": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "use": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        },
+        "transport_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "request_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "operation_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "wrapper_steps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_bytes",
+            "metadata_bytes",
+            "image_bytes",
+            "child_input_bytes",
+            "child_output_bytes",
+            "result_bytes",
+            "operation_ms",
+            "wrapper_steps"
+          ],
+          "properties": {
+            "context_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "image_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_input_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "result_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "operation_ms": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "wrapper_steps": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "core_bounds": {
+          "$ref": "#/$defs/core_bounds"
+        }
+      }
+    },
+    "node_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "request_binding_sha256",
+        "transport_binding_sha256",
+        "probe_context_sha256",
+        "observation",
+        "error",
+        "payload_accounting",
+        "metadata_accounting",
+        "forbidden_attempts",
+        "wrapper_steps"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-fixed-synthetic-entry-same-read-use"
+        },
+        "status": {
+          "enum": [
+            "SYNTHETIC_FIXED_USE_REFUSED",
+            "SYNTHETIC_FIXED_USE_COMPLETED"
+          ]
+        },
+        "request_binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transport_binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observation": {
+          "$ref": "#/$defs/probe_result"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "stage",
+            "probe_failure",
+            "use_failure"
+          ],
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/refusal_code"
+            },
+            "stage": {
+              "enum": [
+                "stdin",
+                "decode",
+                "binding",
+                "acquisition",
+                "result",
+                "cleanup",
+                "publication"
+              ]
+            },
+            "probe_failure": {
+              "$ref": "#/$defs/probe_failure"
+            },
+            "use_failure": {
+              "$ref": "#/$defs/use_failure"
+            }
+          }
+        },
+        "payload_accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open_attempts",
+            "open_returns",
+            "open_unknown",
+            "read_attempts",
+            "read_unknown",
+            "close_attempts",
+            "close_returns",
+            "close_unknown",
+            "known_delivered_bytes",
+            "emergency_closes",
+            "known_open_descriptors",
+            "roles"
+          ],
+          "properties": {
+            "open_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_delivered_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "emergency_closes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_open_descriptors": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "roles": {
+              "$ref": "#/$defs/payload_roles"
+            }
+          }
+        },
+        "metadata_accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "attempts",
+            "returns",
+            "unknown"
+          ],
+          "properties": {
+            "attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "forbidden_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wrapper_steps": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "expected",
+        "node",
+        "request_binding_sha256",
+        "transport_binding_sha256",
+        "target_directory_ref_sha256",
+        "intent_store_ref_sha256",
+        "node_attempts",
+        "node_reaped",
+        "io_threads_remaining",
+        "resource_bounds",
+        "flags",
+        "full_native_cost",
+        "physical_heap_rss"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-same-read-use-transport"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIXED_USE_TRANSPORT_SETTLED_NOT_COMPILER_ADMISSION"
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "node": {
+          "$ref": "#/$defs/node_result"
+        },
+        "request_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transport_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "target_directory_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "intent_store_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "node_attempts": {
+          "const": 1
+        },
+        "node_reaped": {
+          "const": true
+        },
+        "io_threads_remaining": {
+          "const": 0
+        },
+        "resource_bounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "core",
+            "parent_named",
+            "wrapper_named",
+            "joined_named",
+            "metadata_joined",
+            "child_output_upper",
+            "parent_output_upper"
+          ],
+          "properties": {
+            "core": {
+              "$ref": "#/$defs/core_bounds"
+            },
+            "parent_named": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wrapper_named": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "joined_named": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metadata_joined": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "child_output_upper": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "parent_output_upper": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "actual_entry_observed",
+            "atomic_snapshot_verified",
+            "complete_compiler_inputs",
+            "snapshot_bound"
+          ],
+          "properties": {
+            "permission_authenticated": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "physical_path_binding_verified": {
+              "const": false
+            },
+            "actual_metadata_observed": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "native_execution_attested": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            },
+            "actual_entry_observed": {
+              "const": false
+            },
+            "atomic_snapshot_verified": {
+              "const": false
+            },
+            "complete_compiler_inputs": {
+              "const": false
+            },
+            "snapshot_bound": {
+              "const": false
+            }
+          }
+        },
+        "full_native_cost": {
+          "type": "null"
+        },
+        "physical_heap_rss": {
+          "type": "null"
+        }
+      }
+    },
+    "payload_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "cap",
+          "known_delivered_bytes",
+          "read_attempts",
+          "closed",
+          "close_attempted",
+          "close_unknown"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "provenance",
+              "manifest",
+              "lockfile",
+              "installed_package",
+              "installed_entry"
+            ]
+          },
+          "cap": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "known_delivered_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "read_attempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "close_attempted": {
+            "type": "boolean"
+          },
+          "close_unknown": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "payload_role_count": {
+      "const": 5
+    },
+    "probe_result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "probe_failure": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "terminal_stage",
+        "publications",
+        "accounting",
+        "raw_or_text_retained",
+        "entry_owner_allocated"
+      ],
+      "properties": {
+        "stage": {
+          "enum": [
+            "preflight",
+            "role_binding",
+            "path",
+            "open",
+            "stat",
+            "read",
+            "record",
+            "close",
+            "acquisition",
+            "settlement",
+            "publication"
+          ]
+        },
+        "terminal_stage": {
+          "enum": [
+            "preflight",
+            "role_binding",
+            "path",
+            "open",
+            "stat",
+            "read",
+            "record",
+            "close",
+            "acquisition",
+            "settlement",
+            "publication"
+          ]
+        },
+        "publications": {
+          "const": 0
+        },
+        "accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open_attempts",
+            "open_returns",
+            "read_attempts",
+            "read_returns",
+            "close_attempts",
+            "close_returns",
+            "open_unknown",
+            "read_unknown",
+            "close_unknown",
+            "known_delivered_bytes",
+            "secondary_cleanup_errors"
+          ],
+          "properties": {
+            "open_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_delivered_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "secondary_cleanup_errors": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "raw_or_text_retained": {
+          "const": false
+        },
+        "entry_owner_allocated": {
+          "const": false
+        }
+      }
+    },
+    "refusal_code": {
+      "enum": [
+        "reader_bounds",
+        "reader_deadline",
+        "reader_work",
+        "reader_stdin",
+        "reader_canonical",
+        "reader_shape",
+        "reader_binding",
+        "reader_budget",
+        "reader_temporary_root",
+        "reader_scope",
+        "reader_alias",
+        "reader_descriptor",
+        "reader_read_budget",
+        "reader_read_unknown",
+        "reader_settlement",
+        "reader_emergency",
+        "reader_child_error"
+      ]
+    },
+    "ceilings": {
+      "const": {
+        "input_bytes": 65536,
+        "output_bytes": 16384,
+        "metadata_bytes": 2097152,
+        "image_bytes": 41943040,
+        "operation_ms": 30000
+      }
+    },
+    "dispatch_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "model",
+        "scope",
+        "status",
+        "child_id",
+        "target_root_scheme",
+        "identity_chars",
+        "intent_store_path_chars",
+        "expectation_classes",
+        "denied_flags",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "limits",
+        "source_sha256",
+        "role_policy_sha256",
+        "path_policy_sha256",
+        "shared_source_sha256",
+        "probe_policy_sha256",
+        "probe_schema_sha256",
+        "probe_source_sha256",
+        "probe_identity_source_sha256",
+        "declared_scope_limits",
+        "scope_source_sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-same-read-use-dispatch"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_entry_same_read_use_transport.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "model": {
+          "const": "synthetic_five_role_exclusive_intent_fixed_use_child_v1"
+        },
+        "scope": {
+          "const": "synthetic_five_role_fixed_use_linkage_only"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIXED_USE_DISPATCH_LINKED_NOT_READ_AUTHORITY"
+        },
+        "child_id": {
+          "const": "v1-fixed-synthetic-entry-same-read-use"
+        },
+        "target_root_scheme": {
+          "const": "node_resolved_absolute_win32_casefold_text_seed_v1"
+        },
+        "identity_chars": {
+          "const": 96
+        },
+        "intent_store_path_chars": {
+          "const": 1024
+        },
+        "expectation_classes": {
+          "const": [
+            "historical_supplied"
+          ]
+        },
+        "denied_flags": {
+          "const": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "actual_entry_observed",
+            "atomic_snapshot_verified",
+            "complete_compiler_inputs",
+            "snapshot_bound"
+          ]
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_bytes",
+            "metadata_bytes",
+            "request_bytes",
+            "decision_bytes",
+            "intent_bytes",
+            "result_bytes",
+            "operation_ms"
+          ],
+          "properties": {
+            "context_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "request_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "decision_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "intent_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "result_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "operation_ms": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "role_policy_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "path_policy_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "shared_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_policy_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_schema_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_identity_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "declared_scope_limits": {
+          "const": {
+            "root_chars": 1024,
+            "path_chars": 256
+          }
+        },
+        "scope_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "dispatch_expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "implementation_sha256",
+        "shared_source_sha256",
+        "scope_source_sha256",
+        "probe_expected_sha256",
+        "probe_context_sha256",
+        "use_expected_sha256",
+        "use_context_sha256",
+        "child_id"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "shared_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scope_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "use_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "use_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_id": {
+          "const": "v1-fixed-synthetic-entry-same-read-use"
+        }
+      }
+    },
+    "expectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "sha256",
+        "anchor_ref_sha256"
+      ],
+      "properties": {
+        "class": {
+          "const": "historical_supplied"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "anchor_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_ref",
+        "decision_ref",
+        "invocation_id",
+        "purpose",
+        "root_scheme",
+        "root_text",
+        "roles",
+        "max_open_attempts",
+        "max_total_raw_bytes",
+        "max_delivered_bytes",
+        "unassigned_headroom_bytes",
+        "probe_expected_sha256",
+        "probe_context_sha256",
+        "use_expected_sha256",
+        "use_context_sha256"
+      ],
+      "properties": {
+        "principal_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "const": "synthetic_five_role_fixed_use_linkage_only"
+        },
+        "root_scheme": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provenance",
+            "manifest",
+            "lockfile",
+            "installed_package",
+            "installed_entry"
+          ],
+          "properties": {
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expectation"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expectation": {
+                  "$ref": "#/$defs/expectation"
+                }
+              }
+            },
+            "manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expectation"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expectation": {
+                  "$ref": "#/$defs/expectation"
+                }
+              }
+            },
+            "lockfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expectation"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expectation": {
+                  "$ref": "#/$defs/expectation"
+                }
+              }
+            },
+            "installed_package": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expectation"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expectation": {
+                  "$ref": "#/$defs/expectation"
+                }
+              }
+            },
+            "installed_entry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expectation"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expectation": {
+                  "$ref": "#/$defs/expectation"
+                }
+              }
+            }
+          }
+        },
+        "max_open_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_total_raw_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_delivered_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unassigned_headroom_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "probe_expected_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_context_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "use_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "use_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "real_read_granted",
+        "state",
+        "principal_ref",
+        "decision_ref",
+        "purpose",
+        "issued_at",
+        "expires_at",
+        "request_binding_sha256",
+        "intent_store_ref_sha256",
+        "expected"
+      ],
+      "properties": {
+        "kind": {
+          "const": "synthetic_fixture_not_real_permission"
+        },
+        "real_read_granted": {
+          "const": false
+        },
+        "state": {
+          "enum": [
+            "unused",
+            "consumed"
+          ]
+        },
+        "principal_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "const": "synthetic_five_role_fixed_use_linkage_only"
+        },
+        "issued_at": {
+          "type": "number"
+        },
+        "expires_at": {
+          "type": "number"
+        },
+        "request_binding_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "intent_store_ref_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected": {
+          "$ref": "#/$defs/dispatch_expected"
+        }
+      }
+    },
+    "core_bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_named_with_input",
+        "use_context_bytes",
+        "inner_input_bytes",
+        "session_metadata_upper",
+        "use_extra_named_bytes",
+        "metadata_joined_upper",
+        "joined_named_upper",
+        "result_upper_bytes",
+        "max_consumer_utf8_bytes"
+      ],
+      "properties": {
+        "identity_named_with_input": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "use_context_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inner_input_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "session_metadata_upper": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "use_extra_named_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_joined_upper": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "joined_named_upper": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "result_upper_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_consumer_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "use_failure": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "consumer_attempts",
+        "consumer_returns",
+        "consumer_unknown",
+        "identity_stage",
+        "identity_terminal_stage",
+        "publications",
+        "accounting",
+        "raw_or_text_retained",
+        "entry_owner_allocated"
+      ],
+      "properties": {
+        "phase": {
+          "enum": [
+            "preflight",
+            "pricing",
+            "acquiring",
+            "fixed_use_running",
+            "fixed_use_returned",
+            "references_released",
+            "result_validated"
+          ]
+        },
+        "consumer_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumer_returns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumer_unknown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "identity_stage": {
+          "enum": [
+            "preflight",
+            "role_binding",
+            "path",
+            "open",
+            "stat",
+            "read",
+            "record",
+            "close",
+            "acquisition",
+            "settlement",
+            "publication"
+          ]
+        },
+        "identity_terminal_stage": {
+          "enum": [
+            "preflight",
+            "role_binding",
+            "path",
+            "open",
+            "stat",
+            "read",
+            "record",
+            "close",
+            "acquisition",
+            "settlement",
+            "publication"
+          ]
+        },
+        "publications": {
+          "const": 0
+        },
+        "accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open_attempts",
+            "open_returns",
+            "read_attempts",
+            "read_returns",
+            "close_attempts",
+            "close_returns",
+            "open_unknown",
+            "read_unknown",
+            "close_unknown",
+            "known_delivered_bytes",
+            "secondary_cleanup_errors"
+          ],
+          "properties": {
+            "open_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_delivered_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "secondary_cleanup_errors": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "raw_or_text_retained": {
+          "const": false
+        },
+        "entry_owner_allocated": {
+          "const": false
+        }
+      }
+    }
+  }
+}

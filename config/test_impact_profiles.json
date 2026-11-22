@@ -8,6 +8,37 @@
     "node_modules/",
     ".gemini/"
   ],
+  "dependency_witness": {
+    "version": "v1-loaded-directed-graph-navigation",
+    "max_trace_nodes": 4096,
+    "max_path_nodes": 8,
+    "max_candidates": 8,
+    "max_reference_characters": 4096,
+    "max_group_bytes": 32768,
+    "max_brief_candidates": 3,
+    "proof_boundary": "One representative path in the loaded static dependency graph, not exhaustive paths, live source freshness, runtime calls, mock activation or executed changed-behavior coverage. No mutation authority; missing or omitted navigation does not prove absent relevant tests."
+  },
+  "command_source": {
+    "version": "v1-current-package-test-script",
+    "script": "test",
+    "package_managers": [
+      "npm",
+      "pnpm",
+      "yarn",
+      "bun"
+    ],
+    "source_languages": [
+      "typescript",
+      "javascript"
+    ],
+    "max_candidates": 8,
+    "max_ancestor_probes": 16,
+    "max_manifest_bytes": 262144,
+    "max_json_nodes": 8192,
+    "max_json_depth": 32,
+    "max_path_characters": 4096,
+    "proof_boundary": "A current literal test script declaration is source orientation only. Package manager installation, script/configuration validity, per-file argument support, shell safety and successful execution are not established. Compatibility run_command values remain unverified templates or inherited suggestions; no target command is executed."
+  },
   "confidence": {
     "direct_static_import": 1.0,
     "transitive_static_dependency": 0.6,

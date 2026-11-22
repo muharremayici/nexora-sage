@@ -30,27 +30,36 @@ claim-guard wording.
 
 ## Current Candidate And Claim Baseline
 
-The selected `1.8.0` candidate is **Repository Acquisition And Source-Bound Declaration Tools**.
-Its finite source-attributed scope has four delivery groups:
+The selected `1.9.0` candidate is **Source Navigation And Evidence Review Tools**.
+Its finite source-attributed scope has eight delivery groups:
 
-- Shared normal/external repository acquisition, observed-scope transport and
-  current target-aware agent-context checks.
-- Stored declaration headers, bounded literal manifest type-entry links and
-  explicit single-project declaration inspection/search. Declarations remain
-  separate from implementation counts and runtime graph evidence.
-- Target-aware first-use guidance, qualified static-confidence language and
-  current-Python MCP command binding with explicit failure handling.
-- Optional byte/hash-checked workspace-file input for the existing patch
-  validator, retaining target-source/snapshot and authority checks.
+- Evidence-backed review of incomplete wiring, retaining human review and no automatic deletion.
+- Bounded React/TypeScript source navigation for schema factories, calls, parameters,
+  callback guards and resolver/effect associations. No value or runtime inference.
+- Symbol/accessor and Unicode-aware search within the recorded parser/index limits.
+- Snapshot-bound Audit import locations and concise review navigation, preserving
+  separate identities for repeated and grouped findings.
+- Test Impact source context and repository-declared test command suggestions;
+  suggestions do not execute commands or prove coverage.
+- Bounded literal registry review with explicit source and grammar limits.
+- Ingestion and concise reporting of existing ESLint JSON observations, keeping
+  active/suppressed findings and source matching distinct; SAGE does not run ESLint.
+- Separate observation of declared artifact/type-entry file targets, without
+  treating build output as implementation, build success or published-package proof.
 
-Wider parent debts remain open. This cut does not claim complete type/native
-resolution, runtime execution, all-project declaration search, shipped/ABI
-compatibility, automatic patch application or universal React precision.
-Historical bounded test evidence stays source-bound; source attribution and
-metadata preparation are not a current full-candidate proof or publication
-decision. All four matrix suites and the main reference suite remain enabled.
-The separately published documentation-site changes are not pending product
-delivery. No measured speedup, test-reuse permission or new grant is implied.
+All eight slices retain their wider open parents and source-bound limits. Existing
+affected product checks are retained; metadata preparation is not current frozen
+proof, installation acceptance or publication. Disabled experimental compiler
+sources are included in the reviewed whole-source cut and remain inspectable
+where the existing public projection retains them. Their default/production flags
+remain false; this cut does not activate semantic scoring or private prototypes.
+All four matrix suites and the main reference suite remain enabled. No measured
+speedup, general test-reuse permission or new license grant is implied.
+
+The published `1.8.0` delivery remains historical: repository acquisition and
+observed-scope parity; bounded declaration/literal type-entry tools; target-aware
+first-use and interpreter guidance; and optional byte/hash-checked patch input.
+That completed delivery does not supply current candidate or installation proof.
 
 The published `1.7.0` delivery remains historical: its three reviewed slices
 covered bounded declared LOC policy admission and source-measurement
@@ -83,10 +92,11 @@ original v1 claim baseline is preserved, not expanded by a new version label.
 
 ## Future Planning Phase
 
-`1.9.0` is **Dormant React And Extension Continuity** in the phase registry.
-It holds unactivated React, static-governance and extension intentions apart
-from the later polyglot phase. It is future planning only, not a selected public
-release, feature commitment, capability activation or license change.
+`1.10.0` is **Dormant React And Extension Continuity** in the phase registry.
+It preserves unactivated React, static-governance and extension intentions apart
+from the selected finite 1.9.0 candidate and later polyglot major phase. It is
+future planning only, not another selected release, feature commitment,
+capability activation or license change.
 
 Capability `target_release` and `maturity` belong to the capability registry;
 historical debt targets and actual `delivered_release` belong to the work-item

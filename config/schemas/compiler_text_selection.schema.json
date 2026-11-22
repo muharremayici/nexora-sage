@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "config/schemas/compiler_text_selection.schema.json",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "schema_definition",
+        "receipt_definition",
+        "expected_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "model",
+        "input_kind",
+        "text_policy",
+        "line_scheme",
+        "method",
+        "receipt_status",
+        "capture_profile",
+        "image_profile",
+        "capture_policy_sha256",
+        "image_policy_sha256",
+        "limits",
+        "refusal_codes",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-text-selection"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_text_selection.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_definition": {
+          "const": "policy"
+        },
+        "receipt_definition": {
+          "const": "receipt"
+        },
+        "expected_definition": {
+          "const": "producer_expected"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "model": {
+          "const": "immutable_supplied_utf8_line_interval_v1"
+        },
+        "input_kind": {
+          "const": "supplied_immutable_bytes_v1"
+        },
+        "text_policy": {
+          "const": "strict_utf8_preserve_bom_shebang_crlf_v1"
+        },
+        "line_scheme": {
+          "const": "crlf_lf_cr_full_terminators_v1"
+        },
+        "method": {
+          "const": "reviewed_exact_text_interval_v1"
+        },
+        "receipt_status": {
+          "const": "EXACT_CONTENT_SELECTION_RECORDED_NOT_FILE_ATTESTATION"
+        },
+        "capture_profile": {
+          "const": "compiler_library_inputs"
+        },
+        "image_profile": {
+          "const": "private_input_image_experiment"
+        },
+        "capture_policy_sha256": {
+          "const": "6482af0915e6d0da081b7543b887f770819ef1820549214ca9ebe88e651f8a02"
+        },
+        "image_policy_sha256": {
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "limits": {
+          "const": {
+            "source_utf8_bytes": 16777216,
+            "source_utf16_units": 16777216,
+            "scan_work_units": 33554432,
+            "view_utf16_units": 8192,
+            "view_utf8_bytes": 32768,
+            "metadata_bytes": 2097152,
+            "receipt_bytes": 16384,
+            "projection_bytes": 2097152,
+            "image_bytes": 41943040,
+            "cursor_bytes": 512,
+            "check_interval": 1024,
+            "operation_ms": 30000
+          }
+        },
+        "refusal_codes": {
+          "const": [
+            "selection_policy_invalid",
+            "selection_metadata_invalid",
+            "selection_expected_invalid",
+            "selection_input_invalid",
+            "selection_identity",
+            "selection_encoding_refused",
+            "selection_interval_invalid",
+            "selection_budget",
+            "selection_deadline",
+            "selection_receipt_invalid",
+            "selection_receipt_identity",
+            "selection_authority_mismatch"
+          ]
+        },
+        "claim_boundary": {
+          "const": "Disabled supplied immutable-byte text selection and metadata-only operation projection. Exact CRLF/LF/CR intervals and content hashes are not filesystem/source-origin/freshness/read-authority attestation, enclosing callsites, exports or runtime/production/semantic/cache/publication acceptance. Only synthetic inputs verified; no input evaluation or source filesystem API. Logical work/storage ledgers are not heap/RSS/timing proof."
+        }
+      }
+    },
+    "producer_expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_utf8_bytes",
+        "source_raw_sha256",
+        "origin_ref_sha256",
+        "start_line",
+        "end_line"
+      ],
+      "properties": {
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_raw_sha256",
+        "source_text_sha256",
+        "view_text_sha256",
+        "source_utf8_bytes",
+        "source_code_units",
+        "start_line",
+        "end_line",
+        "start_utf16",
+        "end_utf16",
+        "view_code_units",
+        "view_utf8_bytes",
+        "text_policy",
+        "line_scheme",
+        "method"
+      ],
+      "properties": {
+        "source_raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "view_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text_policy": {
+          "const": "strict_utf8_preserve_bom_shebang_crlf_v1"
+        },
+        "line_scheme": {
+          "const": "crlf_lf_cr_full_terminators_v1"
+        },
+        "method": {
+          "const": "reviewed_exact_text_interval_v1"
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filesystem_capture_attested",
+        "source_freshness_verified",
+        "read_authority_granted",
+        "enclosing_source_syntax_verified",
+        "actual_callsite_context_verified",
+        "global_byte_line_mapping_verified",
+        "actual_export_set_complete",
+        "compiler_loaded",
+        "native_execution_attested",
+        "input_code_evaluated",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "publication_authority"
+      ],
+      "properties": {
+        "filesystem_capture_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "read_authority_granted": {
+          "type": "boolean",
+          "const": false
+        },
+        "enclosing_source_syntax_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "actual_callsite_context_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "global_byte_line_mapping_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "actual_export_set_complete": {
+          "type": "boolean",
+          "const": false
+        },
+        "compiler_loaded": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "input_code_evaluated": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "publication_authority": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_bytes",
+        "decoded_text_reserved_bytes",
+        "measured_source_code_units",
+        "metadata_reserved_bytes",
+        "view_reserved_bytes",
+        "cursor_reserved_bytes",
+        "receipt_reserved_bytes",
+        "known_inputs_reserved_bytes",
+        "scan_work_units",
+        "view_bytes_hashed"
+      ],
+      "properties": {
+        "input_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "decoded_text_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "measured_source_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cursor_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "receipt_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scan_work_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_bytes_hashed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "producer_policy_sha256",
+        "producer_schema_sha256",
+        "content",
+        "content_sha256",
+        "input_kind",
+        "origin_ref_sha256",
+        "cost",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-text-selection"
+        },
+        "status": {
+          "const": "EXACT_CONTENT_SELECTION_RECORDED_NOT_FILE_ATTESTATION"
+        },
+        "producer_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producer_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "content": {
+          "$ref": "#/$defs/content"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "input_kind": {
+          "const": "supplied_immutable_bytes_v1"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        },
+        "flags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    }
+  }
+}

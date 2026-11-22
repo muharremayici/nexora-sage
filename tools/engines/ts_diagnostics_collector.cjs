@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { diagnosticPayload: formatDiagnosticPayload } = require("../core/typescript_diagnostic_payload.cjs");
 let ts;
 let fileSystemObservation;
 const crypto = require("crypto");
@@ -389,24 +390,7 @@ function parseArgs(argv) {
 }
 
 function diagnosticPayload(diag, projectRoot) {
-  const message = ts.flattenDiagnosticMessageText(diag.messageText, "\n");
-  let file = "";
-  let line = 1;
-  let character = 1;
-  if (diag.file) {
-    file = normalizePath(path.relative(projectRoot, diag.file.fileName));
-    const pos = diag.file.getLineAndCharacterOfPosition(diag.start || 0);
-    line = pos.line + 1;
-    character = pos.character + 1;
-  }
-  return {
-    code: `TS${diag.code}`,
-    category: ts.DiagnosticCategory[diag.category] || "Unknown",
-    file,
-    line,
-    character,
-    message,
-  };
+  return formatDiagnosticPayload(ts, diag, projectRoot);
 }
 
 function collectForProject(project, projectRoot, workspaceRoot, rootConfigFile, maxDiagnostics, maxFiles, semantic, contextLimit, directoryPolicy) {

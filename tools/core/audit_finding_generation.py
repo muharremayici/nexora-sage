@@ -326,6 +326,17 @@ def project_audit_import_subject(violation: dict, *, raw_dir: Path,
         if file_key not in memo:
             meta = load_atlas_file_metadata(raw_dir, project, rel_path)
             binding = read_source_snapshot_binding(raw_dir, project, rel_path, expected_hash=meta.get("hash") if isinstance(meta, dict) else None)
+            # Optional navigation reuses this exact bounded capture, not live IO
+            # or a second per-finding snapshot read. Base evidence is unchanged.
+            if isinstance(meta, dict) and 'import_occurrence_evidence' in meta:
+                from tools.core.import_occurrence_evidence import occurrence_policy
+                try:
+                    cap = occurrence_policy(root)['max_source_bytes']
+                    content = binding.get('content')
+                    if isinstance(content, str) and len(content.encode('utf-8')) <= cap:
+                        memo[(*file_key, 'import_occurrence_content')] = content
+                except (KeyError, TypeError, ValueError):
+                    memo[(*file_key, 'import_occurrence_content')] = None
             binding.pop("content", None)
             memo[file_key] = (meta, binding)
         meta, binding = memo[file_key]
@@ -394,6 +405,162 @@ def project_audit_import_subject(violation: dict, *, raw_dir: Path,
         return deepcopy(evidence)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, IndexError):
         return unavailable_audit_import_subject("source_policy_or_subject_verification_failed", rule_key=rule_key)
+
+
+def project_audit_import_context(violation: dict, *, raw_dir: Path,
+                               project: str, rel_path: str, cache: dict | None = None) -> dict:
+    """Project independent snapshot navigation only after the existing verifier."""
+    from tools.core.import_occurrence_evidence import (
+        occurrence_policy, validate_stored_occurrences, project_import_occurrences, VERSION,
+    )
+    memo = cache if cache is not None else {}
+    base = project_audit_import_subject(violation, raw_dir=raw_dir, project=project, rel_path=rel_path, cache=memo)
+    unavailable = {'version': VERSION, 'status': 'unavailable', 'rows': [],
+        'reason': 'verified_base_subject_unavailable', 'live_source_currentness': 'not_evaluated',
+        'causal_relation': 'not_evaluated', 'target_native_effective_policy': 'not_evaluated',
+        'runtime_proof': 'not_performed', 'mutation_authority': 'none'}
+    result = {'finding_evidence': base, 'import_occurrence_evidence': unavailable}
+    if base.get('status') not in {'bound_record_set', 'partial'}:
+        return result
+    try:
+        file_key = (str(Path(raw_dir).resolve()), project, rel_path)
+        meta, binding = memo[file_key]
+        if 'import_occurrence_evidence' not in meta:
+            unavailable['reason'] = 'legacy_occurrence_metadata_missing'
+            return result
+        root = audit_import_subject_contract()
+        policy = occurrence_policy(root)
+        validation_key = (*file_key, 'validated_import_occurrences', _import_evidence_digest(policy))
+        if validation_key not in memo:
+            try:
+                memo[validation_key] = validate_stored_occurrences(meta['import_occurrence_evidence'],
+                    memo.get((*file_key, 'import_occurrence_content')), root_policy=root, file_data=meta)
+            except (KeyError, TypeError, ValueError, AttributeError):
+                memo[validation_key] = None
+        stored = memo[validation_key]
+        if binding.get('status') != 'ok' or stored is None:
+            raise ValueError('captured_occurrences_unavailable')
+        result['import_occurrence_evidence'] = project_import_occurrences(base, stored, policy)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        unavailable['reason'] = 'captured_occurrence_verification_failed'
+    return result
+
+
+def audit_import_location_brief_policy() -> dict:
+    from tools.core.json_io import load_json_object_strict_cached
+    policy = load_json_object_strict_cached(AUDIT_PRESENTATION_CONTRACT_PATH)['audit_import_location_brief_policy']
+    if (not isinstance(policy, dict) or set(policy) != {'version', 'max_items', 'max_locations_per_item', 'claim_boundary'}
+            or policy['version'] != 'v1-captured-navigation-summary'
+            or any(type(policy[k]) is not int or policy[k] < 1 for k in ('max_items', 'max_locations_per_item'))
+            or not isinstance(policy['claim_boundary'], str) or not policy['claim_boundary'].strip()):
+        raise ValueError('invalid_import_location_brief_policy')
+    return policy
+
+
+def _audit_import_location_summary(item: dict, index: int, policy: dict) -> dict:
+    """Consistency of an already verified carrier, not renewed source authority."""
+    from tools.core.import_occurrence_evidence import occurrence_policy, VERSION, SPAN_ROLES
+    result = {'item_index': index, 'target_ref': str(item.get('target_ref') or ''),
+        'rule': str(item.get('rule') or ''), 'status': 'unavailable', 'locations': []}
+    grouped = item.get('grouped_count', 1)
+    if type(grouped) is not int or grouped != 1:
+        return {**result, 'reason': 'grouped_findings_require_per_finding_machine_detail'}
+    base, view = item.get('finding_evidence'), item.get('import_occurrence_evidence')
+    if not isinstance(base, dict) or not isinstance(view, dict) or view.get('status') == 'unavailable':
+        return {**result, 'reason': 'verified_location_carrier_unavailable'}
+    try:
+        root = audit_import_subject_contract()
+        contract = audit_import_rule_contract(item.get('rule'))
+        carrier_policy = occurrence_policy(root)
+        public_file = item.get('target_file') or item.get('file')
+        if (contract is None or base.get('kind') != contract['kind'] or base.get('version') != contract['version']
+                or base.get('status') not in {'bound_record_set', 'partial'}
+                or base.get('binding_id') != _import_evidence_digest({k: v for k, v in base.items() if k != 'binding_id'})
+                or view.get('kind') != carrier_policy['kind'] or view.get('version') != VERSION
+                or view.get('status') not in {'bound_occurrences', 'partial'}
+                or view.get('finding_binding_id') != base['binding_id']
+                or view.get('offset_unit') != 'utf8_bytes' or view.get('ast_contract_version') != base.get('ast_contract_version')
+                or view.get('policy_sha256') != _import_evidence_digest(carrier_policy)
+                or any(not isinstance(base.get(k), str) or not base[k] or view.get(k) != base[k]
+                       for k in ('project_key', 'atlas_rel_path', 'atlas_snapshot_id', 'source_hash'))
+                or item.get('atlas_node', item.get('target_ref')) != f"{base['project_key']}::{base['atlas_rel_path']}"
+                or not isinstance(public_file, str) or not public_file
+                or item.get('target_ref') != f"{base['project_key']}::{public_file}"
+                or item.get('target_project', base['project_key']) != base['project_key']
+                or (item.get('file') and item['file'] != public_file)
+                or item.get('path_projection_status') == 'unresolved'
+                or any(view.get(k) != expected for k, expected in {
+                    'live_source_currentness': 'not_evaluated', 'mutation_authority': 'none',
+                    'causal_relation': 'not_evaluated', 'target_native_effective_policy': 'not_evaluated',
+                    'runtime_proof': 'not_performed'}.items())):
+            raise ValueError('location_context_mismatch')
+        subjects = base['subjects']
+        if (not isinstance(subjects, list) or not 0 < len(subjects) <= root['max_subjects']
+                or any(not isinstance(s, dict) or not isinstance(s.get('id'), str)
+                       or not re.fullmatch('[0-9a-f]{64}', s['id']) for s in subjects)
+                or type(base.get('omitted_subject_count')) is not int or base['omitted_subject_count'] < 0
+                or (base['status'] == 'partial') != (base['omitted_subject_count'] > 0)):
+            raise ValueError('location_subjects_invalid')
+        ids = {s['id'] for s in subjects}
+        missing = view['subjects_without_locations']
+        if (len(ids) != len(subjects) or not isinstance(missing, list)
+                or any(not isinstance(s, str) or s not in ids for s in missing) or len(set(missing)) != len(missing)
+                or any(type(view.get(k)) is not int or view[k] < 0
+                       for k in ('producer_omitted', 'display_omitted', 'subject_omitted'))
+                or view['subject_omitted'] != base['omitted_subject_count']):
+            raise ValueError('location_omission_shape_invalid')
+        rows = view['rows']
+        if not isinstance(rows, list) or not 0 < len(rows) <= carrier_policy['max_projection_rows']:
+            raise ValueError('location_rows_invalid')
+        locations, seen, previous = [], set(), None
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {'subject_id', *SPAN_ROLES} or row['subject_id'] not in ids:
+                raise ValueError('location_row_shape_invalid')
+            for role in SPAN_ROLES:
+                span = row[role]
+                if (not isinstance(span, dict) or set(span) != {'start', 'end', 'line', 'end_line'}
+                        or any(type(v) is not int for v in span.values())
+                        or not 0 <= span['start'] < span['end'] or not 1 <= span['line'] <= span['end_line']):
+                    raise ValueError('location_span_shape_invalid')
+            statement, binding = row['statement'], row['binding']
+            if any(not (statement['start'] <= row[role]['start'] < row[role]['end'] <= statement['end']
+                        and statement['line'] <= row[role]['line'] <= row[role]['end_line'] <= statement['end_line'])
+                   for role in SPAN_ROLES):
+                raise ValueError('location_span_containment_invalid')
+            key = (statement['start'], binding['start'], binding['end'])
+            if key in seen or (previous is not None and key <= previous):
+                raise ValueError('duplicate_location_row')
+            seen.add(key)
+            previous = key
+            locations.append({'statement_lines': [statement['line'], statement['end_line']],
+                'statement_bytes': [statement['start'], statement['end']],
+                'binding_bytes': [binding['start'], binding['end']]})
+        if set(missing) & {r['subject_id'] for r in rows}:
+            raise ValueError('contradictory_location_membership')
+        if view['status'] == 'bound_occurrences' and (missing or any(view[k] for k in ('producer_omitted', 'display_omitted', 'subject_omitted'))):
+            raise ValueError('location_partial_status_invalid')
+        retained = locations[:policy['max_locations_per_item']]
+        return {**result, 'status': 'partial' if view['status'] == 'partial' or len(retained) < len(locations) else 'available',
+            'snapshot_id': view['atlas_snapshot_id'], 'locations': retained,
+            'producer_omitted': view['producer_omitted'], 'carrier_display_omitted': view['display_omitted'],
+            'base_subject_omitted': view['subject_omitted'], 'subjects_without_locations': len(missing),
+            'brief_locations_omitted': len(locations) - len(retained)}
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return {**result, 'reason': 'location_presentation_consistency_failed'}
+
+
+def audit_import_location_brief(items: list[dict], policy: dict) -> dict | None:
+    """One finite optional view. Never mutate raw items or combine finding identities."""
+    candidates = [(i + 1, row) for i, row in enumerate(items) if isinstance(row, dict)
+                  and ('finding_evidence' in row or 'import_occurrence_evidence' in row)]
+    if not candidates:
+        return None
+    visible = candidates[:policy['max_items']]
+    return {'scope': 'captured_source_snapshot_navigation_only', 'live_source_currentness': 'not_evaluated',
+        'offset_unit': 'utf8_bytes', 'line_numbering': 'one_based', 'byte_ranges': 'start_inclusive_end_exclusive',
+        'mutation_authority': 'none', 'rule': policy['claim_boundary'],
+        'shown_items': len(visible), 'omitted_items': len(candidates) - len(visible),
+        'items': [_audit_import_location_summary(row, i, policy) for i, row in visible]}
 
 
 def _audit_import_finding_is_recorded(raw_dir: Path, project: str, rel_path: str, violation: dict) -> bool:

@@ -1,0 +1,876 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compiler_export_inventory.schema.json",
+  "title": "Disabled synthetic accessor module-export bridge and private API lifetime",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "schema_definition",
+        "expected_definition",
+        "result_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "entry_profile",
+        "capture_profile",
+        "image_profile",
+        "entry_policy_sha256",
+        "entry_schema_sha256",
+        "capture_policy_sha256",
+        "image_policy_sha256",
+        "node_version",
+        "model",
+        "transform",
+        "parameters",
+        "compile_options",
+        "virtual_paths",
+        "context_options",
+        "denied_globals",
+        "api_selection",
+        "consumer",
+        "result_status",
+        "refusal_codes",
+        "claim_boundary",
+        "bridge_selection",
+        "inventory_selection"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-export-inventory"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_export_inventory.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "policy"
+        },
+        "expected_definition": {
+          "type": "string",
+          "const": "expected"
+        },
+        "result_definition": {
+          "type": "string",
+          "const": "result"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "entry_profile": {
+          "type": "string",
+          "const": "private_compiler_entry_owner"
+        },
+        "capture_profile": {
+          "type": "string",
+          "const": "compiler_library_inputs"
+        },
+        "image_profile": {
+          "type": "string",
+          "const": "private_input_image_experiment"
+        },
+        "entry_policy_sha256": {
+          "type": "string",
+          "const": "7b7861266affa4ca65e2a43c9cce31bff84938c30c862005791a0b5b56b2b779"
+        },
+        "entry_schema_sha256": {
+          "type": "string",
+          "const": "da0391e1c05556405e97044cb0ecc6baefc406dc4eb26650af0914ded996b693"
+        },
+        "capture_policy_sha256": {
+          "type": "string",
+          "const": "6482af0915e6d0da081b7543b887f770819ef1820549214ca9ebe88e651f8a02"
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "node_version": {
+          "type": "string",
+          "const": "v24.18.0"
+        },
+        "model": {
+          "type": "string",
+          "const": "reviewed_frozen_synthetic_export_inventory_v1"
+        },
+        "transform": {
+          "type": "string",
+          "const": "identity_no_leading_bom_hashbang_v1"
+        },
+        "parameters": {
+          "type": "array",
+          "const": [
+            "exports",
+            "require",
+            "module",
+            "__filename",
+            "__dirname"
+          ]
+        },
+        "compile_options": {
+          "type": "object",
+          "const": {
+            "filename": "nexora-synthetic-inventory/entry.cjs",
+            "lineOffset": 0,
+            "columnOffset": 0,
+            "produceCachedData": false,
+            "contextExtensions": []
+          }
+        },
+        "virtual_paths": {
+          "type": "object",
+          "const": {
+            "filename": "nexora-synthetic-inventory/entry.cjs",
+            "dirname": "nexora-synthetic-inventory"
+          }
+        },
+        "context_options": {
+          "type": "object",
+          "const": {
+            "name": "nexora-synthetic-compiler-inventory",
+            "codeGeneration": {
+              "strings": false,
+              "wasm": false
+            }
+          }
+        },
+        "denied_globals": {
+          "type": "array",
+          "const": [
+            "process",
+            "Buffer",
+            "console",
+            "performance",
+            "setTimeout",
+            "setInterval",
+            "setImmediate",
+            "clearTimeout",
+            "clearInterval",
+            "clearImmediate",
+            "queueMicrotask",
+            "fetch",
+            "WebSocket",
+            "global",
+            "require",
+            "module",
+            "exports"
+          ]
+        },
+        "api_selection": {
+          "type": "object",
+          "const": {
+            "export_property": "readFixtureValue",
+            "bridge": "own_getter",
+            "getter": "own_getter_no_setter",
+            "operation": "read_fixture_value",
+            "arguments": []
+          }
+        },
+        "consumer": {
+          "type": "string",
+          "const": "fixed_synthetic_scalar_consumer_v1"
+        },
+        "result_status": {
+          "type": "string",
+          "const": "SYNTHETIC_EXPORT_INVENTORY_API_OBSERVED"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "environment_policy_invalid",
+            "environment_expected_invalid",
+            "environment_identity",
+            "environment_order",
+            "environment_text_refused",
+            "environment_dependency_refused",
+            "environment_context_refused",
+            "environment_export_refused",
+            "environment_api_refused",
+            "environment_result_invalid",
+            "environment_budget",
+            "environment_deadline",
+            "environment_bridge_refused",
+            "environment_inventory_refused"
+          ]
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "Disabled reviewed frozen ordinary synthetic export descriptor inventory only; no unselected getter/setter invocation or value traversal. Counts/digests are metadata, not getter purity, actual TypeScript compatibility, current freshness, hostile isolation, whole heap/RSS, complete async/native settlement, Program/image/process, production/semantics/cache or release admission."
+        },
+        "bridge_selection": {
+          "type": "object",
+          "const": {
+            "descriptor": {
+              "property": "exports",
+              "kind": "own_getter_no_setter",
+              "configurable": false,
+              "enumerable": false,
+              "setter_present": false
+            },
+            "receiver": "internal_module_record",
+            "invocations": 1,
+            "result": "frozen_ordinary_export_inventory"
+          }
+        },
+        "inventory_selection": {
+          "type": "object",
+          "const": {
+            "observer": "own_descriptor_rows_utf8_v1",
+            "graph": "reviewed_frozen_ordinary_null_prototype",
+            "manifest": [
+              {
+                "name": "opaqueData",
+                "descriptor_kind": "data",
+                "enumerable": false,
+                "configurable": false,
+                "writable": false,
+                "getter_present": false,
+                "setter_present": false,
+                "data_kind": "object",
+                "selected": false
+              },
+              {
+                "name": "readFixtureValue",
+                "descriptor_kind": "accessor",
+                "enumerable": false,
+                "configurable": false,
+                "writable": null,
+                "getter_present": true,
+                "setter_present": false,
+                "data_kind": null,
+                "selected": true
+              },
+              {
+                "name": "unusedAccessor",
+                "descriptor_kind": "accessor",
+                "enumerable": true,
+                "configurable": false,
+                "writable": null,
+                "getter_present": true,
+                "setter_present": true,
+                "data_kind": null,
+                "selected": false
+              },
+              {
+                "name": "valueFunction",
+                "descriptor_kind": "data",
+                "enumerable": true,
+                "configurable": false,
+                "writable": false,
+                "getter_present": false,
+                "setter_present": false,
+                "data_kind": "function",
+                "selected": false
+              }
+            ],
+            "names_utf8_bytes": 53,
+            "rows_utf8_bytes": 760
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry",
+        "environment_policy_sha256",
+        "environment_schema_sha256",
+        "owner_snapshot_sha256",
+        "compile_input_sha256",
+        "parameters_sha256",
+        "compile_options_sha256",
+        "context_options_sha256",
+        "denied_globals_sha256",
+        "api_selection_sha256",
+        "consumer_sha256",
+        "transform_sha256",
+        "paths_sha256",
+        "result_sha256",
+        "node_version",
+        "bridge_selection_sha256",
+        "bridge_descriptor_sha256",
+        "inventory_selection_sha256",
+        "inventory_manifest_sha256",
+        "inventory_names_sha256",
+        "inventory_rows_sha256"
+      ],
+      "properties": {
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_sha256",
+            "entry_sha256",
+            "text_sha256",
+            "policy_sha256",
+            "schema_sha256"
+          ],
+          "properties": {
+            "context_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "entry_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "schema_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "environment_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "environment_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "owner_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compile_input_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parameters_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compile_options_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_options_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "denied_globals_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "api_selection_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "consumer_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transform_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "paths_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "node_version": {
+          "type": "string",
+          "const": "v24.18.0"
+        },
+        "bridge_selection_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bridge_descriptor_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_selection_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_names_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_rows_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "entry",
+        "expected_sha256",
+        "environment_policy_sha256",
+        "environment_schema_sha256",
+        "owner_snapshot_sha256",
+        "compile_input_sha256",
+        "parameters_sha256",
+        "compile_options_sha256",
+        "context_options_sha256",
+        "denied_globals_sha256",
+        "api_selection_sha256",
+        "consumer_sha256",
+        "transform_sha256",
+        "paths_sha256",
+        "result_sha256",
+        "node_version",
+        "observation",
+        "entry_capture_read_bytes",
+        "entry_metadata_bytes",
+        "entry_known_input_bytes",
+        "compile_text_bytes",
+        "compile_text_code_units",
+        "environment_metadata_bytes",
+        "summary_reserved_bytes",
+        "known_inputs_reserved_bytes",
+        "environment_contexts_created",
+        "compilations",
+        "entry_invocations",
+        "getter_invocations",
+        "api_invocations",
+        "direct_dependency_requests",
+        "synthetic_environment_api_observed",
+        "entry_owner_disposed",
+        "api_owner_disposed",
+        "local_environment_refs_cleared",
+        "compiler_loaded",
+        "loaded_code_attested",
+        "native_execution_attested",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "image_admitted",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "compiled_heap_bytes",
+        "runtime_heap_bytes",
+        "peak_rss_bytes",
+        "bridge_selection_sha256",
+        "bridge_descriptor_sha256",
+        "bridge_invocations",
+        "synthetic_accessor_bridge_observed",
+        "inventory_selection_sha256",
+        "inventory_manifest_sha256",
+        "inventory_names_sha256",
+        "inventory_rows_sha256",
+        "inventory_count",
+        "inventory_getter_invocations",
+        "inventory_api_invocations",
+        "synthetic_export_inventory_observed",
+        "inventory_refs_cleared",
+        "inventory_reserved_bytes",
+        "inventory_name_bytes",
+        "inventory_row_bytes"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-export-inventory"
+        },
+        "status": {
+          "type": "string",
+          "const": "SYNTHETIC_EXPORT_INVENTORY_API_OBSERVED"
+        },
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_sha256",
+            "entry_sha256",
+            "text_sha256",
+            "policy_sha256",
+            "schema_sha256"
+          ],
+          "properties": {
+            "context_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "entry_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "schema_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "environment_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "environment_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "owner_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compile_input_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parameters_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compile_options_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_options_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "denied_globals_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "api_selection_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "consumer_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transform_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "paths_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "node_version": {
+          "type": "string",
+          "const": "v24.18.0"
+        },
+        "observation": {
+          "$ref": "#/$defs/observation"
+        },
+        "entry_capture_read_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry_known_input_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compile_text_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compile_text_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "environment_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summary_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "environment_contexts_created": {
+          "type": "integer",
+          "const": 1
+        },
+        "compilations": {
+          "type": "integer",
+          "const": 1
+        },
+        "entry_invocations": {
+          "type": "integer",
+          "const": 1
+        },
+        "getter_invocations": {
+          "type": "integer",
+          "const": 1
+        },
+        "api_invocations": {
+          "type": "integer",
+          "const": 1
+        },
+        "direct_dependency_requests": {
+          "type": "integer",
+          "const": 0
+        },
+        "synthetic_environment_api_observed": {
+          "type": "boolean",
+          "const": true
+        },
+        "entry_owner_disposed": {
+          "type": "boolean",
+          "const": true
+        },
+        "api_owner_disposed": {
+          "type": "boolean",
+          "const": true
+        },
+        "local_environment_refs_cleared": {
+          "type": "boolean",
+          "const": true
+        },
+        "compiler_loaded": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "image_admitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "compiled_heap_bytes": {
+          "type": "null"
+        },
+        "runtime_heap_bytes": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "bridge_selection_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bridge_descriptor_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bridge_invocations": {
+          "type": "integer",
+          "const": 1
+        },
+        "synthetic_accessor_bridge_observed": {
+          "type": "boolean",
+          "const": true
+        },
+        "inventory_selection_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_names_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_rows_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_count": {
+          "type": "integer",
+          "const": 4
+        },
+        "inventory_getter_invocations": {
+          "type": "integer",
+          "const": 0
+        },
+        "inventory_api_invocations": {
+          "type": "integer",
+          "const": 0
+        },
+        "synthetic_export_inventory_observed": {
+          "type": "boolean",
+          "const": true
+        },
+        "inventory_refs_cleared": {
+          "type": "boolean",
+          "const": true
+        },
+        "inventory_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inventory_name_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inventory_row_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "inventory_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "descriptor_kind",
+        "enumerable",
+        "configurable",
+        "writable",
+        "getter_present",
+        "setter_present",
+        "data_kind",
+        "selected"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "descriptor_kind": {
+          "enum": [
+            "data",
+            "accessor"
+          ]
+        },
+        "enumerable": {
+          "type": "boolean"
+        },
+        "configurable": {
+          "type": "boolean"
+        },
+        "writable": {
+          "enum": [
+            false,
+            null
+          ]
+        },
+        "getter_present": {
+          "type": "boolean"
+        },
+        "setter_present": {
+          "type": "boolean"
+        },
+        "data_kind": {
+          "enum": [
+            null,
+            "undefined",
+            "object",
+            "boolean",
+            "number",
+            "bigint",
+            "string",
+            "symbol",
+            "function",
+            "null"
+          ]
+        },
+        "selected": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

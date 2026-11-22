@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora.private.compiler_entry_comparison_projection.v1",
+  "title": "Disabled pure supplied comparison metadata projection",
+  "$ref": "#/$defs/result",
+  "$defs": {
+    "contract": {
+      "const": {
+        "version": "v1-private-comparison-metadata-projection",
+        "scope": "supplied_comparison_metadata_only",
+        "default_enabled": false,
+        "runtime_admission_enabled": false,
+        "production_enabled": false,
+        "input_nodes": 65536,
+        "input_scalar_bytes": 262144,
+        "output_nodes": 65536,
+        "output_scalar_bytes": 262144,
+        "input_canonical_bytes": 3670016,
+        "local_canonical_bytes": 131072,
+        "output_canonical_bytes": 262144,
+        "new_canonical_form_slots": 32,
+        "delegate_canonical_form_slots": 64,
+        "delegate_native_limit": 131072,
+        "delegate_policy_limit": 65536,
+        "delegate_data_limit": 65536,
+        "delegate_output_bytes": 32768,
+        "local_schema_sha256": "964d279045ff50285d52514d6f7d1493c558870021a945ee2641acc1e29362aa"
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declaration",
+        "binding",
+        "local_schema_sha256",
+        "projection_schema_sha256"
+      ],
+      "properties": {
+        "declaration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "authority_kind",
+            "invocation_id",
+            "source_sha256",
+            "cut",
+            "fuel",
+            "payload"
+          ],
+          "properties": {
+            "version": {
+              "const": "v1-private-live-phased-comparison"
+            },
+            "authority_kind": {
+              "const": "independent_declaration"
+            },
+            "invocation_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "cut": {
+              "const": "one_live_phased_copy_six_preparation_roots"
+            },
+            "fuel": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "payload": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "invocation_id",
+            "tree_sha256",
+            "source_sha256",
+            "cut"
+          ],
+          "properties": {
+            "invocation_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "tree_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "cut": {
+              "const": "one_live_phased_copy_six_preparation_roots"
+            }
+          }
+        },
+        "local_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projection_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "scope",
+        "status",
+        "local_observation",
+        "local_receipt_sha256",
+        "base_projection",
+        "base_gap",
+        "comparison_complete",
+        "supplied_linkage_only",
+        "witness_identity_authenticated",
+        "original_error_identity_authenticated",
+        "logical_budget",
+        "flags",
+        "full_work_units",
+        "physical_fit"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-comparison-metadata-projection"
+        },
+        "scope": {
+          "const": "supplied_comparison_metadata_only"
+        },
+        "status": {
+          "enum": [
+            "LOCAL_OBSERVATION_UNAVAILABLE",
+            "FAILED_LOCAL_METADATA_NOT_SUCCESS",
+            "PARTIAL_COMPARISON_METADATA_NOT_COMPLETE",
+            "SUPPLIED_COMPARISON_LINKED_NOT_ATTESTED"
+          ]
+        },
+        "local_observation": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "local_receipt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "base_projection": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "base_gap": {
+          "enum": [
+            null,
+            "not_attempted",
+            "preproducer",
+            "context_completion_unavailable"
+          ]
+        },
+        "comparison_complete": {
+          "type": "boolean"
+        },
+        "supplied_linkage_only": {
+          "const": true
+        },
+        "witness_identity_authenticated": {
+          "const": false
+        },
+        "original_error_identity_authenticated": {
+          "const": false
+        },
+        "logical_budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "input_node_charges",
+            "input_scalar_upper_bytes",
+            "input_canonical_upper_bytes",
+            "copy_scalar_reserved_bytes",
+            "copy_node_slots_reserved",
+            "canonical_forms_reserved_bytes",
+            "delegate_calls",
+            "model"
+          ],
+          "properties": {
+            "input_node_charges": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "input_scalar_upper_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "input_canonical_upper_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "copy_scalar_reserved_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "copy_node_slots_reserved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "canonical_forms_reserved_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "delegate_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "model": {
+              "const": "source_conditioned_logical_forms_not_physical_or_complete_cost"
+            }
+          }
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "input_origin_authenticated",
+            "source_freshness_verified",
+            "read_authority_granted",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "complete_cost_priced",
+            "physical_fit_verified",
+            "reservation_change_eligible",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "input_origin_authenticated": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "complete_cost_priced": {
+              "const": false
+            },
+            "physical_fit_verified": {
+              "const": false
+            },
+            "reservation_change_eligible": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            }
+          }
+        },
+        "full_work_units": {
+          "type": "null"
+        },
+        "physical_fit": {
+          "type": "null"
+        }
+      }
+    }
+  }
+}

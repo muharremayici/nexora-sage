@@ -596,10 +596,10 @@
     },
     {
       "id": "target_package_script",
-      "pattern": "(^|\\s)(npm|pnpm|yarn)\\s+",
+      "pattern": "(^|\\s)(npm|pnpm|yarn|bun)\\s+",
       "execution_scope": "target_package_script",
-      "proof_boundary": "target_repository_script_evidence",
-      "agent_note": "Target-repository package script. Run from the stated analysis root/package context.",
+      "proof_boundary": "package_command_origin_unverified",
+      "agent_note": "Package-style syntax only; declaration origin, working directory and execution are unverified.",
       "recommended_alternative": ""
     }
   ],

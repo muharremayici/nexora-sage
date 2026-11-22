@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "required": [
+    "version",
+    "scope",
+    "kind_types",
+    "rule"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": "v1-recorded-class-accessors"
+    },
+    "scope": {
+      "const": "recorded_identifier_named_class_accessors_only"
+    },
+    "kind_types": {
+      "type": "object",
+      "required": [
+        "getter",
+        "setter"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "getter": {
+          "const": "ClassGetter"
+        },
+        "setter": {
+          "const": "ClassSetter"
+        }
+      }
+    },
+    "rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    }
+  }
+}

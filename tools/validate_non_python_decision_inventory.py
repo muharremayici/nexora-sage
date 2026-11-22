@@ -119,6 +119,14 @@ def _key_is_numeric_policy(key_path: tuple[str, ...], policy: dict[str, Any]) ->
     return any(token in joined for token in _policy_list(policy, "numeric_policy_keys"))
 
 
+def _key_is_direct_decision(key_path: tuple[str, ...], policy: dict[str, Any]) -> bool:
+    """Array members inherit their field's role; prose does not inherit an ancestor's."""
+    named_path = list(key_path)
+    while named_path and named_path[-1].isdigit():
+        named_path.pop()
+    return bool(named_path) and _key_is_decision((named_path[-1],), policy)
+
+
 def _path_matches_pattern(key_path: tuple[str, ...], pattern: str) -> bool:
     expected = tuple(part for part in str(pattern or "").split(".") if part)
     return len(key_path) == len(expected) and all(
@@ -176,6 +184,16 @@ def _json_findings(policy: dict[str, Any]) -> tuple[list[Finding], list[Finding]
                 if _is_historical_release_identity_reference(rel, key_path, policy):
                     continue
                 if rel in reference_json:
+                    if (
+                        not _key_is_direct_decision(key_path, policy)
+                        and not semver_re.fullmatch(value.strip())
+                    ):
+                        # Keep descriptive context in the visible inventory. A
+                        # warning mentioning a tool version is not a release
+                        # decision merely because it sits under release_scope.
+                        # Real decision fields and plain version references
+                        # still require registered roadmap identities below.
+                        continue
                     referenced_releases = set(semver_re.findall(value))
                     if referenced_releases and referenced_releases <= roadmap_releases:
                         continue

@@ -13,7 +13,7 @@ if str(_ROOT) not in sys.path:
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.hitl_ledger_state import ledger_entries, summarize_ledger_entries
 from tools.core.json_io import load_json_file
-from tools.hitl_approval_ledger import verify_ledger
+from tools.hitl_approval_ledger import load_existing_ledger_observation, verify_supplied_ledger_observation
 
 
 REQUIRED_CONTRACT_FIELDS = {
@@ -36,6 +36,14 @@ def _utc_now() -> str:
 
 
 def _load(path: Path) -> dict[str, Any]:
+    if path == RAW_DIR / "hitl_approval_ledger.json":
+        # Validation observes this ledger; schema/digest/shadow repair belongs
+        # to an explicit writer. Missing/corrupt input fails the entries check.
+        try:
+            payload = load_existing_ledger_observation(RAW_DIR)
+        except Exception:
+            return {}
+        return payload if type(payload) is dict else {}
     payload = load_json_file(path, {})
     return payload if isinstance(payload, dict) else {}
 
@@ -75,7 +83,7 @@ def _ledger_checks(ledger: dict[str, Any], request_ids: set[str], governance_con
 
     checks.append(_check("ledger_entries_well_formed", not malformed, malformed[:20]))
     checks.append(_check("ledger_request_links_valid", not broken_request_links, broken_request_links[:20]))
-    integrity = verify_ledger({"entries": entries})
+    integrity = verify_supplied_ledger_observation({"entries": entries})
     checks.append(
         _check(
             "ledger_integrity_hmac_chain_valid",

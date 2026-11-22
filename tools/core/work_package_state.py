@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from copy import deepcopy
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from tools.core.config import CODE_MAPS_DIR, CONFIG_DIR
 from tools.core.json_io import load_json_object_strict
+from tools.core.governance_trace import fingerprint
+from tools.core.source_layer_classifier import classify_source_layer
 
 
 LEDGER_PATH = CONFIG_DIR / "sage_active_work_package.json"
@@ -49,6 +53,41 @@ def _inherited_dirty_source_path(relative: str, root: Path) -> Path:
     if base not in resolved.parents or source.is_symlink():
         raise ValueError(f"Inherited dirty path is linked or outside SAGE: {relative}")
     return source
+
+
+def inherited_dirty_baseline_is_well_formed(
+    package: dict[str, Any], policy: dict[str, Any]
+) -> bool:
+    baseline = package.get("inherited_dirty_baseline")
+    if not isinstance(baseline, dict) or baseline.get("version") != policy.get("version"):
+        return False
+    files = baseline.get("files")
+    if not isinstance(files, dict):
+        return False
+    if baseline.get("status") == policy.get("legacy_unknown_status"):
+        return files == {} and bool(str(baseline.get("reason") or "").strip())
+    if baseline.get("status") != policy.get("captured_status"):
+        return False
+    declared = {str(item).replace("\\", "/") for item in package.get("affected_contracts", [])}
+    for relative, digest in files.items():
+        if not isinstance(relative, str) or relative != relative.replace("\\", "/"):
+            return False
+        pure = PurePosixPath(relative)
+        if (
+            pure.is_absolute()
+            or not pure.parts
+            or any(part in {"", ".", ".."} for part in pure.parts)
+            or ":" in pure.parts[0]
+            or relative in declared
+            or not isinstance(digest, str)
+            or (
+                digest != policy.get("missing_identity")
+                and re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            )
+        ):
+            return False
+    return True
+
 
 
 def inherited_dirty_file_identity(relative: str, *, root: Path = CODE_MAPS_DIR) -> str:
@@ -290,3 +329,111 @@ def verified_published_package_completion_binding(
     if any(items.get(x, {}).get("status") != "closed" or items[x].get("delivered_release") != release for x in ids):
         raise ValueError("publication delivery not reconciled")
     return publication
+
+
+def _scope_amendment_paths(value: object) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(path, str) for path in value):
+        raise ValueError("scope_amendment_invalid_paths")
+    for path in value:
+        pure = PurePosixPath(path)
+        if (not pure.parts or pure.is_absolute() or path != pure.as_posix()
+                or "\\" in path or any(part in {".", ".."} for part in pure.parts)
+                or ":" in pure.parts[0]):
+            raise ValueError("scope_amendment_invalid_paths")
+    if len(value) != len(set(value)):
+        raise ValueError("scope_amendment_duplicate_paths")
+    return value
+
+
+def _build_scope_amendment_snapshot(
+    *,
+    package: dict[str, Any],
+    requested_paths: list[str],
+    approved_path_identities: dict[str, str],
+    expected_binding: dict[str, str],
+    expected_baseline_identity: str,
+    expected_package_snapshot_identity: str,
+    receipt_contract: dict[str, Any],
+    current_binding: dict[str, str],
+    root: Path,
+) -> dict[str, Any]:
+    """Plan exact, already-approved ownership changes; never write or grant authority.
+
+    Identities are caller-supplied freshness constraints, not proof of approval.
+    An authorized writer must recheck them against its live ledger before applying
+    the returned package copy. Historical baseline hashes are never recaptured.
+    """
+    if not isinstance(package, dict):
+        raise ValueError("scope_amendment_invalid_package")
+    snapshot = deepcopy(package)
+    snapshot_identity = fingerprint(snapshot)
+    if expected_package_snapshot_identity != snapshot_identity:
+        raise ValueError("scope_amendment_stale_package_snapshot")
+    contract = receipt_contract
+    closeout = contract.get("closeout_policy")
+    if not isinstance(closeout, dict):
+        raise ValueError("scope_amendment_baseline_policy_invalid")
+    policy = closeout.get("inherited_dirty_baseline")
+    scope_policy = closeout.get("changed_file_scope")
+    if (not isinstance(policy, dict) or not isinstance(scope_policy, dict)
+            or any(not isinstance(policy.get(key), str) or not policy[key]
+                   for key in ("version", "captured_status", "missing_identity"))):
+        raise ValueError("scope_amendment_baseline_policy_invalid")
+    if (policy.get("hash_algorithm") != "sha256"
+            or any(not isinstance(scope_policy.get(key), list) or not scope_policy[key]
+                   or any(not isinstance(item, str) or not item for item in scope_policy[key])
+                   for key in ("excluded_source_layers", "unknown_source_layers"))):
+        raise ValueError("scope_amendment_baseline_policy_invalid")
+    declared = _scope_amendment_paths(snapshot.get("affected_contracts"))
+    baseline = snapshot.get("inherited_dirty_baseline")
+    if (not inherited_dirty_baseline_is_well_formed(snapshot, policy)
+            or baseline.get("status") != policy["captured_status"]):
+        raise ValueError("scope_amendment_baseline_invalid_or_unknown")
+    if expected_baseline_identity != fingerprint(baseline):
+        raise ValueError("scope_amendment_stale_baseline")
+    requested = _scope_amendment_paths(deepcopy(requested_paths))
+    if not isinstance(approved_path_identities, dict):
+        raise ValueError("scope_amendment_exact_approved_paths_required")
+    approved_path_identities = deepcopy(approved_path_identities)
+    expected_binding = deepcopy(expected_binding)
+    approved = _scope_amendment_paths(list(approved_path_identities))
+    if set(requested) != set(approved):
+        raise ValueError("scope_amendment_exact_approved_paths_required")
+    binding = current_binding
+    if (not isinstance(expected_binding, dict) or expected_binding != binding):
+        raise ValueError("scope_amendment_stale_package_or_source")
+    excluded = set(scope_policy.get("excluded_source_layers", []))
+    unknown = set(scope_policy.get("unknown_source_layers", []))
+    for path in requested:
+        expected = approved_path_identities[path]
+        if (not isinstance(expected, str) or (expected != policy["missing_identity"]
+                and re.fullmatch(r"[0-9a-f]{64}", expected) is None)):
+            raise ValueError("scope_amendment_invalid_path_identity")
+        source = _inherited_dirty_source_path(path, root)
+        layer, _ = classify_source_layer(source.resolve(), root=root.resolve())
+        if layer in excluded or layer in unknown:
+            raise ValueError("scope_amendment_path_not_governed")
+        if inherited_dirty_file_identity(path, root=root) != expected:
+            raise ValueError("scope_amendment_stale_path")
+    updated = deepcopy(snapshot)
+    added = sorted(set(requested) - set(declared))
+    updated["affected_contracts"].extend(added)
+    historical = updated["inherited_dirty_baseline"]["files"]
+    transferred = {path: historical.pop(path) for path in sorted(requested) if path in historical}
+    if not inherited_dirty_baseline_is_well_formed(updated, policy):
+        raise ValueError("scope_amendment_result_invalid")
+    return {
+        "meta": {"kind": "work_package_scope_amendment_plan", "version": "v1"},
+        "ready": True,
+        "package_binding_before": binding,
+        "package_snapshot_identity_before": snapshot_identity,
+        "baseline_identity_before": expected_baseline_identity,
+        "requested_paths": sorted(requested),
+        "approved_path_identities": deepcopy(approved_path_identities),
+        "added_affected_paths": added,
+        "transferred_inherited_entries": transferred,
+        "package_after": updated,
+        "may_write_ledger": False,
+        "may_infer_human_authority": False,
+        "publication_authority": False,
+    }

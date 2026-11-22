@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "private:signed-primary-comparison-fixture:v1",
+  "title": "Disabled fixed signed-primary temporary fixture compatibility",
+  "$defs": {
+    "contract": {
+      "const": {
+        "version": "v1-private-signed-primary-comparison-fixture",
+        "fixture_only": true,
+        "result_status": "SIGNED_PRIMARY_CONTENT_AND_CONSUMPTION_LINKED_FIXTURE_ONLY_NOT_ADMITTED",
+        "selected_status": "SUPPLIED_SELECTED_SIGNED_DECISION_LINKED_NOT_CURRENT_APPROVAL",
+        "verification_owner": "tools.hitl_approval_ledger.project_comparison_signed_decision",
+        "expected_fields": [
+          "schema_sha256",
+          "request_sha256",
+          "policy_sha256",
+          "ledger_snapshot_sha256"
+        ],
+        "required_selected_booleans": [
+          "selected_signature_verified",
+          "latest_in_supplied_snapshot",
+          "whole_supplied_chain_checked"
+        ],
+        "selected_result_fields": [
+          "status",
+          "selected_entry_sha256",
+          "selected_chain_hash",
+          "selected_signature_verified",
+          "latest_in_supplied_snapshot",
+          "whole_supplied_chain_checked",
+          "legacy_unsigned_history_present",
+          "validity_checked_at",
+          "selected_expires_at",
+          "logical_budget"
+        ],
+        "maximum_result_bytes": 32768,
+        "domain_link_authenticated": false,
+        "runtime_admission": false,
+        "production_enabled": false,
+        "publication_authority": false
+      }
+    }
+  },
+  "description": "Private synthetic composition only. No actual key/store acquisition, native approval, production route or admission policy."
+}

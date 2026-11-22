@@ -4,6 +4,4745 @@
   "description": "JSON Schema contract for the Atlas artifact produced by AST Sequencers and Orchestrators.",
   "type": "object",
   "$defs": {
+    "import_occurrence_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record",
+        "statement",
+        "module",
+        "binding",
+        "name",
+        "keyword"
+      ],
+      "properties": {
+        "record": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "name",
+            "kind",
+            "scope"
+          ],
+          "properties": {
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "enum": [
+                "named",
+                "default",
+                "namespace",
+                "side_effect"
+              ]
+            },
+            "scope": {
+              "const": "top_level"
+            }
+          }
+        },
+        "statement": {
+          "$ref": "#/$defs/returned_callback_span"
+        },
+        "module": {
+          "$ref": "#/$defs/returned_callback_span"
+        },
+        "binding": {
+          "$ref": "#/$defs/returned_callback_span"
+        },
+        "name": {
+          "$ref": "#/$defs/returned_callback_span"
+        },
+        "keyword": {
+          "$ref": "#/$defs/returned_callback_span"
+        }
+      }
+    },
+    "import_occurrence_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "offset_unit",
+        "ast_contract_version",
+        "rows",
+        "omitted"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-static-es-import-bindings"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "atlas_source_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "parser_kind": {
+          "const": "typescript_compiler_api"
+        },
+        "parser_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/import_occurrence_row"
+          }
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "if": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "unavailable"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "omitted": {
+            "const": 0
+          }
+        }
+      },
+      "else": {
+        "type": "object",
+        "required": [
+          "source_hash",
+          "atlas_source_hash",
+          "policy_sha256",
+          "parser_kind",
+          "parser_version"
+        ]
+      }
+    },
+    "declared_artifact_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "declared_artifact_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_manifest",
+        "source_manifest_sha256",
+        "field_path",
+        "sibling_order",
+        "condition_path",
+        "subpath",
+        "version_selector",
+        "target_literal",
+        "resolution_status",
+        "candidate",
+        "file_ref",
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "source_manifest": {
+          "type": "string"
+        },
+        "source_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "field_path": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        },
+        "sibling_order": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "condition_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subpath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version_selector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_literal": {
+          "type": "string"
+        },
+        "resolution_status": {
+          "const": "not_evaluated"
+        },
+        "candidate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "declared_artifact_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "scope",
+        "policy_sha256",
+        "producer_contract",
+        "project_key",
+        "project_root",
+        "manifest_context_sha256",
+        "ownership_sha256",
+        "status",
+        "entries",
+        "files",
+        "visited_candidates",
+        "producer_omitted",
+        "io_budget_charged_bytes",
+        "reasons",
+        "build_attribution",
+        "package_inclusion",
+        "runtime_execution",
+        "live_freshness",
+        "content_semantics",
+        "mutation_authority"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-literal-declared-artifact-bytes"
+        },
+        "scope": {
+          "const": "top_level_types_typings_output_leaf_observation"
+        },
+        "producer_contract": {
+          "const": "atlas-declared-artifact-v1"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "project_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ownership_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/declared_artifact_entry"
+          }
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/declared_artifact_file"
+          }
+        },
+        "visited_candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "producer_omitted": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "io_budget_charged_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "build_attribution": {
+          "const": "not_established"
+        },
+        "package_inclusion": {
+          "const": "not_established"
+        },
+        "runtime_execution": {
+          "const": "not_performed"
+        },
+        "live_freshness": {
+          "const": "not_checked"
+        },
+        "content_semantics": {
+          "const": "not_inspected"
+        },
+        "mutation_authority": {
+          "const": "not_granted"
+        }
+      }
+    },
+    "literal_registry_member_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_name",
+        "member_path",
+        "status",
+        "reason",
+        "object_span",
+        "fields"
+      ],
+      "properties": {
+        "root_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "member_path": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "unsupported"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "object_span": {
+          "$ref": "#/$defs/returned_callback_span"
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 2048,
+          "items": {
+            "$ref": "#/$defs/literal_registry_field"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "const": ""
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "reason": {
+            "const": "unsupported_or_duplicate_member_property"
+          },
+          "fields": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    "literal_registry_member_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "ast_contract_version",
+        "record_count",
+        "records"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "const": "v1-direct-const-literal-member-path-source"
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "record_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/literal_registry_member_object"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "version",
+          "offset_unit",
+          "source_hash",
+          "policy_sha256"
+        ],
+        "properties": {
+          "reason": {
+            "const": ""
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "reason": {
+            "minLength": 1
+          },
+          "records": {
+            "maxItems": 0
+          },
+          "record_count": {
+            "const": 0
+          }
+        }
+      }
+    },
+    "literal_registry_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "key_kind",
+        "kind",
+        "spans"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "key_kind": {
+          "enum": [
+            "identifier",
+            "string"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "opaque",
+            "string_literal"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "spans": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "property",
+            "key",
+            "value"
+          ],
+          "properties": {
+            "property": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "key": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "value": {
+              "$ref": "#/$defs/returned_callback_span"
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "string_literal"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "value"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "value"
+          ]
+        }
+      }
+    },
+    "literal_registry_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "key_kind",
+        "spans",
+        "fields"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "key_kind": {
+          "enum": [
+            "identifier",
+            "string"
+          ]
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/literal_registry_field"
+          }
+        },
+        "spans": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "property",
+            "key",
+            "object"
+          ],
+          "properties": {
+            "property": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "key": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "object": {
+              "$ref": "#/$defs/returned_callback_span"
+            }
+          }
+        }
+      }
+    },
+    "literal_registry_table": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "reason",
+        "spans",
+        "rows"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "unsupported"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "spans": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "declaration",
+            "binding",
+            "const_keyword",
+            "object"
+          ],
+          "properties": {
+            "declaration": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "binding": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "const_keyword": {
+              "$ref": "#/$defs/returned_callback_span"
+            },
+            "object": {
+              "$ref": "#/$defs/returned_callback_span"
+            }
+          }
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/literal_registry_row"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "const": ""
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "rows": {
+            "maxItems": 0
+          },
+          "reason": {
+            "enum": [
+              "unsupported_or_duplicate_table_property",
+              "unsupported_or_duplicate_row_property",
+              "field_budget_exceeded"
+            ]
+          }
+        }
+      }
+    },
+    "literal_registry_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "ast_contract_version",
+        "record_count",
+        "records"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "const": "v1-direct-const-string-map-source"
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "record_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/literal_registry_table"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "version",
+          "offset_unit",
+          "source_hash",
+          "policy_sha256"
+        ],
+        "properties": {
+          "reason": {
+            "const": ""
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "records": {
+            "maxItems": 0
+          },
+          "record_count": {
+            "const": 0
+          },
+          "reason": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "resolver_factory_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "version",
+        "scope",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "records",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "factory_semantics",
+        "argument_semantics"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/status"
+        },
+        "reason": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/reason"
+        },
+        "offset_unit": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/offset_unit"
+        },
+        "ast_contract_version": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/ast_contract_version"
+        },
+        "source_hash": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/source_hash"
+        },
+        "record_count": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/record_count"
+        },
+        "omitted": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/omitted"
+        },
+        "schema_authority": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/schema_authority"
+        },
+        "type_compatibility": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/type_compatibility"
+        },
+        "runtime_proof": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/runtime_proof"
+        },
+        "mutation_proposed": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/mutation_proposed"
+        },
+        "factory_semantics": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/factory_semantics"
+        },
+        "argument_semantics": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/argument_semantics"
+        },
+        "version": {
+          "const": "v1-zod-resolver-named-import-factory-source"
+        },
+        "scope": {
+          "const": "finite_named_zod_resolver_wrapped_imported_factory_call"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "argument_count",
+              "resolver_local_name",
+              "factory_local_name",
+              "spans"
+            ],
+            "properties": {
+              "argument_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "resolver_local_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "factory_local_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "resolver_call",
+                  "resolver_ref",
+                  "resolver_import",
+                  "resolver_import_binding",
+                  "resolver_imported",
+                  "resolver_module",
+                  "factory_call",
+                  "factory_ref",
+                  "factory_import",
+                  "factory_import_binding"
+                ],
+                "properties": {
+                  "resolver_call": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "resolver_ref": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "resolver_import": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "resolver_import_binding": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "resolver_imported": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "resolver_module": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "factory_call": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "factory_ref": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "factory_import": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "factory_import_binding": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "argument_0": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "argument_1": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "argument_2": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  },
+                  "argument_3": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/guard"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "workspace_import_source_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "source_project",
+        "target_ref",
+        "workspace_rel"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-declared-workspace-alias-source"
+        },
+        "source_project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_rel": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "factory_argument_const_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "version",
+        "scope",
+        "factory_semantics",
+        "argument_semantics",
+        "records"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/status"
+        },
+        "reason": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/reason"
+        },
+        "offset_unit": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/offset_unit"
+        },
+        "ast_contract_version": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/ast_contract_version"
+        },
+        "source_hash": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/source_hash"
+        },
+        "record_count": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/record_count"
+        },
+        "omitted": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/omitted"
+        },
+        "schema_authority": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/schema_authority"
+        },
+        "type_compatibility": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/type_compatibility"
+        },
+        "runtime_proof": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/runtime_proof"
+        },
+        "mutation_proposed": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/mutation_proposed"
+        },
+        "version": {
+          "const": "v2-sync-factory-call-argument-const-binding"
+        },
+        "scope": {
+          "const": "finite_factory_call_argument_preceding_const_source_binding"
+        },
+        "factory_semantics": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/factory_semantics"
+        },
+        "argument_semantics": {
+          "$ref": "#/$defs/factory_return_construction_evidence/properties/argument_semantics"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "factory_name",
+              "factory_kind",
+              "method_name",
+              "call_index",
+              "argument_index",
+              "argument_count",
+              "kind",
+              "name",
+              "binding_scope",
+              "spans"
+            ],
+            "properties": {
+              "factory_kind": {
+                "$ref": "#/$defs/factory_return_construction_evidence/properties/records/items/properties/factory_kind"
+              },
+              "factory_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "method_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "call_index": {
+                "type": "integer",
+                "minimum": 0,
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              "argument_index": {
+                "type": "integer",
+                "minimum": 0,
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "argument_count": {
+                "type": "integer",
+                "minimum": 1,
+                "enum": [
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "direct_identifier",
+                  "object_shorthand"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "binding_scope": {
+                "enum": [
+                  "module_const",
+                  "factory_const"
+                ]
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "factory",
+                  "factory_binding",
+                  "body",
+                  "returned",
+                  "expression",
+                  "call",
+                  "method",
+                  "open",
+                  "close",
+                  "argument",
+                  "reference",
+                  "declaration_list",
+                  "declaration",
+                  "const_keyword",
+                  "binding",
+                  "initializer",
+                  "argument_0"
+                ],
+                "properties": {
+                  "factory": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "factory_binding": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "body": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "returned": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "expression": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "argument": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "reference": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "declaration_list": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "declaration": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "const_keyword": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "binding": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "initializer": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "argument_0": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "argument_1": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "argument_2": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "argument_3": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/safeparse_lane_coverage"
+        }
+      ]
+    },
+    "factory_return_construction_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "version",
+        "scope",
+        "factory_semantics",
+        "argument_semantics",
+        "records"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/status"
+        },
+        "reason": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/reason"
+        },
+        "offset_unit": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/offset_unit"
+        },
+        "ast_contract_version": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/ast_contract_version"
+        },
+        "source_hash": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/source_hash"
+        },
+        "record_count": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/record_count"
+        },
+        "omitted": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/omitted"
+        },
+        "schema_authority": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/schema_authority"
+        },
+        "type_compatibility": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/type_compatibility"
+        },
+        "runtime_proof": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/runtime_proof"
+        },
+        "mutation_proposed": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/mutation_proposed"
+        },
+        "version": {
+          "const": "v5-sync-factory-return-callback-guard-source"
+        },
+        "scope": {
+          "const": "finite_exported_sync_factory_imported_root_return_construction"
+        },
+        "factory_semantics": {
+          "const": "not_established"
+        },
+        "argument_semantics": {
+          "const": "not_established"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "factory_name",
+              "factory_kind",
+              "body_kind",
+              "methods",
+              "import_binding",
+              "spans"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "factory_kind": {
+                      "const": "function_declaration"
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "body_kind": {
+                      "const": "block_final_return"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_form",
+                    "parameter_uses",
+                    "parameter_uses_omitted",
+                    "callback_guard_reads",
+                    "callback_guard_reads_omitted"
+                  ],
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "required": [
+                        "parameter",
+                        "parameter_binding"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "callback_guard_reads"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "callback_guard_reads_omitted"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "parameter_uses"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "parameter_uses_omitted"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "parameter_form"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "parameter_form"
+                  ],
+                  "properties": {
+                    "parameter_form": {
+                      "const": "parenthesized"
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "required": [
+                        "parameters_open",
+                        "parameters_close"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "parameter_form"
+                  ],
+                  "properties": {
+                    "parameter_form": {
+                      "const": "bare_arrow"
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "factory_kind": {
+                      "const": "const_arrow"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "required": [
+                        "parameter"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "parameter_name",
+                    "parameter_form"
+                  ]
+                }
+              }
+            ],
+            "properties": {
+              "factory_kind": {
+                "enum": [
+                  "const_arrow",
+                  "function_declaration"
+                ]
+              },
+              "parameter_name": {
+                "type": "string",
+                "pattern": "^(?!this$)[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "parameter_form": {
+                "enum": [
+                  "parenthesized",
+                  "bare_arrow"
+                ]
+              },
+              "callback_guard_reads_omitted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 32
+              },
+              "callback_guard_reads": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "call_index",
+                    "argument_index",
+                    "argument_count",
+                    "callback_parameters"
+                  ],
+                  "properties": {
+                    "call_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 7
+                    },
+                    "argument_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "argument_count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4
+                    },
+                    "callback_parameters": {
+                      "type": "array",
+                      "maxItems": 4,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^(?!this$)[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+                      }
+                    }
+                  }
+                }
+              },
+              "parameter_uses_omitted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 32
+              },
+              "parameter_uses": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "call_index",
+                    "argument_index",
+                    "argument_count"
+                  ],
+                  "properties": {
+                    "call_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 7
+                    },
+                    "argument_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "argument_count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4
+                    }
+                  }
+                }
+              },
+              "factory_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "body_kind": {
+                "enum": [
+                  "expression",
+                  "block_final_return"
+                ]
+              },
+              "methods": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+                }
+              },
+              "import_binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "source",
+                  "local_name",
+                  "imported_name",
+                  "kind",
+                  "type_only"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[\\s\\S]{1,180}$"
+                  },
+                  "local_name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+                  },
+                  "imported_name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+                  },
+                  "kind": {
+                    "const": "named"
+                  },
+                  "type_only": {
+                    "type": "boolean",
+                    "const": false
+                  }
+                }
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "factory",
+                  "factory_binding",
+                  "body",
+                  "returned",
+                  "expression",
+                  "root",
+                  "root_import",
+                  "root_binding",
+                  "root_imported",
+                  "module",
+                  "call_0",
+                  "method_0",
+                  "open_0",
+                  "close_0"
+                ],
+                "properties": {
+                  "factory": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "parameter": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_type": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_0_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_1_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_2_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_3_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_4_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_5_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_6_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_7_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_8_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_9_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_10_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_11_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_12_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_13_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_14_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_15_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_16_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_17_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_18_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_19_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_20_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_21_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_22_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_23_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_24_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_25_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_26_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_27_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_28_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_29_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_30_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_reference": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_31_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_0_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_0_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_0_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_0_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_1_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_1_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_1_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_1_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_2_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_2_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_2_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_2_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_3_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_3_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_3_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_3_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_4": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_4_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_4_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_4_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_4_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_5": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_5_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_5_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_5_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_5_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_6": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_6_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_6_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_6_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_6_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_7": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_7_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_7_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_7_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_7_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_8": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_8_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_8_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_8_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_8_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_9": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_9_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_9_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_9_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_9_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_10": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_10_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_10_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_10_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_10_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_11": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_11_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_11_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_11_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_11_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_12": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_12_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_12_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_12_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_12_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_13": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_13_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_13_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_13_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_13_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_14": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_14_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_14_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_14_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_14_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_15": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_15_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_15_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_15_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_15_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_16": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_16_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_16_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_16_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_16_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_17": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_17_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_17_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_17_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_17_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_18": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_18_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_18_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_18_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_18_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_19": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_19_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_19_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_19_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_19_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_20": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_20_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_20_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_20_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_20_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_21": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_21_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_21_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_21_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_21_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_22": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_22_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_22_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_22_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_22_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_23": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_23_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_23_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_23_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_23_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_24": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_24_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_24_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_24_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_24_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_25": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_25_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_25_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_25_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_25_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_26": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_26_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_26_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_26_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_26_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_27": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_27_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_27_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_27_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_27_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_28": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_28_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_28_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_28_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_28_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_29": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_29_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_29_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_29_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_29_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_30": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_30_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_30_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_30_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_30_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameter_use_31": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_31_argument_0": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_31_argument_1": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_31_argument_2": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "use_31_argument_3": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameters_open": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parameters_close": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "factory_binding": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "body": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "returned": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "expression": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "root": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "root_import": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "root_binding": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "root_imported": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "module": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_0": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_0": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_0": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_0": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_1": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_1": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_1": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_1": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_2": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_2": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_2": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_2": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_3": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_3": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_3": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_3": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_4": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_4": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_4": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_4": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_5": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_5": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_5": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_5": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_6": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_6": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_6": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_6": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "call_7": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "method_7": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "open_7": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  },
+                  "close_7": {
+                    "$ref": "#/$defs/safeparse_early_return_evidence/properties/records/items/properties/spans/properties/callback"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/safeparse_lane_coverage"
+        }
+      ]
+    },
+    "safeparse_early_return_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "version",
+        "scope",
+        "factory_semantics",
+        "continuation_safety",
+        "records"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/status"
+        },
+        "reason": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/reason"
+        },
+        "offset_unit": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/offset_unit"
+        },
+        "ast_contract_version": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/ast_contract_version"
+        },
+        "source_hash": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/source_hash"
+        },
+        "record_count": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/record_count"
+        },
+        "omitted": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/omitted"
+        },
+        "schema_authority": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/schema_authority"
+        },
+        "type_compatibility": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/type_compatibility"
+        },
+        "runtime_proof": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/runtime_proof"
+        },
+        "mutation_proposed": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/mutation_proposed"
+        },
+        "version": {
+          "const": "v2-safeparse-negative-return-single-const-actual"
+        },
+        "scope": {
+          "const": "finite_named_import_factory_safeparse_success_binding_negative_return"
+        },
+        "factory_semantics": {
+          "const": "not_established"
+        },
+        "continuation_safety": {
+          "const": "not_established"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "spans"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "type": "object",
+                  "required": [
+                    "factory_argument_name"
+                  ]
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "required": [
+                        "factory_argument",
+                        "argument_declaration_list",
+                        "argument_declaration",
+                        "argument_const_keyword",
+                        "argument_binding",
+                        "argument_initializer"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "spans": {
+                      "type": "object",
+                      "required": [
+                        "factory_argument"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "required": [
+                    "factory_argument_name"
+                  ]
+                }
+              }
+            ],
+            "properties": {
+              "factory_argument_name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "callback",
+                  "callback_binding",
+                  "callback_body",
+                  "block",
+                  "declaration",
+                  "success_property",
+                  "success_binding",
+                  "parser_call",
+                  "factory_call",
+                  "factory_ref",
+                  "factory_import",
+                  "factory_import_binding",
+                  "parser_input",
+                  "input_declaration",
+                  "input_binding",
+                  "guard",
+                  "condition",
+                  "guard_ref",
+                  "then_body",
+                  "return"
+                ],
+                "properties": {
+                  "callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "factory_argument": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument_declaration_list": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument_declaration": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument_const_keyword": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument_initializer": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "block": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "declaration": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "success_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "success_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_call": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "factory_call": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "factory_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "factory_import": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "factory_import_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_input": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "input_declaration": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "input_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "guard_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "then_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "return": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/safeparse_lane_coverage"
+        }
+      ]
+    },
+    "safeparse_lane_coverage": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "maxItems": 0
+              },
+              "record_count": {
+                "const": 0
+              },
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "source_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "const": ""
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "omitted": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "record_count": {
+                "const": 64
+              },
+              "records": {
+                "minItems": 64
+              },
+              "reason": {
+                "const": "record_budget_exceeded"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "effect_safeparse_merge_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "version",
+        "scope",
+        "prior_value_semantics",
+        "merge_result_semantics",
+        "records"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/status"
+        },
+        "reason": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/reason"
+        },
+        "offset_unit": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/offset_unit"
+        },
+        "ast_contract_version": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/ast_contract_version"
+        },
+        "source_hash": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/source_hash"
+        },
+        "record_count": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/record_count"
+        },
+        "omitted": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/omitted"
+        },
+        "schema_authority": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/schema_authority"
+        },
+        "type_compatibility": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/type_compatibility"
+        },
+        "runtime_proof": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/runtime_proof"
+        },
+        "mutation_proposed": {
+          "$ref": "#/$defs/effect_safeparse_callback_evidence/properties/mutation_proposed"
+        },
+        "version": {
+          "const": "v1-effect-safeparse-parameter-spread"
+        },
+        "scope": {
+          "const": "finite_named_react_effect_safeparse_parameter_then_data_spreads"
+        },
+        "prior_value_semantics": {
+          "const": "not_established"
+        },
+        "merge_result_semantics": {
+          "const": "not_established"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "spans"
+            ],
+            "properties": {
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "component_body",
+                  "hook_import",
+                  "hook_ref",
+                  "effect",
+                  "body",
+                  "dependencies",
+                  "dependency_ref",
+                  "input",
+                  "input_binding",
+                  "parser_owner",
+                  "parser_owner_binding",
+                  "parser_owner_ref",
+                  "parser_call",
+                  "parser_input",
+                  "result",
+                  "result_binding",
+                  "branch",
+                  "condition",
+                  "condition_result_ref",
+                  "success_property",
+                  "then_body",
+                  "callback_binding",
+                  "callback_ref",
+                  "sink",
+                  "argument",
+                  "spread",
+                  "data_result_ref",
+                  "data_property",
+                  "prior_declaration",
+                  "prior_binding",
+                  "prior_spread",
+                  "prior_ref"
+                ],
+                "properties": {
+                  "component_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "hook_import": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "hook_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "effect": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "dependencies": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "dependency_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "input": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "input_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_call": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_input": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "result": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "result_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition_result_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "success_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "then_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "sink": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "spread": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "data_result_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "data_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "prior_declaration": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "prior_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "prior_spread": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "prior_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/safeparse_lane_coverage"
+        }
+      ]
+    },
+    "effect_safeparse_callback_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "scope",
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "records"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-effect-safeparse-data-spread-callback"
+        },
+        "scope": {
+          "const": "finite_named_react_effect_safeparse_success_data_spread_to_parameter_callback"
+        },
+        "status": {
+          "$ref": "#/$defs/client_safeparse_success_evidence/properties/status"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_hash": {
+          "$ref": "#/$defs/client_safeparse_success_evidence/properties/source_hash"
+        },
+        "record_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "schema_authority": {
+          "const": "not_established"
+        },
+        "type_compatibility": {
+          "const": "not_established"
+        },
+        "runtime_proof": {
+          "const": "not_performed"
+        },
+        "mutation_proposed": {
+          "type": "boolean",
+          "const": false
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "spans"
+            ],
+            "properties": {
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "component_body",
+                  "hook_import",
+                  "hook_ref",
+                  "effect",
+                  "body",
+                  "dependencies",
+                  "dependency_ref",
+                  "input",
+                  "input_binding",
+                  "parser_owner",
+                  "parser_owner_binding",
+                  "parser_owner_ref",
+                  "parser_call",
+                  "parser_input",
+                  "result",
+                  "result_binding",
+                  "branch",
+                  "condition",
+                  "condition_result_ref",
+                  "success_property",
+                  "then_body",
+                  "callback_binding",
+                  "callback_ref",
+                  "sink",
+                  "argument",
+                  "spread",
+                  "data_result_ref",
+                  "data_property"
+                ],
+                "properties": {
+                  "component_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "hook_import": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "hook_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "effect": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "dependencies": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "dependency_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "input": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "input_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_call": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_input": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "result": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "result_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition_result_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "success_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "then_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "sink": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "spread": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "data_result_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "data_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "maxItems": 0
+              },
+              "record_count": {
+                "const": 0
+              },
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "source_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "const": ""
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "omitted": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "record_count": {
+                "const": 64
+              },
+              "records": {
+                "minItems": 64
+              },
+              "reason": {
+                "const": "record_budget_exceeded"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "client_safeparse_success_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "scope",
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "source_hash",
+        "record_count",
+        "omitted",
+        "schema_authority",
+        "type_compatibility",
+        "runtime_proof",
+        "mutation_proposed",
+        "records"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-const-safeparse-success-data-to-state"
+        },
+        "scope": {
+          "const": "finite_same_file_safeparse_success_data_to_react_state"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "schema_authority": {
+          "const": "not_established"
+        },
+        "type_compatibility": {
+          "const": "not_established"
+        },
+        "runtime_proof": {
+          "const": "not_performed"
+        },
+        "mutation_proposed": {
+          "type": "boolean",
+          "const": false
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "spans"
+            ],
+            "properties": {
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "body",
+                  "fetch",
+                  "fetch_binding",
+                  "json",
+                  "json_binding",
+                  "parser_owner",
+                  "parser_owner_binding",
+                  "parser_owner_ref",
+                  "parser_call",
+                  "parser_input",
+                  "result",
+                  "result_binding",
+                  "branch",
+                  "condition",
+                  "condition_result_ref",
+                  "success_property",
+                  "then_body",
+                  "data_result_ref",
+                  "data_property",
+                  "state_declaration",
+                  "state_import",
+                  "setter_binding",
+                  "setter_ref",
+                  "sink",
+                  "argument"
+                ],
+                "properties": {
+                  "body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "fetch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "fetch_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "json": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "json_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_owner_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_call": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "parser_input": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "result": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "result_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "branch": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "condition_result_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "success_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "then_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "data_result_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "data_property": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "state_declaration": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "state_import": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "setter_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "setter_ref": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "sink": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "argument": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "records": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "record_count": {
+                "const": 0
+              },
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "source_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "const": ""
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "omitted": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "record_count": {
+                "const": 64
+              },
+              "records": {
+                "type": "array",
+                "minItems": 64
+              },
+              "reason": {
+                "const": "record_budget_exceeded"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "wiring_observation_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "line",
+        "end_line"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "wiring_source_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "coverage",
+        "status",
+        "reason",
+        "offset_unit",
+        "ast_contract_version",
+        "records",
+        "record_count",
+        "omitted",
+        "correlation_status",
+        "integration_status",
+        "resolution_status",
+        "runtime_execution",
+        "mutation_proposed"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-named-import-inline-empty-jsx"
+        },
+        "coverage": {
+          "const": "finite_named_import_and_inline_jsx_syntax"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "offset_unit": {
+          "const": "utf8_bytes"
+        },
+        "ast_contract_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "parser_kind": {
+          "const": "typescript_compiler_api"
+        },
+        "parser_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "correlation_status": {
+          "const": "not_evaluated"
+        },
+        "integration_status": {
+          "const": "unknown"
+        },
+        "resolution_status": {
+          "const": "not_evaluated"
+        },
+        "runtime_execution": {
+          "const": "not_established"
+        },
+        "mutation_proposed": {
+          "type": "boolean",
+          "const": false
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/wiring_observation_record"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "record_count": {
+                "const": 0
+              },
+              "omitted": {
+                "const": 0
+              },
+              "records": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "required": [
+              "source_hash",
+              "parser_kind",
+              "parser_version"
+            ]
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "omitted": {
+                "const": 0
+              },
+              "reason": {
+                "const": ""
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "omitted": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "const": "record_budget_exceeded"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "wiring_observation_record": {
+      "type": "object",
+      "required": [
+        "kind",
+        "spans"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "named_import_without_identifier_occurrence",
+            "inline_empty_jsx_callback"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "named_import_without_identifier_occurrence"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "source",
+              "local_name",
+              "imported_name",
+              "spans"
+            ],
+            "properties": {
+              "kind": {
+                "const": "named_import_without_identifier_occurrence"
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "local_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "imported_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "import_declaration",
+                  "import_binding",
+                  "imported_binding",
+                  "local_binding",
+                  "module_source"
+                ],
+                "properties": {
+                  "import_declaration": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "import_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "imported_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "local_binding": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "module_source": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "tag",
+              "prop",
+              "spans"
+            ],
+            "properties": {
+              "kind": {
+                "const": "inline_empty_jsx_callback"
+              },
+              "tag": {
+                "type": "string",
+                "pattern": "^[a-z][A-Za-z0-9]*$"
+              },
+              "prop": {
+                "type": "string",
+                "pattern": "^on[A-Z][A-Za-z0-9]*$"
+              },
+              "spans": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "jsx_site",
+                  "tag",
+                  "attribute",
+                  "prop",
+                  "callback",
+                  "callback_body"
+                ],
+                "properties": {
+                  "jsx_site": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "tag": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "attribute": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "prop": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  },
+                  "callback_body": {
+                    "$ref": "#/$defs/wiring_observation_span"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "manifest_source_links": {
       "type": "object",
       "additionalProperties": false,
@@ -11434,6 +16173,50 @@
             "type": {
               "type": "string"
             },
+            "import_records": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "workspace_source_candidate": {
+                    "$ref": "#/$defs/workspace_import_source_candidate"
+                  }
+                }
+              }
+            },
+            "wiring_source_observations": {
+              "$ref": "#/$defs/wiring_source_observations"
+            },
+            "import_occurrence_evidence": {
+              "$ref": "#/$defs/import_occurrence_evidence"
+            },
+            "client_safeparse_success_evidence": {
+              "$ref": "#/$defs/client_safeparse_success_evidence"
+            },
+            "effect_safeparse_callback_evidence": {
+              "$ref": "#/$defs/effect_safeparse_callback_evidence"
+            },
+            "effect_safeparse_merge_evidence": {
+              "$ref": "#/$defs/effect_safeparse_merge_evidence"
+            },
+            "safeparse_early_return_evidence": {
+              "$ref": "#/$defs/safeparse_early_return_evidence"
+            },
+            "factory_return_construction_evidence": {
+              "$ref": "#/$defs/factory_return_construction_evidence"
+            },
+            "resolver_factory_evidence": {
+              "$ref": "#/$defs/resolver_factory_evidence"
+            },
+            "literal_registry_evidence": {
+              "$ref": "#/$defs/literal_registry_evidence"
+            },
+            "literal_registry_member_evidence": {
+              "$ref": "#/$defs/literal_registry_member_evidence"
+            },
+            "factory_argument_const_evidence": {
+              "$ref": "#/$defs/factory_argument_const_evidence"
+            },
             "manifest_type_entry_links": {
               "$ref": "#/$defs/manifest_source_links"
             },
@@ -12193,6 +16976,9 @@
       },
       "declaration_contract_evidence": {
         "$ref": "#/$defs/declaration_contract_evidence"
+      },
+      "declared_artifact_observations": {
+        "$ref": "#/$defs/declared_artifact_observations"
       },
       "public_contracts": {
         "type": "object",

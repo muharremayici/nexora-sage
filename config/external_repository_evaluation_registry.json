@@ -4169,6 +4169,1426 @@
           ]
         }
       ]
+    },
+    {
+      "repository_id": "documenso_safeparse_selected_files_ec46131b50a0",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\documenso-main",
+      "commit_or_content_fingerprint": "ec46131b50a0db55786214dea1760fd2a11dbf7ed25505bb509ad5c1303d4742",
+      "license_observation": "Root LICENSE header identifies GNU AGPL v3; local static development assessment only, no redistribution or license clearance claim.",
+      "selection_timestamp": "2026-10-27T13:52:24.240979+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; manually inspected and selected by source shape before this AST run; not unseen or representative",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected files",
+        "repository_shape": "Known local React snapshot; only explicitly selected files evaluated",
+        "size_band": "Selected scope: 2 files, 20208 bytes; whole tree not inventoried",
+        "framework_family": "React source; no framework runtime or resolved versions attested",
+        "package_or_build_system": "npm@11.11.0; root manifest only, no build/config execution",
+        "test_surface": "No target tests selected or executed; SAGE's prior exact-source unit/SQLite controls reused separately",
+        "generated_code_presence": "Not inventoried for whole snapshot; selected authored-looking application components only; no generated-code claim"
+      },
+      "state": "result_frozen",
+      "selection_basis": "Purposive six-file contrast cohort; zero manually eligible first-grammar positives, no holdout or precision/recall denominator.",
+      "task": {
+        "task_id": "post_v180_react_safeparse_real_source_contrast",
+        "purpose": "Bounded real-source context and exclusion review",
+        "target_scope": [
+          "apps/remix/app/components/forms/editor/editor-field-date-form.tsx",
+          "apps/remix/app/components/embed/embed-direct-template-client-page.tsx"
+        ],
+        "tested_claim_domain": "Finite safeParse success/data source correspondence and optional view boundaries only",
+        "real_failure_mode": "Empty or unavailable finite evidence could be misreported as validated schema/runtime behavior or whole React coverage.",
+        "user_relevance_hypothesis": "Make actual source-shape limitations visible before choosing the next product slice, without replaying release proof or expanding claims.",
+        "expected_evidence": [
+          "Pre-result file identity and manual interpretation",
+          "one current existing AST batch",
+          "source identity after run",
+          "normalized/projected output and explicit unknowns"
+        ],
+        "success_criteria": [
+          "Selected source and evaluator identities remain exact",
+          "Unavailable is never counted as observed-empty",
+          "No target code or config execution",
+          "No broader capability/precision/recall/runtime inference"
+        ],
+        "stop_conditions": [
+          "Source identity drift",
+          "Evaluator identity drift",
+          "Unexpected admitted source row",
+          "Target execution requirement"
+        ],
+        "source_identity_evidence": {
+          "fingerprint_scope": "Selected relative paths + exact byte hashes and sizes only, canonical sorted-key compact UTF-8 JSON; NOT a whole-repository tree or Git commit identity.",
+          "identity_rows": [
+            {
+              "relative_path": "apps/remix/app/components/forms/editor/editor-field-date-form.tsx",
+              "sha256": "84ecef01fce959588f0b5045c2f2b89fdaa92d2251815ca5d2c857757b479c07",
+              "bytes": 2045
+            },
+            {
+              "relative_path": "apps/remix/app/components/embed/embed-direct-template-client-page.tsx",
+              "sha256": "5e707a338f9068916b1899745ae5f65d576f80fe8f281a5b889ffe66a2a4dc61",
+              "bytes": 18163
+            }
+          ],
+          "license_evidence": [
+            {
+              "path": "C:\\tmp\\React Corpus\\documenso-main\\LICENSE",
+              "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+            }
+          ]
+        },
+        "root_build_manifest_observation": {
+          "packageManager": "npm@11.11.0",
+          "manifest_sha256": "e5e9b78cec538a63e1d5adeefb9d51a1b68d5453d59772f5d09f10baad9962b1",
+          "scope": "Root manifest observation only; no build/config evaluation"
+        }
+      },
+      "result": {
+        "repository_identity": "documenso_safeparse_selected_files_ec46131b50a0",
+        "sage_release_identity": "Uncommitted post-v1.8.0 development evaluator bound by exact producer/view hashes; not a new release",
+        "actor_or_runner_identity": "Codex private static batch adapter, current local Node TypeScript AST owner and Python normalizer/projector",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Selected TypeScript/TSX finite source correspondence only"
+        },
+        "tested_domains": [
+          "finite safeParse success/data source lane",
+          "direct projector adapter, not actual corpus SQLite/MCP ingestion"
+        ],
+        "outcome": "NOT_APPLICABLE",
+        "reason": "No selected file contains the declared first-grammar fetch/JSON/local-owner/success/data/typed-state sequence. All selected files parsed and yielded observed-empty finite evidence; this is not a product PASS or finding-quality score.",
+        "evidence_references": [
+          "output/reports/post_v180_react_real_contrast_selection_manifest.json",
+          "output/reports/post_v180_react_real_contrast_evaluator_identity_review.json",
+          "output/reports/post_v180_react_real_contrast_observations.json",
+          "output/reports/post_v180_react_real_contrast_review.json"
+        ],
+        "unknowns": [
+          "No real eligible positive was selected",
+          "No precision, recall, runtime/schema/type validation, human comprehension or whole-repository coverage measured",
+          "Whole-repository commits and resolved dependency versions not attested"
+        ],
+        "limitations": [
+          "Purposive known calibration; no unseen holdout or independent generalization evidence",
+          "Fingerprint is selected source paths/byte hashes/sizes only, not a whole repository",
+          "Direct projector harness is not actual target indexing"
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "Only the shared six-file AST+normalization batch elapsed time was measured, not individual repository duration"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T13:52:24.240979+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_selection_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T13:55:25.450381+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_observations.json",
+            "output/reports/post_v180_react_real_contrast_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "dub_safeparse_selected_files_5bd0a21bc293",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\dub-main",
+      "commit_or_content_fingerprint": "5bd0a21bc293401d56834cf027eaf270679fcfa041a6acce2e55b5c6f5029671",
+      "license_observation": "Selected path is under (ee): Dub Commercial License observed, including development/testing allowance; no production use or redistribution performed. Root AGPL declaration is not applied blindly to this EE path.",
+      "selection_timestamp": "2026-10-27T13:52:24.240979+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; manually inspected and selected by source shape before this AST run; not unseen or representative",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected files",
+        "repository_shape": "Known local React snapshot; only explicitly selected files evaluated",
+        "size_band": "Selected scope: 1 files, 3097 bytes; whole tree not inventoried",
+        "framework_family": "React source; no framework runtime or resolved versions attested",
+        "package_or_build_system": "pnpm@9.15.9; root manifest only, no build/config execution",
+        "test_surface": "No target tests selected or executed; SAGE's prior exact-source unit/SQLite controls reused separately",
+        "generated_code_presence": "Not inventoried for whole snapshot; selected authored-looking application components only; no generated-code claim"
+      },
+      "state": "result_frozen",
+      "selection_basis": "Purposive six-file contrast cohort; zero manually eligible first-grammar positives, no holdout or precision/recall denominator.",
+      "task": {
+        "task_id": "post_v180_react_safeparse_real_source_contrast",
+        "purpose": "Bounded real-source context and exclusion review",
+        "target_scope": [
+          "apps/web/app/(ee)/admin.dub.co/(dashboard)/components/impersonate-user.tsx"
+        ],
+        "tested_claim_domain": "Finite safeParse success/data source correspondence and optional view boundaries only",
+        "real_failure_mode": "Empty or unavailable finite evidence could be misreported as validated schema/runtime behavior or whole React coverage.",
+        "user_relevance_hypothesis": "Make actual source-shape limitations visible before choosing the next product slice, without replaying release proof or expanding claims.",
+        "expected_evidence": [
+          "Pre-result file identity and manual interpretation",
+          "one current existing AST batch",
+          "source identity after run",
+          "normalized/projected output and explicit unknowns"
+        ],
+        "success_criteria": [
+          "Selected source and evaluator identities remain exact",
+          "Unavailable is never counted as observed-empty",
+          "No target code or config execution",
+          "No broader capability/precision/recall/runtime inference"
+        ],
+        "stop_conditions": [
+          "Source identity drift",
+          "Evaluator identity drift",
+          "Unexpected admitted source row",
+          "Target execution requirement"
+        ],
+        "source_identity_evidence": {
+          "fingerprint_scope": "Selected relative paths + exact byte hashes and sizes only, canonical sorted-key compact UTF-8 JSON; NOT a whole-repository tree or Git commit identity.",
+          "identity_rows": [
+            {
+              "relative_path": "apps/web/app/(ee)/admin.dub.co/(dashboard)/components/impersonate-user.tsx",
+              "sha256": "df5f5cf49eafeab88365dbfc4a864436c91f349b2776e0a3d597245ff0feb7c3",
+              "bytes": 3097
+            }
+          ],
+          "license_evidence": [
+            {
+              "path": "C:\\tmp\\React Corpus\\dub-main\\LICENSE.md",
+              "sha256": "0ba48e458023946432010b4fb1adade52e89843371b42f43cca7f7cc7af6ecd2"
+            },
+            {
+              "path": "C:\\tmp\\React Corpus\\dub-main\\apps\\web\\app\\(ee)\\LICENSE.md",
+              "sha256": "4e6b2ea8e36ca2302cd7f22ae65f86335ac4cd57d99c1abf40b186184331fce1"
+            }
+          ]
+        },
+        "root_build_manifest_observation": {
+          "packageManager": "pnpm@9.15.9",
+          "manifest_sha256": "4f8df2c22700aa18c71a8e93c7ec95168a30bfcf6af19e885d97e71cedda8bc2",
+          "scope": "Root manifest observation only; no build/config evaluation"
+        }
+      },
+      "result": {
+        "repository_identity": "dub_safeparse_selected_files_5bd0a21bc293",
+        "sage_release_identity": "Uncommitted post-v1.8.0 development evaluator bound by exact producer/view hashes; not a new release",
+        "actor_or_runner_identity": "Codex private static batch adapter, current local Node TypeScript AST owner and Python normalizer/projector",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Selected TypeScript/TSX finite source correspondence only"
+        },
+        "tested_domains": [
+          "finite safeParse success/data source lane",
+          "direct projector adapter, not actual corpus SQLite/MCP ingestion"
+        ],
+        "outcome": "NOT_APPLICABLE",
+        "reason": "No selected file contains the declared first-grammar fetch/JSON/local-owner/success/data/typed-state sequence. All selected files parsed and yielded observed-empty finite evidence; this is not a product PASS or finding-quality score.",
+        "evidence_references": [
+          "output/reports/post_v180_react_real_contrast_selection_manifest.json",
+          "output/reports/post_v180_react_real_contrast_evaluator_identity_review.json",
+          "output/reports/post_v180_react_real_contrast_observations.json",
+          "output/reports/post_v180_react_real_contrast_review.json"
+        ],
+        "unknowns": [
+          "No real eligible positive was selected",
+          "No precision, recall, runtime/schema/type validation, human comprehension or whole-repository coverage measured",
+          "Whole-repository commits and resolved dependency versions not attested"
+        ],
+        "limitations": [
+          "Purposive known calibration; no unseen holdout or independent generalization evidence",
+          "Fingerprint is selected source paths/byte hashes/sizes only, not a whole repository",
+          "Direct projector harness is not actual target indexing"
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "Only the shared six-file AST+normalization batch elapsed time was measured, not individual repository duration"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T13:52:24.240979+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_selection_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T13:55:25.450423+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_observations.json",
+            "output/reports/post_v180_react_real_contrast_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "excalidraw_safeparse_selected_files_5a54b84221b6",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\excalidraw-master",
+      "commit_or_content_fingerprint": "5a54b84221b65c694b17fc9339983076f03d7f3ab2c5ea4d69cfdc3801f8c7cc",
+      "license_observation": "Root LICENSE header identifies MIT; local source observation only, no upstream commit or distribution claim.",
+      "selection_timestamp": "2026-10-27T13:52:24.240979+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; manually inspected and selected by source shape before this AST run; not unseen or representative",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected files",
+        "repository_shape": "Known local React snapshot; only explicitly selected files evaluated",
+        "size_band": "Selected scope: 1 files, 39979 bytes; whole tree not inventoried",
+        "framework_family": "React source; no framework runtime or resolved versions attested",
+        "package_or_build_system": "yarn@1.22.22; root manifest only, no build/config execution",
+        "test_surface": "No target tests selected or executed; SAGE's prior exact-source unit/SQLite controls reused separately",
+        "generated_code_presence": "Not inventoried for whole snapshot; selected authored-looking application components only; no generated-code claim"
+      },
+      "state": "result_frozen",
+      "selection_basis": "Purposive six-file contrast cohort; zero manually eligible first-grammar positives, no holdout or precision/recall denominator.",
+      "task": {
+        "task_id": "post_v180_react_safeparse_real_source_contrast",
+        "purpose": "Bounded real-source context and exclusion review",
+        "target_scope": [
+          "excalidraw-app/App.tsx"
+        ],
+        "tested_claim_domain": "Finite safeParse success/data source correspondence and optional view boundaries only",
+        "real_failure_mode": "Empty or unavailable finite evidence could be misreported as validated schema/runtime behavior or whole React coverage.",
+        "user_relevance_hypothesis": "Make actual source-shape limitations visible before choosing the next product slice, without replaying release proof or expanding claims.",
+        "expected_evidence": [
+          "Pre-result file identity and manual interpretation",
+          "one current existing AST batch",
+          "source identity after run",
+          "normalized/projected output and explicit unknowns"
+        ],
+        "success_criteria": [
+          "Selected source and evaluator identities remain exact",
+          "Unavailable is never counted as observed-empty",
+          "No target code or config execution",
+          "No broader capability/precision/recall/runtime inference"
+        ],
+        "stop_conditions": [
+          "Source identity drift",
+          "Evaluator identity drift",
+          "Unexpected admitted source row",
+          "Target execution requirement"
+        ],
+        "source_identity_evidence": {
+          "fingerprint_scope": "Selected relative paths + exact byte hashes and sizes only, canonical sorted-key compact UTF-8 JSON; NOT a whole-repository tree or Git commit identity.",
+          "identity_rows": [
+            {
+              "relative_path": "excalidraw-app/App.tsx",
+              "sha256": "59789614d257b77bd89a3e304de3247fed4c821401e0e30173ce52d58b71816b",
+              "bytes": 39979
+            }
+          ],
+          "license_evidence": [
+            {
+              "path": "C:\\tmp\\React Corpus\\excalidraw-master\\LICENSE",
+              "sha256": "1352d204fdb90d5e482c13139d848bc2c9300a9a7de358a0a558a23e72d0d8be"
+            }
+          ]
+        },
+        "root_build_manifest_observation": {
+          "packageManager": "yarn@1.22.22",
+          "manifest_sha256": "3afad0abc6d241112e95fdd74e111e93f31bc1b7d420a4345326c456706b1d42",
+          "scope": "Root manifest observation only; no build/config evaluation"
+        }
+      },
+      "result": {
+        "repository_identity": "excalidraw_safeparse_selected_files_5a54b84221b6",
+        "sage_release_identity": "Uncommitted post-v1.8.0 development evaluator bound by exact producer/view hashes; not a new release",
+        "actor_or_runner_identity": "Codex private static batch adapter, current local Node TypeScript AST owner and Python normalizer/projector",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Selected TypeScript/TSX finite source correspondence only"
+        },
+        "tested_domains": [
+          "finite safeParse success/data source lane",
+          "direct projector adapter, not actual corpus SQLite/MCP ingestion"
+        ],
+        "outcome": "NOT_APPLICABLE",
+        "reason": "No selected file contains the declared first-grammar fetch/JSON/local-owner/success/data/typed-state sequence. All selected files parsed and yielded observed-empty finite evidence; this is not a product PASS or finding-quality score.",
+        "evidence_references": [
+          "output/reports/post_v180_react_real_contrast_selection_manifest.json",
+          "output/reports/post_v180_react_real_contrast_evaluator_identity_review.json",
+          "output/reports/post_v180_react_real_contrast_observations.json",
+          "output/reports/post_v180_react_real_contrast_review.json"
+        ],
+        "unknowns": [
+          "No real eligible positive was selected",
+          "No precision, recall, runtime/schema/type validation, human comprehension or whole-repository coverage measured",
+          "Whole-repository commits and resolved dependency versions not attested"
+        ],
+        "limitations": [
+          "Purposive known calibration; no unseen holdout or independent generalization evidence",
+          "Fingerprint is selected source paths/byte hashes/sizes only, not a whole repository",
+          "Direct projector harness is not actual target indexing"
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "Only the shared six-file AST+normalization batch elapsed time was measured, not individual repository duration"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T13:52:24.240979+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_selection_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T13:55:25.450438+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_observations.json",
+            "output/reports/post_v180_react_real_contrast_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "infisical_safeparse_selected_files_1df7cf180f13",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\infisical-main",
+      "commit_or_content_fingerprint": "1df7cf180f138a2401fdb8a90a2d9c583e00df009becbac10fc694652171a428",
+      "license_observation": "Root LICENSE distinguishes ee and third-party code and describes remaining code as MIT Expat; selected frontend auth paths are outside ee. Root package.json ISC is not substituted for LICENSE.",
+      "selection_timestamp": "2026-10-27T13:52:24.240979+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; manually inspected and selected by source shape before this AST run; not unseen or representative",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected files",
+        "repository_shape": "Known local React snapshot; only explicitly selected files evaluated",
+        "size_band": "Selected scope: 2 files, 7289 bytes; whole tree not inventoried",
+        "framework_family": "React source; no framework runtime or resolved versions attested",
+        "package_or_build_system": "not declared at root; root manifest only, no build/config execution",
+        "test_surface": "No target tests selected or executed; SAGE's prior exact-source unit/SQLite controls reused separately",
+        "generated_code_presence": "Not inventoried for whole snapshot; selected authored-looking application components only; no generated-code claim"
+      },
+      "state": "result_frozen",
+      "selection_basis": "Purposive six-file contrast cohort; zero manually eligible first-grammar positives, no holdout or precision/recall denominator.",
+      "task": {
+        "task_id": "post_v180_react_safeparse_real_source_contrast",
+        "purpose": "Bounded real-source context and exclusion review",
+        "target_scope": [
+          "frontend/src/components/auth/EnterEmailStep.tsx",
+          "frontend/src/components/auth/TeamInviteStep.tsx"
+        ],
+        "tested_claim_domain": "Finite safeParse success/data source correspondence and optional view boundaries only",
+        "real_failure_mode": "Empty or unavailable finite evidence could be misreported as validated schema/runtime behavior or whole React coverage.",
+        "user_relevance_hypothesis": "Make actual source-shape limitations visible before choosing the next product slice, without replaying release proof or expanding claims.",
+        "expected_evidence": [
+          "Pre-result file identity and manual interpretation",
+          "one current existing AST batch",
+          "source identity after run",
+          "normalized/projected output and explicit unknowns"
+        ],
+        "success_criteria": [
+          "Selected source and evaluator identities remain exact",
+          "Unavailable is never counted as observed-empty",
+          "No target code or config execution",
+          "No broader capability/precision/recall/runtime inference"
+        ],
+        "stop_conditions": [
+          "Source identity drift",
+          "Evaluator identity drift",
+          "Unexpected admitted source row",
+          "Target execution requirement"
+        ],
+        "source_identity_evidence": {
+          "fingerprint_scope": "Selected relative paths + exact byte hashes and sizes only, canonical sorted-key compact UTF-8 JSON; NOT a whole-repository tree or Git commit identity.",
+          "identity_rows": [
+            {
+              "relative_path": "frontend/src/components/auth/EnterEmailStep.tsx",
+              "sha256": "e40e2097120281bb4e5b2ecbb35590e1f60b4a0f0c188404e7ba1d3275a1c629",
+              "bytes": 3326
+            },
+            {
+              "relative_path": "frontend/src/components/auth/TeamInviteStep.tsx",
+              "sha256": "4544d0319119120af0e89ba6fe4aa42657c267464aed0e39d51f29995f516ebf",
+              "bytes": 3963
+            }
+          ],
+          "license_evidence": [
+            {
+              "path": "C:\\tmp\\React Corpus\\infisical-main\\LICENSE",
+              "sha256": "ec701a993a5e14b71f1fc6ffb649ca6e704a2e3bc7d06fd5dd47f6334324cf8a"
+            }
+          ]
+        },
+        "root_build_manifest_observation": {
+          "packageManager": null,
+          "manifest_sha256": "d5a3acdb5f70f97d996a18b81e5692ff36ba6cf2eb6039dcd248e73db6da0d10",
+          "scope": "Root manifest observation only; no build/config evaluation"
+        }
+      },
+      "result": {
+        "repository_identity": "infisical_safeparse_selected_files_1df7cf180f13",
+        "sage_release_identity": "Uncommitted post-v1.8.0 development evaluator bound by exact producer/view hashes; not a new release",
+        "actor_or_runner_identity": "Codex private static batch adapter, current local Node TypeScript AST owner and Python normalizer/projector",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Selected TypeScript/TSX finite source correspondence only"
+        },
+        "tested_domains": [
+          "finite safeParse success/data source lane",
+          "direct projector adapter, not actual corpus SQLite/MCP ingestion"
+        ],
+        "outcome": "NOT_APPLICABLE",
+        "reason": "No selected file contains the declared first-grammar fetch/JSON/local-owner/success/data/typed-state sequence. All selected files parsed and yielded observed-empty finite evidence; this is not a product PASS or finding-quality score.",
+        "evidence_references": [
+          "output/reports/post_v180_react_real_contrast_selection_manifest.json",
+          "output/reports/post_v180_react_real_contrast_evaluator_identity_review.json",
+          "output/reports/post_v180_react_real_contrast_observations.json",
+          "output/reports/post_v180_react_real_contrast_review.json"
+        ],
+        "unknowns": [
+          "No real eligible positive was selected",
+          "No precision, recall, runtime/schema/type validation, human comprehension or whole-repository coverage measured",
+          "Whole-repository commits and resolved dependency versions not attested"
+        ],
+        "limitations": [
+          "Purposive known calibration; no unseen holdout or independent generalization evidence",
+          "Fingerprint is selected source paths/byte hashes/sizes only, not a whole repository",
+          "Direct projector harness is not actual target indexing"
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "Only the shared six-file AST+normalization batch elapsed time was measured, not individual repository duration"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T13:52:24.240979+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_selection_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T13:55:25.450456+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_real_contrast_observations.json",
+            "output/reports/post_v180_react_real_contrast_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "excalidraw_current_wiring_sources_a3b817acbaf3",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\excalidraw-master",
+      "commit_or_content_fingerprint": "a3b817acbaf302eb8325a5afae5c2de69fb3249da24946ba856b3d96dc4be77d",
+      "license_observation": "Root LICENSE identifies MIT; local static development analysis, not redistribution authority.",
+      "selection_timestamp": "2026-10-27T14:08:19.867668+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; selected by manual source inspection, not unseen or representative",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected sources",
+        "repository_shape": "Known local React snapshot; exact selected files only",
+        "size_band": "Selected 1 files, 41067 bytes; whole tree not inventoried",
+        "framework_family": "React static JSX source shapes",
+        "package_or_build_system": "Original build/alias resolution and dependencies not reproduced or executed",
+        "test_surface": "Native SAGE source ingestion and file-inspection only; no target tests",
+        "generated_code_presence": "Whole-tree generated-code inventory not performed; selected application files only"
+      },
+      "state": "result_frozen",
+      "selection_basis": "Purposive supported intrinsic-callback positive and imported-component exclusion samples with independent source anchors, frozen before current ingestion.",
+      "task": {
+        "task_id": "post_v180_react_current_source_ingestion_cohort",
+        "purpose": "Current finite source evidence and actual storage-to-agent review",
+        "target_scope": [
+          "packages/excalidraw/components/Actions.tsx"
+        ],
+        "tested_claim_domain": "Finite inline empty intrinsic JSX callback facts and source-bound inspection, not intended integration",
+        "real_failure_mode": "A synthetic-only or stale corpus result can hide transport loss, wrong callback admission or overclaimed absence on real source.",
+        "user_relevance_hypothesis": "Confirm whether a new source-context feature survives real authored source ingestion and bounded agent presentation without labeling a missing feature or granting edits.",
+        "expected_evidence": [
+          "Exact source/hash and manual callback anchors before analysis",
+          "Fresh native Atlas generation in isolated external output",
+          "Verified SQLite primary and source snapshot",
+          "Actual machine/brief inspect_file and source adjudication"
+        ],
+        "success_criteria": [
+          "Exact original/copy bytes before and after",
+          "Two declared intrinsic callback facts retained in positive source",
+          "Declared component callback sites not admitted as intrinsic",
+          "Unavailable/omitted observations remain explicit",
+          "No target execution or authority promotion"
+        ],
+        "stop_conditions": [
+          "Evaluator or source drift",
+          "Native ingestion failure",
+          "Contradiction with declared source truth",
+          "Unconfined output or required target execution"
+        ],
+        "source_identity_evidence": {
+          "algorithm": "SHA256 of compact sorted-key UTF-8 JSON identity rows",
+          "scope": "Selected original relative paths, exact bytes and sizes only; not whole tree or upstream commit",
+          "rows": [
+            {
+              "relative_path": "packages/excalidraw/components/Actions.tsx",
+              "raw_sha256": "066b4e0edd5233b2e30966031986ee9c44b98c296fb3fd523aaead32e9605036",
+              "bytes": 41067
+            }
+          ],
+          "license_path": "C:\\tmp\\React Corpus\\excalidraw-master\\LICENSE",
+          "license_sha256": "1352d204fdb90d5e482c13139d848bc2c9300a9a7de358a0a558a23e72d0d8be"
+        },
+        "capsule_boundary": "Exact file bytes copied to unique flat names; original cross-file/alias/build topology is deliberately not represented, so no corresponding semantics may be claimed."
+      },
+      "result": {
+        "repository_identity": "excalidraw_current_wiring_sources_a3b817acbaf3",
+        "sage_release_identity": "Exact hash-bound post-v1.8.0 development evaluator, not a selected or published new release",
+        "actor_or_runner_identity": "One native Atlas generator process, actual SQLite primary and unmodified MCP file-inspection functions, private calibration adapter",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "TypeScript/TSX file-local finite intrinsic-empty-callback facts and explicitly declared exclusions only"
+        },
+        "tested_domains": [
+          "native selected-file ingestion",
+          "SQLite primary and source snapshots",
+          "machine/brief file inspection",
+          "declared intrinsic/component callback contrast"
+        ],
+        "outcome": "PASS",
+        "reason": "The declared file-local source facts/exclusions matched manual pre-result truth, persisted through actual native Atlas/SQLite, and remained source-bound in machine/brief inspection. This is not repository correctness, incomplete-integration detection or a general React quality score.",
+        "evidence_references": [
+          "output/reports/post_v180_react_current_cohort_manifest.json",
+          "output/reports/post_v180_react_current_cohort_analysis_execution.json",
+          "output/reports/post_v180_react_current_cohort_observations.json",
+          "output/reports/post_v180_react_current_cohort_review.json"
+        ],
+        "unknowns": [
+          "No whole-repository or original alias/import/build topology evaluation",
+          "No target runtime, native tests, schema, type or intended integration proof",
+          "No safeParse positive, unused-import positive or paired manual-review candidate is covered",
+          "No ecosystem precision/recall or independent generalization"
+        ],
+        "limitations": [
+          "Known purposive source calibration only",
+          "Exact file bytes copied to disclosed flat capsule names; no original topology authority",
+          "PASS applies only to the declared finite source/transport and exclusion domain"
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "Only shared preflight/Atlas batch duration measured, no per-repository runtime"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T14:08:19.867668+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_current_cohort_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T14:11:45.823128+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_current_cohort_observations.json",
+            "output/reports/post_v180_react_current_cohort_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "infisical_current_wiring_sources_b0a062066eea",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\infisical-main",
+      "commit_or_content_fingerprint": "b0a062066eeabb26c9ee2ff9bc2c955a952881c06b7b99ac4731b4ba4525e475",
+      "license_observation": "Root LICENSE describes non-ee/non-third-party content as MIT Expat; selected frontend paths are outside ee.",
+      "selection_timestamp": "2026-10-27T14:08:19.867668+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; selected by manual source inspection, not unseen or representative",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected sources",
+        "repository_shape": "Known local React snapshot; exact selected files only",
+        "size_band": "Selected 2 files, 23742 bytes; whole tree not inventoried",
+        "framework_family": "React static JSX source shapes",
+        "package_or_build_system": "Original build/alias resolution and dependencies not reproduced or executed",
+        "test_surface": "Native SAGE source ingestion and file-inspection only; no target tests",
+        "generated_code_presence": "Whole-tree generated-code inventory not performed; selected application files only"
+      },
+      "state": "result_frozen",
+      "selection_basis": "Purposive supported intrinsic-callback positive and imported-component exclusion samples with independent source anchors, frozen before current ingestion.",
+      "task": {
+        "task_id": "post_v180_react_current_source_ingestion_cohort",
+        "purpose": "Current finite source evidence and actual storage-to-agent review",
+        "target_scope": [
+          "frontend/src/components/tags/CreateTagModal/CreateTagModal.tsx",
+          "frontend/src/components/pki-syncs/CertificateManagementModal.tsx"
+        ],
+        "tested_claim_domain": "Finite inline empty intrinsic JSX callback facts and source-bound inspection, not intended integration",
+        "real_failure_mode": "A synthetic-only or stale corpus result can hide transport loss, wrong callback admission or overclaimed absence on real source.",
+        "user_relevance_hypothesis": "Confirm whether a new source-context feature survives real authored source ingestion and bounded agent presentation without labeling a missing feature or granting edits.",
+        "expected_evidence": [
+          "Exact source/hash and manual callback anchors before analysis",
+          "Fresh native Atlas generation in isolated external output",
+          "Verified SQLite primary and source snapshot",
+          "Actual machine/brief inspect_file and source adjudication"
+        ],
+        "success_criteria": [
+          "Exact original/copy bytes before and after",
+          "Two declared intrinsic callback facts retained in positive source",
+          "Declared component callback sites not admitted as intrinsic",
+          "Unavailable/omitted observations remain explicit",
+          "No target execution or authority promotion"
+        ],
+        "stop_conditions": [
+          "Evaluator or source drift",
+          "Native ingestion failure",
+          "Contradiction with declared source truth",
+          "Unconfined output or required target execution"
+        ],
+        "source_identity_evidence": {
+          "algorithm": "SHA256 of compact sorted-key UTF-8 JSON identity rows",
+          "scope": "Selected original relative paths, exact bytes and sizes only; not whole tree or upstream commit",
+          "rows": [
+            {
+              "relative_path": "frontend/src/components/tags/CreateTagModal/CreateTagModal.tsx",
+              "raw_sha256": "cd204a5cebbfa7b4566c6298da71964a0d03ff0e0b41fcb66edd62ac81db35e2",
+              "bytes": 8672
+            },
+            {
+              "relative_path": "frontend/src/components/pki-syncs/CertificateManagementModal.tsx",
+              "raw_sha256": "293be6feaf9920a424e05c4becab6c1328fb851b97d637cb282653422eb2948a",
+              "bytes": 15070
+            }
+          ],
+          "license_path": "C:\\tmp\\React Corpus\\infisical-main\\LICENSE",
+          "license_sha256": "ec701a993a5e14b71f1fc6ffb649ca6e704a2e3bc7d06fd5dd47f6334324cf8a"
+        },
+        "capsule_boundary": "Exact file bytes copied to unique flat names; original cross-file/alias/build topology is deliberately not represented, so no corresponding semantics may be claimed."
+      },
+      "result": {
+        "repository_identity": "infisical_current_wiring_sources_b0a062066eea",
+        "sage_release_identity": "Exact hash-bound post-v1.8.0 development evaluator, not a selected or published new release",
+        "actor_or_runner_identity": "One native Atlas generator process, actual SQLite primary and unmodified MCP file-inspection functions, private calibration adapter",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "TypeScript/TSX file-local finite intrinsic-empty-callback facts and explicitly declared exclusions only"
+        },
+        "tested_domains": [
+          "native selected-file ingestion",
+          "SQLite primary and source snapshots",
+          "machine/brief file inspection",
+          "declared intrinsic/component callback contrast"
+        ],
+        "outcome": "PASS",
+        "reason": "The declared file-local source facts/exclusions matched manual pre-result truth, persisted through actual native Atlas/SQLite, and remained source-bound in machine/brief inspection. This is not repository correctness, incomplete-integration detection or a general React quality score.",
+        "evidence_references": [
+          "output/reports/post_v180_react_current_cohort_manifest.json",
+          "output/reports/post_v180_react_current_cohort_analysis_execution.json",
+          "output/reports/post_v180_react_current_cohort_observations.json",
+          "output/reports/post_v180_react_current_cohort_review.json"
+        ],
+        "unknowns": [
+          "No whole-repository or original alias/import/build topology evaluation",
+          "No target runtime, native tests, schema, type or intended integration proof",
+          "No safeParse positive, unused-import positive or paired manual-review candidate is covered",
+          "No ecosystem precision/recall or independent generalization"
+        ],
+        "limitations": [
+          "Known purposive source calibration only",
+          "Exact file bytes copied to disclosed flat capsule names; no original topology authority",
+          "PASS applies only to the declared finite source/transport and exclusion domain"
+        ],
+        "duration_ms": {
+          "status": "not_available",
+          "reason": "Only shared preflight/Atlas batch duration measured, no per-repository runtime"
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T14:08:19.867668+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_current_cohort_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T14:11:45.823166+00:00",
+          "evidence": [
+            "output/reports/post_v180_react_current_cohort_observations.json",
+            "output/reports/post_v180_react_current_cohort_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "repository_id": "documenso_effect_forms_fc7a01e65ca1",
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\documenso-main",
+      "commit_or_content_fingerprint": "fc7a01e65ca1e210cb17eb3d01ce5f8874e2748cc21a6d747bc3f6c6b90f09eb",
+      "license_observation": "Root LICENSE identifies GNU Affero General Public License version 3. Static local source calibration only; no legal or redistribution conclusion.",
+      "selection_timestamp": "2026-10-27T15:17:20.844405+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "known_to_development; date/embed previously observed and the form family manually selected before this run, not unseen",
+      "state": "known_regression",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected source files",
+        "repository_shape": "Known local React snapshot; exact source selections only",
+        "size_band": "Selected 5 files, 42506 bytes; whole tree not inventoried",
+        "framework_family": "React authored form/effect and handler source syntax",
+        "package_or_build_system": "Original builds, dependency installation and alias/import topology not executed or reproduced",
+        "test_surface": "One current native SAGE source ingestion and actual SQLite/inspection; no target tests",
+        "generated_code_presence": "Selected authored application sources only; no whole-repository generated-code inventory"
+      },
+      "selection_basis": "Purposive known source calibration: date/email/dropdown direct effect/data-spread source relations, checkbox extra-spread and renamed-success async-handler exclusions. Selection and expected source truth precede current native result.",
+      "task": {
+        "task_id": "post_v180_effect_safeparse_known_real_forms",
+        "purpose": "Current source/transport calibration of one finite effect/callback source lane",
+        "target_scope": [
+          "apps/remix/app/components/forms/editor/editor-field-date-form.tsx",
+          "apps/remix/app/components/forms/editor/editor-field-email-form.tsx",
+          "apps/remix/app/components/forms/editor/editor-field-dropdown-form.tsx",
+          "apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx",
+          "apps/remix/app/components/embed/embed-direct-template-client-page.tsx"
+        ],
+        "tested_claim_domain": "AST source correspondence and conservative exclusion, verified SQLite and bounded machine/brief inspection only",
+        "real_failure_mode": "A synthetic-only new source lane may silently fail on authored forms, over-admit similar unsupported code or disappear/misbind across storage and compact output.",
+        "user_relevance_hypothesis": "Expose a real form's recorded source callback relation with exact follow-up and preserve exclusions/unknowns, without claiming form validation or callback execution.",
+        "expected_evidence": [
+          "Exact original/copy bytes and manual truth before analysis",
+          "One current native Atlas run",
+          "Actual verified SQLite primary/snapshots",
+          "Focused/default and machine/brief file inspection with exact source adjudication"
+        ],
+        "success_criteria": [
+          "Original and copy byte identities stay equal",
+          "Each declared positive yields exactly one matching stored/inspected source record",
+          "Both declared excluded sites remain outside the finite lane",
+          "Coverage/omission/default budget behavior remains explicit",
+          "No authority or target execution promotion"
+        ],
+        "stop_conditions": [
+          "Source/evaluator drift",
+          "Native ingestion failure",
+          "Source-truth contradiction",
+          "Unconfined output or target code/config execution required"
+        ],
+        "source_identity_evidence": {
+          "algorithm": "SHA256 compact sorted-key UTF-8 JSON of selected original path/bytes/hash rows",
+          "scope": "Selected files only, not whole tree or upstream commit",
+          "rows": [
+            {
+              "relative_path": "apps/remix/app/components/forms/editor/editor-field-date-form.tsx",
+              "raw_sha256": "84ecef01fce959588f0b5045c2f2b89fdaa92d2251815ca5d2c857757b479c07",
+              "bytes": 2045
+            },
+            {
+              "relative_path": "apps/remix/app/components/forms/editor/editor-field-email-form.tsx",
+              "raw_sha256": "78de1855e92dc4a84085149648067a7da0de08505e34a0fd7441a8e4fa794612",
+              "bytes": 2064
+            },
+            {
+              "relative_path": "apps/remix/app/components/forms/editor/editor-field-dropdown-form.tsx",
+              "raw_sha256": "381109f4f365d11dfd66b17fb03896683cc2992932441515063c6facde930e41",
+              "bytes": 7810
+            },
+            {
+              "relative_path": "apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx",
+              "raw_sha256": "fda7a88137e037c432769c7dcf7938abed2796e66d1b78d09e581935f5d41bdd",
+              "bytes": 12424
+            },
+            {
+              "relative_path": "apps/remix/app/components/embed/embed-direct-template-client-page.tsx",
+              "raw_sha256": "5e707a338f9068916b1899745ae5f65d576f80fe8f281a5b889ffe66a2a4dc61",
+              "bytes": 18163
+            }
+          ],
+          "license_sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+        },
+        "capsule_boundary": "Exact selected bytes only. Copied flat names do not preserve original project/alias/import/build topology; no corresponding authority is claimed."
+      },
+      "result": {
+        "repository_identity": "documenso_effect_forms_fc7a01e65ca1",
+        "sage_release_identity": "Exact manifest-bound post-v1.8.0 development evaluator, no selected new release",
+        "actor_or_runner_identity": "One native Atlas generator batch, verified SQLite primary and actual MCP inspect_file machine/brief functions, private calibration adapter",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "TS/TSX finite same-file source correspondence/exclusion only; no framework/runtime/type authority expansion"
+        },
+        "tested_domains": [
+          "ast",
+          "finite_source_metadata",
+          "SQLite primary and source snapshots",
+          "bounded file inspection"
+        ],
+        "outcome": "PASS",
+        "reason": "Predeclared source relations and exclusions matched exact current native storage/inspection without source drift or authority promotion; PASS is restricted to this declared source/transport domain.",
+        "evidence_references": [
+          "output/reports/post_v180_effect_safeparse_real_forms_manifest.json",
+          "output/reports/post_v180_effect_safeparse_real_forms_analysis_execution.json",
+          "output/reports/post_v180_effect_safeparse_real_forms_observations.json",
+          "output/reports/post_v180_effect_safeparse_real_forms_review.json"
+        ],
+        "unknowns": [
+          "Known calibration from one snapshot is not representative or independent generalization",
+          "Flat exact-byte selections omit original alias/import/build/dependency topology and whole project coverage",
+          "No rejecting schema, compatible value, form-library, callback/effect activation, reachability, runtime or target test proof",
+          "Extra-spread and destructured-success paths remain outside this finite lane; no absence or safety inference",
+          "Default output may withhold the lane; explicit focus is required to request it",
+          "No before/after runtime, measured speedup, precision/recall or React/polyglot universal claim"
+        ],
+        "limitations": [
+          "Known purposive calibration, not unseen or representative",
+          "One isolated selected-source batch, not whole project/runtime",
+          "Three source facts are not three correctness findings; excluded sites are not bugs or validation absence"
+        ],
+        "duration_ms": {
+          "status": "measured",
+          "native_atlas_batch": 2032,
+          "includes_preflight_or_inspection": false,
+          "no_speedup_claim": true
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T15:17:20.844405+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_safeparse_real_forms_manifest.json"
+          ]
+        },
+        {
+          "state": "running",
+          "timestamp": "2026-10-27T15:18:19.245010+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_safeparse_real_forms_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T15:21:33.229243+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_safeparse_real_forms_observations.json",
+            "output/reports/post_v180_effect_safeparse_real_forms_review.json"
+          ]
+        },
+        {
+          "state": "known_regression",
+          "timestamp": "2026-10-27T15:21:33.229265+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_safeparse_real_forms_observations.json",
+            "output/reports/post_v180_effect_safeparse_real_forms_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\documenso-main",
+      "license_observation": "Root LICENSE identifies GNU Affero General Public License version 3. Static local source calibration only; no legal or redistribution conclusion.",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected source files",
+        "repository_shape": "Known local React snapshot; exact source selections only",
+        "size_band": "Two selected files, 14469 bytes; no tree inventory",
+        "framework_family": "React authored form/effect and handler source syntax",
+        "package_or_build_system": "Original builds, dependency installation and alias/import topology not executed or reproduced",
+        "test_surface": "One current native SAGE source ingestion and actual SQLite/inspection; no target tests",
+        "generated_code_presence": "Selected authored application sources only; no whole-repository generated-code inventory"
+      },
+      "repository_id": "documenso_parameter_merge_a30a97378fce",
+      "commit_or_content_fingerprint": "a30a97378fcecd8daa2e1b7cfd36a4c6bda65577e1d7378e421cb3feb0bf60e5",
+      "selection_timestamp": "2026-10-27T15:59:43.719314+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "Known previous five-file calibration, now predeclared positive for a distinct new grammar plus unchanged plain-lane contrast; not unseen",
+      "state": "known_regression",
+      "selection_basis": "Purposive exact known checkbox two-spread source and date plain-lane contrast, manual identity/anchors before native analysis.",
+      "task": {
+        "task_id": "post_v180_effect_parameter_merge_source_and_view",
+        "purpose": "Current separate parameter-first/data-second source transport confirmation",
+        "target_scope": [
+          "apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx",
+          "apps/remix/app/components/forms/editor/editor-field-date-form.tsx"
+        ],
+        "tested_claim_domain": "Finite AST source metadata, exact SQLite/snapshot/inspection only",
+        "real_failure_mode": "Global spelling collision can wrongly exclude a real object-bound parameter; merge metadata can misbind or overclaim object semantics.",
+        "user_relevance_hypothesis": "Expose exact real callback source and parameter/default follow-ups without claiming merged value or schema correctness.",
+        "expected_evidence": [
+          "Pre-result original identity/manual source truth",
+          "One native Atlas batch",
+          "Verified SQLite/snapshots",
+          "Actual machine/brief focus and both source follow-ups"
+        ],
+        "success_criteria": [
+          "Exact original/copy/evaluator identity remains equal",
+          "Checkbox new1/plain0, date new0/plain1",
+          "Source ranges and unknowns survive bounded inspection",
+          "No target execution or authority promotion"
+        ],
+        "stop_conditions": [
+          "Source/evaluator drift",
+          "Ingestion failure",
+          "Source truth contradiction",
+          "Target execution required"
+        ],
+        "capsule_boundary": "Exact two flat copied source files only; original import/alias/build topology and whole repository not reproduced; known regression calibration, not holdout."
+      },
+      "result": {
+        "repository_identity": "documenso_parameter_merge_a30a97378fce",
+        "sage_release_identity": "Manifest-bound current post-v1.8.0 development, no new release selected",
+        "actor_or_runner_identity": "One native Atlas batch / verified SQLite / actual MCP inspect_file",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Finite TS/TSX source syntax only"
+        },
+        "tested_domains": [
+          "AST",
+          "SQLite source snapshots",
+          "bounded source inspection"
+        ],
+        "outcome": "PASS",
+        "reason": "KNOWN_TWO_FILE_PARAMETER_MERGE_SOURCE_TRANSPORT_CONFIRMED_NOT_RUNTIME_PROOF",
+        "evidence_references": [
+          "output/reports/post_v180_effect_merge_real_manifest.json",
+          "output/reports/post_v180_effect_merge_real_execution.json",
+          "output/reports/post_v180_effect_merge_real_review.json"
+        ],
+        "unknowns": [
+          "Known purposive calibration, not holdout/generalization/precision/recall",
+          "Flat selected files omit original import/alias/build topology",
+          "No prior contents/default evaluation/collision/final object, schema/type/runtime correctness or effect/callback activation proof"
+        ],
+        "limitations": [
+          "Known purposive calibration, not holdout/generalization/precision/recall",
+          "Flat selected files omit original import/alias/build topology",
+          "No prior contents/default evaluation/collision/final object, schema/type/runtime correctness or effect/callback activation proof"
+        ],
+        "duration_ms": {
+          "status": "measured",
+          "preflight_and_atlas": 2401,
+          "no_speedup_claim": true
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T15:59:43.719340+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_merge_real_manifest.json"
+          ]
+        },
+        {
+          "state": "running",
+          "timestamp": "2026-10-27T15:59:59.061737+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_merge_real_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T16:00:02.799184+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_merge_real_review.json"
+          ]
+        },
+        {
+          "state": "known_regression",
+          "timestamp": "2026-10-27T16:00:02.799201+00:00",
+          "evidence": [
+            "output/reports/post_v180_effect_merge_real_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\documenso-main",
+      "license_observation": "Root LICENSE identifies GNU Affero General Public License version 3. Static local source calibration only; no legal or redistribution conclusion.",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected source files",
+        "repository_shape": "Known local React snapshot; exact source selections only",
+        "size_band": "Two selected files, 30587 bytes; no whole tree inventory",
+        "framework_family": "React authored form/effect and handler source syntax",
+        "package_or_build_system": "Original builds, dependency installation and alias/import topology not executed or reproduced",
+        "test_surface": "One native SAGE Atlas batch and verified source metadata; no target tests or agent projection",
+        "generated_code_presence": "Selected authored application sources only; no whole-repository generated-code inventory"
+      },
+      "repository_id": "documenso_early_return_fd8910c76df4",
+      "commit_or_content_fingerprint": "fd8910c76df4521787d4ccb0f7034d8167f08644040e583dc06ee4c75a98cf08",
+      "selection_timestamp": "2026-10-27T16:21:13.125619+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "Known previous source calibration; source inspected during development and selected before current analysis, not unseen",
+      "state": "known_regression",
+      "selection_basis": "Known destructured-success/negative-return source positive and unchanged parameter-merge near contrast; exact manual source expectations before current result.",
+      "task": {
+        "task_id": "post_v180_destructured_safeparse_early_return_source",
+        "purpose": "Finite early-return source producer/SQLite confirmation",
+        "target_scope": [
+          "apps/remix/app/components/embed/embed-direct-template-client-page.tsx",
+          "apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx"
+        ],
+        "tested_claim_domain": "AST extraction, normalized exact source coordinates and verified Atlas SQLite primary/snapshots only",
+        "real_failure_mode": "A source lane can conflate positive data selection with renamed negative guards, misbind factory/input/success or overclaim continuation safety.",
+        "user_relevance_hypothesis": "Retain a real callback's source guard relation for later bounded inspection without saying validation or downstream action is safe.",
+        "expected_evidence": [
+          "Pre-result identity/manual anchors",
+          "One existing native Atlas batch",
+          "Verified SQLite and exact snapshot binding",
+          "Strict20-role source adjudication and old merge contrast"
+        ],
+        "success_criteria": [
+          "Exact original/copy/evaluator identity remains stable",
+          "Embed early1/merge0 and checkbox early0/merge1",
+          "All source spans/tokens/unknowns agree with manual truth",
+          "No target or factory execution or authority promotion"
+        ],
+        "stop_conditions": [
+          "Source/evaluator drift",
+          "Ingestion failure",
+          "Source truth contradiction",
+          "Target execution required"
+        ],
+        "capsule_boundary": "Two known exact-byte sources copied flat, not original import/alias/build topology or whole repository; no unseen/generalization/finding-quality claim."
+      },
+      "result": {
+        "repository_identity": "documenso_early_return_fd8910c76df4",
+        "sage_release_identity": "Manifest-bound post-v1.8.0 development, no concrete release selected",
+        "actor_or_runner_identity": "One existing native Atlas batch / verified SQLite / pure source contract",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Finite TS/TSX source syntax only"
+        },
+        "tested_domains": [
+          "AST source metadata",
+          "SQLite primary and snapshots"
+        ],
+        "outcome": "PASS",
+        "reason": "KNOWN_EARLY_RETURN_SOURCE_AND_SQLITE_CONFIRMED_NOT_SCHEMA_OR_CONTINUATION_PROOF",
+        "evidence_references": [
+          "output/reports/post_v180_early_return_real_manifest.json",
+          "output/reports/post_v180_early_return_real_execution.json",
+          "output/reports/post_v180_early_return_real_review.json"
+        ],
+        "unknowns": [
+          "Known purposive two-file source calibration, not holdout, ecosystem coverage or finding precision/recall",
+          "No original import/alias/build topology, resolved factory definition, schema/rejection/boolean semantics or continuation safety proof",
+          "No target/callback execution, edit authority or new agent-facing projection"
+        ],
+        "limitations": [
+          "Known purposive two-file source calibration, not holdout, ecosystem coverage or finding precision/recall",
+          "No original import/alias/build topology, resolved factory definition, schema/rejection/boolean semantics or continuation safety proof",
+          "No target/callback execution, edit authority or new agent-facing projection"
+        ],
+        "duration_ms": {
+          "status": "measured",
+          "preflight_and_atlas": 2482,
+          "no_speedup_claim": true
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T16:21:13.125643+00:00",
+          "evidence": [
+            "output/reports/post_v180_early_return_real_manifest.json"
+          ]
+        },
+        {
+          "state": "running",
+          "timestamp": "2026-10-27T16:21:48.815354+00:00",
+          "evidence": [
+            "output/reports/post_v180_early_return_real_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T16:21:51.377354+00:00",
+          "evidence": [
+            "output/reports/post_v180_early_return_real_review.json"
+          ]
+        },
+        {
+          "state": "known_regression",
+          "timestamp": "2026-10-27T16:21:51.377375+00:00",
+          "evidence": [
+            "output/reports/post_v180_early_return_real_review.json"
+          ]
+        }
+      ]
+    },
+    {
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\documenso-main",
+      "license_observation": "Root LICENSE identifies GNU Affero General Public License version 3. Static local source calibration only; no legal or redistribution conclusion.",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected source files",
+        "repository_shape": "Selected original monorepo hierarchy retained",
+        "size_band": "Three selected TS/TSX files and eight literal-context JSON files, 44881 bytes; not a whole-tree inventory",
+        "framework_family": "React authored form/effect and handler source syntax",
+        "package_or_build_system": "Original workspace manifests and tsconfigs copied byte-for-byte; no installation or build",
+        "test_surface": "One native Atlas batch and existing inspection surfaces; source drift refusal; no target tests",
+        "generated_code_presence": "Selected authored application sources only; no whole-repository generated-code inventory"
+      },
+      "repository_id": "documenso_factory_chain_31cbdef7caf1",
+      "commit_or_content_fingerprint": "31cbdef7caf1003c39d81f3bfd87d5dcf790270a5b79f67c8f585eb12a95ccc0",
+      "selection_timestamp": "2026-10-27T20:20:31.776789+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "Known source already reviewed during development, not unseen",
+      "state": "result_frozen",
+      "selection_basis": "Existing recorded real caller/factory join gap; original selected hierarchy and literal import context, plus prior near contrast; expectations frozen before result.",
+      "task": {
+        "task_id": "post_v180_real_factory_chain_source_confirmation",
+        "purpose": "One finite real source/Atlas/inspection chain confirmation",
+        "target_scope": [
+          "apps/remix/app/components/embed/embed-direct-template-client-page.tsx",
+          "apps/remix/app/components/forms/editor/editor-field-checkbox-form.tsx",
+          "packages/lib/utils/zod.ts",
+          "package.json",
+          "apps/remix/package.json",
+          "apps/remix/tsconfig.json",
+          "packages/lib/package.json",
+          "packages/lib/tsconfig.json",
+          "packages/tsconfig/package.json",
+          "packages/tsconfig/react-library.json",
+          "packages/tsconfig/base.json"
+        ],
+        "tested_claim_domain": "Finite source syntax, original selected import context, normalized Atlas primary and existing agent inspection orientation only",
+        "real_failure_mode": "Individually valid source lanes may not join through real repository import topology or may be hidden by legitimate output budgets.",
+        "user_relevance_hypothesis": "An agent can follow an actually bound factory source without inventing schema/runtime authority or misreading missing detail.",
+        "expected_evidence": [
+          "output/reports/post_v180_factory_chain_real_manifest.json",
+          "One native preflight and Atlas batch",
+          "Exact primary/snapshot/live joins",
+          "Bounded actual machine and brief output plus copied-source drift refusal"
+        ],
+        "success_criteria": [
+          "All original/copy/evaluator identities remain stable",
+          "Known source records match independent manual lines",
+          "Existing resolver/primary/snapshot/live path yields a real factory source candidate or explicit unresolved reason",
+          "Only actually displayed argument bindings count as agent-visible; omitted detail is not absence",
+          "Copied-source drift refuses live factory authority without altering immutable primary"
+        ],
+        "stop_conditions": [
+          "Original or evaluator source drift",
+          "Native ingestion error",
+          "Manual source truth contradicts result",
+          "Target execution, package installation or product repair required"
+        ]
+      },
+      "result": {
+        "repository_identity": "documenso_factory_chain_31cbdef7caf1",
+        "sage_release_identity": "Manifest-bound post-v1.8.0 development, no concrete release selected",
+        "actor_or_runner_identity": "One existing preflight/native Atlas generation and existing inspect_file; exact reviewed evaluator source references, not full runtime attestation",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Finite TypeScript source/Atlas/inspection orientation only"
+        },
+        "tested_domains": [
+          "AST source syntax",
+          "SQLite primary/snapshot binding",
+          "real import-to-factory inspection orientation"
+        ],
+        "outcome": "INCONCLUSIVE",
+        "reason": "KNOWN_SOURCE_LANES_CONFIRMED_CROSS_PROJECT_AGENT_CHAIN_INCONCLUSIVE",
+        "evidence_references": [
+          "output/reports/post_v180_factory_chain_real_manifest.json",
+          "output/reports/post_v180_factory_chain_real_execution.json",
+          "output/reports/post_v180_factory_chain_real_observations.json",
+          "output/reports/post_v180_factory_chain_real_review.json"
+        ],
+        "unknowns": [
+          "Known calibration, not unseen holdout or precision/recall",
+          "Selected original paths/manifests/config only; other workspace files and dependencies are absent",
+          "No target config, package script, schema, initializer, React application or tests executed",
+          "Original declared aliases are preserved, not native compiler or installed module-resolution proof",
+          "Target-source code unchanged; product semantics and existing test receipts are reused, not restamped",
+          "Required real caller-to-factory-to-arguments agent chain is INCONCLUSIVE; separate correct source records are not a joined result.",
+          "Factory argument records are present in verified LIB primary metadata, not displayed through a resolved caller candidate. This is not a display-budget omission or argument absence.",
+          "The planned copied-factory drift control was not executed: no resolved baseline exists, so refusal would not prove drift causality. Existing source-bound refusal tests remain preserved, not replayed.",
+          "Real workspace alias/import acquisition and an explicit cross-project candidate contract require a separately selected bounded design; no basename search, merged project, live fallback or new resolver was used."
+        ],
+        "limitations": [
+          "Known calibration, not unseen holdout or precision/recall",
+          "Selected original paths/manifests/config only; other workspace files and dependencies are absent",
+          "No target config, package script, schema, initializer, React application or tests executed",
+          "Original declared aliases are preserved, not native compiler or installed module-resolution proof",
+          "Target-source code unchanged; product semantics and existing test receipts are reused, not restamped",
+          "Required real caller-to-factory-to-arguments agent chain is INCONCLUSIVE; separate correct source records are not a joined result.",
+          "Factory argument records are present in verified LIB primary metadata, not displayed through a resolved caller candidate. This is not a display-budget omission or argument absence.",
+          "The planned copied-factory drift control was not executed: no resolved baseline exists, so refusal would not prove drift causality. Existing source-bound refusal tests remain preserved, not replayed.",
+          "Real workspace alias/import acquisition and an explicit cross-project candidate contract require a separately selected bounded design; no basename search, merged project, live fallback or new resolver was used."
+        ],
+        "duration_ms": {
+          "status": "measured",
+          "preflight_and_atlas": 4058,
+          "no_speedup_claim": true
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-27T20:20:31.776811+00:00",
+          "evidence": [
+            "output/reports/post_v180_factory_chain_real_manifest.json"
+          ]
+        },
+        {
+          "state": "running",
+          "timestamp": "2026-10-27T20:20:37.125587+00:00",
+          "evidence": [
+            "output/reports/post_v180_factory_chain_real_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-27T20:23:21.962079+00:00",
+          "evidence": [
+            "output/reports/post_v180_factory_chain_real_review.json"
+          ]
+        }
+      ],
+      "regression_verification": {
+        "status": "PASS",
+        "verified_at": "2026-10-27T20:59:03.174610+00:00",
+        "evidence": [
+          "output/reports/post_v180_workspace_factory_review.json",
+          "output/reports/post_v180_workspace_factory_identity_reconciliation_native.json",
+          "output/reports/post_v180_workspace_factory_source_revalidation_result.json",
+          "output/reports/post_v180_workspace_factory_manifest.json",
+          "output/reports/post_v180_workspace_factory_observations.json",
+          "output/reports/post_v180_workspace_factory_followups.json",
+          "output/reports/post_v180_workspace_factory_drift_refusal.json"
+        ],
+        "claim_boundary": "Same known source fingerprint, different manifest-bound SAGE producer/consumer bytes: bounded declared-alias caller/factory/const source chain only. Original INCONCLUSIVE result/state/task/history remain unchanged; no native compiler/package/schema/runtime or universal claim."
+      }
+    },
+    {
+      "source_url_or_local_identity": "C:\\tmp\\React Corpus\\infisical-main",
+      "selection_strata": {
+        "primary_language": "TypeScript/TSX selected sources",
+        "repository_shape": "Original frontend source hierarchy retained",
+        "size_band": "Two original TS/TSX sources and six context/license files, 23355 bytes; not a whole-tree inventory",
+        "framework_family": "React static JSX source shapes",
+        "package_or_build_system": "Literal package manifests and referenced tsconfigs copied byte-for-byte; no installation, config execution or build",
+        "test_surface": "One native Atlas batch plus existing inspection surfaces, no target tests",
+        "generated_code_presence": "Whole-tree generated-code inventory not performed; selected application files only"
+      },
+      "repository_id": "infisical_required_formal_b05cfffbfc28",
+      "commit_or_content_fingerprint": "b05cfffbfc2841fe0eb1189f9d8ac1816c14702da6189ba3476ea7690ca91593",
+      "license_observation": "Root LICENSE read in full, hash-bound in manifest: selected frontend paths outside ee/ are described as MIT Expat, subject to third-party exceptions. package.json says ISC; not treated as overriding root terms. Local static calibration only, not redistribution/legal clearance.",
+      "selection_timestamp": "2026-10-28T07:56:07.615289+00:00",
+      "corpus_role": "calibration",
+      "prior_sage_exposure": "Known repository previously analyzed; exact selected source pair read before analysis; not unseen",
+      "state": "result_frozen",
+      "selection_basis": "One required identifier formal on a real React schema factory; nested callback and resolver exclusions frozen before result, not a presumed full-chain positive.",
+      "task": {
+        "task_id": "post_v180_real_required_formal_boundary_calibration",
+        "purpose": "One real required-formal source and scope-boundary calibration",
+        "target_scope": [
+          "frontend/src/components/secret-rotations-v2/forms/SecretRotationV2Form.tsx",
+          "frontend/src/components/secret-rotations-v2/forms/schemas/index.ts",
+          "package.json",
+          "frontend/package.json",
+          "frontend/tsconfig.json",
+          "frontend/tsconfig.app.json",
+          "frontend/tsconfig.node.json",
+          "LICENSE"
+        ],
+        "tested_claim_domain": "Bounded source syntax, original literal context, exact SQLite/snapshot/live binding and existing agent refusal only",
+        "real_failure_mode": "Real callbacks/adapters differ from the admitted direct-identifier fluent-call and inline-safeParse grammar; empty evidence must not imply unused or safe.",
+        "user_relevance_hypothesis": "Expose the actual React gap without fabricating a schema/runtime conclusion or broad coverage.",
+        "expected_evidence": [
+          "output/reports/post_v180_formal_real_manifest.json",
+          "One native preflight and Atlas batch",
+          "Exact primary/snapshot/live and actual public output"
+        ],
+        "success_criteria": [
+          "Original/copy/evaluator bytes remain stable and snapshot matches exact primary hash",
+          "Provider syntax and required formal carrier match source; no direct-use record fabricated for the nested callback",
+          "Caller early-return lane does not promote resolver or Boolean expression into supported actual/formal binding",
+          "Actual machine/brief output agrees; unsupported or hidden detail is not absence/safety",
+          "Technical observation completion is separate from a positive full-chain result"
+        ],
+        "stop_conditions": [
+          "Source or evaluator drift",
+          "Native analysis failure",
+          "Contradictory source evidence",
+          "Product grammar/resolver repair or target execution needed"
+        ]
+      },
+      "result": {
+        "repository_identity": "infisical_required_formal_b05cfffbfc28",
+        "sage_release_identity": "Manifest-bound post-v1.8.0 development; no concrete release",
+        "actor_or_runner_identity": "One native preflight/Atlas batch and existing primary/snapshot/inspection owners; evaluator hashes in manifest",
+        "language_claim_levels": {
+          "status": "not_promoted",
+          "scope": "Finite TypeScript construction/formal source and honest real-pattern exclusions"
+        },
+        "tested_domains": [
+          "Factory required-formal source",
+          "Nested-use and resolver grammar exclusions",
+          "SQLite snapshot/live and actual public view"
+        ],
+        "outcome": "NOT_APPLICABLE",
+        "reason": "REAL_REQUIRED_FORMAL_CONFIRMED_RESOLVER_CALLBACK_CHAIN_NOT_APPLICABLE",
+        "evidence_references": [
+          "output/reports/post_v180_formal_real_manifest.json",
+          "output/reports/post_v180_formal_real_execution.json",
+          "output/reports/post_v180_formal_real_observations.json",
+          "output/reports/post_v180_formal_real_review.json"
+        ],
+        "unknowns": [
+          "Known local Infisical calibration selected after manual source reading, not unseen/holdout, repository-wide coverage or precision/recall.",
+          "Only two original authored files and six original context/license files; missing application dependencies/imported schemas are not inferred.",
+          "No package scripts, target configuration code, target tests, React application, dependency install or schema executed.",
+          "Direct formal argument uses exclude callback-contained reads. An empty list is not unused-parameter, schema or safety proof.",
+          "Actual Boolean(secretRotation) and zodResolver adapter are outside the current single preceding const actual plus inline safeParse/adjacent return grammar.",
+          "This source pair cannot establish a positive actual-to-formal-to-direct-use public chain. Original files and their source pattern will not be rewritten to manufacture one.",
+          "Factory required-formal metadata and its empty direct-use projection were checked internally, not delivered as a positive caller-to-formal public chain.",
+          "Source use exists at provider L56 inside superRefine callback. The direct-use lane's zero is intentional finite-grammar exclusion, not dead code or absence.",
+          "Caller L80 uses the zodResolver adapter and an expression actual; neither is supported by the existing inline-safeParse/preceding-const source association. Full-chain applicability is NOT_APPLICABLE for this exact pattern, not a new runtime failure.",
+          "No source mutation/drift trial was executed: this caller has no admitted public-chain baseline. Existing hash-matched negative drift/corruption/budget test receipts remain unchanged, not rerun.",
+          "Machine/brief metadata remains PARTIAL with dead-code UNKNOWN because only Atlas was generated; bounded source edit-context readiness is not schema/runtime proof or task mutation authority."
+        ],
+        "limitations": [
+          "Known local Infisical calibration selected after manual source reading, not unseen/holdout, repository-wide coverage or precision/recall.",
+          "Only two original authored files and six original context/license files; missing application dependencies/imported schemas are not inferred.",
+          "No package scripts, target configuration code, target tests, React application, dependency install or schema executed.",
+          "Direct formal argument uses exclude callback-contained reads. An empty list is not unused-parameter, schema or safety proof.",
+          "Actual Boolean(secretRotation) and zodResolver adapter are outside the current single preceding const actual plus inline safeParse/adjacent return grammar.",
+          "This source pair cannot establish a positive actual-to-formal-to-direct-use public chain. Original files and their source pattern will not be rewritten to manufacture one.",
+          "Factory required-formal metadata and its empty direct-use projection were checked internally, not delivered as a positive caller-to-formal public chain.",
+          "Source use exists at provider L56 inside superRefine callback. The direct-use lane's zero is intentional finite-grammar exclusion, not dead code or absence.",
+          "Caller L80 uses the zodResolver adapter and an expression actual; neither is supported by the existing inline-safeParse/preceding-const source association. Full-chain applicability is NOT_APPLICABLE for this exact pattern, not a new runtime failure.",
+          "No source mutation/drift trial was executed: this caller has no admitted public-chain baseline. Existing hash-matched negative drift/corruption/budget test receipts remain unchanged, not rerun.",
+          "Machine/brief metadata remains PARTIAL with dead-code UNKNOWN because only Atlas was generated; bounded source edit-context readiness is not schema/runtime proof or task mutation authority."
+        ],
+        "duration_ms": {
+          "status": "measured",
+          "preflight_and_atlas": 3349,
+          "no_speedup_claim": true
+        }
+      },
+      "transition_history": [
+        {
+          "state": "identity_verified",
+          "timestamp": "2026-10-28T07:56:07.615320+00:00",
+          "evidence": [
+            "output/reports/post_v180_formal_real_manifest.json"
+          ]
+        },
+        {
+          "state": "running",
+          "timestamp": "2026-10-28T07:56:10.008776+00:00",
+          "evidence": [
+            "output/reports/post_v180_formal_real_manifest.json"
+          ]
+        },
+        {
+          "state": "result_frozen",
+          "timestamp": "2026-10-28T07:59:07.885643+00:00",
+          "evidence": [
+            "output/reports/post_v180_formal_real_review.json"
+          ]
+        }
+      ],
+      "regression_verification": {
+        "status": "PASS",
+        "verified_at": "2026-10-28T08:28:27.313093+00:00",
+        "evidence": [
+          "output/reports/post_v180_resolver_factory_review.json",
+          "output/reports/post_v180_resolver_factory_real_manifest.json",
+          "output/reports/post_v180_resolver_factory_real_execution.json",
+          "output/reports/post_v180_resolver_factory_real_review.json"
+        ],
+        "claim_boundary": "Same known source fingerprint with current manifest-bound evaluator: resolver-to-direct-factory source link only. Original NOT_APPLICABLE state/task/result/history and previous primary preserved; wider actual/formal/callback chain, values, library, schema and runtime unproved."
+      }
     }
   ]
 }

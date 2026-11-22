@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from tools.core.json_io import load_json_object_strict_cached
 
@@ -92,6 +92,9 @@ def auxiliary_input_policy() -> dict[str, Any]:
 
 def capture_auxiliary_inputs(
     project_root: Path, walk_items: Iterable[tuple[str, str, str]], *, surgical: bool = False,
+    _private_owned_read: Callable[[str, bytes, dict[str, Any]], None] | None = None,
+    _private_max_file_bytes: int | None = None,
+    _private_file_byte_limits: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Capture one bounded read per selected file. Never assert filesystem absence.
 
@@ -99,6 +102,19 @@ def capture_auxiliary_inputs(
     its previous authority instead of relabeling old inputs with a new snapshot.
     """
     policy = auxiliary_input_policy()
+    # Explicit private same-read retention only; default callers retain no text.
+    # The caller owns input origin and the lifetime of any retained bytes.
+    if _private_owned_read is not None and not callable(_private_owned_read):
+        raise ValueError("Invalid private auxiliary observer")
+    if (_private_max_file_bytes is not None and (
+            type(_private_max_file_bytes) is not int or _private_max_file_bytes < 1
+            or _private_max_file_bytes > policy["max_file_bytes"])):
+        raise ValueError("Invalid private auxiliary read ceiling")
+    if _private_file_byte_limits is not None and (not isinstance(_private_file_byte_limits, dict)
+            or not _private_file_byte_limits or any(not isinstance(name, str) or not name
+                or type(cap) is not int or cap < 1 or cap > policy["max_file_bytes"]
+                for name, cap in _private_file_byte_limits.items())):
+        raise ValueError("Invalid private auxiliary file ceilings")
     root = Path(project_root).resolve()
     result: dict[str, Any] = {
         "version": "v1", "project_root": root.as_posix(),
@@ -133,7 +149,12 @@ def capture_auxiliary_inputs(
                 entry["status"] = "total_byte_budget_exceeded"
                 continue
             # Bounded read also handles a file growing after enumeration/stat.
-            limit = min(policy["max_file_bytes"], remaining)
+            if _private_file_byte_limits is not None and relative not in _private_file_byte_limits:
+                entry["status"] = "private_read_scope_unavailable"
+                continue
+            limit = min(policy["max_file_bytes"], remaining,
+                        _private_max_file_bytes if _private_max_file_bytes is not None else policy["max_file_bytes"],
+                        _private_file_byte_limits[relative] if _private_file_byte_limits is not None else policy["max_file_bytes"])
             with source.open("rb") as handle:
                 data = handle.read(limit + 1)
             result["bytes_read"] += len(data)
@@ -147,6 +168,8 @@ def capture_auxiliary_inputs(
                          raw_sha256=hashlib.sha256(data).hexdigest(),
                          host_text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
                          canonical_file_path=canonical_file_path)
+            if _private_owned_read is not None:
+                _private_owned_read(relative, data, dict(entry))
         except UnicodeError:
             entry["status"] = "unsupported_encoding"
         except (OSError, ValueError):

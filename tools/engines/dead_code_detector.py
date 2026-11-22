@@ -21,6 +21,7 @@ from tools.core.config import ROOT, RAW_DIR, REPORTS_DIR, CONFIG_DIR, save_json_
 from tools.core.doctrine_contract import require_doctrine_mapping
 from tools.core.engine_progress import EngineProgress
 from tools.core.dead_code_allowlist_policy import get_allowlist_scope, scope_allows_global, scope_allows_project
+from tools.core.dead_code_intent_review import intent_review_request
 from tools.core.json_io import load_json_file
 from tools.core.logger import logger
 from tools.core.path_engine import to_posix_path
@@ -35,7 +36,7 @@ from tools.core.source_files import is_analysis_source_file
 ALLOWLIST_FILENAME = "dead_code_intent_allowlist.json"
 DEAD_CODE_CACHE_FILENAME = ".dead_code_project_cache.json"
 DEAD_CODE_CACHE_VERSION = "dead_code_project_cache_v10"
-DEAD_CODE_ENGINE_SIGNATURE = "dead_code_logic_v38_atlas_public_contracts_syntax_grounded_import_reachability"
+DEAD_CODE_ENGINE_SIGNATURE = "dead_code_logic_v39_bounded_manual_intent_review_request"
 VALID_SYMBOL_RE = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
 
 
@@ -248,6 +249,7 @@ class DeadCodeDetector:
                 "dead_code_heuristics": require_doctrine_mapping("dead_code_heuristics"),
                 "analysis_symbol_significance": require_doctrine_mapping("analysis_heuristics").get("symbol_significance"),
                 "intelligence_tuning": require_doctrine_mapping("intelligence_tuning").get("confidence_tiers"),
+                "intent_review_request": intent_review_request(),
             }
         )
 
@@ -1164,6 +1166,7 @@ class DeadCodeDetector:
                 "mutation_proposed": False,
                 "allowed_outcomes": ["delete", "complete_integration", "retain_contract", "unknown"],
                 "why": "The graph proves non-consumption, not intent. Decide whether this is deletion, incomplete integration, a retained contract, or UNKNOWN before mutation.",
+                "intent_review": intent_review_request(),
             }
         if confidence_norm == "MEDIUM":
             return {

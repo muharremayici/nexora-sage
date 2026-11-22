@@ -45,6 +45,7 @@
           "audit",
           "dead",
           "declaration",
+          "declared",
           "discovery",
           "engine",
           "fractal",
@@ -63,7 +64,8 @@
           "temporal",
           "typescript",
           "universal",
-          "workload"
+          "workload",
+          "workspace"
         ]
       },
       "runtime_platform": {
@@ -119,7 +121,8 @@
           "lifecycle",
           "package",
           "patch",
-          "quality"
+          "quality",
+          "release"
         ]
       }
     }
@@ -153,6 +156,8 @@
       "tools/tests/test_atlas_staging_partitioning.py",
       "tools/tests/test_atlas_typescript_inputs.py",
       "tools/tests/test_audit_finding_dependency_boundary.py",
+      "tools/tests/test_audit_import_briefs.py",
+      "tools/tests/test_audit_import_occurrences.py",
       "tools/tests/test_audit_import_subject_evidence.py",
       "tools/tests/test_audit_materialization.py",
       "tools/tests/test_audit_module_import_prefix.py",
@@ -166,6 +171,8 @@
       "tools/tests/test_decision_domain_classification.py",
       "tools/tests/test_declaration_symbol_search.py",
       "tools/tests/test_declarative_evidence.py",
+      "tools/tests/test_declarative_registry_review.py",
+      "tools/tests/test_declared_artifact_observations.py",
       "tools/tests/test_dependency_acquisition.py",
       "tools/tests/test_discovery_audit_seed.py",
       "tools/tests/test_discovery_target_root.py",
@@ -190,6 +197,7 @@
       "tools/tests/test_init_execution_contract.py",
       "tools/tests/test_installation_dependency_contract.py",
       "tools/tests/test_installation_preflight.py",
+      "tools/tests/test_installation_preflight_probes.py",
       "tools/tests/test_jsonc.py",
       "tools/tests/test_jsonc_parser.py",
       "tools/tests/test_lifecycle_scope_alignment.py",
@@ -203,6 +211,8 @@
       "tools/tests/test_merge_intelligence.py",
       "tools/tests/test_merge_snapshot_lineage.py",
       "tools/tests/test_nanometric_diff_engine.py",
+      "tools/tests/test_native_eslint_brief.py",
+      "tools/tests/test_native_eslint_json.py",
       "tools/tests/test_native_run_log_ingestion.py",
       "tools/tests/test_node_ast_worker.py",
       "tools/tests/test_package_contracts.py",
@@ -227,6 +237,7 @@
       "tools/tests/test_react_support_applicability.py",
       "tools/tests/test_react_universal_evidence_semantics.py",
       "tools/tests/test_reality_scope.py",
+      "tools/tests/test_release_readiness_current_state.py",
       "tools/tests/test_repository_observation.py",
       "tools/tests/test_repository_observation_oracle_lineage.py",
       "tools/tests/test_repository_topology.py",
@@ -256,6 +267,7 @@
       "tools/tests/test_structured_export_advisory.py",
       "tools/tests/test_subprocess_telemetry.py",
       "tools/tests/test_surgical_packet_inputs.py",
+      "tools/tests/test_symbol_class_accessor_search.py",
       "tools/tests/test_symbol_class_method_search.py",
       "tools/tests/test_symbol_derived_nonexact_cap_rank.py",
       "tools/tests/test_symbol_derived_unicode_parity.py",
@@ -272,6 +284,7 @@
       "tools/tests/test_system_connectivity_map.py",
       "tools/tests/test_target_absolute_root_workspace_projection.py",
       "tools/tests/test_target_atlas_only_path_projection.py",
+      "tools/tests/test_target_dependency_witness.py",
       "tools/tests/test_target_directive_approval_projection.py",
       "tools/tests/test_target_loc_measurement.py",
       "tools/tests/test_target_policy_applicability.py",
@@ -293,6 +306,7 @@
       "tools/tests/test_target_runtime_schema_strip_advisory.py",
       "tools/tests/test_target_runtime_shallow_mutation_advisory.py",
       "tools/tests/test_target_runtime_swallowed_error_advisory.py",
+      "tools/tests/test_target_test_command_sources.py",
       "tools/tests/test_target_test_impact_absolute_root_identity.py",
       "tools/tests/test_target_test_impact_direction.py",
       "tools/tests/test_target_test_impact_evidence_boundary.py",
@@ -302,6 +316,8 @@
       "tools/tests/test_text_surface_policy.py",
       "tools/tests/test_typescript_directory_boundary.py",
       "tools/tests/test_typescript_import_evidence.py",
+      "tools/tests/test_typescript_registry_nested_review.py",
+      "tools/tests/test_typescript_registry_review.py",
       "tools/tests/test_typescript_source_binding.py",
       "tools/tests/test_universal_proof_semantics.py",
       "tools/tests/test_validate_execution_profiles.py",
@@ -315,7 +331,8 @@
       "tools/tests/test_watchdog_runtime_contract.py",
       "tools/tests/test_watchdog_semantic_triggers.py",
       "tools/tests/test_watchdog_tombstone_contract.py",
-      "tools/tests/test_workload_profile.py"
+      "tools/tests/test_workload_profile.py",
+      "tools/tests/test_workspace_import_source.py"
     ],
     "target_fixture": "tools/tests/fixtures/src"
   }

@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "config/schemas/compiler_span_selection.schema.json",
+  "title": "Private supplied exact span content receipt",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "reference_policy_sha256",
+        "image_policy_sha256",
+        "model",
+        "method",
+        "purpose",
+        "input_kind",
+        "text_policy",
+        "boundary_policy",
+        "span_scheme",
+        "privacy",
+        "receipt_status",
+        "limits",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-exact-span-selection"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_span_selection.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "reference_policy_sha256": {
+          "const": "1895ec6acf0f99abc858d90b2dc59bf1b823c9513031367499e0094169345a9a"
+        },
+        "image_policy_sha256": {
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "model": {
+          "const": "supplied_immutable_text_exact_utf16_span_v1"
+        },
+        "method": {
+          "const": "reviewed_exact_utf16_span_v1"
+        },
+        "purpose": {
+          "const": "record_supplied_exact_span"
+        },
+        "input_kind": {
+          "const": "supplied_immutable_string_v1"
+        },
+        "text_policy": {
+          "const": "strict_utf8_preserve_bom_shebang_crlf_v1"
+        },
+        "boundary_policy": {
+          "const": "codepoint_and_crlf_atomic_v1"
+        },
+        "span_scheme": {
+          "const": "supplied_text_local_utf16_utf8_half_open_v1"
+        },
+        "privacy": {
+          "const": "exact_span_content_metadata_only_v1"
+        },
+        "receipt_status": {
+          "const": "EXACT_SPAN_CONTENT_SELECTION_RECORDED_NOT_FILE_ATTESTATION"
+        },
+        "limits": {
+          "const": {
+            "source_utf16_units": 8192,
+            "source_utf8_bytes": 32768,
+            "view_utf16_units": 8192,
+            "view_utf8_bytes": 32768,
+            "metadata_bytes": 2097152,
+            "receipt_bytes": 8192,
+            "cursor_bytes": 4096,
+            "mapping_work_units": 32768,
+            "image_bytes": 41943040,
+            "operation_ms": 30000
+          }
+        },
+        "claim_boundary": {
+          "const": "Disabled supplied-synthetic exact content only; declared references do not authenticate origin or selection intent. No acquisition, freshness, permission, line/controller/owner admission, compiler, production/semantic/cache/publication or physical heap guarantee."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "source_text_utf8_sha256",
+        "origin_ref_sha256",
+        "selection_ref_sha256",
+        "source_utf16_units",
+        "source_utf8_bytes",
+        "start_utf16",
+        "end_utf16",
+        "invocation_id",
+        "purpose"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_text_utf8_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selection_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_utf16_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "const": "record_supplied_exact_span"
+        }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_text_utf8_sha256",
+        "view_text_sha256",
+        "source_utf16_units",
+        "source_utf8_bytes",
+        "start_utf16",
+        "end_utf16",
+        "start_utf8",
+        "end_utf8",
+        "view_utf16_units",
+        "view_utf8_bytes",
+        "method",
+        "boundary_policy",
+        "span_scheme"
+      ],
+      "properties": {
+        "source_text_utf8_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "view_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_utf16_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf16_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "method": {
+          "const": "reviewed_exact_utf16_span_v1"
+        },
+        "boundary_policy": {
+          "const": "codepoint_and_crlf_atomic_v1"
+        },
+        "span_scheme": {
+          "const": "supplied_text_local_utf16_utf8_half_open_v1"
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_identity_bytes_hashed",
+        "mapping_code_units_visited",
+        "mapping_work_units",
+        "view_bytes_hashed",
+        "metadata_reserved_bytes",
+        "source_buffer_reserved_bytes",
+        "source_text_reserved_bytes",
+        "cursor_reserved_bytes",
+        "receipt_reserved_bytes",
+        "mapping_cursor_metadata_bytes",
+        "known_inputs_reserved_bytes"
+      ],
+      "properties": {
+        "source_identity_bytes_hashed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mapping_code_units_visited": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mapping_work_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_bytes_hashed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_buffer_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_text_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cursor_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "receipt_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mapping_cursor_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filesystem_capture_attested",
+        "read_authority_granted",
+        "source_freshness_verified",
+        "same_read_attested",
+        "origin_authenticated",
+        "selection_decision_authenticated",
+        "controller_request_admitted",
+        "table_membership_verified",
+        "binding_resolved",
+        "actual_export_set_complete",
+        "input_code_evaluated",
+        "compiler_loaded",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "publication_authority"
+      ],
+      "properties": {
+        "filesystem_capture_attested": {
+          "const": false
+        },
+        "read_authority_granted": {
+          "const": false
+        },
+        "source_freshness_verified": {
+          "const": false
+        },
+        "same_read_attested": {
+          "const": false
+        },
+        "origin_authenticated": {
+          "const": false
+        },
+        "selection_decision_authenticated": {
+          "const": false
+        },
+        "controller_request_admitted": {
+          "const": false
+        },
+        "table_membership_verified": {
+          "const": false
+        },
+        "binding_resolved": {
+          "const": false
+        },
+        "actual_export_set_complete": {
+          "const": false
+        },
+        "input_code_evaluated": {
+          "const": false
+        },
+        "compiler_loaded": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "publication_authority": {
+          "const": false
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "purpose",
+        "producer_policy_sha256",
+        "producer_schema_sha256",
+        "expected_sha256",
+        "content_sha256",
+        "origin_ref_sha256",
+        "selection_ref_sha256",
+        "content",
+        "cost",
+        "raw_source_retained",
+        "private_refs_cleared",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-exact-span-selection"
+        },
+        "status": {
+          "const": "EXACT_SPAN_CONTENT_SELECTION_RECORDED_NOT_FILE_ATTESTATION"
+        },
+        "purpose": {
+          "const": "record_supplied_exact_span"
+        },
+        "producer_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producer_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selection_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "content": {
+          "$ref": "#/$defs/content"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        },
+        "raw_source_retained": {
+          "const": false
+        },
+        "private_refs_cleared": {
+          "const": true
+        },
+        "flags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    }
+  }
+}

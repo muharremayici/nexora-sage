@@ -128,7 +128,7 @@ class SQLiteManager:
             existing_search_tables = {
                 row[0] for row in conn.execute(
                     """SELECT name FROM sqlite_master WHERE type = 'table'
-                       AND name IN ('symbol_search_members', 'symbol_search_actions',
+                       AND name IN ('symbol_search_members', 'symbol_search_accessors', 'symbol_search_actions',
                                     'symbol_search_import_bindings',
                                     'symbol_search_qualified_import_calls');"""
                 )
@@ -247,6 +247,21 @@ class SQLiteManager:
                     is_static INTEGER NOT NULL,
                     line INTEGER NOT NULL,
                     end_line INTEGER NOT NULL,
+                    FOREIGN KEY(file_id) REFERENCES files(file_id) ON DELETE CASCADE
+                );
+
+                -- Separate getter/setter syntax; never accessor evaluation or graph truth.
+                CREATE TABLE IF NOT EXISTS symbol_search_accessors (
+                    member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    declaring_symbol TEXT NOT NULL,
+                    declaring_line INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    member_name TEXT NOT NULL,
+                    is_static INTEGER NOT NULL,
+                    line INTEGER NOT NULL,
+                    end_line INTEGER NOT NULL,
+                    accessor_kind TEXT NOT NULL,
                     FOREIGN KEY(file_id) REFERENCES files(file_id) ON DELETE CASCADE
                 );
 
@@ -391,6 +406,8 @@ class SQLiteManager:
                 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
                 CREATE INDEX IF NOT EXISTS idx_symbol_search_members_file ON symbol_search_members(file_id);
                 CREATE INDEX IF NOT EXISTS idx_symbol_search_members_name ON symbol_search_members(name);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_accessors_file ON symbol_search_accessors(file_id);
+                CREATE INDEX IF NOT EXISTS idx_symbol_search_accessors_name ON symbol_search_accessors(name);
                 CREATE INDEX IF NOT EXISTS idx_symbol_search_actions_file ON symbol_search_actions(file_id);
                 CREATE INDEX IF NOT EXISTS idx_symbol_search_actions_name ON symbol_search_actions(name);
                 CREATE INDEX IF NOT EXISTS idx_symbol_search_import_bindings_file ON symbol_search_import_bindings(file_id);
@@ -424,6 +441,7 @@ class SQLiteManager:
                 "ALTER TABLE symbols ADD COLUMN end_line INTEGER;",
                 "ALTER TABLE symbols ADD COLUMN source_lines TEXT;",
                 "ALTER TABLE files ADD COLUMN class_method_search_status TEXT;",
+                "ALTER TABLE files ADD COLUMN class_accessor_search_status TEXT;",
                 "ALTER TABLE files ADD COLUMN store_action_search_status TEXT;",
                 "ALTER TABLE files ADD COLUMN import_binding_search_status TEXT;",
                 "ALTER TABLE files ADD COLUMN qualified_import_call_search_status TEXT;",
@@ -441,6 +459,7 @@ class SQLiteManager:
             # A recreated empty table cannot retain an older file's projected claim.
             for table, status_column in (
                 ("symbol_search_members", "class_method_search_status"),
+                ("symbol_search_accessors", "class_accessor_search_status"),
                 ("symbol_search_actions", "store_action_search_status"),
                 ("symbol_search_import_bindings", "import_binding_search_status"),
                 ("symbol_search_qualified_import_calls", "qualified_import_call_search_status"),

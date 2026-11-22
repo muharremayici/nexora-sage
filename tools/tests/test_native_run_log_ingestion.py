@@ -12,6 +12,8 @@ from tools.core.artifact_validator import validate_payload
 from tools.core import native_run_log_ingestion as ingestion
 
 
+
+
 @pytest.mark.parametrize("payload", [{}, {"z": [1, True, None], "a": "源"}, [None, False, 3.5]])
 def test_native_identity_uses_upstream_atlas_digest_with_unchanged_bytes(payload, monkeypatch):
     from tools.core import atlas_integrity

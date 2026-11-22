@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "image_profile",
+    "metadata_virtual_path",
+    "library_virtual_root",
+    "metadata_role",
+    "max_metadata_files",
+    "max_metadata_bytes",
+    "authority",
+    "claim_boundary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-compiler-package-metadata"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_compiler_metadata_calibration.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "image_profile": {
+      "type": "string",
+      "const": "private_input_image_experiment"
+    },
+    "metadata_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/compiler/node_modules/typescript/package.json"
+    },
+    "library_virtual_root": {
+      "type": "string",
+      "const": "/__sage_ts_image__/compiler/node_modules/typescript/lib"
+    },
+    "metadata_role": {
+      "type": "string",
+      "const": "compiler_package_metadata"
+    },
+    "max_metadata_files": {
+      "type": "integer",
+      "const": 1
+    },
+    "max_metadata_bytes": {
+      "type": "integer",
+      "const": 65536
+    },
+    "authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

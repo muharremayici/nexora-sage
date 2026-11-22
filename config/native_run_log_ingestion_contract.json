@@ -6,6 +6,18 @@
   },
   "artifact_id": "native_run_log_receipt",
   "manifest_schema": "config/schemas/native_run_log_manifest.schema.json",
+  "brief_schema": "config/schemas/native_run_log_brief.schema.json",
+  "brief": {
+    "version": "v1",
+    "format_id": "eslint_9_39_1_json_v1",
+    "input_scope": "same_invocation_validated_receipt_only",
+    "limits": {
+      "result_files": 8,
+      "diagnostic_rows": 16,
+      "output_characters": 6000
+    },
+    "boundary": "Captured reported observations only. Positions are not source-verified; current input matches do not verify historical execution or complete inputs. Empty, suppressed-only, unresolved or omitted detail never establishes cleanliness, absence, causality or gate/mutation authority."
+  },
   "atlas_source_correspondence": {
     "scope": "analysis_time_declared_source_text_only",
     "opt_in": "--atlas-raw-dir and --atlas-project together",
@@ -17,9 +29,24 @@
     "limits": {
       "line_characters": 16384,
       "lines": 200000,
-      "occurrences": 256
+      "occurrences": 256,
+      "json_depth": 32,
+      "json_values": 200000
     },
     "formats": {
+      "eslint_9_39_1_json_v1": {
+        "tool": {
+          "name": "eslint",
+          "version": "9.39.1"
+        },
+        "parser": "eslint_json_result_array_v1",
+        "rule_id_pattern": "@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*",
+        "source": "https://github.com/eslint/eslint/blob/v9.39.1/lib/cli-engine/formatters/json.js",
+        "result_contract": "https://github.com/eslint/eslint/blob/v9.39.1/lib/types/index.d.ts#L1207",
+        "coverage": "declared_eslint_json_results_only",
+        "budgets": "Existing stream/total bytes, input_files result rows, occurrences active+suppressed items and line_characters identity/message fields. JSON depth/values additionally bound decoding. Counts and known optional fields form a conservative supported subset, not the full plugin/processor schema.",
+        "boundary": "Opt-in captured stdout JSON only; stderr is hashed but never interpreted. The exact version is caller-reported, not authenticated or a recommended installation. Active/suppressed/fatal/unlocated results remain distinct. Exact declared-source identifier correspondence is not position verification, physical/processor origin, historical source/config/plugin execution, complete coverage or cleanliness. Raw messages, source/output, fixes, suppression justifications and host paths are not copied to diagnostics. No native runner, autofix, combined governance or gate authority."
+      },
       "vite_5_4_21_mixed_import_console_v1": {
         "tool": {
           "name": "vite",

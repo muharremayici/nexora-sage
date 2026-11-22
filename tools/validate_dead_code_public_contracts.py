@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import json
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -31,6 +33,135 @@ def _read(path: Path) -> str:
 
 def _check(name: str, passed: bool, details: Any) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "details": details}
+
+
+def _scope_nodes(root: ast.AST):
+    """Inspect one Python scope; nested functions/classes are not cache evidence."""
+    yield root
+    for child in ast.iter_child_nodes(root):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            yield child
+        else:
+            yield from _scope_nodes(child)
+
+
+def _binds_name(node: ast.AST, name: str) -> bool:
+    return (
+        isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)) and node.id == name
+        or isinstance(node, ast.arg) and node.arg == name
+        or isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == name
+        or isinstance(node, ast.alias) and (node.asname or node.name.split(".")[0]) == name
+        or isinstance(node, (ast.Global, ast.Nonlocal)) and name in node.names
+        or isinstance(node, ast.ExceptHandler) and node.name == name
+    )
+
+
+def _engine_signature_cache_binding(source: str, signature: Any) -> dict[str, Any]:
+    """Check the supported cache wiring, not a historical feature-name suffix.
+
+    This is bounded source/identity evidence, not a Python interpreter proof.
+    Public-export behavior remains covered by the six independent checks below.
+    """
+    def result(passed: bool, reason: str) -> dict[str, Any]:
+        return {"passed": passed, "reason": reason, "engine_signature": signature}
+
+    if not isinstance(signature, str) or not re.fullmatch(
+        r"dead_code_logic_v[1-9][0-9]*_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*", signature
+    ):
+        return result(False, "invalid_versioned_engine_signature")
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError, TypeError) as error:
+        return {**result(False, "engine_source_not_parseable"), "error_type": type(error).__name__}
+    declarations = [
+        node for node in tree.body
+        if isinstance(node, ast.Assign) and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "DEAD_CODE_ENGINE_SIGNATURE"
+    ]
+    if (len(declarations) != 1
+            or not isinstance(declarations[0].value, ast.Constant)
+            or declarations[0].value.value != signature
+            or sum(_binds_name(node, "DEAD_CODE_ENGINE_SIGNATURE") for node in _scope_nodes(tree)) != 1):
+        return result(False, "signature_declaration_not_unique_or_current")
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "DeadCodeDetector"]
+    runs = [node for cls in classes for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == "run"]
+    if len(classes) != 1 or len(runs) != 1:
+        return result(False, "engine_run_owner_not_unique")
+    run = runs[0]
+    nodes = list(_scope_nodes(run))
+    if any(_binds_name(node, "DEAD_CODE_ENGINE_SIGNATURE") for node in nodes):
+        return result(False, "signature_is_shadowed_in_run")
+    assignments = [
+        node for node in nodes
+        if isinstance(node, ast.Assign) and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "project_cache_key"
+    ]
+    if len(assignments) != 1 or sum(_binds_name(node, "project_cache_key") for node in nodes) != 1:
+        return result(False, "project_cache_key_not_uniquely_bound")
+    assignment = assignments[0]
+    call = assignment.value
+    if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Name) and call.func.value.id == "self"
+            and call.func.attr == "_stable_fingerprint" and len(call.args) == 1
+            and not call.keywords and isinstance(call.args[0], ast.Dict)):
+        return result(False, "cache_key_not_built_by_owned_fingerprint")
+    mapping = call.args[0]
+    keys = [key.value if isinstance(key, ast.Constant) and isinstance(key.value, str) else None for key in mapping.keys]
+    if None in keys or len(keys) != len(set(keys)):
+        return result(False, "cache_inputs_not_explicit_and_unique")
+    required = {"engine_signature", "public_export_chain_files", "public_export_chain_symbols"}
+    if not required.issubset(keys):
+        return result(False, "signature_or_public_contract_cache_inputs_missing")
+    value = mapping.values[keys.index("engine_signature")]
+    if not isinstance(value, ast.Name) or value.id != "DEAD_CODE_ENGINE_SIGNATURE":
+        return result(False, "cache_key_uses_another_signature")
+
+    def cache_entry_key(node: ast.AST) -> bool:
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "str" and len(node.args) == 1 and not node.keywords):
+            return False
+        get = node.args[0]
+        return (isinstance(get, ast.Call) and isinstance(get.func, ast.Attribute)
+                and isinstance(get.func.value, ast.Name) and get.func.value.id == "cached_entry"
+                and get.func.attr == "get" and len(get.args) in (1, 2) and not get.keywords
+                and isinstance(get.args[0], ast.Constant) and get.args[0].value == "cache_key"
+                and (len(get.args) == 1 or isinstance(get.args[1], ast.Constant) and get.args[1].value == ""))
+
+    def mandatory_key_match(node: ast.AST) -> bool:
+        if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+            return any(mandatory_key_match(value) for value in node.values)
+        if not (isinstance(node, ast.Compare) and len(node.ops) == len(node.comparators) == 1
+                and isinstance(node.ops[0], ast.Eq)):
+            return False
+        left, right = node.left, node.comparators[0]
+        return ((isinstance(left, ast.Name) and left.id == "project_cache_key" and cache_entry_key(right))
+                or (isinstance(right, ast.Name) and right.id == "project_cache_key" and cache_entry_key(left)))
+
+    consumers = [node for node in nodes if isinstance(node, ast.If) and mandatory_key_match(node.test)
+                 and any(isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                         and isinstance(statement.targets[0], ast.Name) and statement.targets[0].id == "analysis"
+                         and isinstance(statement.value, ast.Name) and statement.value.id == "cached_result"
+                         for statement in node.body)]
+    wired = False
+    for owner in nodes:
+        if owner is not run and isinstance(owner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            continue
+        for _, suite in ast.iter_fields(owner):
+            if isinstance(suite, list) and assignment in suite:
+                wired = wired or any(consumer in suite and suite.index(assignment) < suite.index(consumer)
+                                     for consumer in consumers)
+    if not wired:
+        return result(False, "cache_hit_not_guarded_by_the_actual_key")
+    probe = {key: "cache_binding_probe" for key in keys}
+    probe["engine_signature"] = signature
+    try:
+        current = DeadCodeDetector._stable_fingerprint(probe)
+        changed = DeadCodeDetector._stable_fingerprint({**probe, "engine_signature": signature + "_probe"})
+    except (TypeError, ValueError, RuntimeError) as error:
+        return {**result(False, "fingerprint_probe_failed"), "error_type": type(error).__name__}
+    if not isinstance(current, str) or not current or not isinstance(changed, str) or not changed or current == changed:
+        return result(False, "fingerprint_ignores_signature_changes")
+    return result(True, "versioned_signature_bound_to_public_contract_cache_key_and_hit")
 
 
 def _write(path: Path, text: str) -> None:
@@ -172,6 +303,8 @@ def run_validation() -> dict[str, Any]:
     artifact_payload = load_json_file(RAW_DIR / "dead_code.json", {})
     meta = artifact_payload.get("meta", {}) if isinstance(artifact_payload, dict) else {}
 
+    signature_binding = _engine_signature_cache_binding(dead_code_text, DEAD_CODE_ENGINE_SIGNATURE)
+
     star_fixture = _public_export_chain_fixture()
     named_fixture = _named_public_reexport_fixture()
     wildcard_fixture = _wildcard_public_subpath_fixture()
@@ -180,8 +313,8 @@ def run_validation() -> dict[str, Any]:
     checks = [
         _check(
             "dead_code_engine_signature_tracks_public_contract_logic",
-            "atlas_public_contracts" in DEAD_CODE_ENGINE_SIGNATURE,
-            DEAD_CODE_ENGINE_SIGNATURE,
+            signature_binding["passed"],
+            signature_binding,
         ),
         _check(
             "package_exports_are_scanned_for_public_surfaces",

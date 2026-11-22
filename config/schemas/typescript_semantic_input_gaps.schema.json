@@ -1,0 +1,318 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "status",
+    "authority",
+    "context_code",
+    "parent_snapshot_id",
+    "atlas_sha256",
+    "collector_run_sha256",
+    "policy_sha256",
+    "details",
+    "shown",
+    "omitted",
+    "gap_count",
+    "authority_blocker_count",
+    "snapshot_bound",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "native_project_equivalent",
+    "loaded_code_attested"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-semantic-input-gaps"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN_INPUT_CONTEXT",
+        "INPUT_GAPS_PRESENT_NOT_BOUND",
+        "OBSERVATIONS_RECONCILED_NOT_BOUND"
+      ]
+    },
+    "authority": {
+      "type": "string",
+      "const": "observation_only"
+    },
+    "context_code": {
+      "type": "string"
+    },
+    "parent_snapshot_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "atlas_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "collector_run_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policy_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "details": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project_sha256",
+          "facet",
+          "code",
+          "detail_sha256"
+        ],
+        "properties": {
+          "project_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "facet": {
+            "type": "string",
+            "enum": [
+              "authority",
+              "semantic_inputs",
+              "compiler_inputs"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]+$"
+          },
+          "detail_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "shown": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "omitted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "gap_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "authority_blocker_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "snapshot_bound": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_project_equivalent": {
+      "type": "boolean",
+      "const": false
+    },
+    "loaded_code_attested": {
+      "type": "boolean",
+      "const": false
+    },
+    "config_extends": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_code",
+        "details",
+        "shown",
+        "omitted"
+      ],
+      "properties": {
+        "context_code": {
+          "type": "string",
+          "enum": [
+            "",
+            "config_extends_owner_unavailable",
+            "config_extends_scope_mismatch"
+          ]
+        },
+        "shown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "project_sha256",
+              "status",
+              "code",
+              "observation_sha256",
+              "binding_sha256"
+            ],
+            "properties": {
+              "project_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "UNKNOWN_CONFIG_EXTENDS_INPUT",
+                  "CONFIG_SOURCE_SELECTION_OBSERVED_NOT_BOUND"
+                ]
+              },
+              "code": {
+                "type": "string"
+              },
+              "observation_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "binding_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "declared_source_record": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "status",
+                  "basis",
+                  "code",
+                  "declared_virtual_path_sha256",
+                  "atlas_relative_path_sha256",
+                  "atlas_content_identity"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "CONFIG_DECLARED_ROOT_ATLAS_RECORD_OBSERVED_NOT_BOUND",
+                      "UNKNOWN_CONFIG_DECLARED_ROOT_ATLAS_RECORD"
+                    ]
+                  },
+                  "basis": {
+                    "type": "string",
+                    "const": "held_atlas_record_only"
+                  },
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "",
+                      "config_declared_root_config_unavailable",
+                      "config_declared_root_inventory_unavailable",
+                      "config_declared_root_record_unavailable"
+                    ]
+                  },
+                  "declared_virtual_path_sha256": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "atlas_relative_path_sha256": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "atlas_content_identity": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "algorithm",
+                      "value"
+                    ],
+                    "properties": {
+                      "algorithm": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "sha256",
+                          "md5",
+                          null
+                        ]
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "pattern": "^([a-f0-9]{32}|[a-f0-9]{64})$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "declared_source_records": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shown",
+            "omitted"
+          ],
+          "properties": {
+            "shown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "omitted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

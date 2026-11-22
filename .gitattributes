@@ -2,3 +2,7 @@
 /config/evaluation_inputs/*.md text eol=lf
 # Private pinned templates remain byte-identical; this does not activate a grant.
 /tools/legal_templates/*.txt text eol=lf
+
+# Declared authority-metadata identities bind exact bytes, never runtime approval.
+/tools/core/compiler_preparation_comparison_authority.py text eol=lf
+/config/schemas/compiler_preparation_comparison_authority.schema.json text eol=lf

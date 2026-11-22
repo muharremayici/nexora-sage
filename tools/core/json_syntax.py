@@ -66,6 +66,10 @@ class _JSONStreamPathSelector:
         return piece
 
     def _exact(self, size):
+        if type(size) is int and size == 1:
+            if not self._peek():
+                raise ValueError("JSON ended inside a token.")
+            return self._take(1)
         parts = []
         while size:
             if not self._peek():

@@ -15,7 +15,7 @@ from tools.core.config import RAW_DIR
 from tools.core.json_io import load_json_file
 from tools.core.audit_rules import build_rule_taxonomy
 from tools.core.audit_finding_generation import (
-    select_audit_presentation_rows, project_audit_import_subject, audit_import_rule_contract,
+    select_audit_presentation_rows, project_audit_import_context, audit_import_rule_contract,
 )
 from tools.core.principle_packs import principles_for_context
 from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, context_budget_profile
@@ -439,9 +439,9 @@ def _directive_for_violation(
         directive["finding_semantics"] = finding_semantics
     if audit_import_rule_contract(rule) is not None or "finding_evidence" in violation:
         from tools.core.config import RAW_DIR
-        directive["finding_evidence"] = project_audit_import_subject(violation,
+        directive.update(project_audit_import_context(violation,
             raw_dir=raw_dir or RAW_DIR, project=str(project_key or ""),
-            rel_path=str(violation.get("atlas_rel_path") or file_path), cache=import_evidence_cache)
+            rel_path=str(violation.get("atlas_rel_path") or file_path), cache=import_evidence_cache))
     return directive
 
 

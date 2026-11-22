@@ -161,7 +161,7 @@ def test_installation_proof_initializes_without_duplicate_heavy_analysis():
     steps = generate_installation_proof._commands_for_level(
         "release",
         skip_deps=True,
-        max_doctor_seconds=30,
+        max_doctor_seconds=None,
     )
 
     init_step = next(row for row in steps if row["id"] == "init")
@@ -179,7 +179,7 @@ def test_public_installation_proof_omits_only_private_final_consistency():
     steps = generate_installation_proof._commands_for_level(
         "release",
         skip_deps=True,
-        max_doctor_seconds=30,
+        max_doctor_seconds=None,
         public_distribution=True,
     )
 
@@ -213,12 +213,13 @@ def test_public_installation_doctor_uses_current_ci_quick_selection(level):
 
     ci_args = shlex.split(load_ci_execution_policy()["commands"]["target_doctor"])[4:]
     steps = generate_installation_proof._commands_for_level(
-        level, skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+        level, skip_deps=True, max_doctor_seconds=None, public_distribution=True,
     )
     doctors = [row for row in steps if row["id"] == "doctor"]
     assert len(doctors) == 1
-    assert doctors[0]["command"][2:] == ["doctor", "--skip-release-proof", *ci_args]
-    assert doctors[0]["timeout"] == 90
+    assert doctors[0]["command"][2:-1] == ["doctor", "--skip-release-proof", *ci_args[:-1]]
+    assert doctors[0]["command"][-1] == ("180" if level == "release" else ci_args[-1])
+    assert doctors[0]["timeout"] == (240 if level == "release" else 90)
     if level != "smoke":
         ids = [row["id"] for row in steps]
         assert ids.index("init") < ids.index("doctor") < ids.index("daily_run")
@@ -231,6 +232,7 @@ def test_private_installation_doctor_does_not_inherit_public_ci_validation():
     )
     doctor = next(row for row in steps if row["id"] == "doctor")
     assert doctor["command"][2:] == ["doctor", "--skip-release-proof"]
+    assert doctor["timeout"] == 90
 
 
 @pytest.mark.parametrize("command", [
@@ -249,20 +251,44 @@ def test_public_installation_doctor_rejects_unbounded_or_incompatible_ci_command
     )
     with pytest.raises(ValueError, match="bounded public doctor"):
         generate_installation_proof._commands_for_level(
-            "release", skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+            "release", skip_deps=True, max_doctor_seconds=None, public_distribution=True,
         )
 
 
-def test_public_installation_doctor_budget_is_derived_not_pinned(monkeypatch):
+@pytest.mark.parametrize("level, inner, outer", [("daily", "73", 90), ("release", "180", 240)])
+def test_public_installation_doctor_budget_uses_its_context(monkeypatch, level, inner, outer):
     monkeypatch.setattr(
         generate_installation_proof, "load_ci_execution_policy",
         lambda: {"commands": {"target_doctor":
             'CODEMAPS_TARGET_ROOT="target" python sage.py doctor --include-validate --quick --max-seconds 73'}},
     )
     steps = generate_installation_proof._commands_for_level(
-        "release", skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+        level, skip_deps=True, max_doctor_seconds=None, public_distribution=True,
     )
-    assert next(row for row in steps if row["id"] == "doctor")["command"][-1] == "73"
+    doctor = next(row for row in steps if row["id"] == "doctor")
+    assert doctor["command"][-1] == inner
+    assert doctor["timeout"] == outer
+
+
+@pytest.mark.parametrize("override", [0, 90, 239, 4200])
+def test_public_release_doctor_rejects_incompatible_outer_limit_before_any_step(monkeypatch, override):
+    monkeypatch.setattr(
+        generate_installation_proof, "_step",
+        lambda *args, **kwargs: pytest.fail("a proof step started before validating the budget"),
+    )
+    with pytest.raises(ValueError, match="--max-doctor-seconds must be at least 240s"):
+        generate_installation_proof.build_installation_proof(
+            "release", skip_deps=True, max_doctor_seconds=override, public_distribution=True,
+        )
+
+
+def test_public_release_doctor_accepts_compatible_outer_override():
+    steps = generate_installation_proof._commands_for_level(
+        "release", skip_deps=True, max_doctor_seconds=300, public_distribution=True,
+    )
+    doctor = next(row for row in steps if row["id"] == "doctor")
+    assert doctor["command"][-1] == "180"
+    assert doctor["timeout"] == 300
 
 
 @pytest.mark.parametrize("doctor_code", [1, 124])
@@ -284,7 +310,7 @@ def test_public_installation_doctor_failure_stops_proof_and_keeps_explicit_targe
 
     monkeypatch.setattr(generate_installation_proof, "run_observed_subprocess", run)
     payload = generate_installation_proof.build_installation_proof(
-        "release", skip_deps=True, max_doctor_seconds=90,
+        "release", skip_deps=True, max_doctor_seconds=None,
         target_root=str(target), projects="MAIN", public_distribution=True,
     )
     assert [row[0] for row in observed] == ["init", "installation_contract", "doctor"]
@@ -295,6 +321,8 @@ def test_public_installation_doctor_failure_stops_proof_and_keeps_explicit_targe
     assert payload["summary"]["target_governance"] == "NOT_EVALUATED"
     assert payload["steps"][-1]["returncode"] == doctor_code
     assert payload["steps"][-1]["output_excerpt"] == "selected validator failure"
+    assert payload["steps"][-1]["command"][-1] == "180"
+    assert payload["steps"][-1]["timeout_seconds"] == 240
 
 
 def test_installation_proof_unknown_profile_omission_fails_closed(monkeypatch):
@@ -308,7 +336,7 @@ def test_installation_proof_unknown_profile_omission_fails_closed(monkeypatch):
         generate_installation_proof._commands_for_level(
             "release",
             skip_deps=True,
-            max_doctor_seconds=30,
+            max_doctor_seconds=None,
             public_distribution=True,
         )
     except ValueError as exc:
@@ -321,7 +349,7 @@ def test_installation_proof_forwards_explicit_target_and_project_scope():
     steps = generate_installation_proof._commands_for_level(
         "release",
         skip_deps=True,
-        max_doctor_seconds=30,
+        max_doctor_seconds=None,
         target_root=r"C:\target",
         projects="MAIN",
     )
@@ -524,7 +552,8 @@ def test_installation_proof_fails_closed_when_init_receipt_cannot_be_bound(monke
     assert payload["steps"][-1]["id"] == "preflight_receipt_reuse"
 
 
-def test_public_install_proof_cli_forwards_target_and_project_scope(monkeypatch):
+@pytest.mark.parametrize("override", [None, 0, 300])
+def test_public_install_proof_cli_forwards_target_and_project_scope(monkeypatch, override):
     commands = []
     monkeypatch.setattr(codemaps, "run_command", lambda command, **_kwargs: commands.append(command) or 0)
 
@@ -532,7 +561,7 @@ def test_public_install_proof_cli_forwards_target_and_project_scope(monkeypatch)
         argparse.Namespace(
             level="release",
             skip_deps=True,
-            max_doctor_seconds=180,
+            max_doctor_seconds=override,
             target_root=r"C:\target",
             projects="MAIN",
         )
@@ -540,6 +569,11 @@ def test_public_install_proof_cli_forwards_target_and_project_scope(monkeypatch)
 
     assert result == 0
     assert commands[0][-4:] == ["--target-root", r"C:\target", "--projects", "MAIN"]
+    if override is None:
+        assert "--max-doctor-seconds" not in commands[0]
+    else:
+        start = commands[0].index("--max-doctor-seconds")
+        assert commands[0][start + 1] == str(override)
 
 
 def test_public_setup_only_init_selects_setup_bootstrap(monkeypatch):

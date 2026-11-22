@@ -26,7 +26,80 @@ All target-repository actors must preserve the channel-independent boundary
 is `config/actor_interaction_contract.json`; this skill narrows that contract to
 the target-repository role and does not redefine authority or validation semantics.
 
+## Explicit Literal Registry Review
+
+When the target owner declares key-to-ID equality, the installation-side command
+`python -B -m tools.inspect_target --registry-contract contracts/genres.json --target-root <absolute-target-root>`
+reads exactly the named target-relative JSON contract and its pinned JSON source.
+It writes no target files or analysis artifacts and does not refresh Atlas.
+The contract has `version: v1-literal-json-key-id`, a `source` object with
+`path`, exact raw-byte `sha256` and object-only JSON `pointer` (empty for root),
+an `id_field` naming a direct string field, and an explicit `exceptions` list.
+Each exception names one exact `key`, `expected_id` and nonempty `reason`;
+changed, missing, duplicate or redundant exceptions are refused.
+
+Mismatch and exception rows carry exact JSON-pointer source locations, not
+compiler spans or line numbers. All selected rows are checked before bounded
+display; matched, mismatched, excepted, unresolved and display omissions stay
+separate. Exit zero means only a checked or empty declared scope, not repository
+health. Missing contracts, source-hash drift, ambiguous JSON, unsupported shapes,
+escaping/linked paths and exceeded limits cannot become a clean verdict.
+Do not invent this domain contract from an arbitrary object map or copy a
+historical SHA to certify changed bytes. JS/computed registries, ordering,
+localization, subsets, duplicate-ID semantics and runtime correctness are outside
+the JSON protocol. Review native target evidence before any proposed edit.
+
+The same opt-in command also accepts `version: v1-typescript-literal-key-id`.
+Its `source` has `path`, raw-byte `sha256`, exact Atlas `project`, `atlas_path`
+and top-level `symbol`, instead of a JSON pointer. It requires already indexed
+current compiler facts and the exact selected primary file plus matching SQLite
+source snapshot; it never refreshes analysis or borrows another target's Atlas.
+The parser captures only direct, uniquely bound top-level single `const` object
+initializers with direct literal row objects. Type annotations may be present but
+are not checked. Spread/computed/duplicate/getter/prototype-affecting keys,
+escaped names, wrappers such as `as const`/`satisfies`, mutable/nested bindings,
+and exhausted capture budgets cannot yield compliance. Nonliteral string IDs
+stay unresolved. Rows carry UTF-8 source spans and source-inspection follow-ups,
+not JSON pointers. Values describe only the initializer, even if later code
+mutates it; checked equality is never a claim about loaded/runtime state.
+The target declaration alone supplies the ID field and exact exceptions.
+
+For an explicitly selected inner map, use `version: v2-typescript-literal-path-key-id`
+with the same source fields plus `member_path`, an array of one to four literal
+property names, e.g. `["youngAdultBooks", "subgenres"]`. A name containing a dot
+is one key, not an expression; numeric indices, wildcards and implicit recursion
+are not selectors. Only that selected object's direct object rows are compared.
+Root, sibling and deeper maps receive no inferred equality/exception rule.
+The independently bounded `literal_registry_member_evidence` syntax lane must
+link every selected step and row to the current root facts and snapshot. Missing,
+unsupported, stale, truncated or ambiguous paths refuse the claim. Capture
+exhaustion withholds this optional lane without evicting the v1 root facts.
+Old captures are not refreshed automatically; neither this selector nor a
+separator flag supplies target-domain authority or runtime correctness.
+
 ## Core Rule
+
+An unreferenced export is not deletion authority. When file inspection includes
+`intent_review.status=evidence_required`, its bounded questions request actual
+consumer/callback/UI/state evidence and contrary public-contract or obsolete-code
+evidence. `integration_status=unknown` and `correlation_status=not_evaluated`
+are deliberate: this is guidance, not a detected incomplete integration. Legacy,
+changed-policy or malformed requests remain unavailable; do not reconstruct a
+positive result or infer absence from missing guidance.
+
+An optional `wiring_source_observations` file-inspection section lists separate
+source facts with exact follow-up ranges. It does not associate an unused import
+with a particular empty callback, prove intent or propose mutation. Review the
+listed source and contrary contract/dynamic-use evidence; omitted, partial or
+unavailable observations never establish clean code or complete integration.
+An optional `wiring_review_candidate` is only a manual-review cue when both fact
+kinds are actually shown from a complete observation. Its record indices refer
+to `wiring_source_observations.records`; they are not intended wiring edges.
+Check the separate review questions and contrary evidence before proposing work.
+A use elsewhere (even in an unexecuted branch) can withhold the unused-import
+fact without proving this UI action is connected. TODO/retirement comments and
+string-based names do not settle intent; an unresolved imported name does not
+prove an export exists or is callable. Treat all these as review context only.
 
 - Nexora assists the AI agent; the AI agent assists the human; the human owns approval.
 - Treat `codemaps.config.json` as runtime truth.
@@ -118,11 +191,27 @@ SAGE-self-only context must not be routed through a target-profile bypass.
   use the same semantics for indexed path and project scope. This is not full
   Unicode case folding, filesystem normalization or a guarantee that the
   Atlas fallback projects derived-syntax candidates.
+- The four derived method/action/import/call projections admit recorded names
+  in the conservative Unicode XID-plus-`$` subset, preserving their exact
+  spelling. They do not normalize composed/decomposed or compatibility forms.
+  This is not a general ECMAScript lexer: join controls, escaped/quoted/computed
+  class-member spellings and wider producer grammar remain outside the slice.
+  Static literal-bracket namespace calls retain their existing ASCII capture
+  subset; this storage change does not broaden that producer. Existing
+  binding/span/coverage rules and runtime denials still apply. Old indexes are
+  not backfilled by reads; only a separately authorized current acquisition can
+  populate the newly admitted names under the current AST identity.
 - ClassMethod search rows preserve the declaring class and recorded member span,
   not proven calls or runtime behavior. Use their inspect_file follow-up.
   Check class_method_search coverage: legacy/unprojected or malformed evidence
   is unavailable/partial, not proof of absence. This scope excludes constructors,
   interface/computed/quoted members and initializer/store actions.
+- ClassGetter/ClassSetter rows separately expose recorded identifier-named Class
+  accessor syntax, preserving get/set identity, declaring class, static marker
+  and recorded span. Check class_accessor_search coverage; legacy/unprojected
+  or malformed evidence is unavailable/partial, never absence. Searching does
+  not evaluate an accessor, infer a value/read/write/inheritance relationship,
+  refresh source or grant edit authority. Use the ordinary inspect_file follow-up.
 - StoreActionCandidate rows separately expose direct setter-call member syntax in
   checker-bound named-import or namespace-qualified Zustand create/createStore
   initializers, preserving the declaring
@@ -179,6 +268,17 @@ SAGE-self-only context must not be routed through a target-profile bypass.
   grants source snippets, edit readiness, resolved exports/types or runtime
   proof. Line-range requests are unsupported for this metadata-only view;
   ordinary implementation inspection and patch validation remain separate.
+- Explicit `inspect_file("PROJECT::dist/index.d.ts", evidence_focus="declared_artifact")`
+  selects stored byte-observation metadata, not declaration headers or source.
+  Atlas may observe exact top-level `types`/`typings` declaration-suffix targets
+  in the policy-permitted `dist/build` roots without indexing generated code.
+  The view shows raw byte hash/size and literal manifest provenance; it does not
+  prove a build produced the file, package inclusion, declaration validity or
+  current disk freshness. Missing/unreadable/linked/partial/old input remains
+  unavailable, not a missing-output defect. No source snippets, line-range,
+  edit readiness, target execution or automatic refresh is granted. Default
+  inspection and declaration/source links are unchanged; use an exact project
+  and project-relative path. Producer and display omissions are separate.
 - The optional `manifest_type_links` section in declaration inspection records
   same-project stored top-level `types`/`typings` literal path correspondence.
   It preserves the manifest field/order and raw manifest/declaration identities;
@@ -524,6 +624,134 @@ has no server receipt. Do not claim otherwise or retry the large text via argv.
   unresolved/barrel/ambiguous/drifted candidates must not be guessed or treated
   as safety. These lanes share the compact budget and disclose omissions;
   absent legacy metadata is not an observed-empty new lane.
+  An optional `client_safeparse_success_evidence` section shows finite same-file
+  `safeParse(raw)` / `if(result.success)` / `setState(result.data)` source facts.
+  A same-named passthrough also qualifies; schema validity, compatible result,
+  reachability and actual state/render execution remain unproved. Follow its
+  exact setter span and `inspect_file` source range. The sample is file-wide,
+  independent of your requested snippet range. It shares existing syntax/record
+  and complete-packet limits, settles after older facts, and may be omitted
+  without evicting them. Producer omissions and display omissions are separate;
+  unavailable/legacy/corrupt or empty evidence is not absence or clean code.
+  This section never grants edit authority; existing source/snippet rules remain.
+  The separate optional `effect_safeparse_callback_evidence` section records
+  finite named React effect `safeParse(input)` / positive `result.success` /
+  final `...result.data` object spread to a parameter callback source syntax.
+  Request `inspect_file(..., evidence_focus="effect_safeparse")` for only this
+  optional source lane; other optional sections are explicitly not requested,
+  while normal source/snippet/edit-readiness rules remain unchanged. Default
+  inspection preserves all older sections first; `status: withheld_budget`
+  means no source record/count could fit, not an empty or absent relation.
+  Follow the complete callback span and focus-bearing source range. Partial
+  producer state and display omissions remain separate. A safeParse spelling
+  can be an always-successful passthrough: form/schema correctness, compatible
+  data, callback callability, effect activation and runtime execution remain
+  unproved. This source context grants no mutation or edit authority.
+  `effect_safeparse_merge_evidence` is a different optional lane for exactly
+  `{...componentParameter, ...result.data}` in that finite effect/callback shape.
+  Use `evidence_focus="effect_safeparse_merge"` to request it alone. Its callback
+  span and two source follow-ups show the effect and original parameter/default.
+  Spread order is source syntax only: prior contents/default evaluation, getters,
+  collisions, final merged value and schema/runtime behavior stay unknown.
+  It settles last within unchanged budgets; unavailable, withheld or empty is
+  not a safety/absence finding. It never grants edit or mutation authority.
+  The optional `resolver_factory_evidence` section links a runtime named
+  `zodResolver` import from `@hookform/resolvers/zod` to the direct named-import
+  factory call passed as its sole argument. Request `evidence_focus="resolver_factory"`
+  for this source-only lane. Aliases are retained; factory arguments (up to four)
+  stay opaque, including calls such as `Boolean(value)`. Follow the exact call,
+  both imports and any independently source-bound direct-export candidate.
+  This source link alone does not bind arguments to formals or prove hook-form
+  registration, installed library identity, schema validity or runtime behavior.
+  Optional/generic/member/wrapped calls, spreads, trailing commas, type-only,
+  shadowed or written bindings are outside this first subset. The file-wide
+  sample settles after older sections under unchanged primary/snapshot/live,
+  compact/record/whole-response limits; producer/display omissions remain separate.
+  Missing, corrupt, old, withheld or empty evidence is not absence or safety.
+  Snippet/edit-context readiness stays independent and grants no new authority.
+  In this resolver lane an independently source-bound factory definition may additionally expose
+  `return_construction.callback_guard_reads`: a separate source-only category
+  for the single required factory formal in the first bare `if (formal) return;`
+  of a synchronous parenthesized block-arrow passed directly to `superRefine`.
+  Follow the exact formal and guard ranges. This is definition-only capture
+  syntax, not a direct-argument use, actual/formal value link, callback activation,
+  validation effect or runtime result. Other conditions, later/nested guards,
+  expression/function/async callbacks and typed/default/rest callback parameters
+  are outside this subset. New detail is last-priority within existing budgets;
+  empty/omitted/withheld/unavailable never means unused, absent or safe.
+  A separate optional `factory_source_candidate.call_parameter_binding` can
+  associate a sole opaque factory argument with its independently source-bound
+  single required formal, by position only. It settles after older callback
+  facts in default/resolver-factory output and may be withheld. Request
+  `evidence_focus="resolver_parameter"` for this narrow association instead:
+  construction/const/callback details are explicitly not requested, not absent.
+  The same current primary/snapshot/live guards and output budgets still apply.
+  Follow the complete actual-expression and formal-parameter source ranges;
+  no actual name or value is inferred, even for `Boolean(x)` or a literal.
+  Zero/multiple actuals, unavailable or unsupported formals and unbound/corrupt
+  source metadata cannot establish a join. This is not compatible typing,
+  parameter effects, callback activation, validation success or runtime proof.
+  For a short navigation path request `evidence_focus="resolver_chain"`.
+  Its `resolver_factory_evidence.records[].source_chain.steps` links the
+  resolver call, direct factory definition, positional formal and a separately
+  admitted definition-only callback guard. It reuses current source evidence;
+  it is not a value-flow or execution trace. A missing link stops the prefix
+  with an explicit partial reason. Multiple or producer-omitted callback guards
+  do not authorize choosing one as a complete chain. Other optional details
+  are explicitly not requested in this focus; older views stay unchanged.
+  Each complete source followup costs one shared span. Whole navigation records
+  fit within unchanged compact/full-response limits or are display-omitted;
+  paths are never shortened. Partial, missing or omitted is not absence/safety,
+  and a full source chain establishes no callback execution or edit authority.
+  The optional `safeparse_early_return_evidence` section shows a finite
+  destructured `success` binding and adjacent negative guard ending in a bare
+  return. Request `evidence_focus="safeparse_early_return"` for only this optional
+  source lane. Follow the complete guard span and exact callback/guard, input
+  declaration and factory-import ranges. A `factory_source_candidate` may point
+  to one indexed direct const-arrow or named synchronous function-declaration
+  export, independently matched to snapshot
+  and live source. A cross-project target additionally requires the stored
+  versioned declared-workspace-alias candidate and exact source/target project
+  and workspace-file identity. This is captured static source orientation, not
+  current native module resolution; ordinary dependency edges are unchanged.
+  Missing, ambiguous, type-only, re-exported or stale
+  bindings stay unresolved; the import-range follow-up is kept separately.
+  Its optional `return_construction` detail can show the retained imported-root
+  method chain, explicit factory kind and exact return-source follow-up. Named
+  function declarations require a direct export and a finite final-return body;
+  async/generator, overload, nested and re-exported forms are not inferred.
+  A single preceding untyped `const` identifier actual in `makeSchema(options)`
+  may additionally expose `call_parameter_binding`: one positional source link
+  to a single required identifier parameter of that exact factory, with caller
+  declaration and formal-parameter follow-ups. Optional/default/rest/destructured,
+  multiple, TypeScript `this`, escaped-name or ambiguous parameters, and indirect/mutable/late/shadowed actuals,
+  do not qualify. Type annotations and initializers are opaque; this proves no
+  value, type compatibility, parameter use, schema behavior or execution. The
+  optional link is fitted last under existing shared budgets; missing/withheld
+  detail is not absence or safety, and zero-argument source behavior is retained.
+  The association's optional `source_uses` lists only checker-bound direct
+  identifier uses of that formal as arguments in the returned fluent chain.
+  Method/call/argument positions and exact source follow-ups are syntax facts,
+  not value, effect or execution proof. Property/object/alias/cast/nested uses
+  are not followed. Inspect both producer and display omissions; this detail
+  fits after all older fields and never raises the existing budgets. An empty,
+  unavailable or withheld list is not evidence that the parameter is unused.
+  `not_observed` means the
+  selected definition is not in the retained finite records, not absent validation.
+  Missing/stale/corrupt records remain unavailable; producer omissions stay explicit.
+  This detail is withheld before older definition/record fields when budgets fill.
+  Its optional `argument_bindings` can associate a retained direct/shorthand
+  argument with a preceding module/factory `const` and provide an exact declaration
+  follow-up. Initializer values and schema/runtime behavior stay unknown. The
+  complete parent and argument records must validate before selection. Older
+  construction fields settle first; new whole rows use only the remaining shared
+  record/token budget, with explicit display and file-wide producer omissions.
+  This candidate is source orientation only. Factory/schema behavior, boolean meaning, exceptions,
+  callback activation and safety of later operations remain unknown. The sample
+  is file-wide, independent of the snippet range; producer/display omissions
+  stay separate. Existing primary/snapshot/live, snippet and edit-readiness rules
+  and all budgets remain unchanged. Empty, unavailable, legacy or withheld
+  evidence never proves absence, safe continuation or edit/mutation authority.
   The separate `response_json_return_evidence` lane records only an exact
   top-level TS/TSX async fetch/JSON/return three-statement body. It preserves a
   whole JSON value versus literal field path and one outer type assertion.
@@ -700,6 +928,30 @@ has no server receipt. Do not claim otherwise or retry the large text via argv.
   not proof of clean execution, and a warning near a component may come from
   its test double or provider setup rather than production code.
 
+Test Impact's optional `dependency_witness` explains one representative path
+from a listed test to the changed file in the loaded static graph. Follow its
+complete project-qualified `target_refs` in order; a shared dependency fork is
+not such a path. It proves neither fresh source edges, runtime calls, mock
+activation nor executed coverage of the changed behavior. Missing, ambiguous,
+legacy or budget-withheld navigation never means no relevant test exists.
+The brief fits whole optional paths only after older candidates, snippets and
+command-source detail; use `format="machine"` for retained detail. Do not infer
+edit or mutation authority from a graph path.
+
+Test Impact keeps compatibility `run_command` values as unverified language
+templates or inherited suggestions, identified by `run_command_evidence`.
+A package-manager prefix alone never proves a target script declaration.
+An optional `package_script_suggestion` separately observes the nearest literal
+`test` script inside that candidate's explicit project root. It carries the
+current manifest SHA-256, project, declared manager and working directory
+relative to `analysis_root`; run its fixed-directory command only from that
+stated directory after review. No test filename or flag is appended. Missing,
+ambiguous, linked, changed or unsupported inputs remain unavailable. This is a
+bounded current live-source observation, not Atlas snapshot/producer lineage,
+installed tooling, valid/safe configuration or a passing test. No command is
+executed. New brief details fit only after older evidence; use `format=machine`
+when they are withheld. Do not treat a package-wide script as focused-file proof.
+
 ## Safety Guidance
 
 Existing native logs may be identity-ingested with
@@ -712,6 +964,20 @@ current source/config bytes by itself does not authenticate a historical run or 
 Atlas lineage, full input capture, clean diagnostics or changed-effect coverage.
 The receipt persists hashes and bounded metadata, not raw logs/source/argv.
 Missing metadata is not synthesized for legacy logs. Optional
+`--diagnostic-format eslint_9_39_1_json_v1` observes only the declared built-in
+ESLint 9.39.1 result-array JSON from captured stdout. It does not run ESLint or
+authenticate the declared version. Active, suppressed, fatal and unlocated
+diagnostics remain separate; counts are checked against captured entries.
+Only exact already declared source identifiers get input indexes. Their current
+byte status and optional Atlas correspondence do not verify reported locations,
+processor origin, historical execution, effective config or plugin identity.
+Stderr is hashed but not interpreted. Unsupported shapes, malformed JSON and
+budget limits withhold all diagnostics rather than return partial success.
+The receipt retains rule/severity/reported coordinates and message/path hashes,
+not raw messages, source/output, fixes or suppression justifications. No fix is
+applied. Empty, ignored or suppressed results never establish cleanliness;
+quality gates, combined verdict and static Test Impact authority are unchanged.
+Optional
 `--diagnostic-format vite_5_4_21_mixed_import_console_v1` recognizes only the
 declared Vite 5.4.21 single-line mixed static/dynamic import warning. It consumes
 the same captured matching bytes, deduplicates exact warning messages across
@@ -780,6 +1046,27 @@ A matching identifier is not an import edge, historical execution or source faul
   do not rediscover module topology on the host or treat a literal `/api`
   match as package-export legality. Legacy/corrupt/unsupported evidence stays
   unavailable without erasing ordinary findings. Existing approval rules apply.
+- Verified JS/TS import findings can separately expose `import_occurrence_evidence`
+  in work-queue, module-integrity and action-directive structured contexts.
+  `statement`, `module`, `binding`, `name` and `keyword` are half-open UTF-8 byte spans, with 1-based
+  lines, in the identified captured snapshot only. Repeated import statements
+  and multiple aliases stay distinct; the canonical record-level field above
+  remains unchanged. Inspect producer/display/subject omissions and subjects
+  without locations. Legacy, stale, unsupported or corrupt metadata withholds
+  locations, never the original finding. Only finite top-level literal static ES
+  imports are covered, not type-only/dynamic/require/reexport forms, escaped
+  module literals or import attributes. Re-read current source before editing:
+  snapshot navigation is not live freshness, absence, resolution, native policy,
+  causal/runtime proof or mutation authority.
+- Default Audit queue and module-integrity briefs may show a bounded
+  `captured_import_navigation` summary from that verified carrier. Line numbers
+  are 1-based; byte intervals are half-open UTF-8 positions in the named snapshot,
+  not current-file edit targets. Repeated statements/bindings stay separate.
+  Grouped findings deliberately withhold locations rather than reuse the first
+  finding's positions; request `format=machine` for per-finding detail.
+  Producer, carrier, subject and brief omissions are different. Optional detail
+  has lower priority than existing work items, grounding and safety instructions;
+  a missing summary can mean exhausted packet budget, not absent evidence.
 - Before asking for approval, use the public target-bound MCP lifecycle to create a HITL decision request with evidence and scope.
 - When approval is granted or denied, use that lifecycle to record it in the HITL approval ledger before acting, then close the request.
 - Keep AI answers in the Nexora response shape: verdict, evidence, confidence, risk, human_approval_required, suggested_next_action, source_artifacts.

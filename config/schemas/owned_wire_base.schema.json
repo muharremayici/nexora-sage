@@ -1,0 +1,379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private staged owned wire-base construction observation, not execution",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "schema_sha256",
+    "default_enabled",
+    "native_execution_enabled",
+    "raw_transport_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "source_profile",
+    "config_profile",
+    "extends_profile",
+    "source_key",
+    "config_key",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-owned-wire-base"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_wire_base.schema.json"
+    },
+    "schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_execution_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_transport_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "source_profile": {
+      "type": "string",
+      "const": "private_owned_text_bridge"
+    },
+    "config_profile": {
+      "type": "string",
+      "const": "private_owned_config_handoff"
+    },
+    "extends_profile": {
+      "type": "string",
+      "const": "private_owned_config_extends"
+    },
+    "source_key": {
+      "type": "string",
+      "const": "source_request"
+    },
+    "config_key": {
+      "type": "string",
+      "const": "tsconfig_request"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jsonl_bytes",
+        "sha256"
+      ],
+      "properties": {
+        "jsonl_bytes": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jsonl_bytes",
+        "sha256",
+        "source_bytes",
+        "config_bytes"
+      ],
+      "properties": {
+        "jsonl_bytes": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "config_bytes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "root",
+            "base"
+          ],
+          "properties": {
+            "root": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "base": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "code",
+        "components",
+        "base",
+        "binding_sha256",
+        "parent_ref_sha256",
+        "compound_frame_emitted",
+        "send_verified",
+        "native_execution_attested",
+        "base_content_verified",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-owned-wire-base"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "OWNED_WIRE_BASE_DERIVED_NOT_ADMITTED",
+            "OWNED_WIRE_BASE_UNAVAILABLE"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "wire_base_incomplete",
+            "wire_base_source_refused",
+            "wire_base_config_refused",
+            "wire_base_observer_unavailable",
+            "wire_base_disposed"
+          ]
+        },
+        "components": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "config"
+          ],
+          "properties": {
+            "source": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/component"
+              }
+            },
+            "config": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/component"
+              }
+            }
+          }
+        },
+        "base": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/base"
+          }
+        },
+        "binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_ref_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compound_frame_emitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "send_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "base_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "OWNED_WIRE_BASE_DERIVED_NOT_ADMITTED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "const": ""
+          },
+          "base": {
+            "type": "object"
+          },
+          "binding_sha256": {
+            "type": "string"
+          },
+          "parent_ref_sha256": {
+            "type": "string"
+          },
+          "components": {
+            "properties": {
+              "source": {
+                "type": "object"
+              },
+              "config": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "base": {
+            "type": "null"
+          },
+          "binding_sha256": {
+            "type": "null"
+          },
+          "parent_ref_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "result"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "RESULT_RETURNED",
+            "UNAVAILABLE"
+          ]
+        },
+        "result": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/receipt"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "state": {
+            "const": "RESULT_RETURNED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "object"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  }
+}

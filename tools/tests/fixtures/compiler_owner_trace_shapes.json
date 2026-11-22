@@ -1,0 +1,988 @@
+{
+  "schema": "nexora_sage_synthetic_compiler_owner_trace_shapes_v1",
+  "authority": "test_input_shapes_only_no_current_receipt_reuse_or_publication_authority",
+  "origin": {
+    "retained_source_sha256": "2bc2a667a288b764a52d850fa4f6658a4592dd2cae108038b172db8a5418fb34",
+    "projection": "Five synthetic record shapes and required error identity metadata only; historical test outcomes omitted."
+  },
+  "selected_cases": {
+    "successful_owner": {
+      "record": {
+        "compiled_retention_bytes": null,
+        "delivered_entry_bytes": 12,
+        "entry_sha256": "5d745c708243587a700f7cec13e64aeab3faf292a4c30e6d430d2395e0ba04aa",
+        "events": [
+          {
+            "first": null,
+            "kind": "transaction_begin",
+            "role": null,
+            "second": null,
+            "sequence": 0
+          },
+          {
+            "first": null,
+            "kind": "open_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 1
+          },
+          {
+            "first": null,
+            "kind": "open_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 2
+          },
+          {
+            "first": 13,
+            "kind": "allocation_request",
+            "role": "entry",
+            "second": 12,
+            "sequence": 3
+          },
+          {
+            "first": 13,
+            "kind": "backing_ready",
+            "role": "entry",
+            "second": 12,
+            "sequence": 4
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 5
+          },
+          {
+            "first": 12,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 6
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 7
+          },
+          {
+            "first": 0,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 8
+          },
+          {
+            "first": null,
+            "kind": "close_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 9
+          },
+          {
+            "first": null,
+            "kind": "close_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 10
+          },
+          {
+            "first": 12,
+            "kind": "view_handoff",
+            "role": "entry",
+            "second": null,
+            "sequence": 11
+          },
+          {
+            "first": 12,
+            "kind": "text_ready",
+            "role": "entry",
+            "second": 7,
+            "sequence": 12
+          },
+          {
+            "first": 591,
+            "kind": "owner_publish",
+            "role": "entry",
+            "second": null,
+            "sequence": 13
+          },
+          {
+            "first": 12,
+            "kind": "borrow_begin",
+            "role": "entry",
+            "second": 7,
+            "sequence": 14
+          },
+          {
+            "first": 12,
+            "kind": "text_use",
+            "role": "entry",
+            "second": 7,
+            "sequence": 15
+          },
+          {
+            "first": 0,
+            "kind": "owner_release",
+            "role": "entry",
+            "second": 0,
+            "sequence": 16
+          },
+          {
+            "first": null,
+            "kind": "owner_scope_complete",
+            "role": null,
+            "second": null,
+            "sequence": 17
+          }
+        ],
+        "expected_sha256": "55e42b32a81122f57dd603238144896062c905c5abb07fdf93bc1e3bc4bfcc9c",
+        "flags": {
+          "atomic_snapshot_verified": false,
+          "cache_eligible": false,
+          "compiled_storage_priced": false,
+          "compiler_loaded": false,
+          "input_code_evaluated": false,
+          "physical_memory_bounded": false,
+          "production_enabled": false,
+          "publication_authority": false,
+          "read_authority_granted": false,
+          "reservation_change_eligible": false,
+          "semantic_lineage": false,
+          "source_freshness_verified": false,
+          "whole_transaction_complete": false
+        },
+        "known_named_inputs_reserved_bytes": 1333276,
+        "metadata_reserved_bytes": 329200,
+        "owner_released": true,
+        "owner_scope_complete": true,
+        "physical_fit": null,
+        "recording_incomplete": false,
+        "role_closes": 5,
+        "role_opens": 5,
+        "scope": "temporary_synthetic_entry_owner_lifetime_only",
+        "status": "SYNTHETIC_ENTRY_OWNER_TRACE_COMPLETED_NOT_COMPILER_ADMITTED",
+        "text_sha256": "5d745c708243587a700f7cec13e64aeab3faf292a4c30e6d430d2395e0ba04aa",
+        "transaction_settled": false,
+        "version": "v1-private-synthetic-entry-owner-trace"
+      }
+    },
+    "read_and_unknown_close": {
+      "record": {
+        "close_unknown": true,
+        "compiler_loaded": false,
+        "events": [
+          {
+            "first": null,
+            "kind": "transaction_begin",
+            "role": null,
+            "second": null,
+            "sequence": 0
+          },
+          {
+            "first": null,
+            "kind": "open_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 1
+          },
+          {
+            "first": null,
+            "kind": "open_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 2
+          },
+          {
+            "first": 42,
+            "kind": "allocation_request",
+            "role": "entry",
+            "second": 41,
+            "sequence": 3
+          },
+          {
+            "first": 42,
+            "kind": "backing_ready",
+            "role": "entry",
+            "second": 41,
+            "sequence": 4
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 5
+          },
+          {
+            "first": null,
+            "kind": "read_unknown",
+            "role": "entry",
+            "second": null,
+            "sequence": 6
+          },
+          {
+            "first": null,
+            "kind": "close_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 7
+          },
+          {
+            "first": null,
+            "kind": "close_unknown",
+            "role": "entry",
+            "second": null,
+            "sequence": 8
+          }
+        ],
+        "owner_released": false,
+        "owner_scope_complete": false,
+        "physical_fit": null,
+        "recording_incomplete": false,
+        "role_closes": 4,
+        "role_opens": 5,
+        "status": "INCOMPLETE_SYNTHETIC_OWNER_TRACE_NOT_SUCCESS",
+        "transaction_settled": false
+      },
+      "primary_error_code": "injected_original",
+      "original_error_identity_retained": true
+    },
+    "recording_loss": {
+      "record": {
+        "close_unknown": false,
+        "compiler_loaded": false,
+        "events": [
+          {
+            "first": null,
+            "kind": "transaction_begin",
+            "role": null,
+            "second": null,
+            "sequence": 0
+          },
+          {
+            "first": null,
+            "kind": "open_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 1
+          },
+          {
+            "first": null,
+            "kind": "open_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 2
+          },
+          {
+            "first": 301,
+            "kind": "allocation_request",
+            "role": "entry",
+            "second": 300,
+            "sequence": 3
+          },
+          {
+            "first": 301,
+            "kind": "backing_ready",
+            "role": "entry",
+            "second": 300,
+            "sequence": 4
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 5
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 6
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 7
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 8
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 9
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 10
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 11
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 12
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 13
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 14
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 15
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 16
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 17
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 18
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 19
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 20
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 21
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 22
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 23
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 24
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 25
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 26
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 27
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 28
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 29
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 30
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 31
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 32
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 33
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 34
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 35
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 36
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 37
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 38
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 39
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 40
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 41
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 42
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 43
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 44
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 45
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 46
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 47
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 48
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 49
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 50
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 51
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 52
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 53
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 54
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 55
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 56
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 57
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 58
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 59
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 60
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 61
+          },
+          {
+            "first": 2,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 62
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 63
+          }
+        ],
+        "owner_released": false,
+        "owner_scope_complete": false,
+        "physical_fit": null,
+        "recording_incomplete": true,
+        "role_closes": 5,
+        "role_opens": 5,
+        "status": "INCOMPLETE_SYNTHETIC_OWNER_TRACE_NOT_SUCCESS",
+        "transaction_settled": false
+      },
+      "primary_error_code": "trace_event_budget",
+      "original_error_identity_retained": false
+    },
+    "borrow_abort": {
+      "record": {
+        "close_unknown": false,
+        "compiler_loaded": false,
+        "events": [
+          {
+            "first": null,
+            "kind": "transaction_begin",
+            "role": null,
+            "second": null,
+            "sequence": 0
+          },
+          {
+            "first": null,
+            "kind": "open_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 1
+          },
+          {
+            "first": null,
+            "kind": "open_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 2
+          },
+          {
+            "first": 42,
+            "kind": "allocation_request",
+            "role": "entry",
+            "second": 41,
+            "sequence": 3
+          },
+          {
+            "first": 42,
+            "kind": "backing_ready",
+            "role": "entry",
+            "second": 41,
+            "sequence": 4
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 5
+          },
+          {
+            "first": 41,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 6
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 7
+          },
+          {
+            "first": 0,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 8
+          },
+          {
+            "first": null,
+            "kind": "close_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 9
+          },
+          {
+            "first": null,
+            "kind": "close_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 10
+          },
+          {
+            "first": 41,
+            "kind": "view_handoff",
+            "role": "entry",
+            "second": null,
+            "sequence": 11
+          },
+          {
+            "first": 41,
+            "kind": "text_ready",
+            "role": "entry",
+            "second": 41,
+            "sequence": 12
+          },
+          {
+            "first": 620,
+            "kind": "owner_publish",
+            "role": "entry",
+            "second": null,
+            "sequence": 13
+          },
+          {
+            "first": 0,
+            "kind": "owner_abort",
+            "role": "entry",
+            "second": 0,
+            "sequence": 14
+          }
+        ],
+        "owner_released": true,
+        "owner_scope_complete": false,
+        "physical_fit": null,
+        "recording_incomplete": false,
+        "role_closes": 5,
+        "role_opens": 5,
+        "status": "INCOMPLETE_SYNTHETIC_OWNER_TRACE_NOT_SUCCESS",
+        "transaction_settled": false
+      },
+      "primary_error_code": "TypeError",
+      "original_error_identity_retained": false
+    },
+    "post_owner_output_failure": {
+      "record": {
+        "close_unknown": false,
+        "compiler_loaded": false,
+        "events": [
+          {
+            "first": null,
+            "kind": "transaction_begin",
+            "role": null,
+            "second": null,
+            "sequence": 0
+          },
+          {
+            "first": null,
+            "kind": "open_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 1
+          },
+          {
+            "first": null,
+            "kind": "open_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 2
+          },
+          {
+            "first": 42,
+            "kind": "allocation_request",
+            "role": "entry",
+            "second": 41,
+            "sequence": 3
+          },
+          {
+            "first": 42,
+            "kind": "backing_ready",
+            "role": "entry",
+            "second": 41,
+            "sequence": 4
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 5
+          },
+          {
+            "first": 41,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 6
+          },
+          {
+            "first": null,
+            "kind": "read_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 7
+          },
+          {
+            "first": 0,
+            "kind": "read_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 8
+          },
+          {
+            "first": null,
+            "kind": "close_attempt",
+            "role": "entry",
+            "second": null,
+            "sequence": 9
+          },
+          {
+            "first": null,
+            "kind": "close_return",
+            "role": "entry",
+            "second": null,
+            "sequence": 10
+          },
+          {
+            "first": 41,
+            "kind": "view_handoff",
+            "role": "entry",
+            "second": null,
+            "sequence": 11
+          },
+          {
+            "first": 41,
+            "kind": "text_ready",
+            "role": "entry",
+            "second": 41,
+            "sequence": 12
+          },
+          {
+            "first": 620,
+            "kind": "owner_publish",
+            "role": "entry",
+            "second": null,
+            "sequence": 13
+          },
+          {
+            "first": 41,
+            "kind": "borrow_begin",
+            "role": "entry",
+            "second": 41,
+            "sequence": 14
+          },
+          {
+            "first": 41,
+            "kind": "text_use",
+            "role": "entry",
+            "second": 41,
+            "sequence": 15
+          },
+          {
+            "first": 0,
+            "kind": "owner_release",
+            "role": "entry",
+            "second": 0,
+            "sequence": 16
+          },
+          {
+            "first": null,
+            "kind": "owner_scope_complete",
+            "role": null,
+            "second": null,
+            "sequence": 17
+          }
+        ],
+        "owner_released": true,
+        "owner_scope_complete": false,
+        "physical_fit": null,
+        "recording_incomplete": false,
+        "role_closes": 5,
+        "role_opens": 5,
+        "status": "INCOMPLETE_SYNTHETIC_OWNER_TRACE_NOT_SUCCESS",
+        "transaction_settled": false
+      },
+      "primary_error_code": "trace_output_budget",
+      "original_error_identity_retained": false
+    }
+  }
+}

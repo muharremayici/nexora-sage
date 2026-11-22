@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Disabled synthetic atomic declaration text process",
+  "$defs": {
+    "driver_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "layout_profile",
+        "encoder_profile",
+        "stager_profile",
+        "result_definition",
+        "result_status",
+        "model",
+        "claim_boundary",
+        "schema_sha256",
+        "refusal_codes",
+        "expected_completion_definition",
+        "preparation_profile"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-compiler-text-process"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_declaration_text_process.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "driver_policy"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "layout_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_layout"
+        },
+        "encoder_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_encoder"
+        },
+        "stager_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_js_stager"
+        },
+        "result_definition": {
+          "type": "string",
+          "const": "driver_result"
+        },
+        "result_status": {
+          "type": "string",
+          "const": "SYNTHETIC_COMPILER_TEXT_PROCESS_COMPLETED_NOT_IMAGE_ADMITTED"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_atomic_text_one_credit_os_pipe_v1"
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "stream_driver_context_invalid",
+            "stream_driver_deadline",
+            "stream_driver_cancelled",
+            "stream_driver_bootstrap_budget",
+            "stream_driver_response_budget",
+            "stream_driver_stderr_budget",
+            "stream_driver_response_incomplete",
+            "stream_driver_response_invalid",
+            "stream_driver_response_trailing",
+            "stream_driver_pipe",
+            "stream_driver_encoder_refused",
+            "stream_driver_child_failed",
+            "stream_driver_cleanup_unsettled"
+          ]
+        },
+        "expected_completion_definition": {
+          "type": "string",
+          "const": "driver_expected_completion"
+        },
+        "preparation_profile": {
+          "type": "string",
+          "const": "private_compiler_declaration_text_set_preparation"
+        }
+      }
+    },
+    "driver_expected_completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files_completed",
+        "raw_bytes_staged",
+        "prepared_text_summary_sha256"
+      ],
+      "properties": {
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prepared_text_summary_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "driver_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "session_id",
+        "manifest_sha256",
+        "context_sha256",
+        "inventory_sha256",
+        "files_completed",
+        "raw_bytes_staged",
+        "receiver_state",
+        "owned_buffer_bytes",
+        "raw_bytes_verified_in_model",
+        "real_source_transfer",
+        "raw_content_verified",
+        "host_text_verified",
+        "production_enabled",
+        "native_execution_attested",
+        "semantic_lineage",
+        "cache_eligible",
+        "node_version",
+        "prepared_text_summary_sha256",
+        "composition_policy_sha256",
+        "composition_schema_sha256",
+        "preparation_policy_sha256",
+        "preparation_schema_sha256",
+        "image_policy_sha256",
+        "prepared_state",
+        "retained_text_records",
+        "declaration_text_pins_verified",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "image_admitted",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "loaded_code_attested"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "result"
+        },
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-compiler-text-process"
+        },
+        "status": {
+          "type": "string",
+          "const": "SYNTHETIC_COMPILER_TEXT_PROCESS_COMPLETED_NOT_IMAGE_ADMITTED"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "receiver_state": {
+          "type": "string",
+          "const": "DISPOSED"
+        },
+        "owned_buffer_bytes": {
+          "type": "integer",
+          "const": 0
+        },
+        "raw_bytes_verified_in_model": {
+          "type": "boolean",
+          "const": true
+        },
+        "real_source_transfer": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "host_text_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "node_version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "prepared_text_summary_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "composition_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "composition_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "preparation_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "preparation_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "prepared_state": {
+          "type": "string",
+          "const": "DISPOSED"
+        },
+        "retained_text_records": {
+          "type": "integer",
+          "const": 0
+        },
+        "declaration_text_pins_verified": {
+          "type": "boolean",
+          "const": true
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "image_admitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/driver_result"
+}

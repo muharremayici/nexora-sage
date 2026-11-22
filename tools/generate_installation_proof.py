@@ -27,6 +27,8 @@ from tools.core.config import (
 from tools.core.init_execution_contract import init_mode_contract, installation_proof_init_mode
 from tools.core.installation_authority import (
     PUBLIC_TARGET_REPOSITORY_PROFILE,
+    InstallationDoctorBudgetError,
+    public_release_doctor_budget,
     resolve_installation_authority_profile,
 )
 from tools.core.operational_limits import install_proof_step_timeout_seconds
@@ -239,7 +241,7 @@ def _commands_for_level(
     level: str,
     *,
     skip_deps: bool,
-    max_doctor_seconds: int,
+    max_doctor_seconds: int | None,
     target_root: str | None = None,
     projects: str | None = None,
     public_distribution: bool | None = None,
@@ -249,8 +251,15 @@ def _commands_for_level(
         public_distribution=public_distribution
     )
     doctor_command = [py, "sage.py", "doctor", "--skip-release-proof"]
+    doctor_timeout = max(1, int(max_doctor_seconds or install_proof_step_timeout_seconds("doctor")))
     if authority_profile == PUBLIC_TARGET_REPOSITORY_PROFILE:
-        doctor_command.extend(_public_doctor_validation_arguments())
+        validation_arguments = _public_doctor_validation_arguments()
+        if level == "release":
+            contract = json.loads(INSTALLATION_CONTRACT_PATH.read_text(encoding="utf-8"))
+            budget = public_release_doctor_budget(contract, outer_override=max_doctor_seconds)
+            validation_arguments[-1] = str(budget["quick_validation_seconds"])
+            doctor_timeout = budget["outer_doctor_watchdog_seconds"]
+        doctor_command.extend(validation_arguments)
     steps: list[dict[str, Any]] = [
         {
             "id": "installation_contract",
@@ -262,7 +271,7 @@ def _commands_for_level(
             "id": "doctor",
             "label": "Doctor health check",
             "command": doctor_command,
-            "timeout": max(1, int(max_doctor_seconds or install_proof_step_timeout_seconds("doctor"))),
+            "timeout": doctor_timeout,
         },
         {
             "id": "mcp_config",
@@ -344,7 +353,7 @@ def build_installation_proof(
     level: str,
     *,
     skip_deps: bool,
-    max_doctor_seconds: int,
+    max_doctor_seconds: int | None,
     target_root: str | None = None,
     projects: str | None = None,
     public_distribution: bool | None = None,
@@ -390,6 +399,8 @@ def build_installation_proof(
             timeout=int(spec["timeout"]),
             env=execution_env,
         )
+        if spec["id"] == "doctor" and level == "release" and authority_profile == PUBLIC_TARGET_REPOSITORY_PROFILE:
+            row["timeout_seconds"] = spec["timeout"]
         print(f"[install-proof] {'PASS' if row['passed'] else 'FAIL'} {spec['label']} ({row['duration_seconds']}s)", flush=True)
         steps.append(row)
         if spec["id"] == "daily_run" and preflight_reuse.get("status") == "TRANSPORT_BOUND":
@@ -568,18 +579,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a machine-local Nexora SAGE installation proof report.")
     parser.add_argument("--level", choices=["smoke", "daily", "release"], default="smoke")
     parser.add_argument("--skip-deps", action="store_true", help="Pass --skip-deps to init when level is daily or release.")
-    parser.add_argument("--max-doctor-seconds", type=int, default=90)
+    parser.add_argument("--max-doctor-seconds", type=int)
     parser.add_argument("--target-root", help="Repository root to initialize and analyze for daily/release proof levels.")
     parser.add_argument("--projects", help="Comma-separated project filter forwarded to the daily analysis step.")
     args = parser.parse_args()
 
-    payload = build_installation_proof(
-        args.level,
-        skip_deps=bool(args.skip_deps),
-        max_doctor_seconds=int(args.max_doctor_seconds or 90),
-        target_root=args.target_root,
-        projects=args.projects,
-    )
+    try:
+        payload = build_installation_proof(
+            args.level,
+            skip_deps=bool(args.skip_deps),
+            max_doctor_seconds=args.max_doctor_seconds,
+            target_root=args.target_root,
+            projects=args.projects,
+        )
+    except InstallationDoctorBudgetError as exc:
+        parser.error(str(exc))
     save_json_atomic(RAW_OUTPUT_PATH, payload)
     save_text_atomic(REPORTS_DIR / "installation_proof.md", render_report(payload))
     prerequisite = payload.get("prerequisite", {})

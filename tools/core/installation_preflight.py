@@ -8,15 +8,23 @@ import os
 import platform
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
+import tempfile
+import time
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.installation_authority import (
+    PUBLIC_TARGET_REPOSITORY_PROFILE,
+    public_release_doctor_budget,
+    resolve_installation_authority_profile,
+)
 from tools.core.installation_identity import (
     EMBEDDED_TARGET_MODE,
     installation_target_mode,
@@ -24,6 +32,7 @@ from tools.core.installation_identity import (
 from tools.core.external_feature_modules import import_declared_external_module
 from tools.core.json_io import load_json_object_strict
 from tools.core.python_runtime_env import utf8_subprocess_env
+from tools.core.validate_execution_profiles import doctor_validator_profile
 
 
 CODE_MAPS_DIR = Path(__file__).resolve().parents[2]
@@ -228,35 +237,132 @@ def _module_target_available(module_name: str, attribute_name: str | None = None
     return not attribute_name or hasattr(module, attribute_name)
 
 
-def _command_observation(command: str, version_args: list[str]) -> dict[str, Any]:
+def command_observation_policy(contract: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = contract if contract is not None else load_installation_preflight_contract()
+    policy = payload.get("command_observation")
+    if not isinstance(policy, dict) or policy.get("protocol") != "bounded_runtime_command_observation_v1":
+        raise ValueError("Missing or unsupported command-observation policy")
+    limits = policy.get("timeout_seconds")
+    if not isinstance(limits, dict) or set(limits) != {"node", "npm", "git"}:
+        raise ValueError("Exact Node/npm/Git probe limits required")
+    patterns = policy.get("version_patterns")
+    if not isinstance(patterns, dict) or set(patterns) != set(limits):
+        raise ValueError("Each runtime query requires a declared version pattern")
+    for pattern in patterns.values():
+        if not isinstance(pattern, str) or not pattern:
+            raise ValueError("Nonempty version pattern required")
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError("Invalid version pattern") from exc
+    for value in [*limits.values(), policy.get("cleanup_seconds")]:
+        if type(value) not in (int, float) or not 0 < value <= 30:
+            raise ValueError("Probe and cleanup limits must be positive and bounded")
+    for key in ["maximum_output_bytes", "retained_characters"]:
+        value = policy.get(key)
+        if type(value) is not int or not 0 < value <= 65536:
+            raise ValueError("Bounded command-output policy required")
+    return policy
+
+
+def _command_observation(
+    command: str, version_args: list[str], *, policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    held_policy = command_observation_policy({"command_observation": policy}) if policy is not None else command_observation_policy()
+    budget = held_policy["timeout_seconds"][command]
+    started = time.monotonic()
+    cleanup_observation: dict[str, Any] = {
+        "attempted": False, "method": None, "returncode": None,
+        "child_returncode_before": None, "child_returncode_after": None, "error": None,
+    }
+    observation: dict[str, Any] = {
+        "available": False, "command": command, "path": None, "version": None,
+        "status": "missing", "observed_status": "missing", "budget_seconds": budget, "returncode": None,
+        "stdout": "", "stderr": "", "output_truncated": False,
+        "cleanup_confirmed": True, "cleanup_observation": cleanup_observation,
+    }
     executable = shutil.which(command)
     if not executable:
-        return {"available": False, "command": command, "path": None, "version": None}
+        observation["elapsed_seconds"] = round(time.monotonic() - started, 4)
+        return observation
+    observation["path"] = executable
     try:
-        result = subprocess.run(
-            [executable, *version_args],
-            check=False,
-            capture_output=True,
-            env=utf8_subprocess_env(),
-            text=True,
-            timeout=5,
-        )
-        version = (result.stdout or result.stderr or "").strip().splitlines()[0]
-        return {
-            "available": result.returncode == 0,
-            "command": command,
-            "path": executable,
-            "version": version or None,
-            "returncode": result.returncode,
-        }
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            child = subprocess.Popen(
+                [executable, *version_args], stdin=subprocess.DEVNULL,
+                stdout=stdout, stderr=stderr, env=utf8_subprocess_env(),
+                start_new_session=os.name != "nt",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            )
+            status = "exited"
+            try:
+                while child.poll() is None:
+                    if time.monotonic() - started >= budget:
+                        status = "timed_out"
+                        break
+                    if os.fstat(stdout.fileno()).st_size + os.fstat(stderr.fileno()).st_size > held_policy["maximum_output_bytes"]:
+                        status = "output_limit"
+                        break
+                    time.sleep(.05)
+            finally:
+                cleanup_observation["child_returncode_before"] = child.poll()
+                if cleanup_observation["child_returncode_before"] is None:
+                    # Keep the owned handle open throughout cleanup; never enumerate host PIDs.
+                    cleanup = held_policy["cleanup_seconds"]
+                    cleanup_observation.update(attempted=True, method="taskkill" if os.name == "nt" else "killpg")
+                    cleanup_operation = "terminate"
+                    try:
+                        if os.name == "nt":
+                            stopped = subprocess.run(
+                                [str(Path(os.environ["SystemRoot"]) / "System32" / "taskkill.exe"),
+                                 "/PID", str(child.pid), "/T", "/F"],
+                                capture_output=True, timeout=cleanup, check=False,
+                            )
+                            cleanup_observation["returncode"] = stopped.returncode
+                            observation["cleanup_confirmed"] = stopped.returncode == 0
+                        else:
+                            os.killpg(child.pid, signal.SIGKILL)
+                        cleanup_operation = "wait"
+                        child.wait(timeout=cleanup)
+                    except (OSError, subprocess.SubprocessError) as exc:
+                        observation["cleanup_confirmed"] = False
+                        code = getattr(exc, "winerror", None)
+                        if type(code) is not int:
+                            code = getattr(exc, "errno", None)
+                        cleanup_observation["error"] = {
+                            "operation": cleanup_operation, "type": type(exc).__name__[:80],
+                            "code": code if type(code) is int else None,
+                        }
+                observation["returncode"] = child.poll()
+                cleanup_observation["child_returncode_after"] = observation["returncode"]
+            size = os.fstat(stdout.fileno()).st_size + os.fstat(stderr.fileno()).st_size
+            if size > held_policy["maximum_output_bytes"]:
+                status = "output_limit"
+            cap = held_policy["retained_characters"]
+            for name, stream in [("stdout", stdout), ("stderr", stderr)]:
+                stream.seek(0)
+                raw = stream.read(cap * 4 + 1)
+                text = raw.decode("utf-8", errors="replace")
+                observation[name] = text[:cap]
+                observation["output_truncated"] |= len(text) > cap
+            version_lines = (observation["stdout"] or observation["stderr"]).strip().splitlines()
+            if status == "exited":
+                if observation["returncode"] != 0:
+                    status = "nonzero_exit"
+                elif not version_lines or re.fullmatch(held_policy["version_patterns"][command], version_lines[0]) is None:
+                    status = "invalid_output"
+                else:
+                    status = "available"
+            observation["observed_status"] = status
+            observation["status"] = status if observation["cleanup_confirmed"] else "cleanup_unconfirmed"
+            observation["available"] = observation["status"] == "available"
+            if observation["available"]:
+                observation["version"] = version_lines[0]
     except (OSError, subprocess.SubprocessError) as exc:
-        return {
-            "available": False,
-            "command": command,
-            "path": executable,
-            "version": None,
-            "error": f"{type(exc).__name__}: {exc}",
-        }
+        observation.update(status="launch_failed", observed_status="launch_failed",
+                           error=f"{type(exc).__name__}: {exc}"[:held_policy["retained_characters"]])
+    observation["elapsed_seconds"] = round(time.monotonic() - started, 4)
+    return observation
 
 
 def _major_version(version: Any) -> int | None:
@@ -287,6 +393,7 @@ def observe_machine(
     feature_availability: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     payload = contract or load_installation_preflight_contract()
+    probe_policy = command_observation_policy(payload)
     requirement, tested_versions = _python_contract()
     current_minor = f"{sys.version_info.major}.{sys.version_info.minor}"
     minimum = _minimum_python_version(requirement)
@@ -322,9 +429,9 @@ def observe_machine(
             "available": importlib.util.find_spec("pip") is not None,
             "path": f"{sys.executable} -m pip",
         },
-        "node": _command_observation("node", ["--version"]),
-        "npm": _command_observation("npm", ["--version"]),
-        "git": _command_observation("git", ["--version"]),
+        "node": _command_observation("node", ["--version"], policy=probe_policy),
+        "npm": _command_observation("npm", ["--version"], policy=probe_policy),
+        "git": _command_observation("git", ["--version"], policy=probe_policy),
         "python_features": features,
     }
 
@@ -384,6 +491,11 @@ def _dependency_content_identity(paths: list[Path], *, root: Path) -> str | None
     return f"sha256:{digest.hexdigest()}"
 
 
+def _node_version_declaration(value: Any) -> str | None:
+    """An explicit version label, not SemVer validation or loaded-code proof."""
+    return value if type(value) is str and value and value == value.strip() else None
+
+
 def node_ast_cache_state(
     node_contract: dict[str, Any],
     *,
@@ -416,11 +528,20 @@ def node_ast_cache_state(
         errors.append("installed_typescript_missing")
     except (OSError, json.JSONDecodeError, AttributeError):
         errors.append("installed_typescript_marker_unreadable")
-    if expected_version and locked_version != expected_version:
+    expected_version = _node_version_declaration(expected_version)
+    locked_version = _node_version_declaration(locked_version)
+    installed_version = _node_version_declaration(installed_version)
+    if expected_version is None and "package_manifest_unreadable" not in errors:
+        errors.append("manifest_typescript_version_unavailable")
+    if locked_version is None and "package_lock_unreadable" not in errors:
+        errors.append("locked_typescript_version_unavailable")
+    if installed_version is None and not {"installed_typescript_missing", "installed_typescript_marker_unreadable"}.intersection(errors):
+        errors.append("installed_typescript_version_unavailable")
+    if expected_version and locked_version and locked_version != expected_version:
         errors.append("manifest_lock_version_mismatch")
     if expected_version and installed_version and installed_version != expected_version:
         errors.append("installed_version_mismatch")
-    verified = bool(content_identity and expected_version and not errors)
+    verified = bool(content_identity and expected_version and locked_version and installed_version and not errors)
     return {
         "status": "VERIFIED" if verified else "REINSTALL_REQUIRED",
         "content_identity": content_identity,
@@ -429,8 +550,9 @@ def node_ast_cache_state(
         "installed_typescript_version": installed_version,
         "errors": sorted(set(errors)),
         "claim_boundary": (
-            "Manifest, lockfile and installed TypeScript version are bound. "
-            "This does not hash every installed runtime file."
+            "Manifest, lockfile and installed marker contain matching explicit version labels. "
+            "This is not SemVer validation, actual module resolution, loaded-code identity or "
+            "integrity proof for installed runtime files."
         ),
     }
 
@@ -465,6 +587,20 @@ def _dependency_action_metadata(
     }
 
 
+def _runtime_query_problem(state: dict[str, Any], command: str) -> dict[str, Any] | None:
+    # Only an absent resolved path supports installation guidance, including legacy observations.
+    if state.get("path") is None and state.get("status", "missing") == "missing":
+        return None
+    status = state.get("status", "indeterminate")
+    return {
+        "id": f"{command}_version_query_not_verified",
+        "outcome_class": "TIMED_OUT" if status == "timed_out" else "PROBE_FAILED",
+        "reason": f"{command} was resolved but its version query is {status}; absence is not established",
+        "required_action": f"inspect the retained {command} query status, duration, budget and output before changing the runtime",
+        "observation_status": status, "automatic_install": False,
+    }
+
+
 def build_installation_plan(
     target_root: str | Path,
     *,
@@ -491,6 +627,21 @@ def build_installation_plan(
     blockers: list[dict[str, Any]] = []
     attention: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
+    release_proof_plan: dict[str, Any] = {}
+    if resolve_installation_authority_profile(Path(installation_root or CODE_MAPS_DIR)) == PUBLIC_TARGET_REPOSITORY_PROFILE:
+        try:
+            budget = public_release_doctor_budget(contract)
+            validator_profile = doctor_validator_profile("SAGE_ON_REPOSITORY")
+            release_proof_plan["release_installation_doctor"] = {
+                "validator_set_id": validator_profile["validator_set_id"],
+                **budget,
+            }
+        except (ValueError, OSError) as exc:
+            blockers.append({
+                "id": "release_installation_doctor_plan_invalid",
+                "reason": str(exc),
+                "required_action": "restore the declared public release installation doctor configuration",
+            })
     installation_footprint = build_embedded_host_footprint(
         target_root,
         installation_root or CODE_MAPS_DIR,
@@ -595,7 +746,8 @@ def build_installation_plan(
     bundled_available = node_cache.get("status") == "VERIFIED"
 
     if node_required and not node_state.get("available"):
-        blockers.append({
+        problem = _runtime_query_problem(node_state, "node")
+        blockers.append(problem or {
             "id": "node_runtime_required_for_target_ast",
             "reason": "JavaScript/TypeScript or React source requires the Node-backed AST sequencer",
             "required_action": "install Node.js explicitly, reopen the terminal and rerun the plan",
@@ -636,7 +788,8 @@ def build_installation_plan(
                 "target_repository_mutation": False,
             })
         else:
-            blockers.append({
+            problem = _runtime_query_problem(npm_state, "npm")
+            blockers.append(problem or {
                 "id": "npm_required_for_ast_dependency_install",
                 "outcome_class": "MISSING_MANAGER",
                 "dependency_authority": "sage_runtime",
@@ -646,9 +799,11 @@ def build_installation_plan(
             })
 
     if not machine_state.get("git", {}).get("available"):
+        git_problem = _runtime_query_problem(machine_state.get("git", {}), "git")
         attention.append({
             "id": "git_unavailable_for_source_acquisition",
-            "reason": "Git is not required after the SAGE source and target repository are already present",
+            "reason": (git_problem["reason"] + "; " if git_problem else "")
+            + "Git is not required after the SAGE source and target repository are already present",
         })
 
     if actions and not dependency_install_enabled:
@@ -707,6 +862,7 @@ def build_installation_plan(
         "blockers": blockers,
         "attention": attention,
         "installation_footprint": installation_footprint,
+        **release_proof_plan,
         "dependency_acquisition": {
             "contract": contract.get("dependency_acquisition", {}).get("contract"),
             "node_ast_cache": node_cache,
@@ -813,6 +969,8 @@ def render_console_lines(payload: dict[str, Any]) -> list[str]:
         )
     for blocker in payload.get("blockers", []):
         lines.append(f"[INSTALL-PLAN] blocker={blocker.get('id')} next={blocker.get('required_action')}")
+        if blocker.get("observation_status"):
+            lines.append(f"[INSTALL-PLAN] query_status={blocker['observation_status']} outcome={blocker.get('outcome_class')}")
     for item in payload.get("attention", []):
         lines.append(f"[INSTALL-PLAN] attention={item.get('id')} reason={item.get('reason')}")
     return lines

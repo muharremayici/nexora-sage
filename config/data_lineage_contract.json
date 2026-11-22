@@ -306,6 +306,43 @@
   },
   "critical_field_lineage": [
     {
+      "id": "atlas_declared_artifact_observation",
+      "producer_markers": [
+        {
+          "file": "tools/engines/generate_atlas.py",
+          "contains": "collect_declared_artifacts"
+        },
+        {
+          "file": "tools/core/declared_artifact_inputs.py",
+          "contains": "_read_confined"
+        }
+      ],
+      "consumer_markers": [
+        {
+          "file": "tools/core/atlas_io.py",
+          "contains": "load_atlas_declared_artifact_metadata"
+        },
+        {
+          "file": "tools/core/declared_artifact_view.py",
+          "contains": "declared_artifact_group_valid"
+        },
+        {
+          "file": "tools/mcp/server.py",
+          "contains": "declared_artifact_inspection"
+        }
+      ],
+      "required_surface_markers": [
+        {
+          "file": "tools/core/declared_artifact_view.py",
+          "contains": "stored_declared_artifact_metadata_only"
+        },
+        {
+          "file": "tools/core/declared_artifact_inputs.py",
+          "contains": "not_established"
+        }
+      ]
+    },
+    {
       "id": "sqlite_audit_finding_generation_manifest",
       "producer_markers": [
         {

@@ -1,0 +1,130 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "max_source_files",
+    "max_auxiliary_files",
+    "max_auxiliary_bytes",
+    "max_config_bytes",
+    "max_request_bytes",
+    "max_import_edges",
+    "module_specifier",
+    "capture_profile",
+    "bridge_profile",
+    "image_profile",
+    "parser_virtual_path",
+    "compiler_virtual_path",
+    "atlas_relative_path",
+    "auxiliary_virtual_path",
+    "auxiliary_atlas_path",
+    "config_virtual_path",
+    "config_atlas_path",
+    "input_observation_version",
+    "input_observation_schema",
+    "input_observation_authority",
+    "type_import_observation_version",
+    "type_import_observation_schema",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "const": "v4-private-single-type-import"
+    },
+    "schema": {
+      "const": "config/schemas/owned_type_import_handoff.schema.json"
+    },
+    "default_enabled": {
+      "const": false,
+      "type": "boolean"
+    },
+    "production_enabled": {
+      "const": false,
+      "type": "boolean"
+    },
+    "semantic_lineage": {
+      "const": false,
+      "type": "boolean"
+    },
+    "max_source_files": {
+      "const": 1,
+      "type": "integer"
+    },
+    "max_auxiliary_files": {
+      "const": 2,
+      "type": "integer"
+    },
+    "max_auxiliary_bytes": {
+      "const": 65536,
+      "type": "integer"
+    },
+    "max_config_bytes": {
+      "const": 8192,
+      "type": "integer"
+    },
+    "max_request_bytes": {
+      "const": 1600000,
+      "type": "integer"
+    },
+    "max_import_edges": {
+      "const": 1,
+      "type": "integer"
+    },
+    "module_specifier": {
+      "const": "./types"
+    },
+    "capture_profile": {
+      "const": "private_owned_config_handoff"
+    },
+    "bridge_profile": {
+      "const": "private_owned_text_bridge"
+    },
+    "image_profile": {
+      "const": "private_input_image_experiment"
+    },
+    "parser_virtual_path": {
+      "const": "/__sage_owned_text__/entry.ts"
+    },
+    "compiler_virtual_path": {
+      "const": "/__sage_ts_image__/project/entry.ts"
+    },
+    "atlas_relative_path": {
+      "const": "entry.ts"
+    },
+    "auxiliary_virtual_path": {
+      "const": "/__sage_ts_image__/project/types.d.ts"
+    },
+    "auxiliary_atlas_path": {
+      "const": "types.d.ts"
+    },
+    "config_virtual_path": {
+      "const": "/__sage_ts_image__/project/tsconfig.json"
+    },
+    "config_atlas_path": {
+      "const": "tsconfig.json"
+    },
+    "input_observation_version": {
+      "const": "v3-private-captured-config-summary"
+    },
+    "input_observation_schema": {
+      "const": "config/schemas/compiler_config_input_observation.schema.json"
+    },
+    "input_observation_authority": {
+      "const": "producer_observed_only"
+    },
+    "type_import_observation_version": {
+      "const": "v1-private-cached-type-import"
+    },
+    "type_import_observation_schema": {
+      "const": "config/schemas/type_import_observation.schema.json"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

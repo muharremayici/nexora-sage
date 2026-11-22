@@ -15,85 +15,444 @@
   ],
   "properties": {
     "diagnostic_unit_output_observation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema",
-        "authority",
-        "protocol",
-        "digest_algorithm",
-        "units",
-        "limits",
-        "rationale",
-        "reuse",
-        "may_skip_tests",
-        "fresh_native_baseline",
-        "canonical_profile_reuse_enabled"
-      ],
-      "properties": {
-        "schema": {
-          "const": "nexora_sage_diagnostic_unit_output_observation_v1"
-        },
-        "authority": {
-          "const": "diagnostic_only_no_test_or_release_admission"
-        },
-        "protocol": {
-          "const": "isolated_no_site_exact_env_closed_stdin_xunit2_v2"
-        },
-        "digest_algorithm": {
-          "const": "sha256_json_utf8_canonical_v1"
-        },
-        "units": {
-          "const": [
-            "jsonc_parser"
-          ]
-        },
-        "limits": {
+      "oneOf": [
+        {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "junit_bytes",
-            "xml_elements",
-            "xml_depth"
+            "schema",
+            "authority",
+            "protocol",
+            "digest_algorithm",
+            "units",
+            "limits",
+            "rationale",
+            "reuse",
+            "may_skip_tests",
+            "fresh_native_baseline",
+            "canonical_profile_reuse_enabled"
           ],
           "properties": {
-            "junit_bytes": {
-              "type": "integer",
-              "minimum": 1
+            "schema": {
+              "const": "nexora_sage_diagnostic_unit_output_observation_v1"
             },
-            "xml_elements": {
-              "type": "integer",
-              "minimum": 1
+            "authority": {
+              "const": "diagnostic_only_no_test_or_release_admission"
             },
-            "xml_depth": {
-              "type": "integer",
-              "minimum": 1
+            "protocol": {
+              "const": "isolated_no_site_exact_env_closed_stdin_xunit2_v2"
+            },
+            "digest_algorithm": {
+              "const": "sha256_json_utf8_canonical_v1"
+            },
+            "units": {
+              "const": [
+                "jsonc_parser"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "junit_bytes",
+                "xml_elements",
+                "xml_depth"
+              ],
+              "properties": {
+                "junit_bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "xml_elements": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "xml_depth": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "rationale": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "reuse": {
+              "const": false
+            },
+            "may_skip_tests": {
+              "const": false
+            },
+            "fresh_native_baseline": {
+              "const": false
+            },
+            "canonical_profile_reuse_enabled": {
+              "const": false
             }
           }
         },
-        "rationale": {
-          "type": "string",
-          "pattern": "\\S"
-        },
-        "reuse": {
-          "const": false
-        },
-        "may_skip_tests": {
-          "const": false
-        },
-        "fresh_native_baseline": {
-          "const": false
-        },
-        "canonical_profile_reuse_enabled": {
-          "const": false
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "authority",
+            "protocol",
+            "digest_algorithm",
+            "units",
+            "limits",
+            "rationale",
+            "reuse",
+            "may_skip_tests",
+            "fresh_native_baseline",
+            "canonical_profile_reuse_enabled"
+          ],
+          "properties": {
+            "schema": {
+              "const": "nexora_sage_diagnostic_unit_output_observation_v2"
+            },
+            "authority": {
+              "const": "diagnostic_only_no_test_or_release_admission"
+            },
+            "protocol": {
+              "const": "isolated_no_site_exact_env_closed_stdin_xunit2_v2"
+            },
+            "digest_algorithm": {
+              "const": "sha256_json_utf8_canonical_v1"
+            },
+            "units": {
+              "const": [
+                "jsonc_parser"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "junit_bytes",
+                "xml_elements",
+                "xml_depth"
+              ],
+              "properties": {
+                "junit_bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "xml_elements": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "xml_depth": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "rationale": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "reuse": {
+              "const": false
+            },
+            "may_skip_tests": {
+              "const": false
+            },
+            "fresh_native_baseline": {
+              "const": false
+            },
+            "canonical_profile_reuse_enabled": {
+              "const": false
+            }
+          }
         }
-      }
+      ]
     },
     "diagnostic_test_unit_pilots": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "jsonc_parser": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "authority",
+                "canonical_profile_reuse_enabled",
+                "test_path",
+                "expected_tests",
+                "reviewed_source_sha256",
+                "review_digest_algorithm",
+                "required_absent_paths",
+                "runtime_distributions",
+                "timeout_seconds"
+              ],
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_only_no_release_reuse"
+                },
+                "canonical_profile_reuse_enabled": {
+                  "const": false
+                },
+                "test_path": {
+                  "const": "tools/tests/test_jsonc_parser.py"
+                },
+                "review_digest_algorithm": {
+                  "const": "sha256_utf8_lf_v1"
+                },
+                "expected_tests": {
+                  "type": "array",
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^test_jsonc_parser_"
+                  }
+                },
+                "reviewed_source_sha256": {
+                  "type": "object",
+                  "minProperties": 6,
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required_absent_paths": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "$ref": "#/$defs/relativePath"
+                  }
+                },
+                "runtime_distributions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "authority",
+                "canonical_profile_reuse_enabled",
+                "test_path",
+                "expected_tests",
+                "required_absent_paths",
+                "runtime_distributions",
+                "timeout_seconds",
+                "input_contract_version",
+                "project_inputs",
+                "metadata_projection"
+              ],
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_only_no_release_reuse"
+                },
+                "canonical_profile_reuse_enabled": {
+                  "const": false
+                },
+                "test_path": {
+                  "const": "tools/tests/test_jsonc_parser.py"
+                },
+                "expected_tests": {
+                  "const": [
+                    "test_jsonc_parser_preserves_alias_globs_and_comment_like_strings",
+                    "test_jsonc_parser_supports_block_comments_without_hiding_strings",
+                    "test_jsonc_parser_rejects_unterminated_block_comment",
+                    "test_jsonc_parser_accepts_one_utf8_bom"
+                  ]
+                },
+                "required_absent_paths": {
+                  "const": [
+                    "pytest.ini",
+                    "setup.cfg",
+                    "tox.ini",
+                    "conftest.py",
+                    "tools/conftest.py",
+                    "tools/tests/conftest.py"
+                  ]
+                },
+                "runtime_distributions": {
+                  "const": [
+                    "pytest",
+                    "pluggy",
+                    "packaging",
+                    "iniconfig",
+                    "pygments",
+                    "colorama"
+                  ]
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "input_contract_version": {
+                  "const": "v2"
+                },
+                "metadata_projection": {
+                  "const": {
+                    "kind": "pyproject_project_version_scalar_span_v2",
+                    "max_bytes": 65536,
+                    "max_version_characters": 128
+                  }
+                },
+                "project_inputs": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "tools/tests/test_jsonc_parser.py",
+                    "tools/core/jsonc.py",
+                    "tools/__init__.py",
+                    "tools/core/__init__.py",
+                    "tools/tests/__init__.py",
+                    "pyproject.toml"
+                  ],
+                  "properties": {
+                    "tools/tests/test_jsonc_parser.py": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "role",
+                        "review_digest_algorithm",
+                        "review_sha256"
+                      ],
+                      "properties": {
+                        "role": {
+                          "const": "test_source"
+                        },
+                        "review_digest_algorithm": {
+                          "const": "sha256_utf8_lf_v1"
+                        },
+                        "review_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "tools/core/jsonc.py": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "role",
+                        "review_digest_algorithm",
+                        "review_sha256"
+                      ],
+                      "properties": {
+                        "role": {
+                          "const": "executable_source"
+                        },
+                        "review_digest_algorithm": {
+                          "const": "sha256_utf8_lf_v1"
+                        },
+                        "review_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "tools/__init__.py": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "role",
+                        "review_digest_algorithm",
+                        "review_sha256"
+                      ],
+                      "properties": {
+                        "role": {
+                          "const": "package_initializer"
+                        },
+                        "review_digest_algorithm": {
+                          "const": "sha256_utf8_lf_v1"
+                        },
+                        "review_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "tools/core/__init__.py": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "role",
+                        "review_digest_algorithm",
+                        "review_sha256"
+                      ],
+                      "properties": {
+                        "role": {
+                          "const": "package_initializer"
+                        },
+                        "review_digest_algorithm": {
+                          "const": "sha256_utf8_lf_v1"
+                        },
+                        "review_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "tools/tests/__init__.py": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "role",
+                        "review_digest_algorithm",
+                        "review_sha256"
+                      ],
+                      "properties": {
+                        "role": {
+                          "const": "package_initializer"
+                        },
+                        "review_digest_algorithm": {
+                          "const": "sha256_utf8_lf_v1"
+                        },
+                        "review_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    },
+                    "pyproject.toml": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "role",
+                        "review_digest_algorithm",
+                        "review_sha256"
+                      ],
+                      "properties": {
+                        "role": {
+                          "const": "version_masked_unit_metadata"
+                        },
+                        "review_digest_algorithm": {
+                          "const": "sha256_utf8_lf_project_version_scalar_mask_v2"
+                        },
+                        "review_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "compiler_operand_text_bound": {
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -101,11 +460,12 @@
             "canonical_profile_reuse_enabled",
             "test_path",
             "expected_tests",
-            "reviewed_source_sha256",
-            "review_digest_algorithm",
             "required_absent_paths",
             "runtime_distributions",
-            "timeout_seconds"
+            "timeout_seconds",
+            "input_contract_version",
+            "project_inputs",
+            "metadata_projection"
           ],
           "properties": {
             "authority": {
@@ -115,48 +475,342 @@
               "const": false
             },
             "test_path": {
-              "const": "tools/tests/test_jsonc_parser.py"
-            },
-            "review_digest_algorithm": {
-              "const": "sha256_utf8_lf_v1"
+              "const": "tools/tests/test_compiler_operand_text_bound.py"
             },
             "expected_tests": {
-              "type": "array",
-              "minItems": 4,
-              "maxItems": 4,
-              "uniqueItems": true,
-              "items": {
-                "type": "string",
-                "pattern": "^test_jsonc_parser_"
-              }
-            },
-            "reviewed_source_sha256": {
-              "type": "object",
-              "minProperties": 6,
-              "additionalProperties": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
+              "const": [
+                "test_literal_success_prefix_and_coarse_all_root_envelope_are_separate",
+                "test_each_rejection_includes_only_normal_prefix_plus_current_root[0-80]",
+                "test_each_rejection_includes_only_normal_prefix_plus_current_root[1-165]",
+                "test_each_rejection_includes_only_normal_prefix_plus_current_root[2-14]",
+                "test_each_rejection_includes_only_normal_prefix_plus_current_root[3-95]",
+                "test_each_rejection_includes_only_normal_prefix_plus_current_root[4-20]",
+                "test_each_rejection_includes_only_normal_prefix_plus_current_root[5-102]",
+                "test_zero_progress_is_not_zero_potential_or_complete_preparation_cost",
+                "test_retained_source_design_rejection_arithmetic_without_replaying_producer",
+                "test_returned_copy_ceiling_and_model_integer_boundary_are_bounded_metadata",
+                "test_empty_payload_requires_node_term",
+                "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[threw]",
+                "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[not_started]",
+                "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[unknown]",
+                "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[returned_later]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[node_charges-0-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[node_charges-65537-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[node_charges-True-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges--1-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges-65537-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges-1.0-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges-100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000-metadata_copy_charges]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[ceiling-True-metadata_copy_ceiling]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[ceiling-65537-metadata_copy_ceiling]",
+                "test_copy_counter_type_overshoot_and_ceiling_refusals[outcome-None-metadata_copy_charges]",
+                "test_missing_metadata_is_not_rebuilt_from_other_fields[copy_charges]",
+                "test_missing_metadata_is_not_rebuilt_from_other_fields[root_model]",
+                "test_missing_metadata_is_not_rebuilt_from_other_fields[progress]",
+                "test_missing_metadata_is_not_rebuilt_from_other_fields[source_binding]",
+                "test_missing_metadata_is_not_rebuilt_from_other_fields[applicability]",
+                "test_every_explicit_applicability_condition_must_be_declared[returned_owned_tree]",
+                "test_every_explicit_applicability_condition_must_be_declared[ordinary_builtins]",
+                "test_every_explicit_applicability_condition_must_be_declared[fixed_schema_and_fixture]",
+                "test_every_explicit_applicability_condition_must_be_declared[no_same_value_refs]",
+                "test_every_explicit_applicability_condition_must_be_declared[no_repeated_comparison_paths]",
+                "test_every_explicit_applicability_condition_must_be_declared[successful_prefix_model_applicable]",
+                "test_truthy_applicability_is_not_true[1]",
+                "test_truthy_applicability_is_not_true[true]",
+                "test_truthy_applicability_is_not_true[None]",
+                "test_serial_progress_contradictions_and_boolean_counts_refuse[progress0]",
+                "test_serial_progress_contradictions_and_boolean_counts_refuse[progress1]",
+                "test_serial_progress_contradictions_and_boolean_counts_refuse[progress2]",
+                "test_serial_progress_contradictions_and_boolean_counts_refuse[progress3]",
+                "test_serial_progress_contradictions_and_boolean_counts_refuse[progress4]",
+                "test_root_order_and_bounded_coefficients[root_index-1-metadata_root_order]",
+                "test_root_order_and_bounded_coefficients[root_index-False-metadata_root_order]",
+                "test_root_order_and_bounded_coefficients[comparison_slots-True-metadata_root_coefficient]",
+                "test_root_order_and_bounded_coefficients[comparison_slots-65537-metadata_root_coefficient]",
+                "test_root_order_and_bounded_coefficients[literal_text_upper--1-metadata_root_coefficient]",
+                "test_root_order_and_bounded_coefficients[literal_text_upper-0-metadata_root_coherence]",
+                "test_root_order_and_bounded_coefficients[normal_returned_text_upper-65537-metadata_root_coefficient]",
+                "test_zero_slot_nonzero_literal_or_normal_upper_is_incoherent",
+                "test_fixed_six_root_cut_cannot_be_resized[0]",
+                "test_fixed_six_root_cut_cannot_be_resized[5]",
+                "test_fixed_six_root_cut_cannot_be_resized[7]",
+                "test_hash_shape_is_closed_without_source_authentication[x]",
+                "test_hash_shape_is_closed_without_source_authentication[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]",
+                "test_hash_shape_is_closed_without_source_authentication[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]",
+                "test_hash_shape_is_closed_without_source_authentication[False]",
+                "test_different_well_shaped_hashes_and_model_labels_never_authenticate_sources",
+                "test_request_version_and_unknown_value_schema_or_permission_fields_refuse",
+                "test_mapping_subclasses_are_refused_before_callbacks[copy_charges]",
+                "test_mapping_subclasses_are_refused_before_callbacks[root_model]",
+                "test_mapping_subclasses_are_refused_before_callbacks[progress]",
+                "test_mapping_subclasses_are_refused_before_callbacks[source_binding]",
+                "test_mapping_subclasses_are_refused_before_callbacks[applicability]",
+                "test_hostile_key_and_number_subclass_are_not_compared_or_converted",
+                "test_outputs_are_detached_and_one_failure_cannot_poison_later_results",
+                "test_module_is_unwired_pure_and_has_no_value_or_schema_argument"
+              ]
             },
             "required_absent_paths": {
-              "type": "array",
-              "uniqueItems": true,
-              "items": {
-                "$ref": "#/$defs/relativePath"
-              }
+              "const": [
+                "pytest.ini",
+                "setup.cfg",
+                "tox.ini",
+                "conftest.py",
+                "tools/conftest.py",
+                "tools/tests/conftest.py"
+              ]
             },
             "runtime_distributions": {
-              "type": "array",
-              "minItems": 1,
-              "uniqueItems": true,
-              "items": {
-                "type": "string",
-                "minLength": 1
-              }
+              "const": [
+                "pytest",
+                "pluggy",
+                "packaging",
+                "iniconfig",
+                "pygments",
+                "colorama"
+              ]
             },
             "timeout_seconds": {
               "type": "integer",
               "minimum": 1
+            },
+            "input_contract_version": {
+              "const": "v2"
+            },
+            "metadata_projection": {
+              "const": {
+                "kind": "pyproject_project_version_scalar_span_v2",
+                "max_bytes": 65536,
+                "max_version_characters": 128
+              }
+            },
+            "project_inputs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tools/tests/test_compiler_operand_text_bound.py",
+                "tools/core/compiler_operand_text_bound.py",
+                "tools/core/compiler_entry_context_handoff.cjs",
+                "tools/core/compiler_entry_context_projection.py",
+                "tools/core/compiler_stream_stager.cjs",
+                "tools/core/compiler_schema_closure.py",
+                "tools/__init__.py",
+                "tools/core/__init__.py",
+                "tools/tests/__init__.py",
+                "pyproject.toml"
+              ],
+              "properties": {
+                "tools/tests/test_compiler_operand_text_bound.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "test_source"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/core/compiler_operand_text_bound.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "executable_source"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/core/compiler_entry_context_handoff.cjs": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "observed_source"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/core/compiler_entry_context_projection.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "observed_source"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/core/compiler_stream_stager.cjs": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "observed_source"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/core/compiler_schema_closure.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "observed_source"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/__init__.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "package_initializer"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/core/__init__.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "package_initializer"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "tools/tests/__init__.py": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "package_initializer"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_v1"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "pyproject.toml": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "review_digest_algorithm",
+                    "review_sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "version_masked_unit_metadata"
+                    },
+                    "review_digest_algorithm": {
+                      "const": "sha256_utf8_lf_project_version_scalar_mask_v2"
+                    },
+                    "review_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -189,7 +843,7 @@
     },
     "semantic_reuse_engine_paths": {
       "type": "array",
-      "minItems": 5,
+      "minItems": 10,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/relativePath"
@@ -198,6 +852,11 @@
         {
           "contains": {
             "const": "tools/core/release_proof_resume.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "tools/core/release_proof_steps.py"
           }
         },
         {
@@ -212,12 +871,32 @@
         },
         {
           "contains": {
+            "const": "tools/core/release_validation_source_recipe.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "tools/core/release_source_index.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "tools/doctrine_compiler.py"
+          }
+        },
+        {
+          "contains": {
             "const": "config/release_validation_dependency_contract.json"
           }
         },
         {
           "contains": {
             "const": "config/schemas/release_validation_dependency_contract.schema.json"
+          }
+        },
+        {
+          "contains": {
+            "const": "tools/core/distribution_test_selection.py"
           }
         }
       ]
@@ -328,6 +1007,7 @@
           "const": [
             "engine_contract_tests_target_agent",
             "engine_contract_tests_analysis_engines",
+            "engine_contract_tests_runtime_compiler",
             "engine_contract_tests_runtime_platform",
             "engine_contract_tests_governance_policy",
             "engine_contract_tests_release_distribution"
@@ -372,6 +1052,110 @@
           "$ref": "#/$defs/semanticClosure"
         }
       }
+    },
+    "source_recipes": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/sourceRecipe"
+          },
+          {
+            "$ref": "#/$defs/familySourceRecipe"
+          },
+          {
+            "$ref": "#/$defs/familySourceRecipeV2"
+          }
+        ]
+      }
+    },
+    "completed_dependency_input_projection": {
+      "$ref": "#/$defs/completedDependencyInputProjection"
+    },
+    "persisted_test_unit_reuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "authority",
+        "scope",
+        "enabled",
+        "allowed_units",
+        "cache_directory"
+      ],
+      "properties": {
+        "schema": {
+          "const": "nexora_sage_persisted_test_unit_reuse_v1"
+        },
+        "authority": {
+          "const": "diagnostic_test_execution_reuse_only"
+        },
+        "scope": {
+          "const": "development_diagnostic_only"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed_units": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          }
+        },
+        "cache_directory": {
+          "const": "output/.operational/distribution_units"
+        }
+      }
+    },
+    "canonical_test_unit_admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "authority",
+        "profile",
+        "enabled",
+        "units"
+      ],
+      "properties": {
+        "schema": {
+          "const": "nexora_sage_canonical_test_unit_admission_v1"
+        },
+        "authority": {
+          "const": "test_evidence_only_no_release_or_publication_authority"
+        },
+        "profile": {
+          "const": "canonical_all"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "units": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 32,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "family"
+            ],
+            "properties": {
+              "family": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -402,7 +1186,10 @@
       ],
       "properties": {
         "proof_domain": {
-          "const": "sage_on_sage"
+          "enum": [
+            "sage_on_sage",
+            "sage_on_repository"
+          ]
         },
         "review_status": {
           "const": "reviewed"
@@ -423,7 +1210,6 @@
         },
         "contract_path_expansions": {
           "type": "array",
-          "minItems": 1,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -453,6 +1239,366 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "dependency_input_roles": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Optional exact direct-dependency role map. Only reviewed v1 blocking prerequisite_only can exclude a predecessor digest; absent, unclassified or unsupported roles retain full evidence."
+        },
+        "source_text_only_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          },
+          "description": "Reviewed exact-path Python files read as text, not import roots. Their full bytes remain hashed. Any actual import of one from an executable root is still traversed."
+        },
+        "startup_configuration_tree": {
+          "const": "config_full_tree_v1",
+          "description": "Conservative full config/ file content and directory-membership identity, with confined doctrine members and refusal of external target context. Not an atomic or hostile-filesystem snapshot."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "require_contract_path_expansions": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "contract_path_expansions": {
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "contract_path_expansions": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sourceRecipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable_python_roots",
+        "source_text_reads",
+        "data_reads",
+        "startup_inputs",
+        "kind",
+        "proof_domain",
+        "native_reuse_enabled",
+        "producer_policy",
+        "context_policy",
+        "manifest_expansions"
+      ],
+      "properties": {
+        "executable_python_roots": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          },
+          "minItems": 1
+        },
+        "source_text_reads": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "data_reads": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "startup_inputs": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "kind": {
+          "const": "source_input_recipe_v1"
+        },
+        "proof_domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_reuse_enabled": {
+          "const": false
+        },
+        "producer_policy": {
+          "const": "existing_prerequisite_required_not_verified"
+        },
+        "context_policy": {
+          "const": "product_local_parent_observation_only"
+        },
+        "manifest_expansions": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "manifest",
+              "json_pointer",
+              "base"
+            ],
+            "properties": {
+              "manifest": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "json_pointer": {
+                "type": "string",
+                "pattern": "^/[A-Za-z_][A-Za-z0-9_]*/\\*/[A-Za-z_][A-Za-z0-9_]*$"
+              },
+              "base": {
+                "const": "manifest_parent"
+              }
+            }
+          }
+        },
+        "producer_bindings": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "owner",
+              "manifest",
+              "output"
+            ],
+            "properties": {
+              "owner": {
+                "const": "doctrine_manifest_fingerprint_v1"
+              },
+              "manifest": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "output": {
+                "$ref": "#/$defs/relativePath"
+              }
+            }
+          }
+        }
+      }
+    },
+    "familySourceRecipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "proof_domain",
+        "native_reuse_enabled",
+        "profile",
+        "family",
+        "launch_python_roots",
+        "declared_inputs",
+        "coverage_gaps"
+      ],
+      "properties": {
+        "kind": {
+          "const": "test_family_input_recipe_v1"
+        },
+        "proof_domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_reuse_enabled": {
+          "const": false
+        },
+        "profile": {
+          "const": "canonical_all"
+        },
+        "family": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{0,63}$"
+        },
+        "launch_python_roots": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/relativePath"
+              },
+              {
+                "pattern": "\\.py$"
+              }
+            ]
+          },
+          "minItems": 1
+        },
+        "declared_inputs": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "coverage_gaps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z_]{0,95}$"
+          }
+        }
+      }
+    },
+    "familySourceRecipeV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "proof_domain",
+        "native_reuse_enabled",
+        "profile",
+        "family",
+        "launch_python_roots",
+        "declared_inputs",
+        "coverage_gaps",
+        "presence_inputs",
+        "manifest_inputs"
+      ],
+      "properties": {
+        "kind": {
+          "const": "test_family_input_recipe_v2"
+        },
+        "proof_domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_reuse_enabled": {
+          "const": false
+        },
+        "profile": {
+          "const": "canonical_all"
+        },
+        "family": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{0,63}$"
+        },
+        "launch_python_roots": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/relativePath"
+              },
+              {
+                "pattern": "\\.py$"
+              }
+            ]
+          },
+          "minItems": 1
+        },
+        "declared_inputs": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "coverage_gaps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z_]{0,95}$"
+          }
+        },
+        "presence_inputs": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/relativePath"
+          }
+        },
+        "manifest_inputs": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "manifest",
+              "json_pointer",
+              "base"
+            ],
+            "properties": {
+              "manifest": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "json_pointer": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/(?:[^/~*]|~[01])*(?:/(?:[^/~*]|~[01])*){0,31}$"
+              },
+              "base": {
+                "const": "project_root"
+              }
+            }
+          }
+        }
+      }
+    },
+    "completedDependencyInputProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "authority",
+        "default_role"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Only v1 is projected. Unsupported versions retain full dependency evidence."
+        },
+        "authority": {
+          "const": "completed_identity_only_no_gate_or_checkpoint_relaxation"
+        },
+        "default_role": {
+          "const": "full_evidence"
         }
       }
     }

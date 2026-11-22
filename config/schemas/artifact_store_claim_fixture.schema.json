@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "private:artifact-store-comparison-claim-fixture:v1",
+  "title": "Disabled isolated-synthetic SQLite claim fixture contract",
+  "$defs": {
+    "contract": {
+      "const": {
+        "version": "v1-private-comparison-claim-fixture",
+        "fixture_only": true,
+        "database_filename": "comparison-claim-fixture.sqlite3",
+        "maximum_revision": 9007199254740991,
+        "maximum_claims": 64,
+        "lock_statement": "BEGIN IMMEDIATE",
+        "claim_key": [
+          "authority_domain_sha256",
+          "original_request_sha256"
+        ],
+        "decision_revision_in_key": false,
+        "primary_anchor_kind": "synthetic_digest_and_revision_not_signed_ledger",
+        "reinitialization": "never",
+        "runtime_admission": false,
+        "production_enabled": false,
+        "publication_authority": false
+      }
+    },
+    "composition_contract": {
+      "const": {
+        "version": "v2-private-primary-comparison-claim-fixture",
+        "primary_anchor_kind": "serialized_full_payload_sha256",
+        "primary_payload_storage": true,
+        "reader_contract_id": "private:comparison-primary-snapshot:v1"
+      }
+    }
+  },
+  "description": "Private implementation compatibility contract. Not an approval, database migration, live input schema, issuer or runtime policy."
+}

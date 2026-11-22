@@ -99,6 +99,63 @@ class SourceEvidenceTests(unittest.TestCase):
         self.assertEqual(result["summary"]["status"], "PASS")
         self.assertEqual(result["summary"]["undeclared"], 0)
 
+    def _source_index_fixture(self, *, remove_declaration=False, undeclared=None):
+        helper = "tools/core/release_source_index.py"
+        caller = "tools/core/release_validation_dependencies.py"
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        if remove_declaration:
+            policy["filesystem_inventory_allowlist"].pop(helper)
+        sources = {name: (POLICY_PATH.parents[1] / name).read_text(encoding="utf-8")
+                   for name in (helper, caller)}
+        if undeclared:
+            sources[undeclared] = sources.get(undeclared, "") + "\nfrom pathlib import Path\nPath('.').rglob('*')\n"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, source in sources.items():
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(source, encoding="utf-8")
+            policy_path = root / "policy.json"
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            with patch("tools.validate_engine_data_access.CODE_MAPS_DIR", root), \
+                    patch("tools.validate_engine_data_access.POLICY_PATH", policy_path), \
+                    patch("tools.validate_engine_data_access.save_json_atomic"), \
+                    patch("tools.validate_engine_data_access.save_text_atomic"):
+                return validate_engine_data_access()
+
+    def test_extracted_index_owns_exact_bounded_inventory_declaration(self):
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        declarations = policy["filesystem_inventory_allowlist"]
+        self.assertNotIn("tools/core/release_validation_dependencies.py", declarations)
+        owner = declarations["tools/core/release_source_index.py"]
+        self.assertEqual((owner["class"], owner["status"]),
+                         ("source_governance_inventory", "accepted_bounded"))
+        result = self._source_index_fixture()
+        self.assertEqual(result["summary"]["status"], "PASS")
+        self.assertEqual(len(result["findings"]), 1)
+        row = result["findings"][0]
+        self.assertEqual((row["file"], row["kind"], row["access_class"], row["status"]),
+                         ("tools/core/release_source_index.py", "filesystem_rglob",
+                          "source_governance_inventory", "accepted_bounded"))
+
+    def test_missing_extracted_index_declaration_refuses(self):
+        result = self._source_index_fixture(remove_declaration=True)
+        self.assertEqual(result["summary"]["status"], "FAIL")
+        self.assertEqual(result["summary"]["undeclared"], 1)
+        self.assertFalse(result["findings"][0]["declared"])
+
+    def test_extracted_index_declaration_does_not_exempt_other_files(self):
+        name = "tools/core/undeclared_inventory.py"
+        result = self._source_index_fixture(undeclared=name)
+        self.assertEqual(result["summary"]["status"], "FAIL")
+        self.assertEqual([row["file"] for row in result["findings"] if not row["declared"]], [name])
+
+    def test_delegating_caller_cannot_keep_obsolete_traversal_permission(self):
+        name = "tools/core/release_validation_dependencies.py"
+        result = self._source_index_fixture(undeclared=name)
+        self.assertEqual(result["summary"]["status"], "FAIL")
+        self.assertEqual([row["file"] for row in result["findings"] if not row["declared"]], [name])
+
     def _runtime_inventory_fixture(self, *, remove_declaration=False, unknown_sibling=False):
         relative = "tools/core/distribution_test_unit_pilot.py"
         policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))

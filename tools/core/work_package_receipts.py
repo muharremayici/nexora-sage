@@ -20,6 +20,7 @@ from tools.core.json_io import (
     raw_artifact_primary_content_fingerprint,
 )
 from tools.core.work_package_state import active_work_package, inherited_dirty_file_identity, _inherited_dirty_source_path
+from tools.core.work_package_state import _build_scope_amendment_snapshot
 from tools.core.source_layer_classifier import classify_source_layer
 
 
@@ -171,6 +172,43 @@ def work_package_operation_binding(package: dict[str, Any] | None = None) -> dic
         raise ValueError("External operation requires an active in-progress package")
     return {"package_id": str(current["id"]), "package_identity": work_package_identity(current),
             "source_identity": work_package_source_identity(current)}
+
+
+def build_work_package_scope_amendment_plan(
+    *,
+    package: dict[str, Any],
+    requested_paths: list[str],
+    approved_path_identities: dict[str, str],
+    expected_binding: dict[str, str],
+    expected_baseline_identity: str,
+    expected_package_snapshot_identity: str,
+) -> dict[str, Any]:
+    """Bind a read-only scope plan to native identities; never write or grant authority.
+
+    Caller-supplied identities constrain freshness, not human approval. An already
+    authorized writer must recheck the live ledger and these bindings before write.
+    """
+    if not isinstance(package, dict):
+        raise ValueError("scope_amendment_invalid_package")
+    binding = work_package_operation_binding(package)
+    contract = _receipt_contract()
+    plan = _build_scope_amendment_snapshot(
+        package=package, requested_paths=requested_paths,
+        approved_path_identities=approved_path_identities,
+        expected_binding=expected_binding,
+        expected_baseline_identity=expected_baseline_identity,
+        expected_package_snapshot_identity=expected_package_snapshot_identity,
+        receipt_contract=contract, current_binding=binding, root=CODE_MAPS_DIR,
+    )
+    plan["source_identity_after"] = work_package_source_identity(plan["package_after"])
+    if (_receipt_contract() != contract
+            or work_package_operation_binding(package) != binding
+            or fingerprint(package) != expected_package_snapshot_identity):
+        raise ValueError("scope_amendment_changed_during_plan")
+    for path, expected in plan["approved_path_identities"].items():
+        if inherited_dirty_file_identity(path, root=CODE_MAPS_DIR) != expected:
+            raise ValueError("scope_amendment_changed_during_plan")
+    return plan
 
 
 def record_work_package_operation_safely(**kwargs: Any) -> dict[str, Any]:

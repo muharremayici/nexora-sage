@@ -1,0 +1,334 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "code",
+    "binding_sha256",
+    "parent_snapshot_id",
+    "atlas_sha256",
+    "policy_sha256",
+    "compiler_source_sha256",
+    "context_sha256",
+    "root_parse_calls",
+    "config_chain_calls",
+    "config_sourcefiles",
+    "programs",
+    "source_worker_parses",
+    "cache_entries",
+    "host_calls",
+    "denied_host_calls",
+    "diagnostic_codes",
+    "edge",
+    "strict_observation",
+    "declared_root_sha256",
+    "reads",
+    "host_refusal",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "native_project_equivalent",
+    "program_completeness_established",
+    "loaded_code_attested",
+    "raw_config_retained"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-config-extends"
+    },
+    "authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PRIVATE_CONFIG_EXTENDS_CORRESPONDENCE_NOT_BOUND",
+        "PRIVATE_CONFIG_EXTENDS_INCOMPLETE_NOT_BOUND"
+      ]
+    },
+    "code": {
+      "type": "string"
+    },
+    "binding_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "parent_snapshot_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "atlas_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policy_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "compiler_source_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "context_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "root_parse_calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "config_chain_calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "config_sourcefiles": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "programs": {
+      "type": "integer",
+      "minimum": 0,
+      "const": 0
+    },
+    "source_worker_parses": {
+      "type": "integer",
+      "minimum": 0,
+      "const": 0
+    },
+    "cache_entries": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "host_calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "denied_host_calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "diagnostic_codes": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_role",
+        "target_role",
+        "source_raw_sha256",
+        "source_host_sha256",
+        "target_raw_sha256",
+        "target_host_sha256",
+        "source_path_sha256",
+        "target_path_sha256",
+        "specifier_sha256",
+        "literal_host_span_utf16",
+        "line",
+        "character"
+      ],
+      "properties": {
+        "source_role": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "root",
+            null
+          ]
+        },
+        "target_role": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "base",
+            null
+          ]
+        },
+        "source_raw_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_host_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "target_raw_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "target_host_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_path_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "target_path_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "specifier_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "literal_host_span_utf16": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "end": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "character": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "strict_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base",
+        "root_override",
+        "effective"
+      ],
+      "properties": {
+        "base": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "root_override": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "effective": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "declared_root_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "base"
+      ],
+      "properties": {
+        "root": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "base": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "host_refusal": {
+      "type": "string"
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_project_equivalent": {
+      "type": "boolean",
+      "const": false
+    },
+    "program_completeness_established": {
+      "type": "boolean",
+      "const": false
+    },
+    "loaded_code_attested": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_config_retained": {
+      "type": "boolean",
+      "const": false
+    }
+  }
+}

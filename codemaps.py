@@ -2132,7 +2132,7 @@ def cmd_install_proof(args):
     cmd = ["python", str(INSTALLATION_PROOF_GENERATOR), "--level", args.level]
     if args.skip_deps:
         cmd.append("--skip-deps")
-    if args.max_doctor_seconds:
+    if args.max_doctor_seconds is not None:
         cmd.extend(["--max-doctor-seconds", str(args.max_doctor_seconds)])
     if args.target_root:
         cmd.extend(["--target-root", str(args.target_root)])
@@ -2309,7 +2309,10 @@ def build_parser():
     )
     install_proof_parser.add_argument("--level", choices=["smoke", "daily", "release"], default="smoke")
     install_proof_parser.add_argument("--skip-deps", action="store_true", help="Pass --skip-deps to init for daily/release proof levels.")
-    install_proof_parser.add_argument("--max-doctor-seconds", type=int, default=90)
+    install_proof_parser.add_argument(
+        "--max-doctor-seconds", type=int,
+        help="Override the doctor process limit in seconds (default: the installation profile's limit).",
+    )
     install_proof_parser.add_argument("--target-root", help="Repository root for target-bound daily/release installation proof.")
     install_proof_parser.add_argument("--projects", help="Comma-separated project filter for the installation proof daily run.")
     install_proof_parser.set_defaults(func=cmd_install_proof)

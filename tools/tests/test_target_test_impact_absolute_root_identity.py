@@ -97,6 +97,11 @@ def _absolute_sqlite_context_fixture(tmp_path, monkeypatch, files):
         conn.execute("INSERT INTO projects VALUES (?, ?)", ("MAIN", str(tmp_path / "MAIN")))
         conn.executemany("INSERT INTO files VALUES (?, ?, ?)", [(i, "MAIN", path) for i, path in enumerate(files, 1)])
     monkeypatch.setattr(server, "_atlas", lambda **_: {"MAIN": {"files": files}})
+    # This fixture isolates identity lookup, not primary payload integrity.
+    # Absolute-root display now uses the exact-file primary reader seam;
+    # real SQLite payload/snapshot coverage lives in the public samples above.
+    monkeypatch.setattr(server, "load_atlas_file_metadata",
+        lambda raw, project, path: files.get(path) if raw == raw_dir and project == "MAIN" else None)
     monkeypatch.setattr(Path, "iterdir", lambda *_: pytest.fail("context must not walk the target"))
     return raw_dir
 

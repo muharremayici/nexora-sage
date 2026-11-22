@@ -4638,8 +4638,17 @@ function collectReactMutationContextFeatures(sourceFile) {
     return fileFeatures;
 }
 
-function collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt, fieldRecords, resultRecords, inputRecords, importedRecords) {
+function collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt, fieldRecords, resultRecords, inputRecords, importedRecords, safeParseEvidence) {
     const features = new Set();
+    // Fixed finite-lane algorithm bounds, not a fallback admission policy. Reuse
+    // the existing walks; exhausting this lane never changes older advisories.
+    if (sourceFile.parseDiagnostics?.length) {
+        safeParseEvidence.status = 'unavailable'; safeParseEvidence.reason = 'parse_diagnostics';
+    } else if (!/\.tsx?$/i.test(sourceFile.fileName)) {
+        safeParseEvidence.status = 'unavailable'; safeParseEvidence.reason = 'not_applicable_language';
+    } else if (Buffer.byteLength(sourceCode, 'utf8') > 1048576) {
+        safeParseEvidence.status = 'unavailable'; safeParseEvidence.reason = 'source_byte_budget_exceeded';
+    }
     if (sourceFile.parseDiagnostics?.length
         || !sourceCode.includes('useState')
         || !sourceCode.includes('fetch')
@@ -4649,6 +4658,31 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
     const fetchResponses = new Map();
     const jsonValues = new Map();
     const declarationCounts = new Map();
+    const safeNames = new Map(), safeWrites = new Set();
+    let safeVisited = 0;
+
+    function safeCount(name, declaration) {
+        if (ts.isIdentifier(name)) {
+            if (!safeNames.has(name.text)) safeNames.set(name.text, []);
+            safeNames.get(name.text).push(declaration);
+        } else if (ts.isArrayBindingPattern(name) || ts.isObjectBindingPattern(name)) {
+            for (const element of name.elements) if (ts.isBindingElement(element)) safeCount(element.name, element);
+        }
+    }
+
+    function safeWrite(target) {
+        if (ts.isIdentifier(target)) safeWrites.add(symbolAt(target));
+        else if (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)
+            || ts.isParenthesizedExpression(target) || ts.isAsExpression(target)
+            || ts.isTypeAssertionExpression(target) || ts.isNonNullExpression(target)
+            || ts.isSatisfiesExpression(target)) safeWrite(target.expression);
+        else if (ts.isArrayLiteralExpression(target)) target.elements.forEach(safeWrite);
+        else if (ts.isObjectLiteralExpression(target)) target.properties.forEach(safeWrite);
+        else if (ts.isPropertyAssignment(target)) safeWrite(target.initializer);
+        else if (ts.isShorthandPropertyAssignment(target)) safeWrites.add(symbolAt(target.name));
+        else if (ts.isSpreadElement(target) || ts.isSpreadAssignment(target)) safeWrite(target.expression);
+        else if (ts.isBinaryExpression(target) && target.operatorToken.kind === ts.SyntaxKind.EqualsToken) safeWrite(target.left);
+    }
 
     function span(value) {
         const start = value.getStart(sourceFile);
@@ -4697,6 +4731,21 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
     }
 
     visit(sourceFile, node => {
+        if (safeParseEvidence.status === 'observed') {
+            if (++safeVisited > 10000) {
+                safeParseEvidence.status = 'unavailable'; safeParseEvidence.reason = 'node_budget_exceeded';
+            } else {
+                if ((ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isFunctionDeclaration(node)
+                    || ts.isClassDeclaration(node) || ts.isEnumDeclaration(node) || ts.isImportSpecifier(node)
+                    || ts.isNamespaceImport(node) || ts.isImportClause(node)) && node.name) safeCount(node.name, node);
+                if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+                    && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) safeWrite(node.left);
+                if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node))
+                    && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) safeWrite(node.operand);
+                if (ts.isDeleteExpression(node)) safeWrite(node.expression);
+                if (ts.isForOfStatement(node) || ts.isForInStatement(node)) safeWrite(node.initializer);
+            }
+        }
         function countName(name) {
             if (ts.isIdentifier(name)) {
                 const scope = blockOf(node);
@@ -4988,10 +5037,87 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
             sink: span(node), argument: span(node.arguments[0])}});
     }
 
+    function safeParseSuccess(node) {
+        if (safeParseEvidence.status !== 'observed' || node.questionDotToken
+            || !ts.isExpressionStatement(node.parent) || node.parent.expression !== node) return;
+        const then = node.parent.parent, branch = then?.parent, body = branch?.parent;
+        if (!then || !ts.isBlock(then) || then.statements.length !== 1
+            || !branch || !ts.isIfStatement(branch) || branch.thenStatement !== then || branch.elseStatement
+            || !body || !ts.isBlock(body) || body.statements.length < 4 || body.statements.at(-1) !== branch
+            || !ts.isFunctionDeclaration(body.parent) || body.parent.asteriskToken
+            || !body.parent.modifiers?.some(item => item.kind === ts.SyntaxKind.AsyncKeyword)) return;
+        for (let cursor = body.parent.parent; cursor; cursor = cursor.parent) {
+            if (ts.isIterationStatement(cursor, false) || ts.isIfStatement(cursor)
+                || ts.isSwitchStatement(cursor) || ts.isTryStatement(cursor)) return;
+        }
+        // No casts, aliases, optional access, alternate guards or deferred sinks.
+        const decl = statement => ts.isVariableStatement(statement)
+            && statement.declarationList.declarations.length === 1
+            && isConstDeclaration(statement.declarationList.declarations[0])
+            && ts.isIdentifier(statement.declarationList.declarations[0].name)
+            ? statement.declarationList.declarations[0] : null;
+        const [fetch, json, result] = body.statements.slice(-4).map(decl);
+        if (!fetch || !json || !result) return;
+        const raw = jsonValues.get(symbolAt(json.name));
+        if (raw?.node !== json || raw.response.node !== fetch || raw.block !== body) return;
+        const fetchAwait = fetch.initializer, jsonAwait = json.initializer, call = result.initializer;
+        if (!fetchAwait || !ts.isAwaitExpression(fetchAwait) || !jsonAwait || !ts.isAwaitExpression(jsonAwait)) return;
+        const fetchCall = fetchAwait.expression, jsonCall = jsonAwait.expression;
+        if (!ts.isCallExpression(fetchCall) || fetchCall.questionDotToken || fetchCall.typeArguments?.length
+            || !ts.isIdentifier(fetchCall.expression) || fetchCall.expression.text !== 'fetch' || symbolAt(fetchCall.expression)
+            || !ts.isCallExpression(jsonCall) || jsonCall.questionDotToken || jsonCall.arguments.length || jsonCall.typeArguments?.length
+            || !ts.isPropertyAccessExpression(jsonCall.expression) || jsonCall.expression.questionDotToken
+            || jsonCall.expression.name.text !== 'json' || !ts.isIdentifier(jsonCall.expression.expression)
+            || symbolAt(jsonCall.expression.expression) !== symbolAt(fetch.name)
+            || !call || !ts.isCallExpression(call) || call.questionDotToken || call.typeArguments?.length
+            || call.arguments.length !== 1 || !ts.isIdentifier(call.arguments[0])
+            || symbolAt(call.arguments[0]) !== symbolAt(json.name)
+            || !ts.isPropertyAccessExpression(call.expression) || call.expression.questionDotToken
+            || call.expression.name.text !== 'safeParse' || !ts.isIdentifier(call.expression.expression)) return;
+        const ownerRef = call.expression.expression, owners = symbolAt(ownerRef)?.declarations || [];
+        const owner = owners.length === 1 ? owners[0] : null;
+        if (!owner || !ts.isVariableDeclaration(owner) || !ts.isIdentifier(owner.name) || !isConstDeclaration(owner)
+            || owner.parent.declarations.length !== 1 || !owner.initializer || owner.getSourceFile() !== sourceFile
+            || owner.end > call.getStart(sourceFile)) return;
+        const condition = branch.expression, argument = node.arguments[0];
+        const selected = (value, property) => ts.isPropertyAccessExpression(value) && !value.questionDotToken
+            && value.name.text === property && ts.isIdentifier(value.expression)
+            && symbolAt(value.expression) === symbolAt(result.name);
+        if (!selected(condition, 'success') || !selected(argument, 'data')) return;
+        const setter = stateSetters.get(symbolAt(node.expression)), state = setter?.parent?.parent?.parent;
+        if (!state || !ts.isVariableDeclaration(state) || !ts.isArrayBindingPattern(state.name)
+            || state.name.elements.length !== 2 || state.name.elements.some(item => !ts.isBindingElement(item)
+                || !ts.isIdentifier(item.name) || item.dotDotDotToken || item.initializer)
+            || !state.initializer || !ts.isCallExpression(state.initializer)
+            || !ts.isIdentifier(state.initializer.expression)) return;
+        const hook = state.initializer.expression, hookDeclarations = symbolAt(hook)?.declarations || [];
+        const hookBinding = hookDeclarations.length === 1 ? hookDeclarations[0] : null;
+        if (!hookBinding || !ts.isImportSpecifier(hookBinding) || !isReactUseState(state.initializer)
+            || hookBinding.parent.parent.parent.end > state.getStart(sourceFile)
+            || state.end > node.getStart(sourceFile)) return;
+        const unique = (identifier, declaration) => {
+            const binding = symbolAt(identifier), declarations = binding?.declarations || [];
+            return binding && !safeWrites.has(binding) && declarations.length === 1 && declarations[0] === declaration
+                && safeNames.get(identifier.text)?.length === 1;
+        };
+        if (!unique(fetch.name, fetch) || !unique(json.name, json) || !unique(result.name, result)
+            || !unique(owner.name, owner) || !unique(setter, setter.parent) || !unique(hook, hookBinding)) return;
+        if (safeParseEvidence.records.length >= 64) { safeParseEvidence.omitted += 1; return; }
+        safeParseEvidence.records.push({spans: {
+            body: span(body), fetch: span(fetch), fetch_binding: span(fetch.name), json: span(json), json_binding: span(json.name),
+            parser_owner: span(owner), parser_owner_binding: span(owner.name), parser_owner_ref: span(ownerRef),
+            parser_call: span(call), parser_input: span(call.arguments[0]), result: span(result), result_binding: span(result.name),
+            branch: span(branch), condition: span(condition), condition_result_ref: span(condition.expression), success_property: span(condition.name),
+            then_body: span(then), data_result_ref: span(argument.expression), data_property: span(argument.name),
+            state_declaration: span(state), state_import: span(hookBinding.parent.parent.parent),
+            setter_binding: span(setter), setter_ref: span(node.expression), sink: span(node), argument: span(argument)}});
+    }
+
     visit(sourceFile, node => {
         if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)
             || node.arguments.length !== 1 || !stateSetters.has(symbolAt(node.expression))) return;
         localCallResult(node);
+        safeParseSuccess(node);
         let argument = node.arguments[0];
         while (ts.isParenthesizedExpression(argument)) argument = argument.expression;
         const explicitCast = ts.isAsExpression(argument) || ts.isTypeAssertionExpression(argument);
@@ -5034,6 +5160,9 @@ function collectReactResponseStateFeatures(sourceFile, sourceCode, importBinding
             features.add(`React:ExternalResponse${kind}:${sinkLine}:${producerLine}`);
         }
     });
+    if (safeParseEvidence.omitted) {
+        safeParseEvidence.status = 'partial'; safeParseEvidence.reason = 'record_budget_exceeded';
+    }
     return features;
 }
 
@@ -6224,11 +6353,41 @@ function detectGraphQLExportContract(sourceFile, sourceCode, targetFile, symbolN
     return { matched: true, kind: 'graphql_document' };
 }
 
-function collectModuleImportEvidence(sourceFile) {
+let importOccurrencePolicy;
+function installedImportOccurrencePolicy() {
+    if (importOccurrencePolicy !== undefined) return importOccurrencePolicy;
+    try {
+        const root = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../config/agent_surface_contract.json'), 'utf8')).audit_import_subject_evidence;
+        const policy = {...root.occurrences, record_kinds: root.record_kinds, record_scope: root.record_scope};
+        if (policy.version !== 'v1-static-es-import-bindings' || policy.kind !== 'nexora.audit_import_occurrences'
+            || !Array.isArray(policy.record_kinds) || !policy.record_kinds.length || policy.record_scope !== 'top_level'
+            || !['max_file_rows', 'max_projection_rows', 'max_source_bytes'].every(k => Number.isSafeInteger(policy[k]) && policy[k] > 0)) {
+            throw new Error('invalid_import_occurrence_policy');
+        }
+        importOccurrencePolicy = policy;
+    } catch (_error) {
+        importOccurrencePolicy = null; // Optional navigation must not suppress old import records.
+    }
+    return importOccurrencePolicy;
+}
+
+function collectModuleImportEvidence(sourceFile, sourceHash) {
     const records = [];
     const seen = new Set();
+    const policy = installedImportOccurrencePolicy();
+    const available = policy && !sourceFile.parseDiagnostics.length
+        && Buffer.byteLength(sourceFile.text, 'utf8') <= policy.max_source_bytes;
+    const occurrences = {version: 'v1-static-es-import-bindings', status: available ? 'observed' : 'unavailable',
+        offset_unit: 'utf16_code_units', source_hash: sourceHash,
+        policy_sha256: policy ? crypto.createHash('sha256').update(JSON.stringify(policy, Object.keys(policy).sort())).digest('hex') : '',
+        parser_kind: 'typescript_compiler_api', parser_version: ts.version, rows: [], omitted: 0};
+    function span(node) {
+        const start = node.getStart(sourceFile), end = node.end;
+        return {start, end, line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            end_line: sourceFile.getLineAndCharacterOfPosition(end - 1).line + 1};
+    }
 
-    function add(source, name, kind, scope = 'top_level') {
+    function add(source, name, kind, scope = 'top_level', declaration = null, binding = null) {
         const normalizedSource = String(source || '').trim();
         if (!normalizedSource) return;
         const record = {
@@ -6241,6 +6400,23 @@ function collectModuleImportEvidence(sourceFile) {
         if (!seen.has(key)) {
             seen.add(key);
             records.push(record);
+        }
+        if (available && declaration && policy.record_kinds.includes(kind)) {
+            const literal = declaration.moduleSpecifier;
+            const token = literal.getText(sourceFile);
+            const nameNode = kind === 'named' ? (binding.propertyName || binding.name)
+                : kind === 'namespace' ? binding.name : (binding || literal);
+            if (declaration.parent !== sourceFile || declaration.attributes || declaration.assertClause
+                || source !== normalizedSource || token.includes('\\') || !['"', "'"].includes(token[0])
+                || (kind === 'named' && !ts.isIdentifier(nameNode))
+                || token.slice(1, -1) !== source || occurrences.rows.length >= policy.max_file_rows) {
+                occurrences.omitted++;
+                occurrences.status = 'partial';
+            } else {
+                occurrences.rows.push({record: {...record}, statement: span(declaration),
+                    module: span(literal), binding: span(binding || literal), name: span(nameNode),
+                    keyword: span(declaration.getFirstToken(sourceFile))});
+            }
         }
     }
 
@@ -6291,19 +6467,19 @@ function collectModuleImportEvidence(sourceFile) {
             const source = moduleSource(node.moduleSpecifier);
             const clause = node.importClause;
             if (!clause) {
-                add(source, '*', 'side_effect');
+                add(source, '*', 'side_effect', 'top_level', node);
             } else {
                 const clauseIsTypeOnly = Boolean(clause.isTypeOnly);
                 if (clause.name) {
-                    add(source, 'default', clauseIsTypeOnly ? 'type' : 'default');
+                    add(source, 'default', clauseIsTypeOnly ? 'type' : 'default', 'top_level', node, clause.name);
                 }
                 const bindings = clause.namedBindings;
                 if (bindings && ts.isNamespaceImport(bindings)) {
-                    add(source, bindings.name.text, clauseIsTypeOnly ? 'type' : 'namespace');
+                    add(source, bindings.name.text, clauseIsTypeOnly ? 'type' : 'namespace', 'top_level', node, bindings);
                 } else if (bindings && ts.isNamedImports(bindings)) {
                     for (const element of bindings.elements) {
                         const importedName = element.propertyName?.text || element.name.text;
-                        add(source, importedName, clauseIsTypeOnly || element.isTypeOnly ? 'type' : 'named');
+                        add(source, importedName, clauseIsTypeOnly || element.isTypeOnly ? 'type' : 'named', 'top_level', node, element);
                     }
                 }
             }
@@ -6337,7 +6513,7 @@ function collectModuleImportEvidence(sourceFile) {
     }
 
     visit(sourceFile);
-    return records;
+    return {records, occurrences};
 }
 
 function analyzeDeclarationFile(targetFile) {
@@ -6432,11 +6608,710 @@ function analyzeDeclarationFile(targetFile) {
     return result();
 }
 
-function analyzeFile(targetFile) {
+function createEffectSafeParseCallbackCollector(sourceFile, symbolAt) {
+    // Feed the existing high-fidelity walk. These are source correspondences,
+    // not React scheduling, form-library, schema or callback execution proof.
+    const result = {status: 'observed', reason: '', version: 'v1-effect-safeparse-data-spread-callback',
+        offset_unit: 'utf16_code_units', source_hash: generateDna(sourceFile.text),
+        records: [], record_count: 0, omitted: 0};
+    const mergeResult = {...result, version: 'v1-effect-safeparse-parameter-spread', records: []};
+    const earlyResult = {...result, version: 'v2-safeparse-negative-return-single-const-actual', records: []};
+    const factoryResult = {...result, version: 'v5-sync-factory-return-callback-guard-source', records: []};
+    const factoryArguments = {...result, version: 'v2-sync-factory-call-argument-const-binding', records: []};
+    const resolverResult = {...result, version: 'v1-zod-resolver-named-import-factory-source', records: []};
+    const names = new Map(), writes = new Set(), candidates = [], earlyCandidates = [], factoryCandidates = [];
+    let visited = 0, finished = false, parameterUses = 0, callbackGuards = 0;
+    const unavailable = reason => {
+        for (const lane of [result, mergeResult, earlyResult, factoryResult, factoryArguments, resolverResult]) { lane.status = 'unavailable'; lane.reason = reason; }
+    };
+    if (sourceFile.parseDiagnostics?.length) unavailable('parse_diagnostics');
+    else if (!/\.tsx?$/i.test(sourceFile.fileName)) unavailable('not_applicable_language');
+    else if (Buffer.byteLength(sourceFile.text, 'utf8') > 1048576) unavailable('source_byte_budget_exceeded');
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    function count(name, declaration) {
+        if (ts.isIdentifier(name)) {
+            if (!names.has(name.text)) names.set(name.text, []);
+            names.get(name.text).push(declaration);
+        } else if (ts.isArrayBindingPattern(name) || ts.isObjectBindingPattern(name)) {
+            for (const element of name.elements) if (ts.isBindingElement(element)) count(element.name, element);
+        }
+    }
+    function write(target) {
+        if (ts.isIdentifier(target)) writes.add(symbolAt(target));
+        else if (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)
+            || ts.isParenthesizedExpression(target) || ts.isAsExpression(target)
+            || ts.isTypeAssertionExpression(target) || ts.isNonNullExpression(target)
+            || ts.isSatisfiesExpression(target)) write(target.expression);
+        else if (ts.isArrayLiteralExpression(target)) target.elements.forEach(write);
+        else if (ts.isObjectLiteralExpression(target)) target.properties.forEach(write);
+        else if (ts.isPropertyAssignment(target)) write(target.initializer);
+        else if (ts.isShorthandPropertyAssignment(target)) { writes.add(symbolAt(target.name)); writes.add(symbolAt(target)); }
+        else if (ts.isSpreadElement(target) || ts.isSpreadAssignment(target)) write(target.expression);
+        else if (ts.isBinaryExpression(target) && target.operatorToken.kind === ts.SyntaxKind.EqualsToken) write(target.left);
+    }
+    const unique = (identifier, declaration) => {
+        const symbol = symbolAt(identifier), declarations = symbol?.declarations || [];
+        return symbol && !writes.has(symbol) && declarations.length === 1 && declarations[0] === declaration
+            && names.get(identifier.text)?.length === 1;
+    };
+    const constDecl = node => node && ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+        && ts.isVariableDeclarationList(node.parent) && Boolean(node.parent.flags & ts.NodeFlags.Const)
+        && node.parent.declarations.length === 1 && node.initializer;
+    const lexicalOwners = new WeakMap();
+    function lexicalOwner(node) {
+        if (!node) return sourceFile;
+        if (lexicalOwners.has(node)) return lexicalOwners.get(node);
+        // A declaration name belongs to its enclosing function, not its own body.
+        const parent = node.parent;
+        const owner = !parent || parent === sourceFile ? sourceFile
+            : ts.isFunctionLike(parent) ? parent : lexicalOwner(parent);
+        lexicalOwners.set(node, owner);
+        return owner;
+    }
+    const priorNameCounts = new Map();
+    const uniquePrior = (identifier, declaration, component) => {
+        const symbol = symbolAt(identifier), declarations = symbol?.declarations || [];
+        if (!priorNameCounts.has(identifier.text)) {
+            const counts = new Map();
+            for (const other of names.get(identifier.text) || []) {
+                const owner = lexicalOwner(other);
+                counts.set(owner, (counts.get(owner) || 0) + 1);
+            }
+            priorNameCounts.set(identifier.text, counts);
+        }
+        return symbol && !writes.has(symbol) && declarations.length === 1 && declarations[0] === declaration
+            && priorNameCounts.get(identifier.text).get(component) === 1;
+    };
+    function primitiveProperties(properties) {
+        const propertyNames = new Set();
+        for (const property of properties) {
+            if (!ts.isPropertyAssignment(property) || !ts.isIdentifier(property.name)
+                || propertyNames.has(property.name.text) || !(ts.isStringLiteral(property.initializer)
+                    || ts.isNumericLiteral(property.initializer)
+                    || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(property.initializer.kind))) return false;
+            propertyNames.add(property.name.text);
+        }
+        return true;
+    }
+    const nextStatements = new WeakMap();
+    function nextStatement(block, statement) {
+        if (!nextStatements.has(block)) {
+            const next = new Map();
+            for (let i = 0; i + 1 < block.statements.length; i++) next.set(block.statements[i], block.statements[i+1]);
+            nextStatements.set(block, next);
+        }
+        return nextStatements.get(block).get(statement);
+    }
+    function admitEarly(declaration) {
+        const list = declaration.parent, statement = list?.parent, block = statement?.parent;
+        if (!ts.isVariableDeclarationList(list) || !(list.flags & ts.NodeFlags.Const) || list.declarations.length !== 1
+            || !ts.isVariableStatement(statement) || !ts.isBlock(block) || declaration.name.elements.length !== 1) return;
+        const success = declaration.name.elements[0];
+        if (!ts.isBindingElement(success) || !ts.isIdentifier(success.name) || success.initializer || success.dotDotDotToken
+            || !(success.propertyName ? ts.isIdentifier(success.propertyName) && success.propertyName.text === 'success'
+                : success.name.text === 'success') || !unique(success.name, success)) return;
+        const body = ts.isTryStatement(block.parent) && block.parent.tryBlock === block ? block.parent.parent : block;
+        const callback = body?.parent, callbackDeclaration = callback?.parent;
+        if (!body || !ts.isBlock(body) || !callback || !ts.isArrowFunction(callback) || callback.body !== body
+            || callback.parameters.length || callback.typeParameters?.length
+            || callback.modifiers?.some(m => m.kind !== ts.SyntaxKind.AsyncKeyword)
+            || !constDecl(callbackDeclaration) || callbackDeclaration.initializer !== callback
+            || !unique(callbackDeclaration.name, callbackDeclaration)) return;
+        const call = declaration.initializer;
+        if (!call || !ts.isCallExpression(call) || call.questionDotToken || call.typeArguments?.length
+            || call.arguments.length !== 1 || !ts.isIdentifier(call.arguments[0])
+            || !ts.isPropertyAccessExpression(call.expression) || call.expression.questionDotToken
+            || call.expression.name.text !== 'safeParse') return;
+        const factory = call.expression.expression;
+        if (!ts.isCallExpression(factory) || factory.arguments.length > 1 || factory.arguments.hasTrailingComma || factory.typeArguments?.length
+            || factory.questionDotToken || !ts.isIdentifier(factory.expression)) return;
+        const factoryRef = factory.expression, imported = symbolAt(factoryRef)?.declarations?.[0];
+        const importStatement = imported?.parent?.parent?.parent;
+        if (!imported || !ts.isImportSpecifier(imported) || imported.isTypeOnly || imported.parent.parent.isTypeOnly
+            || !importStatement || !ts.isImportDeclaration(importStatement) || importStatement.parent !== sourceFile
+            || !ts.isStringLiteral(importStatement.moduleSpecifier) || !unique(factoryRef, imported)
+            || importStatement.end > callbackDeclaration.getStart(sourceFile)) return;
+        const inputRef = call.arguments[0], inputBinding = symbolAt(inputRef)?.declarations?.[0];
+        let input = inputBinding;
+        if (inputBinding && ts.isBindingElement(inputBinding)) {
+            if (!ts.isIdentifier(inputBinding.name) || inputBinding.initializer || inputBinding.dotDotDotToken) return;
+            input = inputBinding.parent.parent;
+        }
+        const ownerBlock = callbackDeclaration.parent.parent.parent;
+        const actual = factory.arguments[0];
+        let actualBinding;
+        if (actual) {
+            if (!ts.isIdentifier(actual) || !/^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/.test(actual.text)
+                    || actual.getText(sourceFile) !== actual.text) return;
+            actualBinding = symbolAt(actual)?.declarations?.[0];
+            if (!constDecl(actualBinding) || actualBinding.type || actualBinding.name.getText(sourceFile) !== actual.text
+                    || actualBinding.parent.parent.parent !== ownerBlock
+                    || actualBinding.end > callbackDeclaration.getStart(sourceFile) || !unique(actual,actualBinding)) return;
+        }
+        if (!input || !ts.isVariableDeclaration(input) || !ts.isVariableDeclarationList(input.parent)
+            || !(input.parent.flags & ts.NodeFlags.Const) || input.parent.declarations.length !== 1 || !input.initializer
+            || input.parent.parent.parent !== ownerBlock || input.end > callbackDeclaration.getStart(sourceFile)
+            || !unique(inputRef, inputBinding)) return;
+        const guard = nextStatement(block, statement);
+        if (!guard || !ts.isIfStatement(guard) || guard.elseStatement || !ts.isBlock(guard.thenStatement)
+            || !ts.isPrefixUnaryExpression(guard.expression) || guard.expression.operator !== ts.SyntaxKind.ExclamationToken
+            || !ts.isIdentifier(guard.expression.operand) || symbolAt(guard.expression.operand) !== symbolAt(success.name)) return;
+        const thenBody = guard.thenStatement, returned = thenBody.statements.at(-1);
+        if (!returned || !ts.isReturnStatement(returned) || returned.expression
+            || !thenBody.statements.slice(0, -1).every(s => ts.isExpressionStatement(s)
+                && ts.isCallExpression(s.expression) && ts.isIdentifier(s.expression.expression)
+                && !s.expression.questionDotToken && !s.expression.typeArguments?.length)) return;
+        if (earlyResult.records.length === 64) { earlyResult.omitted++; return; }
+        earlyResult.records.push({...(actual ? {factory_argument_name: actual.text} : {}), spans: {callback: span(callback), callback_binding: span(callbackDeclaration.name),
+            callback_body: span(body), block: span(block), declaration: span(declaration),
+            success_property: span(success.propertyName || success.name), success_binding: span(success.name),
+            parser_call: span(call), factory_call: span(factory), factory_ref: span(factoryRef),
+            factory_import: span(importStatement), factory_import_binding: span(imported.name),
+            parser_input: span(inputRef), input_declaration: span(input), input_binding: span(inputBinding.name),
+            guard: span(guard), condition: span(guard.expression), guard_ref: span(guard.expression.operand),
+            then_body: span(thenBody), return: span(returned), ...(actual ? {factory_argument: span(actual),
+                argument_declaration_list: span(actualBinding.parent), argument_declaration: span(actualBinding),
+                argument_const_keyword: span(actualBinding.parent.getFirstToken(sourceFile)),
+                argument_binding: span(actualBinding.name), argument_initializer: span(actualBinding.initializer)} : {})}});
+    }
+    function admitResolver(call) {
+        // Feed existing named-import candidates/checker; arguments are opaque.
+        const simple = node => ts.isIdentifier(node) && /^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/.test(node.text)
+            && node.getText(sourceFile) === node.text;
+        const namedImport = ref => {
+            const binding = symbolAt(ref)?.declarations?.[0], statement = binding?.parent?.parent?.parent;
+            return binding && ts.isImportSpecifier(binding) && !binding.isTypeOnly && !binding.parent.parent.isTypeOnly
+                && statement && ts.isImportDeclaration(statement) && statement.parent === sourceFile
+                && ts.isStringLiteral(statement.moduleSpecifier) && statement.end <= call.getStart(sourceFile)
+                && unique(ref,binding) ? {binding,statement} : null;
+        };
+        if (!simple(call.expression) || call.questionDotToken || call.typeArguments?.length
+                || call.arguments.length !== 1 || call.arguments.hasTrailingComma) return;
+        const resolver = namedImport(call.expression), factory = call.arguments[0];
+        if (!resolver || resolver.statement.moduleSpecifier.text !== '@hookform/resolvers/zod'
+                || (resolver.binding.propertyName || resolver.binding.name).getText(sourceFile) !== 'zodResolver'
+                || !ts.isCallExpression(factory) || !simple(factory.expression) || factory.questionDotToken
+                || factory.typeArguments?.length || factory.arguments.length > 4 || factory.arguments.hasTrailingComma
+                || factory.arguments.some(ts.isSpreadElement)) return;
+        const imported = namedImport(factory.expression);
+        if (!imported) return;
+        if (resolverResult.records.length === 64) { resolverResult.omitted++; return; }
+        const spans = {resolver_call:span(call), resolver_ref:span(call.expression),
+            resolver_import:span(resolver.statement), resolver_import_binding:span(resolver.binding.name),
+            resolver_imported:span(resolver.binding.propertyName || resolver.binding.name), resolver_module:span(resolver.statement.moduleSpecifier),
+            factory_call:span(factory), factory_ref:span(factory.expression), factory_import:span(imported.statement), factory_import_binding:span(imported.binding.name)};
+        factory.arguments.forEach((arg,i) => { spans['argument_' + i] = span(arg); });
+        resolverResult.records.push({argument_count:factory.arguments.length, resolver_local_name:call.expression.text,
+            factory_local_name:factory.expression.text, spans});
+    }
+    function admitFactory(declaration) {
+        const simple = node => node && ts.isIdentifier(node) && /^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/.test(node.text);
+        const namedFunction = ts.isFunctionDeclaration(declaration);
+        const statement = namedFunction ? declaration : declaration.parent?.parent;
+        const factory = namedFunction ? declaration : declaration.initializer;
+        const factoryKind = namedFunction ? 'function_declaration' : 'const_arrow';
+        if (!simple(declaration.name) || statement?.parent !== sourceFile
+            || !statement.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)
+            || statement.modifiers.some(m => m.kind !== ts.SyntaxKind.ExportKeyword)
+            || (!namedFunction && (!constDecl(declaration) || !ts.isArrowFunction(factory) || factory.modifiers?.length))
+            || factory.asteriskToken || factory.typeParameters?.length || !factory.body
+            || factory.parameters.length > 4 || factory.parameters.some(p => !simple(p.name) || p.dotDotDotToken)
+            || !unique(declaration.name, declaration)) return;
+        const body = factory.body;
+        const block = ts.isBlock(body);
+        const returned = block ? body.statements.at(-1) : body;
+        if (!returned || (block && (!ts.isReturnStatement(returned) || !returned.expression
+            || body.statements.length > 5 || !body.statements.slice(0, -1).every(s => ts.isVariableStatement(s)
+                && s.declarationList.declarations.length === 1 && constDecl(s.declarationList.declarations[0]))))) return;
+        const expression = block ? returned.expression : body;
+        let current = expression;
+        const calls = [];
+        while (current && ts.isCallExpression(current)) {
+            const property = current.expression;
+            if (calls.length === 8 || current.questionDotToken || current.typeArguments?.length
+                || !ts.isPropertyAccessExpression(property) || property.questionDotToken || !simple(property.name)) return;
+            calls.unshift({call: current, method: property.name});
+            current = property.expression;
+        }
+        if (!calls.length || !simple(current)) return;
+        const imported = symbolAt(current)?.declarations?.[0], importStatement = imported?.parent?.parent?.parent;
+        if (!imported || !ts.isImportSpecifier(imported) || imported.isTypeOnly || imported.parent.parent.isTypeOnly
+            || !simple(imported.name) || !simple(imported.propertyName || imported.name)
+            || !importStatement || !ts.isImportDeclaration(importStatement) || importStatement.parent !== sourceFile
+            || !ts.isStringLiteral(importStatement.moduleSpecifier) || !importStatement.moduleSpecifier.text
+            || importStatement.moduleSpecifier.text.length > 180 || importStatement.moduleSpecifier.getText(sourceFile).includes('\\')
+            || importStatement.end > declaration.getStart(sourceFile) || !unique(current, imported)) return;
+        if (factoryResult.records.length === 64) { factoryResult.omitted++; return; }
+        const spans = {factory: span(factory), factory_binding: span(declaration.name), body: span(body),
+            returned: span(returned), expression: span(expression), root: span(current),
+            root_import: span(importStatement), root_binding: span(imported.name),
+            root_imported: span(imported.propertyName || imported.name), module: span(importStatement.moduleSpecifier)};
+        for (let i = 0; i < calls.length; i++) {
+            const {call, method} = calls[i];
+            spans['call_' + i] = span(call); spans['method_' + i] = span(method);
+            const open = call.arguments.pos - 1, close = call.end - 1;
+            spans['open_' + i] = {start: open, end: open + 1,
+                line: sourceFile.getLineAndCharacterOfPosition(open).line + 1, end_line: sourceFile.getLineAndCharacterOfPosition(open).line + 1};
+            spans['close_' + i] = {start: close, end: close + 1,
+                line: sourceFile.getLineAndCharacterOfPosition(close).line + 1, end_line: sourceFile.getLineAndCharacterOfPosition(close).line + 1};
+        }
+        let parameter = {};
+        const formal = factory.parameters.length === 1 ? factory.parameters[0] : null;
+        if (formal && formal.name.text !== 'this' && formal.name.getText(sourceFile) === formal.name.text
+                && !factory.parameters.hasTrailingComma && !formal.initializer && !formal.questionToken
+                && !formal.modifiers?.length && unique(formal.name,formal)) {
+            const tokens = factory.getChildren(sourceFile);
+            const open = tokens.find(t => t.kind === ts.SyntaxKind.OpenParenToken);
+            const close = tokens.find(t => t.kind === ts.SyntaxKind.CloseParenToken);
+            parameter = {parameter_name: formal.name.text, parameter_form: open && close ? 'parenthesized' : 'bare_arrow',
+                parameter_uses: [], parameter_uses_omitted: 0, callback_guard_reads: [], callback_guard_reads_omitted: 0};
+            Object.assign(spans,{parameter: span(formal), parameter_binding: span(formal.name),
+                ...(formal.type ? {parameter_type: span(formal.type)} : {}),
+                ...(open && close ? {parameters_open: span(open), parameters_close: span(close)} : {})});
+        }
+        factoryResult.records.push({factory_name: declaration.name.text, factory_kind: factoryKind, ...parameter,
+            body_kind: block ? 'block_final_return' : 'expression', methods: calls.map(row => row.method.text),
+            import_binding: {source: importStatement.moduleSpecifier.text, local_name: imported.name.text,
+                imported_name: (imported.propertyName || imported.name).text, kind: 'named', type_only: false}, spans});
+        admitFactoryArguments(declaration, factoryResult.records.at(-1), calls);
+    }
+    function admitFactoryArguments(factoryDeclaration, construction, calls) {
+        // One-hop source links only. Initializers and other arguments are opaque.
+        const simple = node => node && ts.isIdentifier(node) && /^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/.test(node.text);
+        for (let callIndex = 0; callIndex < calls.length; callIndex++) {
+            const {call, method} = calls[callIndex], args = call.arguments;
+            if (!args.length || args.length > 4 || args.hasTrailingComma || args.some(ts.isSpreadElement)) continue;
+            for (let argumentIndex = 0; argumentIndex < args.length; argumentIndex++) {
+                const argument = args[argumentIndex];
+                // A distinct finite source category, never a direct-argument
+                // use or callback execution fact. Inspect already retained nodes;
+                // no callback subtree walk or second checker/resolver.
+                if (construction.parameter_name && method.text === 'superRefine' && ts.isArrowFunction(argument)
+                        && !argument.modifiers?.length && !argument.typeParameters?.length && !argument.type
+                        && ts.isBlock(argument.body) && argument.parameters.length <= 4 && !argument.parameters.hasTrailingComma
+                        && argument.getFirstToken(sourceFile)?.kind === ts.SyntaxKind.OpenParenToken
+                        && new Set(argument.parameters.map(p => p.name.getText(sourceFile))).size === argument.parameters.length
+                        && argument.parameters.every(p => simple(p.name) && p.name.text !== 'this'
+                            && p.name.getText(sourceFile) === p.name.text && !p.initializer && !p.questionToken
+                            && !p.dotDotDotToken && !p.modifiers?.length && !p.type && p.name.text !== construction.parameter_name)) {
+                    const guard = argument.body.statements[0], formal = (factoryDeclaration.initializer || factoryDeclaration).parameters[0];
+                    if (guard && ts.isIfStatement(guard) && !guard.elseStatement && simple(guard.expression)
+                            && guard.expression.text === construction.parameter_name && guard.expression.getText(sourceFile) === guard.expression.text
+                            && symbolAt(guard.expression)?.declarations?.length === 1
+                            && symbolAt(guard.expression).declarations[0] === formal
+                            && ts.isReturnStatement(guard.thenStatement) && !guard.thenStatement.expression) {
+                        if (callbackGuards === 64) construction.callback_guard_reads_omitted++;
+                        else {
+                            const index = construction.callback_guard_reads.length, prefix = 'guard_' + index + '_';
+                            construction.callback_guard_reads.push({call_index:callIndex, argument_index:argumentIndex,
+                                argument_count:args.length, callback_parameters:argument.parameters.map(p => p.name.text)});
+                            Object.assign(construction.spans, {[prefix+'callback']:span(argument), [prefix+'body']:span(argument.body),
+                                [prefix+'close']:span(argument.body.getLastToken(sourceFile)),
+                                [prefix+'branch']:span(guard), [prefix+'return']:span(guard.thenStatement), [prefix+'reference']:span(guard.expression)});
+                            args.forEach((arg,i) => { construction.spans[prefix+'argument_'+i] = span(arg); });
+                            callbackGuards++;
+                        }
+                    }
+                }
+                const shorthand = ts.isObjectLiteralExpression(argument) && argument.properties.length === 1
+                    && !argument.properties.hasTrailingComma && ts.isShorthandPropertyAssignment(argument.properties[0]) && !argument.properties[0].objectAssignmentInitializer
+                    ? argument.properties[0] : null;
+                const reference = shorthand ? shorthand.name : argument;
+                if (!simple(reference)) continue;
+                const symbol = symbolAt(shorthand || reference), declarations = symbol?.declarations || [], binding = declarations[0];
+                const formal = (factoryDeclaration.initializer || factoryDeclaration).parameters[0];
+                if (!shorthand && construction.parameter_name && binding === formal && declarations.length === 1
+                        && reference.text === construction.parameter_name && reference.getText(sourceFile) === reference.text) {
+                    if (parameterUses === 64) { construction.parameter_uses_omitted++; continue; }
+                    const index = construction.parameter_uses.length;
+                    construction.parameter_uses.push({call_index: callIndex, argument_index: argumentIndex, argument_count: args.length});
+                    construction.spans['parameter_use_' + index] = span(reference);
+                    args.forEach((arg,i) => { construction.spans['use_' + index + '_argument_' + i] = span(arg); });
+                    parameterUses++;
+                    continue;
+                }
+                if (declarations.length !== 1 || !constDecl(binding) || !simple(binding.name) || binding.type
+                    || reference.text !== binding.name.text || writes.has(symbol) || names.get(reference.text)?.length !== 1) continue;
+                const owner = binding.parent.parent.parent;
+                const scope = owner === sourceFile && binding.end <= factoryDeclaration.getStart(sourceFile) ? 'module_const'
+                    : owner === (factoryDeclaration.initializer || factoryDeclaration).body && binding.end <= construction.spans.returned.start ? 'factory_const' : null;
+                if (!scope) continue;
+                if (factoryArguments.records.length === 64) { factoryArguments.omitted++; continue; }
+                const spans = {};
+                for (const key of ['factory', 'factory_binding', 'body', 'returned', 'expression']) spans[key] = construction.spans[key];
+                for (const key of ['call', 'method', 'open', 'close']) spans[key] = construction.spans[key + '_' + callIndex];
+                Object.assign(spans, {argument: span(argument), reference: span(reference), declaration_list: span(binding.parent),
+                    declaration: span(binding), const_keyword: span(binding.parent.getFirstToken(sourceFile)),
+                    binding: span(binding.name), initializer: span(binding.initializer)});
+                args.forEach((arg,index) => { spans['argument_' + index] = span(arg); });
+                factoryArguments.records.push({factory_name: construction.factory_name, factory_kind: construction.factory_kind, method_name: method.text, call_index: callIndex,
+                    argument_index: argumentIndex, argument_count: args.length, kind: shorthand ? 'object_shorthand' : 'direct_identifier',
+                    name: reference.text, binding_scope: scope, spans});
+            }
+        }
+    }
+    function admit(effect) {
+        if (!ts.isIdentifier(effect.expression) || effect.questionDotToken || effect.typeArguments?.length
+            || effect.arguments.length !== 2 || !ts.isExpressionStatement(effect.parent)) return;
+        const componentBody = effect.parent.parent, component = componentBody?.parent;
+        if (!componentBody || !ts.isBlock(componentBody) || !component || !ts.isArrowFunction(component)
+            || component.modifiers?.length || component.typeParameters?.length || component.parameters.length !== 1
+            || !ts.isVariableDeclaration(component.parent) || !constDecl(component.parent)
+            || component.parent.parent.parent.parent !== sourceFile) return;
+        const parameter = component.parameters[0];
+        if (!ts.isObjectBindingPattern(parameter.name) || parameter.initializer || parameter.dotDotDotToken) return;
+        const hookRef = effect.expression, hook = symbolAt(hookRef)?.declarations?.[0];
+        const hookImport = hook?.parent?.parent?.parent;
+        if (!hook || !ts.isImportSpecifier(hook) || hook.isTypeOnly || hook.parent.parent.isTypeOnly
+            || !hookImport || !ts.isImportDeclaration(hookImport) || hookImport.parent !== sourceFile
+            || !ts.isStringLiteral(hookImport.moduleSpecifier) || hookImport.moduleSpecifier.text !== 'react'
+            || (hook.propertyName || hook.name).text !== 'useEffect' || !unique(hookRef, hook)
+            || hookImport.end > component.getStart(sourceFile)) return;
+        const callback = effect.arguments[0], dependencies = effect.arguments[1];
+        if (!ts.isArrowFunction(callback) || callback.parameters.length || callback.modifiers?.length
+            || callback.typeParameters?.length || callback.type || !ts.isBlock(callback.body)
+            || callback.body.statements.length !== 2 || !ts.isArrayLiteralExpression(dependencies)
+            || dependencies.elements.length !== 1 || !ts.isIdentifier(dependencies.elements[0])) return;
+        const [statement, branch] = callback.body.statements;
+        const parsed = ts.isVariableStatement(statement) && statement.declarationList.declarations.length === 1
+            ? statement.declarationList.declarations[0] : null;
+        if (!constDecl(parsed) || !unique(parsed.name, parsed) || !ts.isIfStatement(branch) || branch.elseStatement
+            || !ts.isBlock(branch.thenStatement) || branch.thenStatement.statements.length !== 1) return;
+        const call = parsed.initializer;
+        if (!ts.isCallExpression(call) || call.questionDotToken || call.typeArguments?.length || call.arguments.length !== 1
+            || !ts.isIdentifier(call.arguments[0]) || !ts.isPropertyAccessExpression(call.expression)
+            || call.expression.questionDotToken || call.expression.name.text !== 'safeParse'
+            || !ts.isIdentifier(call.expression.expression)) return;
+        const ownerRef = call.expression.expression, inputRef = call.arguments[0];
+        const owner = symbolAt(ownerRef)?.declarations?.[0], input = symbolAt(inputRef)?.declarations?.[0];
+        if (!constDecl(owner) || owner.parent.parent.parent !== sourceFile || !unique(ownerRef, owner)
+            || owner.end > component.getStart(sourceFile) || !constDecl(input) || !unique(inputRef, input)
+            || input.parent.parent.parent !== componentBody || input.end > effect.getStart(sourceFile)
+            || symbolAt(dependencies.elements[0]) !== symbolAt(inputRef)) return;
+        const selected = (value, property) => value && ts.isPropertyAccessExpression(value) && !value.questionDotToken
+            && value.name.text === property && ts.isIdentifier(value.expression)
+            && symbolAt(value.expression) === symbolAt(parsed.name);
+        const condition = branch.expression, sinkStatement = branch.thenStatement.statements[0];
+        const sink = ts.isExpressionStatement(sinkStatement) ? sinkStatement.expression : null;
+        if (!selected(condition, 'success') || !sink || !ts.isCallExpression(sink) || sink.questionDotToken
+            || sink.typeArguments?.length || !ts.isIdentifier(sink.expression) || sink.arguments.length !== 1
+            || !ts.isObjectLiteralExpression(sink.arguments[0])) return;
+        const argument = sink.arguments[0], spread = argument.properties.at(-1);
+        if (!spread || !ts.isSpreadAssignment(spread) || !selected(spread.expression, 'data')) return;
+        const first = argument.properties[0];
+        const merging = argument.properties.length === 2 && ts.isSpreadAssignment(first);
+        let prior = null;
+        if (merging) {
+            if (!ts.isIdentifier(first.expression)) return;
+            prior = symbolAt(first.expression)?.declarations?.[0];
+            if (!prior || !ts.isBindingElement(prior) || !ts.isIdentifier(prior.name)
+                || prior.parent !== parameter.name || prior.dotDotDotToken
+                || (prior.propertyName && !ts.isIdentifier(prior.propertyName))
+                || (prior.initializer && (!ts.isObjectLiteralExpression(prior.initializer)
+                    || !primitiveProperties(prior.initializer.properties)))
+                || !uniquePrior(first.expression, prior, component)) return;
+        } else if (!primitiveProperties(argument.properties.slice(0, -1))) return;
+        const binding = symbolAt(sink.expression)?.declarations?.[0];
+        if (!binding || !ts.isBindingElement(binding) || !ts.isIdentifier(binding.name)
+            || binding.parent !== parameter.name || binding.initializer || binding.dotDotDotToken
+            || (binding.propertyName && !ts.isIdentifier(binding.propertyName))
+            || !unique(sink.expression, binding) || prior === binding) return;
+        const lane = merging ? mergeResult : result;
+        if (lane.records.length === 64) { lane.omitted++; return; }
+        lane.records.push({spans: {component_body: span(componentBody), hook_import: span(hookImport),
+            hook_ref: span(hookRef), effect: span(effect), body: span(callback.body), dependencies: span(dependencies),
+            dependency_ref: span(dependencies.elements[0]), input: span(input), input_binding: span(input.name),
+            parser_owner: span(owner), parser_owner_binding: span(owner.name), parser_owner_ref: span(ownerRef),
+            parser_call: span(call), parser_input: span(inputRef), result: span(parsed), result_binding: span(parsed.name),
+            branch: span(branch), condition: span(condition), condition_result_ref: span(condition.expression),
+            success_property: span(condition.name), then_body: span(branch.thenStatement),
+            callback_binding: span(binding.name), callback_ref: span(sink.expression), sink: span(sink), argument: span(argument),
+            spread: span(spread), data_result_ref: span(spread.expression.expression), data_property: span(spread.expression.name),
+            ...(merging ? {prior_declaration: span(prior), prior_binding: span(prior.name),
+                prior_spread: span(first), prior_ref: span(first.expression)} : {})}});
+    }
+    return {
+        visit(node) {
+            if (result.status !== 'observed') return;
+            if (++visited > 10000) { unavailable('node_budget_exceeded'); return; }
+            if ((ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isFunctionDeclaration(node)
+                || ts.isFunctionExpression(node) || ts.isClassDeclaration(node) || ts.isEnumDeclaration(node)
+                || ts.isImportSpecifier(node) || ts.isNamespaceImport(node) || ts.isImportClause(node)) && node.name) count(node.name, node);
+            if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name)) earlyCandidates.push(node);
+            if ((ts.isVariableDeclaration(node) && node.initializer && ts.isArrowFunction(node.initializer))
+                || ts.isFunctionDeclaration(node)) factoryCandidates.push(node);
+            if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+                && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) write(node.left);
+            if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node))
+                && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) write(node.operand);
+            if (ts.isDeleteExpression(node)) write(node.expression);
+            if (ts.isForOfStatement(node) || ts.isForInStatement(node)) write(node.initializer);
+            if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+                const declaration = symbolAt(node.expression)?.declarations?.[0];
+                if (declaration && ts.isImportSpecifier(declaration)) candidates.push(node);
+            }
+        },
+        finish() {
+            if (finished || result.status !== 'observed') return result;
+            finished = true;
+            for (const candidate of candidates) admit(candidate);
+            for (const candidate of earlyCandidates) admitEarly(candidate);
+            for (const candidate of factoryCandidates) admitFactory(candidate);
+            for (const candidate of candidates) admitResolver(candidate);
+            if (factoryResult.omitted) {
+                factoryArguments.status = 'unavailable'; factoryArguments.reason = 'construction_record_budget_exceeded';
+                factoryArguments.records = []; factoryArguments.omitted = 0;
+            }
+            for (const lane of [result, mergeResult, earlyResult, factoryResult, factoryArguments, resolverResult]) {
+                lane.record_count = lane.records.length;
+                if (lane.omitted) { lane.status = 'partial'; lane.reason = 'record_budget_exceeded'; }
+            }
+            return result;
+        },
+        merge() { this.finish(); return mergeResult; },
+        earlyReturn() { this.finish(); return earlyResult; },
+        factoryReturn() { this.finish(); return factoryResult; },
+        factoryArgumentBindings() { this.finish(); return factoryArguments; },
+        resolverFactory() { this.finish(); return resolverResult; },
+    };
+}
+
+function createWiringSourceObservationCollector(sourceFile, symbolAt) {
+    // Source facts only. Same-file coexistence does not bind an import to a UI
+    // action, prove intent/obsolescence, or authorize a mutation. Feed the existing
+    // high-fidelity walk: no second parser, program or per-candidate subtree scan.
+    const result = {version: 'v1-named-import-inline-empty-jsx', status: 'observed',
+        coverage: 'finite_named_import_and_inline_jsx_syntax', offset_unit: 'utf16_code_units',
+        source_hash: generateDna(sourceFile.text), parser_kind: 'typescript_compiler_api',
+        parser_version: ts.version, record_count: 0, records: [], omitted: 0, reason: '',
+        correlation_status: 'not_evaluated', integration_status: 'unknown',
+        resolution_status: 'not_evaluated', runtime_execution: 'not_established', mutation_proposed: false};
+    const candidates = new Map(), callbacks = [];
+    let visited = 0, callbackOmitted = 0;
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const unavailable = reason => { result.status = 'unavailable'; result.reason = reason; };
+    if (sourceFile.parseDiagnostics?.length) unavailable('parse_diagnostics');
+    else if (Buffer.byteLength(sourceFile.text, 'utf8') > 1048576) unavailable('source_byte_budget_exceeded');
+    if (result.status === 'observed') try {
+        for (const statement of sourceFile.statements) {
+            if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+            const clause = statement.importClause, named = clause?.namedBindings;
+            const literal = statement.moduleSpecifier.getText(sourceFile);
+            if (!clause || clause.isTypeOnly || !named || !ts.isNamedImports(named)
+                || literal.includes('\\') || statement.moduleSpecifier.text.length > 180) continue;
+            for (const binding of named.elements) {
+                if (binding.isTypeOnly || !ts.isIdentifier(binding.name)
+                    || (binding.propertyName && !ts.isIdentifier(binding.propertyName))
+                    || binding.name.text.length > 128 || (binding.propertyName?.text || '').length > 128) continue;
+                const declarations = symbolAt(binding.name)?.declarations || [];
+                if (declarations.length !== 1 || declarations[0] !== binding) continue;
+                if (candidates.has(binding.name.text)) { unavailable('ambiguous_import_binding'); break; }
+                candidates.set(binding.name.text, {binding, statement, referenced: false});
+                if (candidates.size > 256) { unavailable('import_budget_exceeded'); break; }
+            }
+            if (result.status !== 'observed') break;
+        }
+    } catch (_) { unavailable('binding_context_unavailable'); }
+    return {
+        visit(node) {
+            if (result.status !== 'observed') return;
+            if (++visited > 10000) { unavailable('node_budget_exceeded'); return; }
+            // Deliberately conservative: ANY same-name identifier outside the
+            // import (including types, writes, exports, property names or shadow
+            // declarations) withholds the no-occurrence fact. Not a read/liveness solver.
+            if (ts.isIdentifier(node)) {
+                const candidate = candidates.get(node.text);
+                if (candidate && !(candidate.statement.pos <= node.pos && node.end <= candidate.statement.end))
+                    candidate.referenced = true;
+            }
+            if (!(ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+                || !ts.isIdentifier(node.tagName) || !/^[a-z][A-Za-z0-9]*$/.test(node.tagName.text)) return;
+            const attrs = node.attributes.properties, names = new Set();
+            for (const attr of attrs) {
+                if (!ts.isJsxAttribute(attr) || !ts.isIdentifier(attr.name) || names.has(attr.name.text)) return;
+                names.add(attr.name.text);
+            }
+            for (const attr of attrs) {
+                const callback = attr.initializer && ts.isJsxExpression(attr.initializer) ? attr.initializer.expression : null;
+                if (!/^on[A-Z][A-Za-z0-9]*$/.test(attr.name.text) || attr.name.text.length > 128
+                    || !callback || !ts.isArrowFunction(callback) || callback.parameters.length
+                    || callback.type || callback.typeParameters?.length || callback.modifiers?.length
+                    || !ts.isBlock(callback.body) || callback.body.statements.length) continue;
+                if (callbacks.length >= 64) { callbackOmitted += 1; continue; }
+                callbacks.push({kind: 'inline_empty_jsx_callback', tag: node.tagName.text, prop: attr.name.text,
+                    spans: {jsx_site: span(node), tag: span(node.tagName), attribute: span(attr), prop: span(attr.name),
+                        callback: span(callback), callback_body: span(callback.body)}});
+            }
+        },
+        finish() {
+            if (result.status === 'unavailable') return result;
+            for (const [localName, candidate] of candidates) {
+                if (candidate.referenced) continue;
+                const {binding, statement} = candidate;
+                result.records.push({kind: 'named_import_without_identifier_occurrence', source: statement.moduleSpecifier.text,
+                    local_name: localName, imported_name: (binding.propertyName || binding.name).text,
+                    spans: {import_declaration: span(statement), import_binding: span(binding),
+                        imported_binding: span(binding.propertyName || binding.name), local_binding: span(binding.name),
+                        module_source: span(statement.moduleSpecifier)}});
+            }
+            result.records.push(...callbacks);
+            result.omitted = callbackOmitted + Math.max(0, result.records.length - 64);
+            result.records = result.records.slice(0, 64);
+            result.record_count = result.records.length;
+            if (result.omitted) { result.status = 'partial'; result.reason = 'record_budget_exceeded'; }
+            return result;
+        },
+    };
+}
+
+function createLiteralRegistryCollector(sourceFile, symbolAt) {
+    const result = {version: 'v1-direct-const-string-map-source', status: 'observed', reason: '',
+        source_hash: generateDna(sourceFile.text), offset_unit: 'utf16_code_units',
+        policy_sha256: '', record_count: 0, records: []};
+    let policy, nameLimit;
+    try {
+        const bytes = fs.readFileSync(path.resolve(__dirname, '../../config/declarative_registry_review_contract.json'));
+        const declared = JSON.parse(bytes.toString('utf8'));
+        policy = declared.typescript; nameLimit = declared.limits?.name_characters;
+        const keys = ['source_bytes', 'nodes', 'tables', 'rows', 'fields', 'stored_bytes'];
+        if (policy?.version !== 'v1-typescript-literal-key-id' || policy.lane_version !== result.version
+            || !Number.isSafeInteger(nameLimit) || nameLimit < 1
+            || !policy.limits || Object.keys(policy.limits).length !== keys.length
+            || keys.some(key => !Number.isSafeInteger(policy.limits[key]) || policy.limits[key] < 1)) throw new Error('invalid policy');
+        result.policy_sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+    } catch (_error) {
+        result.status = 'unavailable'; result.reason = 'policy_unavailable';
+    }
+    const members = {...result, version: 'v1-direct-const-literal-member-path-source', records: []};
+    let memberPolicy;
+    try {
+        memberPolicy = policy?.member_path;
+        const keys = ['selector_depth', 'objects', 'fields', 'stored_bytes'];
+        if (result.status !== 'observed' || memberPolicy?.version !== 'v2-typescript-literal-path-key-id'
+            || memberPolicy.lane_version !== members.version || Object.keys(memberPolicy).length !== 3
+            || !memberPolicy.limits || Object.keys(memberPolicy.limits).length !== keys.length
+            || keys.some(k => !Number.isSafeInteger(memberPolicy.limits[k]) || memberPolicy.limits[k] < 1)) throw new Error('invalid member policy');
+    } catch (_error) { members.status = 'unavailable'; members.reason = 'member_policy_unavailable'; }
+    const memberObjects = new Map();
+    let memberFields = 0;
+    const unavailableMembers = reason => { members.status = 'unavailable'; members.reason = reason; members.records = []; members.record_count = 0; };
+    const tables = new Map(), rows = new Map(), tableKeys = new Map(), fieldKeys = new Map();
+    let visited = 0, rowCount = 0;
+    const span = node => ({start: node.getStart(sourceFile), end: node.end,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        end_line: sourceFile.getLineAndCharacterOfPosition(node.end - 1).line + 1});
+    const unavailable = reason => { result.status = 'unavailable'; result.reason = reason; result.records = []; };
+    if (result.status === 'observed') {
+        if (sourceFile.parseDiagnostics?.length) unavailable('parse_diagnostics');
+        else if (!/\.tsx?$/i.test(sourceFile.fileName)) unavailable('not_applicable_language');
+        else if (Buffer.byteLength(sourceFile.text, 'utf8') > policy.limits.source_bytes) unavailable('source_byte_budget_exceeded');
+    }
+    function literalName(node) {
+        if (!node || !(ts.isIdentifier(node) || ts.isStringLiteral(node))) return null;
+        const raw = node.getText(sourceFile), quoted = ts.isStringLiteral(node);
+        if (raw.includes('\\') || node.text === '__proto__' || /[\x00-\x1f]/.test(node.text)
+            || node.text.length > nameLimit || (quoted ? raw.slice(1,-1) : raw) !== node.text) return null;
+        return {key: node.text, key_kind: quoted ? 'string' : 'identifier'};
+    }
+    function literalField(node, name) {
+        const value = node.initializer, raw = value.getText(sourceFile);
+        const literal = ts.isStringLiteral(value) && !raw.includes('\\') && raw.slice(1,-1) === value.text
+            && value.text.length <= nameLimit && !/[\x00-\x1f]/.test(value.text);
+        return {...name, kind: literal ? 'string_literal' : 'opaque', ...(literal ? {value: value.text} : {}),
+            spans: {property: span(node), key: span(node.name), value: span(value)}};
+    }
+    function addMember(object, root, memberPath) {
+        if (members.status !== 'observed' || memberPath.length > memberPolicy.limits.selector_depth + 1) return;
+        if (members.records.length === memberPolicy.limits.objects) { unavailableMembers('member_object_budget_exceeded'); return; }
+        const record = {root_name: root.name, member_path: memberPath, status: 'observed', reason: '', object_span: span(object), fields: []};
+        members.records.push(record);
+        memberObjects.set(object, {root, record, keys: new Set()});
+    }
+    const reject = (table, reason) => { table.status = 'unsupported'; table.reason = reason; table.rows = []; };
+    return {
+        visit(node) {
+            if (result.status !== 'observed') return;
+            if (++visited > policy.limits.nodes) { unavailable('node_budget_exceeded'); return; }
+            if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+                && ts.isVariableDeclarationList(node.parent) && node.parent.declarations.length === 1
+                && (node.parent.flags & ts.NodeFlags.Const) && node.parent.parent.parent === sourceFile
+                && node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
+                const declarations = symbolAt(node.name)?.declarations || [];
+                const binding = literalName(node.name), keyword = node.parent.getFirstToken(sourceFile);
+                if (!binding || declarations.length !== 1 || declarations[0] !== node || !keyword
+                    || keyword.kind !== ts.SyntaxKind.ConstKeyword) return;
+                if (result.records.length === policy.limits.tables) { unavailable('table_budget_exceeded'); return; }
+                const table = {name: binding.key, status: 'observed', reason: '',
+                    spans: {declaration: span(node), binding: span(node.name), const_keyword: span(keyword), object: span(node.initializer)}, rows: []};
+                tables.set(node.initializer, table); tableKeys.set(table, new Set()); result.records.push(table);
+            }
+            const table = tables.get(node.parent), rowContext = rows.get(node.parent);
+            if (table && table.status === 'observed') {
+                const name = ts.isPropertyAssignment(node) ? literalName(node.name) : null;
+                if (!name || !ts.isObjectLiteralExpression(node.initializer) || tableKeys.get(table).has(name.key)) {
+                    reject(table, 'unsupported_or_duplicate_table_property'); return;
+                }
+                tableKeys.get(table).add(name.key);
+                if (++rowCount > policy.limits.rows) { unavailable('row_budget_exceeded'); return; }
+                const row = {...name, spans: {property: span(node), key: span(node.name), object: span(node.initializer)}, fields: []};
+                table.rows.push(row); rows.set(node.initializer, {table, row}); fieldKeys.set(row, new Set());
+            } else if (rowContext && rowContext.table.status === 'observed') {
+                const {table: owner, row} = rowContext;
+                const name = ts.isPropertyAssignment(node) ? literalName(node.name) : null;
+                if (!name || fieldKeys.get(row).has(name.key)) { reject(owner, 'unsupported_or_duplicate_row_property'); return; }
+                fieldKeys.get(row).add(name.key);
+                if (row.fields.length === policy.limits.fields) { reject(owner, 'field_budget_exceeded'); return; }
+                row.fields.push(literalField(node, name));
+                if (ts.isObjectLiteralExpression(node.initializer)) addMember(node.initializer, owner, [row.key, name.key]);
+            }
+            const context = memberObjects.get(node.parent);
+            if (context && members.status === 'observed' && context.root.status === 'observed' && context.record.status === 'observed') {
+                const name = ts.isPropertyAssignment(node) ? literalName(node.name) : null;
+                if (!name || context.keys.has(name.key)) {
+                    context.record.status = 'unsupported'; context.record.reason = 'unsupported_or_duplicate_member_property'; context.record.fields = []; return;
+                }
+                context.keys.add(name.key);
+                if (++memberFields > memberPolicy.limits.fields) { unavailableMembers('member_field_budget_exceeded'); return; }
+                context.record.fields.push(literalField(node, name));
+                if (ts.isObjectLiteralExpression(node.initializer)) addMember(node.initializer, context.root, [...context.record.member_path, name.key]);
+            }
+        },
+        finish() {
+            result.record_count = result.records.length;
+            if (result.status === 'observed' && Buffer.byteLength(JSON.stringify(result), 'utf8') > policy.limits.stored_bytes) {
+                unavailable('stored_byte_budget_exceeded'); result.record_count = 0;
+            }
+            return result;
+        },
+        finishMembers() {
+            if (result.status !== 'observed') unavailableMembers('root_source_unavailable');
+            if (members.status === 'observed') {
+                const roots = new Set(result.records.filter(r => r.status === 'observed').map(r => r.name));
+                const admitted = new Set();
+                members.records = members.records.filter(r => {
+                    const key = JSON.stringify([r.root_name, r.member_path]);
+                    const parent = JSON.stringify([r.root_name, r.member_path.slice(0,-1)]);
+                    const keep = roots.has(r.root_name) && (r.member_path.length === 2 || admitted.has(parent));
+                    if (keep && r.status === 'observed') admitted.add(key);
+                    return keep;
+                });
+                members.record_count = members.records.length;
+                if (Buffer.byteLength(JSON.stringify(members), 'utf8') > memberPolicy.limits.stored_bytes) unavailableMembers('member_storage_budget_exceeded');
+            }
+            return members;
+        }
+    };
+}
+
+function analyzeFile(targetFile, ownedText = undefined, ownedScriptKind = undefined) {
     if (ts.isDeclarationFileName(String(targetFile).toLowerCase())) return analyzeDeclarationFile(targetFile);
     let sourceCode;
     try {
-        sourceCode = fs.readFileSync(targetFile, 'utf8');
+        sourceCode = ownedText === undefined ? fs.readFileSync(targetFile, 'utf8') : ownedText;
     } catch (err) {
         let mtime = 0;
         try {
@@ -6464,12 +7339,15 @@ function analyzeFile(targetFile) {
             ]
         }];
     }
-    const sourceFile = ts.createSourceFile(targetFile, sourceCode, ts.ScriptTarget.Latest, true);
+    const sourceFile = ts.createSourceFile(targetFile, sourceCode, ts.ScriptTarget.Latest, true, ownedScriptKind);
     const parseDiagnostics = Array.isArray(sourceFile.parseDiagnostics) ? sourceFile.parseDiagnostics : [];
     const parserStatus = parseDiagnostics.length ? 'degraded' : 'observed';
     const locSourceHash = generateDna(sourceCode);
     const importBindings = collectImportBindings(sourceFile);
     const symbolAt = createFileSymbolResolver(sourceFile);
+    const wiringSourceObservations = createWiringSourceObservationCollector(sourceFile, symbolAt);
+    const effectSafeParseCallbacks = createEffectSafeParseCallbackCollector(sourceFile, symbolAt);
+    const literalRegistries = createLiteralRegistryCollector(sourceFile, symbolAt);
     const bindingWrites = createBindingWriteCollector(symbolAt);
     const collectImportCalls = createImportCallCollector(sourceFile, importBindings, symbolAt);
     const collectSameFileStoreActionCalls = createSameFileStoreActionCallCollector(sourceFile, importBindings, symbolAt);
@@ -6504,6 +7382,7 @@ function analyzeFile(targetFile) {
     const clientLocalParserResultRecords = [];
     const clientLocalParserInputSinkRecords = [];
     const clientImportedParserRecords = [];
+    const safeParseEvidence = {status: 'observed', reason: '', omitted: 0, records: []};
     const responseJsonReturnRecords = collectResponseJsonReturnRecords(sourceFile, targetFile, symbolAt);
     let structuredOutputCandidatesOmitted = 0;
     if (parserStatus === 'observed') {
@@ -6536,7 +7415,7 @@ function analyzeFile(targetFile) {
     for (const feature of collectReactMutationContextFeatures(sourceFile)) {
         fileFeatures.add(feature);
     }
-    for (const feature of collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt, responseFieldRecords, clientLocalParserResultRecords, clientLocalParserInputSinkRecords, clientImportedParserRecords)) {
+    for (const feature of collectReactResponseStateFeatures(sourceFile, sourceCode, importBindings, symbolAt, responseFieldRecords, clientLocalParserResultRecords, clientLocalParserInputSinkRecords, clientImportedParserRecords, safeParseEvidence)) {
         fileFeatures.add(feature);
     }
     for (const feature of collectFormValidationFeatures(sourceFile, importBindings)) {
@@ -6554,6 +7433,9 @@ function analyzeFile(targetFile) {
 
     // 2. High-Fidelity AST Traversal
     function visit(node) {
+        wiringSourceObservations.visit(node);
+        effectSafeParseCallbacks.visit(node);
+        literalRegistries.visit(node);
         if (parserStatus === 'observed') {
             collectImmutableKeyTruthinessGuard(node, fileFeatures);
             collectFiniteNumberGuard(node, fileFeatures);
@@ -6887,6 +7769,7 @@ function analyzeFile(targetFile) {
     // Global Sentinel
     const loc = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
     const sourceHash = locSourceHash;
+    const moduleImportEvidence = collectModuleImportEvidence(sourceFile, sourceHash);
     symbols.push({
         name: '__file_meta__',
         type: 'Meta',
@@ -6900,6 +7783,15 @@ function analyzeFile(targetFile) {
         semanticDepth: parserStatus === 'observed' ? 'ast_normalized' : 'partial_ast',
         parserDiagnosticCount: parseDiagnostics.length,
         parserDiagnosticCodes: [...new Set(parseDiagnostics.map(item => String(item.code)))].slice(0, 20),
+        wiringSourceObservations: wiringSourceObservations.finish(),
+        effectSafeParseCallbackEvidence: effectSafeParseCallbacks.finish(),
+        effectSafeParseMergeEvidence: effectSafeParseCallbacks.merge(),
+        safeParseEarlyReturnEvidence: effectSafeParseCallbacks.earlyReturn(),
+        factoryReturnConstructionEvidence: effectSafeParseCallbacks.factoryReturn(),
+        factoryArgumentConstEvidence: effectSafeParseCallbacks.factoryArgumentBindings(),
+        resolverFactoryEvidence: effectSafeParseCallbacks.resolverFactory(),
+        literalRegistryEvidence: literalRegistries.finish(),
+        literalRegistryMemberEvidence: literalRegistries.finishMembers(),
         structuredOutputScanStatus: parserStatus === 'observed' ? 'observed' : 'unavailable_parser',
         structuredOutputScanVersion: 'v3-xml-mime-helper-argument-candidate',
         structuredOutputCandidates,
@@ -6909,6 +7801,10 @@ function analyzeFile(targetFile) {
             version: 'v1-literal-response-field-state',
             offset_unit: 'utf16_code_units', source_hash: sourceHash,
             records: responseFieldRecords,
+        },
+        clientSafeParseSuccessEvidence: {
+            ...safeParseEvidence, version: 'v1-const-safeparse-success-data-to-state', offset_unit: 'utf16_code_units',
+            source_hash: sourceHash, record_count: safeParseEvidence.records.length,
         },
         clientLocalParserResultEvidence: {
             status: parserStatus !== 'observed' ? 'unavailable_parser'
@@ -6938,16 +7834,18 @@ function analyzeFile(targetFile) {
             source_hash: sourceHash, record_count: responseJsonReturnRecords.length,
             records: responseJsonReturnRecords,
         },
-        moduleImports: collectModuleImportEvidence(sourceFile),
+        moduleImports: moduleImportEvidence.records,
+        moduleImportOccurrences: moduleImportEvidence.occurrences,
         directImportBindings: collectDirectImportBindingEvidence(sourceFile),
         moduleRootImportCallEvidence: collectImportCalls(sourceFile, 'module_root'),
+        ...(ownedScriptKind === undefined ? {} : {parserScriptKind:ts.ScriptKind[sourceFile.scriptKind]}),
         features: [
             ...fileFeatures,
             `ParserStatus:${parserStatus}`,
             `ParserDiagnosticCount:${parseDiagnostics.length}`,
             `GemScore:${gemScoreTotal.toFixed(1)}`,
             `Hash:${sourceHash}`,
-            `MTime:${fs.statSync(targetFile).mtimeMs / 1000}`,
+            `MTime:${ownedText === undefined ? fs.statSync(targetFile).mtimeMs / 1000 : 0}`,
             `LOC:${loc}`
         ]
     });
@@ -6968,6 +7866,8 @@ const targetFiles = [];
 let batchJson = false;
 let batchMetrics = false;
 let workerJsonl = false;
+let ownedTextWorker = false;
+let ownedTextProfile = null;
 let requestId = '';
 let workerMaxRequests = 200;
 let workerMaxRssBytes = 805306368;
@@ -6985,6 +7885,14 @@ for (let i = 0; i < args.length; i += 1) {
     if (arg === "--worker-jsonl") {
         workerJsonl = true;
         batchMetrics = true;
+        continue;
+    }
+    if (arg === "--owned-text-worker-jsonl") {
+        ownedTextWorker = true;
+        continue;
+    }
+    if (arg === '--owned-text-profile' && args[i+1]) {
+        ownedTextProfile = args[++i];
         continue;
     }
     if (arg === "--request-id" && args[i + 1]) {
@@ -7053,7 +7961,44 @@ function analyzeBatch(batchFiles, batchRequestId) {
     };
 }
 
-if (workerJsonl) {
+if (ownedTextProfile !== null && !ownedTextWorker) {
+    process.stdout.write(JSON.stringify({error:'owned_policy_or_mode_invalid',results:{}})+'\n');
+    process.exitCode = 2;
+} else if (ownedTextWorker) {
+    const bridge = require('../core/owned_text_bridge.cjs');
+    let policy;
+    try {
+        if (workerJsonl || targetFiles.length) throw new Error('mixed_private_mode');
+        policy = bridge.loadPolicy(path.resolve(__dirname, '../..'), ownedTextProfile || 'private_owned_text_bridge');
+    } catch {
+        process.stdout.write(JSON.stringify({ error: 'owned_policy_or_mode_invalid', results: {} }) + '\n');
+        process.exitCode = 2;
+    }
+    if (policy) {
+        const failure = code => ({ batchMeta: { protocolVersion: policy.script_kind ? 3 : 2, requestId: '', filesRequested: 0,
+            filesReported: 0, semanticLineage: false, productionEnabled: false },
+            results: {}, error: code });
+        const emit = payload => {
+            let text = JSON.stringify(payload);
+            if (Buffer.byteLength(text, 'utf8') + 1 > policy.max_response_bytes)
+                text = JSON.stringify(failure('owned_response_over_budget'));
+            process.stdout.write(text + '\n');
+        };
+        bridge.readSingleRequest(process.stdin, policy, owned => {
+            try {
+                const rows = analyzeFile(owned.path, owned.text, owned.scriptKind ? ts.ScriptKind.TSX : undefined);
+                const actualKind = rows.find(row=>row.name==='__file_meta__')?.parserScriptKind;
+                if (owned.scriptKind && actualKind !== owned.scriptKind) throw new Error('owned_kind_mismatch');
+                emit({ batchMeta: { protocolVersion: policy.script_kind ? 3 : 2, requestId: owned.requestId,
+                    ...(owned.scriptKind ? {sourceScriptKind:actualKind} : {}),
+                    filesRequested: 1, filesReported: 1, sourceSha256: owned.sourceSha256,
+                    policySha256: owned.policySha256, semanticLineage: false, productionEnabled: false,
+                    sourceMtimeObserved: false, workerRetireReason: 'owned_input_complete' },
+                    results: { [owned.path]: rows } });
+            } catch { emit(failure('owned_parser_failed')); }
+        }, code => emit(failure(code)));
+    }
+} else if (workerJsonl) {
     const readline = require('readline');
     let requestsHandled = 0;
     const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });

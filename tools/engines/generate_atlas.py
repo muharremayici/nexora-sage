@@ -39,6 +39,15 @@ from tools.core.atlas_ast_contract import (
     _returned_parameter_unbraced_roles,
     _returned_parameter_unbraced_record_valid,
     AST_CONTRACT_VERSION,
+    SAFE_PARSE_SUCCESS_VERSION,
+    SAFE_PARSE_SUCCESS_ROLES,
+    safe_parse_success_record_valid,
+    EFFECT_SAFE_PARSE_VERSION,
+    EFFECT_SAFE_PARSE_ROLES,
+    effect_safe_parse_record_valid,
+    EFFECT_SAFE_PARSE_MERGE_VERSION,
+    EFFECT_SAFE_PARSE_MERGE_ROLES,
+    effect_safe_parse_merge_record_valid,
     _jsx_callback_record_valid,
     _call_result_property_binding_record_valid,
     _returned_local_callback_record_valid,
@@ -46,11 +55,21 @@ from tools.core.atlas_ast_contract import (
     _local_arrow_result_use_record_valid,
 )
 from tools.core.json_io import load_json_file, raw_artifact_content_fingerprint
+from tools.core.wiring_source_observations import normalize_wiring_source_observations
+from tools.core.import_occurrence_evidence import normalize_import_occurrences
+from tools.core.safeparse_early_return_contract import (
+    EARLY_RETURN_VERSION, EARLY_RETURN_ROLES, early_return_roles, early_return_record_valid,
+)
+from tools.core.factory_return_contract import (
+    RESOLVER_FACTORY_VERSION, RESOLVER_FACTORY_SCOPE, resolver_factory_roles, resolver_factory_record_valid,
+    FACTORY_RETURN_VERSION, factory_return_record_valid, factory_return_roles, factory_parameter_coverage_valid,
+    FACTORY_ARGUMENT_VERSION, factory_argument_record_valid, factory_argument_roles, factory_argument_parent_valid,
+)
 from tools.core.source_coordinates import (
     _utf16_offset_to_utf8_byte_offset, _utf16_offsets_to_utf8_byte_offsets,
     _native_utf16_span_validator, _normalize_loc_measurement_evidence,
 )
-from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path
+from tools.core.path_engine import get_alias_map, reset_path_resolution_caches, resolve_project_import, to_posix_path, workspace_import_source_candidate
 from tools.core.polyglot_imports import (
     extract_direct_import_binding_evidence,
     extract_module_root_import_call_evidence,
@@ -81,6 +100,7 @@ from tools.core.workload_profile import (
 from tools.core.package_contracts import build_package_public_contracts, unavailable_type_entry_evidence
 from tools.core.manifest_declaration_links import build_manifest_declaration_links
 from tools.core.manifest_source_links import build_manifest_source_link_index, attach_manifest_source_links
+from tools.core.declared_artifact_inputs import collect_declared_artifacts
 from tools.core.atlas_typescript_inputs import (
     ResolutionInputCapture, auxiliary_context_identity, auxiliary_input_policy, capture_auxiliary_inputs,
     declaration_input_paths, build_declaration_contract_evidence,
@@ -90,9 +110,43 @@ from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.operational_limits import atlas_batch_sequencer_timeout_seconds
 from tools.core.subprocess_telemetry import run_observed_subprocess
 from tools.core.node_ast_worker import NodeAstWorkerError, NodeAstWorkerSession
+from tools.core.owned_text_bridge import capture_owned_source
 
 # Paths
 CODE_MAPS_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def _load_atlas_source_entry(entry: Dict, *, owned_root: Path | None = None,
+                             owned_profile: str = 'private_owned_text_bridge') -> Dict | None:
+    """Existing source-read owner; private capture requires an explicit fixture root.
+
+    The normal path keeps its historical decoding and skip/telemetry semantics.
+    The explicit private path does not write Atlas, staging or raw artifacts.
+    """
+    if owned_root is None and owned_profile != 'private_owned_text_bridge':
+        raise ValueError('owned_root_required')
+    if owned_root is not None:
+        if owned_profile not in ('private_owned_text_bridge', 'private_owned_tsx_text_bridge'):
+            raise ValueError('owned_profile_refused')
+        from tools.core.json_io import load_json_object_strict
+        from tools.core.artifact_validator import ensure_against_schema
+        policy = load_json_object_strict(CODE_MAPS_DIR / "config/analysis_snapshot_lineage_contract.json")[
+            "artifacts"]["ts_diagnostics"][owned_profile]
+        ensure_against_schema(CODE_MAPS_DIR / policy["schema"], "owned_text_bridge", policy)
+        captured = capture_owned_source(entry["full_path"], root=owned_root, policy=policy)
+        return {**dict(entry), "content": captured.text, "_private_owned_source": captured}
+    try:
+        # Preserve the default permissive decoder and exact newline spelling.
+        with open(entry["full_path"], 'r', encoding='utf-8', errors='ignore', newline='') as source:
+            loaded = dict(entry)
+            loaded["content"] = source.read()
+            return loaded
+    except Exception as exc:
+        record_honesty_event(
+            component="generate_atlas", category="caught_error", operation="load_source_entry",
+            subject=str(entry.get("full_path")), reason="source entry could not be loaded for Atlas sequencing",
+            fallback="skip_source_entry", claim_impact="atlas_incomplete_until_rerun", exception=exc)
+        return None
 
 
 class SizeBoundedDict(dict):
@@ -176,6 +230,12 @@ def _decode_node_batch_response(
 FINGERPRINT_CHUNK_SIZE = 4096
 
 
+from tools.core.typescript_registry_contract import (
+    registry_source_policy, registry_spans, registry_lane_problem,
+    registry_member_policy, registry_member_spans, registry_member_lane_problem,
+)
+
+
 class AtlasStagingWriteError(RuntimeError):
     """Raised when resumable Atlas checkpoints cannot be persisted safely."""
 
@@ -194,10 +254,18 @@ def atlas_staging_producer_contract() -> str:
         CODE_MAPS_DIR / "tools" / "core" / "config.py",
         CODE_MAPS_DIR / "tools" / "core" / "source_files.py",
         CODE_MAPS_DIR / "tools" / "core" / "atlas_ast_contract.py",
+        CODE_MAPS_DIR / "tools" / "core" / "search_identifiers.py",
+        CODE_MAPS_DIR / "tools" / "core" / "safeparse_early_return_contract.py",
+        CODE_MAPS_DIR / "tools" / "core" / "factory_return_contract.py",
+        CODE_MAPS_DIR / "tools" / "core" / "typescript_registry_contract.py",
+        CODE_MAPS_DIR / "config" / "declarative_registry_review_contract.json",
         CODE_MAPS_DIR / "tools" / "core" / "source_coordinates.py",
+        CODE_MAPS_DIR / "tools" / "core" / "wiring_source_observations.py",
         CODE_MAPS_DIR / "tools" / "core" / "language_registry.py",
         CODE_MAPS_DIR / "tools" / "core" / "language_agnostic_symbols.py",
         CODE_MAPS_DIR / "tools" / "core" / "polyglot_imports.py",
+        CODE_MAPS_DIR / "tools" / "core" / "import_occurrence_evidence.py",
+        CODE_MAPS_DIR / "config" / "agent_surface_contract.json",
         CODE_MAPS_DIR / "tools" / "core" / "path_engine.py",
         CODE_MAPS_DIR / "tools" / "core" / "state_flow.py",
         CODE_MAPS_DIR / "tools" / "core" / "repository_topology.py",
@@ -205,6 +273,9 @@ def atlas_staging_producer_contract() -> str:
         CODE_MAPS_DIR / "tools" / "core" / "atlas_typescript_inputs.py",
         CODE_MAPS_DIR / "tools" / "core" / "manifest_declaration_links.py",
         CODE_MAPS_DIR / "tools" / "core" / "manifest_source_links.py",
+        CODE_MAPS_DIR / "tools" / "core" / "declared_artifact_inputs.py",
+        CODE_MAPS_DIR / "tools" / "core" / "patch_input.py",
+        CODE_MAPS_DIR / "tools" / "core" / "target_repository_trust.py",
         CODE_MAPS_DIR / "tools" / "core" / "package_contracts.py",
         CODE_MAPS_DIR / "tools" / "core" / "source_snapshot_integrity.py",
         CODE_MAPS_DIR / "config" / "source_snapshot_store_policy.json",
@@ -453,6 +524,14 @@ def file_contract_is_current(file_data: Dict) -> bool:
         return False
     if file_data.get("ast_contract_version") != AST_CONTRACT_VERSION:
         return False
+    if "literal_registry_evidence" in file_data:
+        try:
+            _, policy_hash, _ = registry_source_policy()
+        except (OSError, ValueError):
+            return False
+        lane = file_data["literal_registry_evidence"]
+        if not isinstance(lane, dict) or lane.get("policy_sha256") != policy_hash:
+            return False
     if not _parser_evidence_is_reusable(file_data.get("parser_evidence")):
         return False
     if file_data.get("language") in {"typescript", "javascript"}:
@@ -794,6 +873,7 @@ def _normalize_polyglot_symbols(
     *,
     normalization_profile_context=None,
     canonical_type_cache=None,
+    file_evidence_context=None,
 ) -> List[Dict]:
     """Normalize a file's symbols without rescanning the source for every offset."""
 
@@ -810,6 +890,42 @@ def _normalize_polyglot_symbols(
             ).strip()
             if parser_kind != "typescript_compiler_api":
                 continue
+            if raw_symbol.get("name") == "__file_meta__":
+                registry_lane = raw_symbol.get("literalRegistryEvidence")
+                if isinstance(registry_lane, dict) and registry_lane.get("records"):
+                    has_local_calls = True
+                    try:
+                        registry_policy, _, _ = registry_source_policy()
+                    except (OSError, ValueError):
+                        registry_policy = None
+                    for span in registry_spans(registry_lane, registry_policy["limits"]) if registry_policy else ():
+                        if isinstance(span, dict):
+                            requested_offsets.extend(span.get(part) for part in ("start", "end") if type(span.get(part)) is int)
+                member_lane = raw_symbol.get("literalRegistryMemberEvidence")
+                if isinstance(member_lane, dict) and member_lane.get("records"):
+                    has_local_calls = True
+                    try:
+                        member_policy, _, _ = registry_member_policy()
+                    except (OSError, ValueError):
+                        member_policy = None
+                    for span in registry_member_spans(member_lane, member_policy['limits']) if member_policy else ():
+                        if isinstance(span, dict):
+                            requested_offsets.extend(span.get(part) for part in ("start", "end") if type(span.get(part)) is int)
+                for key, roles in (("clientSafeParseSuccessEvidence", SAFE_PARSE_SUCCESS_ROLES),
+                        ("effectSafeParseCallbackEvidence", EFFECT_SAFE_PARSE_ROLES),
+                        ("effectSafeParseMergeEvidence", EFFECT_SAFE_PARSE_MERGE_ROLES),
+                        ("safeParseEarlyReturnEvidence", None),
+                        ("factoryReturnConstructionEvidence", None), ("factoryArgumentConstEvidence", None), ("resolverFactoryEvidence", None)):
+                    lane = raw_symbol.get(key)
+                    records = lane.get("records") if isinstance(lane, dict) else None
+                    if isinstance(records, list) and 0 < len(records) <= 64:
+                        has_local_calls = True
+                        for row in records:
+                            spans = row.get("spans") if isinstance(row, dict) else None
+                            selected_roles = (resolver_factory_roles(row) if key == "resolverFactoryEvidence" else early_return_roles(row) if key == "safeParseEarlyReturnEvidence" else factory_argument_roles(row) if key == "factoryArgumentConstEvidence" else factory_return_roles(row)) if roles is None else roles
+                            if isinstance(spans, dict) and set(spans) == selected_roles:
+                                requested_offsets.extend(span.get(part) for span in spans.values() if isinstance(span, dict)
+                                    for part in ("start", "end") if type(span.get(part)) is int)
             for field in ("start", "end"):
                 raw_offset = raw_symbol.get(field)
                 try:
@@ -895,6 +1011,8 @@ def _normalize_polyglot_symbols(
             jsx_import_context[identity_key] = jsx_import_context.get(identity_key, 0) + 1
     local_call_context = (hashlib.sha256(content.encode("utf-8")).hexdigest(),
                           _native_utf16_span_validator(content)) if has_local_calls else None
+    if file_evidence_context is not None and local_call_context is not None:
+        file_evidence_context.update(identity=local_call_context[0], valid_span=local_call_context[1], offset_map=offset_map)
     loc_atlas_source_hash = (_atlas_text_hash(content)
         if any(isinstance(row, dict) and "loc_measurement_evidence" in row for row in raw_symbols) else None)
     if normalization_profile_context is None:
@@ -1726,6 +1844,209 @@ def _response_json_return_evidence(raw_results, content: str) -> Dict[str, objec
         for span in row["spans"].values():
             span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
     return {**base, "status": "observed", "source_hash": identity, "records": normalized}
+
+
+def _client_safeparse_success_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    """Keep the original state lane grammar separate from the effect lane."""
+    return _safeparse_source_evidence(raw_results, content, context, effect=False)
+
+
+def _effect_safeparse_callback_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    """Separate optional source lane; no existing advisory/agent admission change."""
+    return _safeparse_source_evidence(raw_results, content, context, effect=True)
+
+
+def _effect_safeparse_merge_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    return _safeparse_source_evidence(raw_results, content, context, effect=True, merge=True)
+
+
+def _safeparse_early_return_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    return _safeparse_source_evidence(raw_results, content, context, effect=False, early=True)
+
+
+def _factory_return_construction_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    return _safeparse_source_evidence(raw_results, content, context, effect=False, factory=True)
+
+
+def _literal_registry_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    """Normalize the optional source lane through the existing file coordinate batch."""
+    base = {"status": "unavailable", "reason": "registry_metadata_unavailable", "records": [], "record_count": 0,
+            "ast_contract_version": AST_CONTRACT_VERSION}
+    try:
+        policy, digest, width = registry_source_policy()
+    except (OSError, ValueError):
+        return {**base, "reason": "registry_policy_unavailable"}
+    base["policy_sha256"] = digest
+    metas = [r for r in raw_results if isinstance(r, dict) and r.get("name") == "__file_meta__"] if isinstance(raw_results, list) else []
+    if (len(metas) != 1 or metas[0].get("parserStatus") != "observed"
+            or metas[0].get("parserKind") != "typescript_compiler_api"
+            or type(metas[0].get("parserDiagnosticCount")) is not int or metas[0]["parserDiagnosticCount"] != 0
+            or not isinstance(metas[0].get("features"), list)):
+        return base
+    lane = metas[0].get("literalRegistryEvidence")
+    identity = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    if [f for f in metas[0].get("features", []) if isinstance(f, str) and f.startswith("Hash:")] != [f"Hash:{identity}"]:
+        return {**base, "reason": "registry_parser_source_identity_invalid"}
+    valid = context["valid_span"] if context and "valid_span" in context else _native_utf16_span_validator(content)
+    problem = registry_lane_problem(lane, valid, identity=identity, policy=policy, policy_hash=digest, name_limit=width)
+    if problem:
+        return {**base, "reason": problem, "policy_sha256": digest}
+    normalized = copy.deepcopy(lane)
+    offsets = context.get("offset_map") if context else None
+    if offsets is None:
+        offsets = _utf16_offsets_to_utf8_byte_offsets(content, [s[k] for s in registry_spans(lane, policy["limits"]) for k in ("start", "end")])
+    for span in registry_spans(normalized, policy["limits"]):
+        if span["start"] not in offsets or span["end"] not in offsets:
+            return {**base, "reason": "registry_coordinates_unavailable", "policy_sha256": digest}
+        span.update(start=offsets[span["start"]], end=offsets[span["end"]])
+    normalized.update(offset_unit="utf8_bytes", ast_contract_version=AST_CONTRACT_VERSION)
+    if len(json.dumps(normalized, ensure_ascii=False, separators=(',', ':')).encode('utf-8')) > policy['limits']['stored_bytes']:
+        return {**base, "reason": "registry_normalized_storage_budget_exceeded"}
+    return normalized
+
+
+def _literal_registry_member_evidence(raw_results, content: str, context=None, *, root_evidence=None) -> Dict[str, object]:
+    """Optional bounded nested-object facts; never replace the v1 root lane."""
+    base = {'status':'unavailable','reason':'registry_member_metadata_unavailable','records':[],'record_count':0,
+            'ast_contract_version':AST_CONTRACT_VERSION}
+    try:
+        policy, digest, width = registry_member_policy()
+        root_policy, _, _ = registry_source_policy()
+    except (OSError, ValueError):
+        return {**base,'reason':'registry_member_policy_unavailable'}
+    base['policy_sha256'] = digest
+    roots = root_evidence if root_evidence is not None else _literal_registry_evidence(raw_results,content,context)
+    if roots.get('status') != 'observed':
+        return base
+    metas = [r for r in raw_results if isinstance(r,dict) and r.get('name')=='__file_meta__'] if isinstance(raw_results,list) else []
+    if (len(metas)!=1 or metas[0].get('parserStatus')!='observed' or metas[0].get('parserKind')!='typescript_compiler_api'
+            or type(metas[0].get('parserDiagnosticCount')) is not int or metas[0]['parserDiagnosticCount']!=0
+            or not isinstance(metas[0].get('features'),list)
+            or [f for f in metas[0]['features'] if isinstance(f,str) and f.startswith('Hash:')]
+               != ['Hash:'+hashlib.sha256(content.encode('utf-8')).hexdigest()]):
+        return base
+    lane = metas[0].get('literalRegistryMemberEvidence')
+    native_roots = metas[0].get('literalRegistryEvidence')
+    valid = context['valid_span'] if context and 'valid_span' in context else _native_utf16_span_validator(content)
+    problem = registry_member_lane_problem(lane,native_roots,valid,identity=hashlib.sha256(content.encode('utf-8')).hexdigest(),
+        policy=policy,root_policy=root_policy,policy_hash=digest,name_limit=width)
+    if problem:
+        return {**base,'reason':problem}
+    normalized = copy.deepcopy(lane)
+    offsets = context.get('offset_map') if context else None
+    if offsets is None:
+        offsets = _utf16_offsets_to_utf8_byte_offsets(content,[s[k] for s in registry_member_spans(lane,policy['limits']) for k in ('start','end')])
+    for span in registry_member_spans(normalized,policy['limits']):
+        if span['start'] not in offsets or span['end'] not in offsets:
+            return {**base,'reason':'registry_member_coordinates_unavailable'}
+        span.update(start=offsets[span['start']],end=offsets[span['end']])
+    normalized.update(offset_unit='utf8_bytes',ast_contract_version=AST_CONTRACT_VERSION)
+    if len(json.dumps(normalized,ensure_ascii=False,separators=(',',':')).encode('utf-8')) > policy['limits']['stored_bytes']:
+        return {**base,'reason':'registry_member_normalized_storage_budget_exceeded'}
+    return normalized
+
+
+def _factory_argument_const_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    return _safeparse_source_evidence(raw_results, content, context, effect=False, factory_arguments=True)
+
+
+def _resolver_factory_evidence(raw_results, content: str, context=None) -> Dict[str, object]:
+    return _safeparse_source_evidence(raw_results, content, context, effect=False, resolver=True)
+
+
+def _safeparse_source_evidence(raw_results, content: str, context, *, effect: bool, merge: bool = False, early: bool = False, factory: bool = False, factory_arguments: bool = False, resolver: bool = False) -> Dict[str, object]:
+    """Share exact identity, coverage and one-file coordinate transport, not grammar."""
+    version = EFFECT_SAFE_PARSE_VERSION if effect else SAFE_PARSE_SUCCESS_VERSION
+    validator = effect_safe_parse_record_valid if effect else safe_parse_success_record_valid
+    scope = ("finite_named_react_effect_safeparse_success_data_spread_to_parameter_callback" if effect
+        else "finite_same_file_safeparse_success_data_to_react_state")
+    if merge:
+        version, validator = EFFECT_SAFE_PARSE_MERGE_VERSION, effect_safe_parse_merge_record_valid
+        scope = "finite_named_react_effect_safeparse_parameter_then_data_spreads"
+    if early:
+        version, validator = EARLY_RETURN_VERSION, early_return_record_valid
+        scope = "finite_named_import_factory_safeparse_success_binding_negative_return"
+    if factory:
+        version, validator = FACTORY_RETURN_VERSION, factory_return_record_valid
+        scope = "finite_exported_sync_factory_imported_root_return_construction"
+    if factory_arguments:
+        version, validator = FACTORY_ARGUMENT_VERSION, factory_argument_record_valid
+        scope = "finite_factory_call_argument_preceding_const_source_binding"
+    if resolver:
+        version, validator, scope = RESOLVER_FACTORY_VERSION, resolver_factory_record_valid, RESOLVER_FACTORY_SCOPE
+    base = {"status": "unavailable", "reason": "", "version": version,
+        "scope": scope, "offset_unit": "utf8_bytes",
+        "ast_contract_version": AST_CONTRACT_VERSION, "source_hash": None, "records": [], "record_count": 0, "omitted": 0,
+        "schema_authority": "not_established", "type_compatibility": "not_established",
+        "runtime_proof": "not_performed", "mutation_proposed": False}
+    if merge:
+        base.update(prior_value_semantics="not_established", merge_result_semantics="not_established")
+    if early:
+        base.update(factory_semantics="not_established", continuation_safety="not_established")
+    if factory or factory_arguments or resolver:
+        base.update(factory_semantics="not_established", argument_semantics="not_established")
+    def unavailable(reason):
+        return {**base, "reason": reason}
+    metas = [row for row in raw_results if isinstance(row, dict) and row.get("name") == "__file_meta__"] if isinstance(raw_results, list) else []
+    if (len(metas) != 1 or metas[0].get("parserStatus") != "observed"
+            or metas[0].get("parserKind") != "typescript_compiler_api" or metas[0].get("parserDiagnosticCount") != 0):
+        return unavailable("parser_not_uniquely_observed")
+    meta = metas[0]
+    lane = meta.get("resolverFactoryEvidence" if resolver else "factoryArgumentConstEvidence" if factory_arguments else "factoryReturnConstructionEvidence" if factory else "safeParseEarlyReturnEvidence" if early else "effectSafeParseMergeEvidence" if merge else "effectSafeParseCallbackEvidence" if effect else "clientSafeParseSuccessEvidence")
+    if not isinstance(lane, dict):
+        return unavailable("safeparse_metadata_missing")
+    identity = context.get("identity") if context else hashlib.sha256(content.encode("utf-8")).hexdigest()
+    if (set(lane) != {"status", "reason", "version", "offset_unit", "source_hash", "records", "record_count", "omitted"}
+            or lane.get("version") != version or lane.get("offset_unit") != "utf16_code_units"
+            or lane.get("source_hash") != identity or not isinstance(meta.get("features"), list)
+            or [f for f in meta["features"] if isinstance(f, str) and f.startswith("Hash:")] != [f"Hash:{identity}"]):
+        return unavailable("safeparse_identity_or_contract_invalid")
+    records, status, omitted = lane["records"], lane["status"], lane["omitted"]
+    if (not isinstance(records, list) or len(records) > 64 or type(lane["record_count"]) is not int
+            or lane["record_count"] != len(records) or type(omitted) is not int or omitted < 0
+            or not isinstance(lane["reason"], str) or not isinstance(status, str)):
+        return unavailable("safeparse_records_invalid")
+    if status == "unavailable":
+        reasons = {"parse_diagnostics", "not_applicable_language", "source_byte_budget_exceeded", "node_budget_exceeded"}
+        if factory_arguments: reasons.add("construction_record_budget_exceeded")
+        return unavailable(lane["reason"] if lane["reason"] in reasons and not records and not omitted else "safeparse_unavailable_contract_invalid")
+    if not ((status == "observed" and omitted == 0 and lane["reason"] == "")
+            or (status == "partial" and omitted > 0 and len(records) == 64 and lane["reason"] == "record_budget_exceeded")):
+        return unavailable("safeparse_coverage_invalid")
+    parents = {}
+    if factory_arguments:
+        parent = _factory_return_construction_evidence(raw_results, content, context)
+        if parent["status"] != "observed": return unavailable("factory_construction_parent_unavailable_or_partial")
+        for row in meta["factoryReturnConstructionEvidence"]["records"]:
+            key = (row["factory_name"], row["spans"]["factory"]["start"], row["spans"]["factory"]["end"])
+            if key in parents: return unavailable("factory_construction_parent_ambiguous")
+            parents[key] = row
+    if not records:
+        return {**base, "status": "observed", "source_hash": identity}
+    valid_span = context["valid_span"] if context else _native_utf16_span_validator(content)
+    seen = set()
+    for row in records:
+        if not validator(row, valid_span):
+            return unavailable("safeparse_record_or_relations_invalid")
+        if factory_arguments:
+            parent = parents.get((row["factory_name"], row["spans"]["factory"]["start"], row["spans"]["factory"]["end"]))
+            if not parent or not factory_argument_parent_valid(row, parent): return unavailable("factory_argument_parent_mismatch")
+        key = tuple(row["spans"]["resolver_call" if resolver else "reference" if factory_arguments else "factory" if factory else "guard" if early else "sink"][part] for part in ("start", "end"))
+        if key in seen:
+            return unavailable("safeparse_duplicate_guard" if early else "safeparse_duplicate_sink")
+        seen.add(key)
+    if factory and not factory_parameter_coverage_valid(records):
+        return unavailable("factory_parameter_use_coverage_invalid")
+    offsets = [span[key] for row in records for span in row["spans"].values() for key in ("start", "end")]
+    offset_map = context["offset_map"] if context else _utf16_offsets_to_utf8_byte_offsets(content, offsets)
+    if any(offset not in offset_map for offset in offsets):
+        return unavailable("safeparse_coordinate_normalization_unavailable")
+    normalized = copy.deepcopy(records)
+    for row in normalized:
+        for span in row["spans"].values():
+            span.update(start=offset_map[span["start"]], end=offset_map[span["end"]])
+    return {**base, "status": status, "reason": lane["reason"], "source_hash": identity,
+        "records": normalized, "record_count": len(normalized), "omitted": omitted}
 
 
 def _client_local_parser_result_evidence(raw_results, content: str) -> Dict[str, object]:
@@ -2884,25 +3205,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
         import concurrent.futures
 
         def load_entry(entry: Dict):
-            try:
-                # Preserve CRLF exactly so TypeScript UTF-16 offsets and Python's
-                # canonical byte-span projection refer to the same source text.
-                with open(entry["full_path"], 'r', encoding='utf-8', errors='ignore', newline='') as f:
-                    loaded = dict(entry)
-                    loaded["content"] = f.read()
-                    return loaded
-            except Exception as exc:
-                record_honesty_event(
-                    component="generate_atlas",
-                    category="caught_error",
-                    operation="load_source_entry",
-                    subject=str(entry.get("full_path")),
-                    reason="source entry could not be loaded for Atlas sequencing",
-                    fallback="skip_source_entry",
-                    claim_impact="atlas_incomplete_until_rerun",
-                    exception=exc,
-                )
-                return None
+            return _load_atlas_source_entry(entry)
 
         if not entries:
             return []
@@ -3037,6 +3340,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             }
 
         import_resolution_cache_local = {}
+        workspace_source_cache_local = {}
         path_exists_cache_local = {}
 
         def resolve_import_local(imp, current_file_dir, project_root_str, language="typescript"):
@@ -3261,6 +3565,15 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 if isinstance(package, dict):
                     package["type_entry_evidence"] = unavailable_type_entry_evidence(
                         str(package.get("manifest") or ""), "surgical_scope_unavailable")
+
+        declared_artifacts = collect_declared_artifacts(pkey, project_root,
+            atlas["typescript_auxiliary_inputs"], atlas["public_contracts"],
+            excluded_roots=excluded_project_roots, surgical=surgical_mode,
+            max_metadata_bytes=STORE.atlas_staging_file_aggregate_limit_bytes if not dry_run else None)
+        if declared_artifacts is None:
+            atlas.pop("declared_artifact_observations", None)
+        else:
+            atlas["declared_artifact_observations"] = declared_artifacts
 
         source_link_index = build_manifest_source_link_index(
             pkey, atlas["typescript_auxiliary_inputs"], atlas["public_contracts"])
@@ -3665,12 +3978,14 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
             source_line_count = max(1, count_source_lines(content))
             if raw_node_results and f_lang not in project_normalization_profiles:
                 project_normalization_profiles[f_lang] = normalization_profile_for_language(f_lang)
+            file_evidence_context = {}
             for sym_entry in _normalize_polyglot_symbols(
                 raw_node_results,
                 content,
                 language=f_lang,
                 normalization_profile_context=project_normalization_profiles.get(f_lang),
                 canonical_type_cache=project_canonical_type_caches.setdefault(f_lang, {}),
+                file_evidence_context=file_evidence_context,
             ):
                 parser_line = int(sym_entry.get("line") or 0)
                 parser_end_line = int(sym_entry.get("end_line") or 0)
@@ -3717,6 +4032,16 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                         "kind": record["kind"],
                         "scope": record["scope"],
                     })
+                    # Add only to the final parser-owned import record. Keep
+                    # legacy import/dependency fields and graph semantics intact.
+                    if record["kind"] == "named" and record["scope"] == "top_level":
+                        cache_key = (raw_source, current_dir, f_lang)
+                        if cache_key not in workspace_source_cache_local:
+                            workspace_source_cache_local[cache_key] = workspace_import_source_candidate(
+                                raw_source, current_dir, str(ROOT), pkey, projects, language=f_lang)
+                        candidate = workspace_source_cache_local[cache_key]
+                        if candidate is not None:
+                            import_records[-1]["workspace_source_candidate"] = candidate
 
                 def _resolved_runtime_sources(raw_sources):
                     return sorted(set(
@@ -3838,6 +4163,18 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 api_candidates = re.findall(r"['\"](/[a-zA-Z0-9_\-/]+)['\"]", content)
                 api_candidates = sorted(list(set([c for c in api_candidates if "/" in c])))
 
+            registry_evidence = _literal_registry_evidence(raw_node_results, content, file_evidence_context) if f_lang == 'typescript' else None
+            occurrence_evidence = None
+            if f_lang in {'typescript', 'javascript'}:
+                from tools.core.json_io import load_json_object_strict_cached
+                try:
+                    occurrence_policy_root = load_json_object_strict_cached(
+                        CODE_MAPS_DIR / 'config' / 'agent_surface_contract.json')['audit_import_subject_evidence']
+                except (OSError, ValueError, KeyError, TypeError):
+                    occurrence_policy_root = {}  # Optional sidecar unavailable, old Atlas records preserved.
+                occurrence_evidence = normalize_import_occurrences(raw_node_results, content,
+                    root_policy=occurrence_policy_root, atlas_source_hash=f_hash,
+                    parser_status=_file_parser_evidence(raw_node_results, f_lang).get('status'))
             f_data = {
                 "api_candidates": api_candidates,
                 "type": file_type,
@@ -3852,6 +4189,7 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "exports": all_exports,
                 "imports": resolved_imports,
                 "import_records": import_records,
+                **({'import_occurrence_evidence': occurrence_evidence} if occurrence_evidence is not None else {}),
                 "direct_import_binding_evidence": direct_import_binding_evidence,
                 "module_root_import_call_evidence": module_root_import_call_evidence,
                 "internal_deps": internal_deps,
@@ -3860,9 +4198,28 @@ def generate_atlas(stale_projects=None, dry_run=False, surgical_files=None):
                 "features": ast_features,
                 "state_flow": state_flow,
                 "parser_evidence": _file_parser_evidence(raw_node_results, f_lang),
+                **({"literal_registry_evidence": registry_evidence,
+                    "literal_registry_member_evidence": _literal_registry_member_evidence(raw_node_results, content, file_evidence_context, root_evidence=registry_evidence)}
+                   if f_lang == "typescript" else {}),
+                **({"wiring_source_observations": normalize_wiring_source_observations(raw_node_results, content)}
+                   if f_lang in {"typescript", "javascript"} else {}),
                 **({"structured_output_evidence": _structured_output_evidence(raw_node_results)}
                    if f_lang in {"typescript", "javascript"} else {}),
                 **({"response_field_evidence": _response_field_evidence(raw_node_results, content)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"client_safeparse_success_evidence": _client_safeparse_success_evidence(raw_node_results, content, file_evidence_context)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"effect_safeparse_callback_evidence": _effect_safeparse_callback_evidence(raw_node_results, content, file_evidence_context)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"effect_safeparse_merge_evidence": _effect_safeparse_merge_evidence(raw_node_results, content, file_evidence_context)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"safeparse_early_return_evidence": _safeparse_early_return_evidence(raw_node_results, content, file_evidence_context)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"factory_return_construction_evidence": _factory_return_construction_evidence(raw_node_results, content, file_evidence_context)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"factory_argument_const_evidence": _factory_argument_const_evidence(raw_node_results, content, file_evidence_context)}
+                   if f_lang in {"typescript", "javascript"} else {}),
+                **({"resolver_factory_evidence": _resolver_factory_evidence(raw_node_results, content, file_evidence_context)}
                    if f_lang in {"typescript", "javascript"} else {}),
                 **({"client_local_parser_result_evidence": _client_local_parser_result_evidence(raw_node_results, content)}
                    if f_lang in {"typescript", "javascript"} else {}),

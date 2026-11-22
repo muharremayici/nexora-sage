@@ -1,0 +1,751 @@
+{
+  "$id": "config/schemas/compiler_entry_identity_transport.schema.json",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "scope",
+        "status",
+        "child_id",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "denied_flags",
+        "limits",
+        "source_sha256",
+        "child_source_sha256",
+        "dispatch_policy_sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-identity-transport"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_entry_identity_transport.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scope": {
+          "const": "temporary_synthetic_nonreading_five_role_pipe"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIVE_ROLE_TRANSPORT_SETTLED_NOT_READ_AUTHORITY"
+        },
+        "child_id": {
+          "const": "v1-fixed-nonreading-entry-identity-child"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "denied_flags": {
+          "const": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "actual_entry_observed",
+            "atomic_snapshot_verified",
+            "complete_compiler_inputs",
+            "snapshot_bound"
+          ]
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_bytes",
+            "metadata_bytes",
+            "image_bytes",
+            "child_input_bytes",
+            "child_output_bytes",
+            "result_bytes",
+            "operation_ms",
+            "wrapper_steps"
+          ],
+          "properties": {
+            "context_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "image_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_input_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "result_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "operation_ms": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "wrapper_steps": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "implementation_sha256",
+        "child_source_sha256",
+        "dispatch_policy_sha256",
+        "dispatch_expected_sha256",
+        "dispatch_decision_sha256",
+        "probe_context_sha256",
+        "child_id"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_decision_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_id": {
+          "const": "v1-fixed-nonreading-entry-identity-child"
+        }
+      }
+    },
+    "child_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "request",
+        "expected",
+        "transport_expected",
+        "role_expected_fields",
+        "request_binding_sha256",
+        "expected_sha256",
+        "transport_binding_sha256",
+        "operation_ms",
+        "wrapper_steps"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-fixed-nonreading-entry-identity-child"
+        },
+        "request": {
+          "type": "object"
+        },
+        "expected": {
+          "type": "object"
+        },
+        "transport_expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "role_expected_fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "request_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transport_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "operation_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "wrapper_steps": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "node_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "request_binding_sha256",
+        "expected_sha256",
+        "transport_binding_sha256",
+        "probe_context_sha256",
+        "identities",
+        "payload_open_attempts",
+        "error",
+        "wrapper_steps",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-fixed-nonreading-entry-identity-child"
+        },
+        "status": {
+          "enum": [
+            "SYNTHETIC_FIVE_ROLE_METADATA_NOT_OBSERVED",
+            "SYNTHETIC_FIVE_ROLE_METADATA_REFUSED"
+          ]
+        },
+        "request_binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transport_binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "probe_context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "identities": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "provenance",
+            "manifest",
+            "lockfile",
+            "installed_package",
+            "installed_entry"
+          ],
+          "properties": {
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expectation",
+                "observed_sha256",
+                "expected_match"
+              ],
+              "properties": {
+                "expectation": {
+                  "type": "object"
+                },
+                "observed_sha256": {
+                  "const": null
+                },
+                "expected_match": {
+                  "const": null
+                }
+              }
+            },
+            "manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expectation",
+                "observed_sha256",
+                "expected_match"
+              ],
+              "properties": {
+                "expectation": {
+                  "type": "object"
+                },
+                "observed_sha256": {
+                  "const": null
+                },
+                "expected_match": {
+                  "const": null
+                }
+              }
+            },
+            "lockfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expectation",
+                "observed_sha256",
+                "expected_match"
+              ],
+              "properties": {
+                "expectation": {
+                  "type": "object"
+                },
+                "observed_sha256": {
+                  "const": null
+                },
+                "expected_match": {
+                  "const": null
+                }
+              }
+            },
+            "installed_package": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expectation",
+                "observed_sha256",
+                "expected_match"
+              ],
+              "properties": {
+                "expectation": {
+                  "type": "object"
+                },
+                "observed_sha256": {
+                  "const": null
+                },
+                "expected_match": {
+                  "const": null
+                }
+              }
+            },
+            "installed_entry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expectation",
+                "observed_sha256",
+                "expected_match"
+              ],
+              "properties": {
+                "expectation": {
+                  "type": "object"
+                },
+                "observed_sha256": {
+                  "const": null
+                },
+                "expected_match": {
+                  "const": null
+                }
+              }
+            }
+          }
+        },
+        "payload_open_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "stage"
+          ],
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/refusal_code"
+            },
+            "stage": {
+              "enum": [
+                "stdin",
+                "decode",
+                "shape",
+                "binding",
+                "result",
+                "publication"
+              ]
+            }
+          }
+        },
+        "wrapper_steps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "actual_entry_observed",
+            "atomic_snapshot_verified",
+            "complete_compiler_inputs",
+            "snapshot_bound"
+          ],
+          "properties": {
+            "permission_authenticated": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "physical_path_binding_verified": {
+              "const": false
+            },
+            "actual_metadata_observed": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "native_execution_attested": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            },
+            "actual_entry_observed": {
+              "const": false
+            },
+            "atomic_snapshot_verified": {
+              "const": false
+            },
+            "complete_compiler_inputs": {
+              "const": false
+            },
+            "snapshot_bound": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "expected",
+        "request_binding_sha256",
+        "transport_binding_sha256",
+        "decision_key_sha256",
+        "intent_store_ref_sha256",
+        "node",
+        "node_attempts",
+        "node_reaped",
+        "io_threads_remaining",
+        "reservation",
+        "known_parent_metadata_bytes",
+        "known_child_named_partial_bytes",
+        "full_native_cost",
+        "physical_heap_rss",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-identity-transport"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIVE_ROLE_TRANSPORT_SETTLED_NOT_READ_AUTHORITY"
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "request_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transport_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision_key_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "intent_store_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "node": {
+          "$ref": "#/$defs/node_result"
+        },
+        "node_attempts": {
+          "const": 1
+        },
+        "node_reaped": {
+          "const": true
+        },
+        "io_threads_remaining": {
+          "const": 0
+        },
+        "reservation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intent_open_attempts",
+            "intent_created",
+            "intent_open_unknown",
+            "intent_write_attempts",
+            "intent_write_unknown",
+            "known_intent_bytes",
+            "intent_fsync_completed",
+            "intent_close_attempts",
+            "intent_close_returns",
+            "intent_close_unknown"
+          ],
+          "properties": {
+            "intent_open_attempts": {
+              "const": 1
+            },
+            "intent_created": {
+              "const": true
+            },
+            "intent_open_unknown": {
+              "const": false
+            },
+            "intent_write_attempts": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "intent_write_unknown": {
+              "const": false
+            },
+            "known_intent_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "intent_fsync_completed": {
+              "const": true
+            },
+            "intent_close_attempts": {
+              "const": 1
+            },
+            "intent_close_returns": {
+              "const": 1
+            },
+            "intent_close_unknown": {
+              "const": false
+            }
+          }
+        },
+        "known_parent_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_child_named_partial_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "full_native_cost": {
+          "type": "null"
+        },
+        "physical_heap_rss": {
+          "type": "null"
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "actual_entry_observed",
+            "atomic_snapshot_verified",
+            "complete_compiler_inputs",
+            "snapshot_bound"
+          ],
+          "properties": {
+            "permission_authenticated": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "physical_path_binding_verified": {
+              "const": false
+            },
+            "actual_metadata_observed": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "native_execution_attested": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            },
+            "actual_entry_observed": {
+              "const": false
+            },
+            "atomic_snapshot_verified": {
+              "const": false
+            },
+            "complete_compiler_inputs": {
+              "const": false
+            },
+            "snapshot_bound": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "refusal_code": {
+      "enum": [
+        "transport_child_bounds",
+        "transport_child_deadline",
+        "transport_child_work",
+        "transport_stdin",
+        "transport_stdin_budget",
+        "transport_canonical",
+        "transport_shape",
+        "transport_child_binding",
+        "transport_child_roles",
+        "transport_payload_api",
+        "transport_late_module",
+        "transport_child_error"
+      ]
+    },
+    "wire_ceilings": {
+      "const": {
+        "input_bytes": 65536,
+        "output_bytes": 8192,
+        "operation_ms": 30000
+      }
+    }
+  }
+}

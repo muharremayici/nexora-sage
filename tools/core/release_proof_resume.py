@@ -17,7 +17,10 @@ from typing import Any
 
 from tools.core.config import CODE_MAPS_DIR, RAW_DIR, save_json_atomic
 from tools.core.json_io import load_json_file
-from tools.core.release_proof_steps import load_release_proof_scope_contract
+from tools.core.release_proof_steps import (
+    load_release_proof_scope_contract,
+    load_release_proof_steps_contract,
+)
 from tools.core.release_validation_dependencies import (
     build_release_validation_dependency_context,
 )
@@ -318,14 +321,54 @@ def environment_sha256() -> str:
     )
 
 
+def _policy_contract_paths() -> list[Path]:
+    return [
+        CODE_MAPS_DIR / "config" / "release_proof_scope_contract.json",
+        CODE_MAPS_DIR / "config" / "release_proof_steps_contract.json",
+        CODE_MAPS_DIR / "config" / "release_evidence_cadence_contract.json",
+        CODE_MAPS_DIR / "config" / "pipeline_execution_policy.json",
+    ]
+
+
 def policy_sha256() -> str:
-    return _sha256_path_set(
-        [
-            CODE_MAPS_DIR / "config" / "release_proof_scope_contract.json",
-            CODE_MAPS_DIR / "config" / "release_proof_steps_contract.json",
-            CODE_MAPS_DIR / "config" / "release_evidence_cadence_contract.json",
-            CODE_MAPS_DIR / "config" / "pipeline_execution_policy.json",
-        ]
+    return _sha256_path_set(_policy_contract_paths())
+
+
+def reviewed_policy_sha256() -> str:
+    """Bind global policy without unrelated step rows for reviewed reuse only.
+
+    The current compiled step is already bound by step_contract_sha256 and its
+    direct input evidence is bound separately. Keep every steps-contract global
+    and the complete scope/cadence/process policies. Interruption and unmapped
+    completed reuse retain the original whole-policy identity.
+    """
+    steps_path = CODE_MAPS_DIR / "config" / "release_proof_steps_contract.json"
+    try:
+        steps_contract = load_release_proof_steps_contract(steps_path)
+    except (OSError, ValueError, UnicodeError):
+        return ""
+    rows = steps_contract.get("steps")
+    if (
+        not isinstance(rows, list)
+        or not rows
+        or any(not isinstance(row, dict) or not isinstance(row.get("id"), str)
+               or not row["id"] for row in rows)
+        or len({row["id"] for row in rows}) != len(rows)
+    ):
+        return ""
+    globals_sha256 = _sha256_path_set(
+        [path for path in _policy_contract_paths() if path != steps_path]
+    )
+    if not valid_sha256(globals_sha256):
+        return ""
+    return canonical_sha256(
+        {
+            "identity_schema": "reviewed_completed_policy_v1",
+            "global_contracts_sha256": globals_sha256,
+            "steps_contract_globals": {
+                key: value for key, value in steps_contract.items() if key != "steps"
+            },
+        }
     )
 
 
@@ -350,6 +393,7 @@ def build_reuse_context() -> dict[str, Any]:
         "automatic": checkpoint.get("automatic") is True,
         "completed_run_reuse": dict(completed_run_reuse),
         "policy_sha256": policy_sha256(),
+        "reviewed_policy_sha256": reviewed_policy_sha256(),
         "environment_sha256": environment_sha256(),
         "environment_receipt": environment_receipt(),
         "semantic_dependency_context": dependency_context,
@@ -554,10 +598,23 @@ def completed_step_reuse_identity(
         projection = reviewed.get(step_id) if isinstance(reviewed, dict) else None
         if not isinstance(projection, dict) or projection.get("reuse_eligible") is not True:
             return {field: "" for field in required_fields}
+        if projection.get("current_input_recheck_required") is True:
+            from tools.core.release_validation_dependencies import reviewed_source_inputs_current
+
+            source_root = dependency_context.get("source_root")
+            if (not isinstance(source_root, str) or not source_root
+                    or reviewed_source_inputs_current(projection, root=Path(source_root)).get("matches") is not True):
+                return {field: "" for field in required_fields}
+        reviewed_policy = context.get("reviewed_policy_sha256")
+        if (
+            not valid_sha256(reviewed_policy)
+            or checkpoint_identity.get("step_contract_sha256") != canonical_sha256(step)
+        ):
+            return {field: "" for field in required_fields}
         semantic_source_sha256 = str(projection.get("source_dependency_sha256") or "")
         completed_policy_sha256 = canonical_sha256(
             {
-                "release_policy_sha256": context.get("policy_sha256"),
+                "reviewed_policy_sha256": reviewed_policy,
                 "semantic_dependency_contract_sha256": dependency_context.get(
                     "semantic_dependency_contract_sha256"
                 ),
@@ -566,14 +623,44 @@ def completed_step_reuse_identity(
                 ),
             }
         )
-    dependencies: dict[str, str] = {}
+    dependencies: dict[str, Any] = {}
     dependency_identity_complete = True
-    for dependency in [str(item) for item in step.get("depends_on", []) or []]:
-        evidence = str(
-            dependency_results.get(dependency, {}).get("completed_evidence_sha256") or ""
-        )
-        dependencies[dependency] = evidence
+    direct_dependencies = [str(item) for item in step.get("depends_on", []) or []]
+    plan = projection.get("completed_dependency_input_plan") if disposition == "semantic_closure_reviewed" else None
+    project_roles = (
+        isinstance(plan, dict)
+        and plan.get("mode") == "reviewed_prerequisite_roles_v1"
+        and valid_sha256(plan.get("semantic_dependency_contract_sha256"))
+        and plan.get("semantic_dependency_contract_sha256") == dependency_context.get("semantic_dependency_contract_sha256")
+        and plan.get("dependency_contract_sha256") == canonical_sha256({
+            "depends_on": step.get("depends_on", []),
+            "dependency_failure_modes": step.get("dependency_failure_modes", {}),
+        })
+        and isinstance(plan.get("roles"), dict)
+        and set(plan["roles"]) == set(direct_dependencies)
+        and all(isinstance(role, str) and role in {"full_evidence", "prerequisite_only"}
+                for role in plan["roles"].values())
+    )
+    for dependency in direct_dependencies:
+        result = dependency_results.get(dependency, {})
+        evidence = str(result.get("completed_evidence_sha256") or "")
         dependency_identity_complete = dependency_identity_complete and valid_sha256(evidence)
+        if project_roles and plan["roles"][dependency] == "prerequisite_only":
+            # Native ordering/gating remains in the runner. This only projects
+            # the completed key, retaining the full current checkpoint identity.
+            valid_current = (
+                result.get("id") == dependency and result.get("passed") is True
+                and type(result.get("returncode")) is int and result["returncode"] == 0
+                and result.get("timed_out") is False and result.get("attention") is False
+                and result.get("execution_status") in _CLEAN_EVIDENCE_EXECUTION_STATUSES
+                and valid_sha256(result.get("evidence_sha256"))
+                and result["evidence_sha256"] == step_evidence_sha256(result)
+                and evidence == completed_step_evidence_sha256(result)
+            )
+            dependency_identity_complete = dependency_identity_complete and valid_current
+            dependencies[dependency] = {"role": "reviewed_prerequisite_only"}
+        else:
+            dependencies[dependency] = evidence
     source_valid = valid_sha256(semantic_source_sha256)
     input_sha256 = canonical_sha256(dependencies) if dependency_identity_complete else ""
     identity = {

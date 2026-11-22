@@ -24,10 +24,13 @@ def watchdog_scope(path: Path | str) -> str:
 
 
 def active_approval(gate: str, scope: str, *, ledger: dict[str, Any] | None = None) -> dict[str, Any]:
-    from tools.hitl_approval_ledger import _load_ledger, verify_ledger
+    from tools.hitl_approval_ledger import _observe_verified_ledger, verify_supplied_ledger_observation
 
-    payload = ledger if isinstance(ledger, dict) else _load_ledger()
-    integrity = verify_ledger(payload)
+    if isinstance(ledger, dict):
+        payload = ledger
+        integrity = verify_supplied_ledger_observation(payload)
+    else:
+        payload, integrity = _observe_verified_ledger()
     if not str(integrity.get("status") or "").startswith("PASS"):
         return {"approved": False, "reason": "ledger_integrity_failed", "integrity": integrity}
     decision = approval_status(gate, scope, ledger_entries(payload))

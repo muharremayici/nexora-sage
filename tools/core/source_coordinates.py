@@ -168,3 +168,35 @@ def native_loc_measurement_contexts(symbols, content):
             "loc_measurement_evidence": _normalize_loc_measurement_evidence(symbol, content, offset_map, context, file_hash)}
         contexts.append({"symbol": normalized, "source_hash": file_hash})
     return contexts
+
+
+def _utf8_span_validator(content: str, spans):
+    """Validate stored byte spans with the same native line/token rules.
+
+    Translate only requested boundaries in one source pass, not a full per-byte
+    index or a per-record source scan. Invalid UTF-8 boundaries remain unresolved.
+    """
+    requested = {value for span in spans if isinstance(span, dict)
+                 for key in ("start", "end") if type(value := span.get(key)) is int and value >= 0}
+    offsets, byte_offset, native_offset = {}, 0, 0
+    for char in content:
+        if byte_offset in requested:
+            offsets[byte_offset] = native_offset
+        byte_offset += len(char.encode("utf-8"))
+        native_offset += 2 if ord(char) > 0xFFFF else 1
+    if byte_offset in requested:
+        offsets[byte_offset] = native_offset
+    native = _native_utf16_span_validator(content)
+
+    def valid_span(span, expected_text=None, quoted=False):
+        if (not isinstance(span, dict) or type(span.get("start")) is not int or type(span.get("end")) is not int
+                or span["start"] not in offsets or span["end"] not in offsets):
+            return False
+        return native({**span, "start": offsets[span["start"]], "end": offsets[span["end"]]}, expected_text, quoted)
+
+    def trivia_between(start, end, expected):
+        return (type(start) is int and type(end) is int and start in offsets and end in offsets
+                and native.trivia_between(offsets[start], offsets[end], expected))
+
+    valid_span.trivia_between = trivia_between
+    return valid_span

@@ -1,0 +1,597 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "handoff_sha256",
+    "compiler_version",
+    "edges",
+    "jsx_origin",
+    "program_completeness_established",
+    "native_project_equivalent",
+    "semantic_lineage",
+    "production_enabled",
+    "dom_observation",
+    "imported_component"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v5-private-react-two-source-edges"
+    },
+    "authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "type": "string",
+      "const": "matched_cached_package_context"
+    },
+    "handoff_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "compiler_version": {
+      "type": "string",
+      "const": "5.9.3"
+    },
+    "edges": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_role",
+          "target_role",
+          "source_path_sha256",
+          "target_path_sha256",
+          "source_host_sha256",
+          "target_host_sha256",
+          "module_specifier_sha256",
+          "type_only",
+          "extension",
+          "external",
+          "package_id"
+        ],
+        "properties": {
+          "source_role": {
+            "type": "string"
+          },
+          "target_role": {
+            "type": "string"
+          },
+          "source_path_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "target_path_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "source_host_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "target_host_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "module_specifier_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "type_only": {
+            "type": "boolean"
+          },
+          "extension": {
+            "type": "string",
+            "enum": [
+              ".d.ts",
+              ".tsx"
+            ]
+          },
+          "external": {
+            "type": "boolean"
+          },
+          "package_id": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "present",
+              "name",
+              "version",
+              "sub_module"
+            ],
+            "properties": {
+              "present": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "sub_module": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "jsx_origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "intrinsic",
+        "package",
+        "version",
+        "target_role",
+        "host_text_sha256",
+        "source_path_sha256",
+        "same_program_symbol_match",
+        "global_reference_role",
+        "global_reference_host_sha256"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "const": "React.JSX"
+        },
+        "intrinsic": {
+          "type": "string",
+          "const": "input"
+        },
+        "package": {
+          "type": "string",
+          "const": "@types/react"
+        },
+        "version": {
+          "type": "string",
+          "const": "19.2.2"
+        },
+        "target_role": {
+          "type": "string"
+        },
+        "host_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_path_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "same_program_symbol_match": {
+          "type": "boolean",
+          "const": true
+        },
+        "global_reference_role": {
+          "type": "string"
+        },
+        "global_reference_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "program_completeness_established": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_project_equivalent": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "dom_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attribute_role",
+        "event_type_role",
+        "event_type_host_sha256",
+        "current_target_role",
+        "value_role",
+        "dom_raw_sha256",
+        "dom_host_sha256",
+        "dom_bytes",
+        "value_declaring_interface",
+        "event_type_name",
+        "value_type_kind",
+        "contextual_parameter_matched",
+        "same_program_value_symbol",
+        "input_interface_owner_roles",
+        "source_locations"
+      ],
+      "properties": {
+        "attribute_role": {
+          "type": "string",
+          "const": "package:@types/react/index.d.ts"
+        },
+        "event_type_role": {
+          "type": "string",
+          "const": "package:@types/react/index.d.ts"
+        },
+        "event_type_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "current_target_role": {
+          "type": "string",
+          "const": "package:@types/react/index.d.ts"
+        },
+        "value_role": {
+          "type": "string",
+          "const": "compiler:lib.dom.d.ts"
+        },
+        "dom_raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dom_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dom_bytes": {
+          "type": "integer",
+          "const": 1874901
+        },
+        "value_declaring_interface": {
+          "type": "string",
+          "const": "HTMLInputElement"
+        },
+        "event_type_name": {
+          "type": "string",
+          "const": "ChangeEvent"
+        },
+        "value_type_kind": {
+          "type": "string",
+          "const": "string"
+        },
+        "contextual_parameter_matched": {
+          "type": "boolean",
+          "const": true
+        },
+        "same_program_value_symbol": {
+          "type": "boolean",
+          "const": true
+        },
+        "input_interface_owner_roles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "enum": [
+              "compiler:lib.dom.d.ts",
+              "package:@types/react/global.d.ts"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "source_locations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": "string",
+              "const": "v1-private-dom-source-locations"
+            },
+            "authority": {
+              "type": "string",
+              "const": "producer_observed_only"
+            },
+            "source_role": {
+              "type": "string",
+              "const": "source:component"
+            },
+            "offset_unit": {
+              "type": "string",
+              "const": "utf16_code_units"
+            },
+            "parent_handoff_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "source_raw_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "source_host_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "leading_bom_utf16_units_removed": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "same_program_parameter_symbol": {
+              "type": "boolean",
+              "const": true
+            },
+            "spans": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "event_attribute",
+                "parameter_declaration",
+                "parameter_reference",
+                "current_target_member",
+                "value_member",
+                "value_access"
+              ],
+              "properties": {
+                "event_attribute": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "line",
+                    "end_line"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1048577
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "end_line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    }
+                  }
+                },
+                "parameter_declaration": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "line",
+                    "end_line"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1048577
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "end_line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    }
+                  }
+                },
+                "parameter_reference": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "line",
+                    "end_line"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1048577
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "end_line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    }
+                  }
+                },
+                "current_target_member": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "line",
+                    "end_line"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1048577
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "end_line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    }
+                  }
+                },
+                "value_member": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "line",
+                    "end_line"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1048577
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "end_line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    }
+                  }
+                },
+                "value_access": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "line",
+                    "end_line"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1048577
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    },
+                    "end_line": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1048577
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "version",
+            "authority",
+            "source_role",
+            "offset_unit",
+            "parent_handoff_sha256",
+            "source_raw_sha256",
+            "source_host_sha256",
+            "leading_bom_utf16_units_removed",
+            "same_program_parameter_symbol",
+            "spans"
+          ]
+        }
+      }
+    },
+    "imported_component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_role",
+        "target_role",
+        "component_host_sha256",
+        "actual_tag_alias_matched",
+        "same_program_export_symbol",
+        "props_declaration_role",
+        "property_type_kind"
+      ],
+      "properties": {
+        "source_role": {
+          "type": "string",
+          "const": "source:entry"
+        },
+        "target_role": {
+          "type": "string",
+          "const": "source:component"
+        },
+        "component_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actual_tag_alias_matched": {
+          "type": "boolean",
+          "const": true
+        },
+        "same_program_export_symbol": {
+          "type": "boolean",
+          "const": true
+        },
+        "props_declaration_role": {
+          "type": "string",
+          "const": "declaration"
+        },
+        "property_type_kind": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    }
+  }
+}

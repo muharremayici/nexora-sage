@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "output_schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "raw_messages_retained",
+    "projection_profile",
+    "metadata_limit_from_input_image",
+    "success_status",
+    "refusal_status",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-owned-diagnostic-correspondence"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_diagnostic_correspondence.schema.json"
+    },
+    "output_schema": {
+      "type": "string",
+      "const": "config/schemas/owned_diagnostic_correspondence_observation.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_messages_retained": {
+      "type": "boolean",
+      "const": false
+    },
+    "projection_profile": {
+      "type": "string",
+      "const": "private_owned_diagnostic_projection"
+    },
+    "metadata_limit_from_input_image": {
+      "type": "string",
+      "const": "metadata_bytes"
+    },
+    "success_status": {
+      "type": "string",
+      "const": "PRIVATE_DIAGNOSTIC_CORRESPONDENCE_MATCH_NOT_ADMITTED"
+    },
+    "refusal_status": {
+      "type": "string",
+      "const": "PRIVATE_DIAGNOSTIC_CORRESPONDENCE_REFUSED"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "const": "Private live-owner descriptor/row correspondence only. No independent compiler truth, authenticated channel, freshness, complete Program, production lineage/cache or release authority."
+    }
+  }
+}

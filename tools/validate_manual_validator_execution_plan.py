@@ -107,6 +107,18 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"{index}. `{row.get('id')}` - sqlite_writer=`{row.get('sqlite_writer')}`, "
             f"raw_artifact=`{row.get('raw_artifact')}`"
         )
+    observations = payload.get("recorded_outcome_observations", [])
+    if observations:
+        lines.extend(["", "## Recorded Outcomes (Freshness Not Established)", "",
+                      "These observations do not run or skip steps, validate current readiness, or grant human authority.", ""])
+        for row in observations:
+            lines.append(f"- `{row.get('id', 'unknown')}`: `{row.get('outcome')}`; integrity=`{row.get('observation_integrity')}`")
+    assessment = payload.get("native_continuation_assessment")
+    if assessment is not None:
+        lines.extend(["", "## Native Continuation Assessment (No Dispatch)", "",
+                      f"- decision: `{assessment.get('continuation')}`",
+                      f"- native eligible at assessment: `{assessment.get('native_eligible_at_assessment', 0)}`",
+                      "- Actual resumed/skipped steps: `0`; execution must revalidate through the existing native owner."])
     lines.extend(["", "## Checks", "", "| Check | Result | Details |", "|---|---|---|"])
     for check in payload.get("checks", []):
         details = json.dumps(check.get("details"), ensure_ascii=False, sort_keys=True)[:900]
@@ -118,10 +130,23 @@ def validate_manual_validator_execution_plan(
     *,
     explicit_steps: str | None = None,
     parallel_intent: bool = False,
+    observation_receipts: list[str] | None = None,
+    assess_continuation: bool = False,
 ) -> dict[str, Any]:
+    from tools.core.release_queue_outcomes import validate_outcome_policy, observe_recorded_receipt, validate_review_queue_policy
+
+    if type(assess_continuation) is not bool:
+        raise ValueError("Native continuation assessment must be an explicit boolean")
+
     policy = _policy()
     steps_by_id = _step_map()
     selected = _selected_step_ids(policy, explicit_steps)
+    observation_policy = policy.get("outcome_observation")
+    outcome_policy_errors = validate_outcome_policy(observation_policy, steps_by_id)
+    execution_policy_errors = validate_review_queue_policy(policy.get("review_queue_execution"), steps_by_id)
+    if observation_receipts and (not explicit_steps or outcome_policy_errors
+            or len(observation_receipts) > observation_policy["maximum_receipts"]):
+        raise ValueError("Recorded outcome observation requires explicit selected steps and a bounded valid policy")
     default_probe_mode = explicit_steps is None
     closure, missing = _dependency_closure(steps_by_id, selected)
     closure_set = set(closure)
@@ -148,12 +173,15 @@ def validate_manual_validator_execution_plan(
         "sqlite_writer_rule",
         "parallel_intent_behavior",
         "max_parallel_sqlite_writers",
+        "outcome_observation",
+        "review_queue_execution",
     }
     checks = [
         _check(
             "policy_is_declared",
-            required_fields.issubset(set(policy.keys())),
-            {"missing_fields": sorted(required_fields - set(policy.keys()))},
+            required_fields.issubset(set(policy.keys())) and not outcome_policy_errors and not execution_policy_errors,
+            {"missing_fields": sorted(required_fields - set(policy.keys())), "outcome_policy_errors": outcome_policy_errors,
+             "execution_policy_errors": execution_policy_errors},
         ),
         _check("selected_steps_exist", not missing and bool(selected), {"selected": selected, "missing": missing}),
         _check(
@@ -191,6 +219,22 @@ def validate_manual_validator_execution_plan(
             },
         ),
     ]
+    observations = [observe_recorded_receipt(ROOT, path, steps_by_id, selected, observation_policy)
+                    for path in observation_receipts or []]
+    if observation_receipts:
+        checks.append(_check("requested_recorded_observation_integrity", all(
+            row["observation_integrity"] == "VERIFIED_RECORDED_BYTES" for row in observations),
+            {"observed_receipts": len(observations), "current_freshness_established": False,
+             "execution_skipping_allowed": False}))
+    assessment = None
+    if assess_continuation:
+        from tools.core.release_queue_outcomes import assess_native_continuation
+        if outcome_policy_errors or execution_policy_errors or missing:
+            raise ValueError("Native continuation assessment requires a valid registered plan and policy")
+        assessment = assess_native_continuation(ROOT, steps_by_id,
+            selected if explicit_steps is not None else [], observations, observation_policy, log=print)
+        checks.append(_check("native_continuation_assessment_available", assessment["status"] == "ASSESSED",
+            {"continuation": assessment["continuation"], "execution_authorized": False}))
     failed = [check for check in checks if not check["passed"]]
     payload = {
         "meta": {
@@ -218,6 +262,9 @@ def validate_manual_validator_execution_plan(
             "max_parallel_sqlite_writers": max_parallel_sqlite_writers,
         },
         "selected_steps": selected,
+        "recorded_outcome_observations": observations,
+        "native_continuation_assessment": assessment,
+        "outcome_observation_boundary": "Recorded bytes and reported owner outcomes only; no current freshness, execution, skip, repair or authority admission.",
         "serial_execution_plan": serial_plan,
         "checks": checks,
     }
@@ -230,8 +277,31 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Validate manual validator execution ordering.")
     parser.add_argument("--steps", default=None, help="Comma-separated release proof step ids to plan.")
     parser.add_argument("--parallel-intent", action="store_true", help="Fail closed if selected steps cannot run safely in parallel.")
+    parser.add_argument("--observe-receipt", action="append", help="Inspect a hash-bound per-step execution receipt for an explicit selected step; never run or skip that step")
+    parser.add_argument("--assess-native-continuation", action="store_true", help="Read the existing native checkpoint against current context; no execution, checkpoint write, skip or retry. Without --steps, assess the full native plan.")
+    queue = parser.add_mutually_exclusive_group()
+    queue.add_argument("--run-review-queue", action="store_true", help="Explicit bounded registered diagnostic queue; requires --steps, no canonical proof or test-family execution")
+    queue.add_argument("--continue-review-queue", metavar="QUEUE_ID", help="Continue only an exact-context passing prefix; requires the original --steps; failed/unresolved/waiting work is not rerun")
+    parser.add_argument("--max-review-steps", type=int, help="Checkpoint after at most this many new diagnostic owners; shared queue budgets do not reset")
     args = parser.parse_args()
-    payload = validate_manual_validator_execution_plan(explicit_steps=args.steps, parallel_intent=args.parallel_intent)
+    try:
+        if args.max_review_steps is not None and not (args.run_review_queue or args.continue_review_queue is not None):
+            raise ValueError("Review step limit requires explicit queue operation")
+        if args.run_review_queue or args.continue_review_queue is not None:
+            if not args.steps or args.parallel_intent or args.observe_receipt or args.assess_native_continuation:
+                raise ValueError("Review queue requires explicit steps and forbids plan/observation overrides")
+            from tools.core.release_queue_outcomes import run_review_queue
+            result = run_review_queue(ROOT, _step_map(), _selected_step_ids({}, args.steps), _policy(),
+                queue_id=args.continue_review_queue, max_steps=args.max_review_steps)
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+            return 0 if result["status"] in {"REVIEW_QUEUE_COMPLETE", "REVIEW_QUEUE_PENDING", "REVIEW_QUEUE_WAITING",
+                                             "REVIEW_QUEUE_RECORDED", "REVIEW_QUEUE_WAITING_RECORDED"} else 1
+        payload = validate_manual_validator_execution_plan(explicit_steps=args.steps, parallel_intent=args.parallel_intent,
+                                                          observation_receipts=args.observe_receipt,
+                                                          assess_continuation=args.assess_native_continuation)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"status": "FAIL", "reason": "invalid_plan_or_recorded_observation_request", "error_type": type(exc).__name__}))
+        return 1
     print(json.dumps(payload["summary"], ensure_ascii=False, sort_keys=True))
     return 0 if payload["summary"]["status"] == "PASS" else 1
 

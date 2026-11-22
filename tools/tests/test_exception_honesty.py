@@ -23,6 +23,15 @@ from tools.validate_exception_honesty import (
 
 
 class ExceptionHonestyTests(unittest.TestCase):
+    def test_silent_and_deferred_only_handlers_still_require_observation(self):
+        contract=json.loads(exception_honesty.POLICY_PATH.read_text(encoding='utf-8'))['validation_contract']
+        for body in ('pass','primary = error','cleanup.append(error)'):
+            with self.subTest(body=body):
+                tree=ast.parse('try:\n    operation()\nexcept BaseException as error:\n    '+body+'\n')
+                handler=_iter_exception_handlers(tree)[0][0]
+                self.assertFalse(exception_honesty._has_observable_action(
+                    handler,set(contract['observable_call_names']),set(contract['observable_return_keys'])))
+
     def test_native_filesystem_path_is_absolute_on_current_host(self):
         native_path = unmanaged_atomic_io.native_filesystem_path("artifact.json")
         self.assertTrue(os.path.isabs(native_path))

@@ -1149,6 +1149,678 @@ def test_local_parser_result_transport_preserves_canonical_unicode_coordinates(n
     assert encoded[span["start"]:span["end"]] == b"raw"
 
 
+def _effect_safeparse_source():
+    # Intentionally not a rejecting schema. Spelling/source flow is not validation proof.
+    return """import {useEffect} from 'react';
+const Schema = {safeParse(value: unknown) {return {success: true, data: value};}};
+export const Panel = ({onValueChange}: {onValueChange: (value: unknown) => void}) => {
+ const formValues = useWatch({control});
+ useEffect(() => {
+  const result = Schema.safeParse(formValues);
+  if (result.success) { onValueChange({type: 'date', ...result.data}); }
+ }, [formValues]);
+ return <form />;
+};
+"""
+
+
+def _early_return_source():
+    return """import {schemaFactory} from './never_execute';
+const {email} = useContext();
+const complete = async () => {
+ try {
+  const {success: isValid} = schemaFactory().safeParse(email);
+  if (!isValid) { showError('bad'); expand(true); return; }
+  await submit(email);
+ } catch (error) { report(error); }
+};
+"""
+
+
+def _early_return_cases():
+    source = _early_return_source()
+    cases = {"positive": (source, 1), "empty": (_effect_safeparse_source(), 0),
+        "unicode": ("\ufeff// 😀\r\n" + source.replace("\n", "\r\n"), 1)}
+    replacements = {
+        "factory_alias": ("{schemaFactory}", "{schemaFactory as otherFactory}"),
+        "renamed_factory": ("schemaFactory", "ordinaryFunction"),
+        "shorthand": ("success: isValid", "success"),
+        "plain_input": ("const {email} = useContext();", "const email = readInput();"),
+        "array_input": ("const {email} = useContext();", "const [email] = useState('');"),
+        "no_prefix": ("showError('bad'); expand(true); ", ""),
+        "no_semicolon": ("return;", "return\n"),
+        "sync": ("async ()", "()"),
+        "type_only": ("import {schemaFactory}", "import type {schemaFactory}"),
+        "default_import": ("import {schemaFactory}", "import schemaFactory"),
+        "local_factory": ("import {schemaFactory} from './never_execute';", "const schemaFactory = () => ({safeParse: (x) => ({success:true, data:x})});"),
+        "factory_arguments": ("schemaFactory()", "schemaFactory(options)"),
+        "factory_optional": ("schemaFactory()", "schemaFactory?.()"),
+        "factory_generic": ("schemaFactory()", "schemaFactory<string>()"),
+        "factory_cast": ("schemaFactory()", "(schemaFactory() as any)"),
+        "parser_optional": (".safeParse(email)", ".safeParse?.(email)"),
+        "parser_property_optional": (".safeParse(email)", "?.safeParse(email)"),
+        "parser_computed": (".safeParse(email)", "['safeParse'](email)"),
+        "parser_generic": (".safeParse(email)", ".safeParse<string>(email)"),
+        "awaited": ("= schemaFactory()", "= await schemaFactory()"),
+        "extra_binding": ("success: isValid", "success: isValid, data"),
+        "binding_default": ("success: isValid", "success: isValid = true"),
+        "computed_binding": ("success: isValid", "['success']: isValid"),
+        "wrong_property": ("success: isValid", "valid: isValid"),
+        "mutable_result": ("const {success", "let {success"),
+        "mutable_input": ("const {email}", "let {email}"),
+        "default_input": ("const {email}", "const {email = ''}"),
+        "input_cast": (".safeParse(email)", ".safeParse(email as any)"),
+        "input_alias": (".safeParse(email)", ".safeParse(otherEmail)"),
+        "non_adjacent": ("  if (!isValid)", "  observe();\n  if (!isValid)"),
+        "positive_guard": ("!isValid", "isValid"),
+        "wrong_guard": ("!isValid", "!other"),
+        "compared_guard": ("!isValid", "isValid === false"),
+        "else": ("return; }", "return; } else { submit(); }"),
+        "return_value": ("return;", "return false;"),
+        "conditional_return": ("return;", "if (other) {return;}"),
+        "throw": ("return;", "throw new Error('bad');"),
+        "unreachable_tail": ("return;", "return; observe();"),
+        "branch_assignment": ("expand(true);", "expanded = true;"),
+        "callback_parameter": ("async ()", "async (event)"),
+        "callback_mutable": ("const complete", "let complete"),
+        "input_write": ("  await submit", "  email = 'other';\n  await submit"),
+        "success_write": ("  await submit", "  isValid = true;\n  await submit"),
+        "factory_write": ("  await submit", "  schemaFactory = other;\n  await submit"),
+        "callback_write": ("  await submit", "  complete = other;\n  await submit"),
+        "input_collision": ("const complete", "function other(email: unknown) {}\nconst complete"),
+    }
+    positive = {"factory_alias", "renamed_factory", "shorthand", "plain_input", "array_input", "no_prefix", "no_semicolon", "sync"}
+    for name,(before,after) in replacements.items():
+        assert before in source, name
+        text = source.replace(before,after)
+        if name == "factory_alias": text = text.replace("= schemaFactory()", "= otherFactory()")
+        if name == "shorthand": text = text.replace("!isValid", "!success")
+        if name == "sync": text = text.replace("await submit", "submit")
+        cases[name] = (text, int(name in positive))
+    cases["direct_body"] = (source.replace(" try {\n", "").replace(" } catch (error) { report(error); }\n", ""), 1)
+    cases["nested_try"] = (source.replace(" try {", " try { try {").replace(" } catch (error)", " } finally {} } catch (error)"), 0)
+    cases["diagnostics"] = (source + "const broken = ;", 0)
+    cases["byte_budget"] = (source + "/*" + "x" * 1048576 + "*/", 0)
+    cases["node_budget"] = (source + "\n" + "\n".join(f"const v{i} = {i};" for i in range(2600)), 0)
+    imported, component = source.split("\n", 1)
+    parts = []
+    for i in range(65):
+        text = component
+        for name in ("email", "complete", "isValid"): text = text.replace(name,name + str(i))
+        parts.append(text)
+    cases["record_budget"] = (imported + "\n" + "\n".join(parts), 64)
+    return cases
+
+
+def _effect_merge_source():
+    return _effect_safeparse_source().replace("({onValueChange}:", "({value = {type: 'checkbox', direction: 'vertical'}, onValueChange}:").replace(
+        "{type: 'date', ...result.data}", "{...value, ...result.data}")
+
+
+def _effect_merge_cases():
+    source = _effect_merge_source()
+    cases = {"positive": (source, 1), "unicode": ("\ufeff// 😀\r\n" + source.replace("\n", "\r\n"), 1),
+        "empty": (_effect_safeparse_source(), 0)}
+    replacements = {
+        "no_default": ("value = {type: 'checkbox', direction: 'vertical'}", "value"),
+        "renamed": ("value = {type: 'checkbox', direction: 'vertical'}", "value: previous = {type: 'checkbox'}"),
+        "nested_shadow": (" const formValues", " const other = (value: unknown) => { value = 2; return value; };\n const formValues"),
+        "type_spelling": (" const formValues", " type Predicate = (value: unknown) => boolean;\n const formValues"),
+        "alias": ("...value,", "...alias,"),
+        "cast": ("...value,", "...(value as any),"),
+        "property": ("...value,", "...value.current,"),
+        "call": ("...value,", "...value(),"),
+        "computed_prior": ("value = {", "[key]: value = {"),
+        "default_call": ("{type: 'checkbox', direction: 'vertical'}", "makeDefault()"),
+        "default_spread": ("{type: 'checkbox', direction: 'vertical'}", "{...other}"),
+        "default_duplicate": ("direction: 'vertical'", "type: 'duplicate'"),
+        "default_getter": ("direction: 'vertical'", "get direction() {return 'x';}"),
+        "default_computed": ("direction: 'vertical'", "[direction]: 'vertical'"),
+        "extra_spread": ("...value,", "...value, ...other,"),
+        "extra_property": ("...value,", "...value, type: 'other',"),
+        "reordered": ("...value, ...result.data", "...result.data, ...value"),
+        "same_callback": ("...value,", "...onValueChange,"),
+        "same_scope_collision": (" const formValues", " if (opaque) {var value;}\n const formValues"),
+        "block_shadow": (" const formValues", " if (opaque) {let value;}\n const formValues"),
+        "direct_write": (" const formValues", " value = other;\n const formValues"),
+        "property_write": (" const formValues", " function later() {value.x = 2;}\n const formValues"),
+        "destructure_write": (" const formValues", " ({slot: value} = other);\n const formValues"),
+        "loop_write": (" const formValues", " for (value of other) {}\n const formValues"),
+        "delete": (" const formValues", " delete value.x;\n const formValues"),
+        "optional": ("onValueChange({", "onValueChange?.({"),
+        "wrong_data": ("result.data", "other.data"),
+        "negative_guard": ("if (result.success)", "if (!result.success)"),
+        "deferred": ("onValueChange({", "queue(() => onValueChange({"),
+    }
+    for name, (before, after) in replacements.items():
+        assert before in source, name
+        text = source.replace(before, after)
+        if name == "renamed": text = text.replace("...value,", "...previous,")
+        if name == "deferred": text = text.replace("...result.data});", "...result.data}));")
+        cases[name] = (text, int(name in {"no_default", "renamed", "nested_shadow", "type_spelling"}))
+    cases["diagnostics"] = (source + "const broken = ;", 0)
+    cases["byte_budget"] = (source + "/*" + "x" * 1048576 + "*/", 0)
+    cases["node_budget"] = (source + "\n" + "\n".join(f"const v{i} = {i};" for i in range(2600)), 0)
+    prefix, component = source.split("export const Panel", 1)
+    parts = []
+    for i in range(65):
+        text = "export const Panel" + component
+        for token in ("Panel", "onValueChange", "formValues", "result"):
+            text = text.replace(token, token + str(i))
+        parts.append(text)
+    cases["record_budget"] = (prefix + "\n".join(parts), 64)
+    return cases
+
+
+def _effect_safeparse_cases():
+    source = _effect_safeparse_source()
+    cases = {"positive": (source, 1), "empty": ("export const unused = 1;", 0)}
+    replacements = {
+        "hook_alias": ("{useEffect}", "{useEffect as effect}"),
+        "type_only": ("import {useEffect}", "import type {useEffect}"),
+        "impostor": ("import {useEffect} from 'react';", "declare function useEffect(...args: unknown[]): void;"),
+        "wrong_package": ("from 'react'", "from 'other'"),
+        "namespace": ("import {useEffect}", "import * as React"),
+        "wrong_guard": ("result.success", "other.success"),
+        "negated": ("result.success", "!result.success"),
+        "comparison": ("result.success", "result.success === true"),
+        "else": ("...result.data}); }", "...result.data}); } else { report(); }"),
+        "raw_spread": ("...result.data", "...formValues"),
+        "wrong_data": ("...result.data", "...other.data"),
+        "data_cast": ("...result.data", "...(result.data as any)"),
+        "spread_not_last": ("type: 'date', ...result.data", "...result.data, type: 'date'"),
+        "effect_deferred": ("onValueChange({type: 'date', ...result.data});", "queueMicrotask(() => onValueChange({type: 'date', ...result.data}));"),
+        "extra_branch_statement": ("...result.data});", "...result.data}); report();"),
+        "awaited": ("Schema.safeParse(formValues)", "await Schema.safeParse(formValues)"),
+        "async_effect": ("useEffect(() =>", "useEffect(async () =>"),
+        "optional_call": ("Schema.safeParse(formValues)", "Schema.safeParse?.(formValues)"),
+        "optional_callback": ("onValueChange({", "onValueChange?.({"),
+        "optional_guard": ("result.success", "result?.success"),
+        "element_data": ("result.data", "result['data']"),
+        "mutable_result": ("const result =", "let result ="),
+        "mutable_input": ("const formValues =", "let formValues ="),
+        "no_dependencies": ("[formValues]", "[]"),
+        "wrong_dependency": ("[formValues]", "[other]"),
+        "default_callback": ("({onValueChange}:", "({onValueChange = fallback}:"),
+        "property_callback": ("onValueChange({type", "props.onValueChange({type"),
+        "duplicate_result": ("const result =", "const result = null; const result ="),
+        "shadow_result": ("const result =", "if (opaque) {var result;} const result ="),
+        "computed_property": ("type: 'date'", "[key]: 'date'"),
+        "getter_property": ("type: 'date'", "get type() { return 'date'; }"),
+        "shorthand_property": ("type: 'date'", "type"),
+        "extra_spread": ("type: 'date'", "...opaque"),
+        "duplicate_property": ("type: 'date'", "type: 'date', type: 'other'"),
+        "effect_trailing": (" }, [formValues]);", " report(); }, [formValues]);"),
+        "imported_owner": ("const Schema = {safeParse(value: unknown) {return {success: true, data: value};}};", "import {Schema} from './never_execute';"),
+    }
+    for name, (before, after) in replacements.items():
+        assert before in source, name
+        text = source.replace(before, after)
+        if name == "hook_alias": text = text.replace(" useEffect(", " effect(")
+        if name == "namespace": text = text.replace(" useEffect(", " React.useEffect(")
+        cases[name] = (text, int(name == "hook_alias"))
+    for name, statement in {
+        "input_write": "formValues.x = 2;", "result_write": "result.data = other;",
+        "owner_write": "Schema.safeParse = other;", "callback_write": "onValueChange = other;",
+        "hook_write": "useEffect = other;", "delete": "delete Schema.safeParse;",
+        "update": "result.success++;", "destructure": "({slot: onValueChange} = other);",
+        "loop_write": "for (onValueChange of other) {}",
+    }.items():
+        # result is effect-local: a same-spelled unresolved reference outside the
+        # effect is not a write to that binding. Keep this exclusion honest.
+        outside = name in {"result_write", "update"}
+        cases[name + ("_outside_binding" if outside else "")] = (
+            source.replace(" const formValues =", " function later() {" + statement + "}\n const formValues ="), int(outside))
+        if outside:
+            cases[name] = (source.replace("  if (result.success)", "  " + statement + "\n  if (result.success)"), 0)
+    cases["unicode"] = ("\ufeff// 😀 exact source\r\n" + source.replace("\n", "\r\n"), 1)
+    cases["diagnostics"] = (source + "const broken = ;", 0)
+    cases["byte_budget"] = (source + "/*" + "x" * 1048576 + "*/", 0)
+    cases["node_budget"] = (source + "\n" + "\n".join(f"const v{i} = {i};" for i in range(2600)), 0)
+    prefix, component = source.split("export const Panel", 1)
+    parts = []
+    for i in range(65):
+        text = "export const Panel" + component
+        for token in ("Panel", "onValueChange", "formValues", "result"):
+            text = text.replace(token, token + str(i))
+        parts.append(text)
+    cases["record_budget"] = (prefix + "\n".join(parts), 64)
+    return cases
+
+
+@pytest.fixture(scope="module")
+def effect_safeparse_native(tmp_path_factory):
+    if not shutil.which("node"): pytest.skip("Node required for native source controls")
+    root = Path(__file__).resolve().parents[2]
+    directory = tmp_path_factory.mktemp("effect-safeparse-native")
+    cases = _effect_safeparse_cases()
+    cases.update({"merge_" + name: value for name, value in _effect_merge_cases().items()})
+    cases.update({"early_" + name: value for name, value in _early_return_cases().items()})
+    paths = []
+    for name, (source, _) in cases.items():
+        path = directory / (name + ".tsx")
+        path.write_bytes(source.encode("utf-8"))
+        paths.append(str(path))
+    (directory / "never_execute.ts").write_text("throw new Error('MUST_NOT_EXECUTE');", encoding="utf-8")
+    result = subprocess.run(["node", str(root / "tools/engines/ast_sequencer.cjs"), "--batch-json", *paths],
+        cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=90)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    return {name: (source, payload[str(directory / (name + '.tsx'))], count) for name, (source, count) in cases.items()}
+
+
+@pytest.mark.parametrize("name", list(_early_return_cases()))
+def test_early_return_native_bounded_guard_source(name, effect_safeparse_native):
+    from tools.engines import generate_atlas as atlas
+    source, native, expected = effect_safeparse_native["early_" + name]
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    assert meta["safeParseEarlyReturnEvidence"]["record_count"] == expected, (name, meta["safeParseEarlyReturnEvidence"])
+    evidence = atlas._safeparse_early_return_evidence(native, source)
+    assert evidence["record_count"] == expected, (name, evidence)
+    assert evidence["schema_authority"] == evidence["type_compatibility"] == evidence["factory_semantics"] == evidence["continuation_safety"] == "not_established"
+    assert evidence["mutation_proposed"] is False and evidence["runtime_proof"] == "not_performed"
+    if name in {"diagnostics", "byte_budget", "node_budget"}: assert evidence["status"] == "unavailable"
+    elif name == "record_budget": assert evidence["status"] == "partial" and evidence["omitted"] == 1
+    else: assert evidence["status"] == "observed"
+    if expected:
+        spans = evidence["records"][0]["spans"]
+        encoded = source.encode("utf-8")
+        assert encoded[spans["success_property"]["start"]:spans["success_property"]["end"]] == b"success"
+        assert encoded[spans["return"]["start"]:spans["return"]["end"]].startswith(b"return")
+        assert set(spans) == atlas.EARLY_RETURN_ROLES
+
+
+@pytest.mark.parametrize("damage", ["missing", "version", "hash", "parser", "duplicate_meta", "count", "bool_count", "role", "extra_role", "offset", "line", "relation", "claim", "duplicate", "partial", "factory_token", "guard_token", "return_token"])
+def test_early_return_transport_refuses_corrupt_source(damage, effect_safeparse_native):
+    from copy import deepcopy
+    from tools.engines.generate_atlas import _safeparse_early_return_evidence
+    source, raw, _ = effect_safeparse_native["early_positive"]
+    native = deepcopy(raw)
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    lane = meta["safeParseEarlyReturnEvidence"]
+    if damage == "missing": meta.pop("safeParseEarlyReturnEvidence")
+    elif damage == "version": lane["version"] = "old"
+    elif damage == "hash": lane["source_hash"] = "0" * 64
+    elif damage == "parser": meta["parserStatus"] = "degraded"
+    elif damage == "duplicate_meta": native.append(deepcopy(meta))
+    elif damage == "count": lane["record_count"] = 2
+    elif damage == "bool_count": lane["record_count"] = True
+    elif damage == "role": lane["records"][0]["spans"].pop("guard_ref")
+    elif damage == "extra_role": lane["records"][0]["spans"]["validated"] = lane["records"][0]["spans"]["return"]
+    elif damage == "offset": lane["records"][0]["spans"]["return"]["start"] = True
+    elif damage == "line": lane["records"][0]["spans"]["return"]["line"] += 1
+    elif damage == "relation": lane["records"][0]["spans"]["guard_ref"] = lane["records"][0]["spans"]["input_binding"]
+    elif damage == "claim": lane["schema_authority"] = "validated"
+    elif damage == "duplicate": lane["records"].append(deepcopy(lane["records"][0])); lane["record_count"] = 2
+    elif damage == "partial": lane.update(status="partial", omitted=1, reason="record_budget_exceeded")
+    elif damage == "factory_token": lane["records"][0]["spans"]["factory_ref"]["end"] -= 1
+    elif damage == "guard_token": lane["records"][0]["spans"]["condition"]["start"] += 1
+    elif damage == "return_token": lane["records"][0]["spans"]["return"]["start"] += 1
+    evidence = _safeparse_early_return_evidence(native, source)
+    assert evidence["status"] == "unavailable" and evidence["records"] == [] and evidence["reason"]
+
+
+@pytest.mark.parametrize("name", ["positive", "empty", "record_budget", "byte_budget"])
+def test_early_return_schema_limits_and_unknowns(name, effect_safeparse_native, tmp_path):
+    from tools.core.artifact_validator import validate_against_schema
+    from tools.engines.generate_atlas import _safeparse_early_return_evidence
+    source, native, _ = effect_safeparse_native["early_" + name]
+    evidence = _safeparse_early_return_evidence(native, source)
+    schema = json.loads((Path(__file__).resolve().parents[2] / "config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path = tmp_path / "early-schema.json"
+    path.write_text(json.dumps({"$ref": "#/$defs/safeparse_early_return_evidence", "$defs": schema["$defs"]}), encoding="utf-8")
+    assert validate_against_schema(path, "early", evidence) == []
+    for key,value in (("factory_semantics", "validated"), ("continuation_safety", "safe"), ("mutation_proposed", 0), ("unproved_claim", True)):
+        assert validate_against_schema(path, "early", {**evidence, key:value})
+
+
+def test_early_return_uses_shared_coordinates_and_no_empty_index(effect_safeparse_native, monkeypatch):
+    from tools.engines import generate_atlas as atlas
+    source, native, _ = effect_safeparse_native["early_unicode"]
+    context = {}
+    atlas._normalize_polyglot_symbols(native, source, "typescript", file_evidence_context=context)
+    def forbid(*args, **kwargs): raise AssertionError("No second coordinate scan")
+    monkeypatch.setattr(atlas, "_utf16_offsets_to_utf8_byte_offsets", forbid)
+    monkeypatch.setattr(atlas, "_native_utf16_span_validator", forbid)
+    assert atlas._safeparse_early_return_evidence(native, source, context)["record_count"] == 1
+    source, native, _ = effect_safeparse_native["early_empty"]
+    assert atlas._safeparse_early_return_evidence(native, source)["status"] == "observed"
+
+
+@pytest.mark.parametrize("name", list(_effect_merge_cases()))
+def test_effect_merge_native_source_order_and_uncertainty(name, effect_safeparse_native):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.atlas_ast_contract import EFFECT_SAFE_PARSE_MERGE_ROLES, effect_safe_parse_merge_stored_problem
+    from tools.core.source_coordinates import _utf8_span_validator
+    source, native, expected = effect_safeparse_native["merge_" + name]
+    evidence = atlas._effect_safeparse_merge_evidence(native, source)
+    assert evidence["record_count"] == expected, (name, evidence)
+    assert atlas._effect_safeparse_callback_evidence(native, source)["record_count"] == int(name == "empty")
+    assert evidence["prior_value_semantics"] == evidence["merge_result_semantics"] == "not_established"
+    if expected:
+        spans = evidence["records"][0]["spans"]
+        assert set(spans) == EFFECT_SAFE_PARSE_MERGE_ROLES
+        assert spans["prior_spread"]["end"] < spans["spread"]["start"]
+        valid = _utf8_span_validator(source, [span for row in evidence["records"] for span in row["spans"].values()])
+        assert effect_safe_parse_merge_stored_problem(evidence, evidence["source_hash"], valid) == ""
+    if name in {"diagnostics", "byte_budget", "node_budget"}: assert evidence["status"] == "unavailable"
+    elif name == "record_budget": assert evidence["status"] == "partial" and evidence["omitted"] == 1
+    else: assert evidence["status"] == "observed"
+
+
+@pytest.mark.parametrize("name", list(_effect_safeparse_cases()))
+def test_effect_safeparse_native_finite_grammar(name, effect_safeparse_native):
+    import hashlib
+    from tools.engines.generate_atlas import _effect_safeparse_callback_evidence, _client_safeparse_success_evidence
+    source, native, expected = effect_safeparse_native[name]
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    lane = meta["effectSafeParseCallbackEvidence"]
+    assert lane["record_count"] == len(lane["records"]) == expected, (name, lane)
+    assert lane["source_hash"] == hashlib.sha256(source.encode("utf-8")).hexdigest()
+    evidence = _effect_safeparse_callback_evidence(native, source)
+    assert evidence["record_count"] == expected, (name, evidence)
+    assert _client_safeparse_success_evidence(native, source)["record_count"] == 0
+    if name in {"diagnostics", "byte_budget", "node_budget"}:
+        assert evidence["status"] == "unavailable" and evidence["reason"]
+    elif name == "record_budget":
+        assert evidence["status"] == "partial" and evidence["omitted"] == 1
+    else:
+        assert evidence["status"] == "observed" and evidence["omitted"] == 0
+    assert evidence["schema_authority"] == evidence["type_compatibility"] == "not_established"
+    assert evidence["runtime_proof"] == "not_performed" and evidence["mutation_proposed"] is False
+    if expected:
+        data = source.encode("utf-8")
+        spans = evidence["records"][0]["spans"]
+        for span in spans.values(): assert data[span["start"]:span["end"]].decode("utf-8")
+        for role, token in (("success_property", b"success"), ("data_property", b"data"), ("callback_ref", b"onValueChange" if name != "record_budget" else b"onValueChange0")):
+            assert data[spans[role]["start"]:spans[role]["end"]] == token
+
+
+@pytest.mark.parametrize("merge", [False, True])
+@pytest.mark.parametrize("damage", ["missing", "version", "hash", "parser", "duplicate_meta", "count", "bool_count", "role", "extra_role", "offset", "line", "relation", "claim", "duplicate", "partial"])
+def test_effect_safeparse_transport_refuses_corruption(damage, effect_safeparse_native, merge):
+    from copy import deepcopy
+    from tools.engines.generate_atlas import _effect_safeparse_callback_evidence, _effect_safeparse_merge_evidence
+    source, raw, _ = effect_safeparse_native["merge_positive" if merge else "positive"]
+    native = deepcopy(raw)
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    key = "effectSafeParseMergeEvidence" if merge else "effectSafeParseCallbackEvidence"
+    lane = meta[key]
+    if damage == "missing": meta.pop(key)
+    elif damage == "version": lane["version"] = "old"
+    elif damage == "hash": lane["source_hash"] = "0" * 64
+    elif damage == "parser": meta["parserStatus"] = "degraded"
+    elif damage == "duplicate_meta": native.append(deepcopy(meta))
+    elif damage == "count": lane["record_count"] = 2
+    elif damage == "bool_count": lane["record_count"] = True
+    elif damage == "role": lane["records"][0]["spans"].pop("callback_ref")
+    elif damage == "extra_role": lane["records"][0]["spans"]["validated"] = lane["records"][0]["spans"]["sink"]
+    elif damage == "offset": lane["records"][0]["spans"]["sink"]["start"] = True
+    elif damage == "line": lane["records"][0]["spans"]["sink"]["line"] += 1
+    elif damage == "relation": lane["records"][0]["spans"]["callback_ref"] = lane["records"][0]["spans"]["input_binding"]
+    elif damage == "claim": lane["schema_authority"] = "validated"
+    elif damage == "duplicate": lane["records"].append(deepcopy(lane["records"][0])); lane["record_count"] = 2
+    elif damage == "partial": lane.update(status="partial", omitted=1, reason="record_budget_exceeded")
+    evidence = (_effect_safeparse_merge_evidence if merge else _effect_safeparse_callback_evidence)(native, source)
+    assert evidence["status"] == "unavailable" and evidence["records"] == [] and evidence["reason"]
+
+
+def test_effect_safeparse_uses_shared_coordinate_batch(effect_safeparse_native, monkeypatch):
+    from tools.engines import generate_atlas as atlas
+    source, native, _ = effect_safeparse_native["unicode"]
+    context = {}
+    atlas._normalize_polyglot_symbols(native, source, "typescript", file_evidence_context=context)
+    def forbid(*args, **kwargs): raise AssertionError("No second file coordinate scan")
+    monkeypatch.setattr(atlas, "_utf16_offsets_to_utf8_byte_offsets", forbid)
+    monkeypatch.setattr(atlas, "_native_utf16_span_validator", forbid)
+    assert atlas._effect_safeparse_callback_evidence(native, source, context)["record_count"] == 1
+    source, native, _ = effect_safeparse_native["merge_unicode"]
+    # The normalizer builds the one-file map before the guard is installed.
+    monkeypatch.undo()
+    context = {}
+    atlas._normalize_polyglot_symbols(native, source, "typescript", file_evidence_context=context)
+    monkeypatch.setattr(atlas, "_utf16_offsets_to_utf8_byte_offsets", forbid)
+    monkeypatch.setattr(atlas, "_native_utf16_span_validator", forbid)
+    assert atlas._effect_safeparse_merge_evidence(native, source, context)["record_count"] == 1
+    source, native, _ = effect_safeparse_native["empty"]
+    assert atlas._effect_safeparse_callback_evidence(native, source)["status"] == "observed"
+
+
+@pytest.mark.parametrize("merge", [False, True])
+@pytest.mark.parametrize("name", ["positive", "empty", "record_budget", "byte_budget"])
+def test_effect_safeparse_schema_coverage_and_no_authority(name, effect_safeparse_native, tmp_path, merge):
+    from tools.core.artifact_validator import validate_against_schema
+    from tools.engines.generate_atlas import _effect_safeparse_callback_evidence, _effect_safeparse_merge_evidence
+    source, native, _ = effect_safeparse_native[("merge_" if merge else "") + name]
+    evidence = (_effect_safeparse_merge_evidence if merge else _effect_safeparse_callback_evidence)(native, source)
+    schema = json.loads((Path(__file__).resolve().parents[2] / "config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path = tmp_path / "effect-schema.json"
+    key = "effect_safeparse_merge_evidence" if merge else "effect_safeparse_callback_evidence"
+    path.write_text(json.dumps({"$ref": "#/$defs/" + key, "$defs": schema["$defs"]}), encoding="utf-8")
+    assert validate_against_schema(path, "effect", evidence) == []
+    for key, value in (("mutation_proposed", 0), ("schema_authority", "validated"), ("unproved_claim", True)):
+        assert validate_against_schema(path, "effect", {**evidence, key: value})
+    if merge:
+        for key in ("prior_value_semantics", "merge_result_semantics"):
+            assert validate_against_schema(path, "effect", {**evidence, key: "known"})
+
+
+def _safeparse_source():
+    # Deliberate non-validator positive: source correspondence cannot borrow Zod semantics.
+    return """import {useState} from 'react';
+const Schema = {safeParse(value: unknown) { return {success: true, data: value}; }};
+export function Panel() {
+ const [rows, setRows] = useState<string[]>([]);
+ async function load() {
+  const response = await fetch('/rows');
+  const raw = await response.json();
+  const result = Schema.safeParse(raw);
+  if (result.success) { setRows(result.data); }
+ }
+ return <button onClick={load} />;
+}
+"""
+
+
+def _safeparse_cases():
+    source = _safeparse_source()
+    cases = {"positive": (source, 1), "empty": ("export const unused = 1;", 0)}
+    replacements = {
+        "alias": ("useState}", "useState as stateHook}"),
+        "imported_owner": ("const Schema = {safeParse(value: unknown) { return {success: true, data: value}; }};", "import {Schema} from './never_execute';"),
+        "raw_sink": ("setRows(result.data)", "setRows(raw)"),
+        "wrong_guard": ("if (result.success)", "if (other.success)"),
+        "negated": ("if (result.success)", "if (!result.success)"),
+        "else": ("if (result.success) { setRows(result.data); }", "if (!result.success) {} else { setRows(result.data); }"),
+        "comparison": ("if (result.success)", "if (result.success === true)"),
+        "deferred": ("setRows(result.data);", "queueMicrotask(() => setRows(result.data));"),
+        "reassigned": ("const result =", "let result ="),
+        "shadow_setter": ("async function load()", "async function load(setRows: (v: unknown) => void)"),
+        "hook_impostor": ("import {useState} from 'react';", "const useState = <T,>(v:T) => [v, (x:unknown) => x] as const;"),
+        "awaited": ("Schema.safeParse(raw)", "await Schema.safeParse(raw)"),
+        "async_protocol": ("Schema.safeParse(raw)", "Schema.safeParseAsync(raw)"),
+        "data_alias": ("setRows(result.data);", "const data = result.data; setRows(data);"),
+        "extra_branch": ("setRows(result.data);", "setRows(result.data); audit();"),
+        "trailing": ("if (result.success) { setRows(result.data); }", "if (result.success) { setRows(result.data); } audit();"),
+        "gap": ("const result =", "audit(); const result ="),
+        "optional_guard": ("result.success", "result?.success"),
+        "optional_call": ("Schema.safeParse(raw)", "Schema.safeParse?.(raw)"),
+        "optional_json": ("response.json()", "response?.json()"),
+        "optional_setter": ("setRows(result.data)", "setRows?.(result.data)"),
+        "result_cast": ("Schema.safeParse(raw)", "Schema.safeParse(raw) as any"),
+        "data_cast": ("setRows(result.data)", "setRows(result.data as any)"),
+        "element_guard": ("result.success", "result['success']"),
+        "element_data": ("result.data", "result['data']"),
+        "wrong_input": ("Schema.safeParse(raw)", "Schema.safeParse(other)"),
+        "local_fetch": ("async function load()", "async function load(fetch: (url: string) => unknown)"),
+        "namespace_hook": ("import {useState} from 'react';", "import * as React from 'react';"),
+        "any_state": ("useState<string[]>", "useState<any>"),
+        "type_only": ("import {useState}", "import type {useState}"),
+        "arrow_body": ("async function load()", "const load = async () =>"),
+        "duplicate": ("const raw =", "const raw = 0; const raw ="),
+        "hoisted_shadow": ("const result =", "if (opaque) { var result; } const result ="),
+    }
+    for name, (before, after) in replacements.items():
+        text = source.replace(before, after)
+        if name == "alias":
+            text = text.replace("= useState<", "= stateHook<").replace("result", "parsed").replace("setRows", "updateRows")
+        if name == "namespace_hook":
+            text = text.replace("= useState<", "= React.useState<")
+        cases[name] = (text, int(name == "alias"))
+    for name, write in {"owner_write": "Schema.safeParse = replacement;", "raw_write": "raw.push(1); raw.x = 1;",
+            "response_write": "response.json = replacement;", "setter_write": "setRows = replacement;",
+            "result_write": "result.data = other;", "delete": "delete Schema.safeParse;",
+            "destructure_write": "({slot: setRows} = opaque);", "update": "result.success++;"}.items():
+        # A closure before the tail still binds the same selected variables.
+        # An unrelated module-level unresolved name would not be a write to them.
+        cases[name] = (source.replace("  const response =", "  function later() { " + write + " }\n  const response ="), 0)
+    cases["unicode"] = ("\ufeff// 😀 canonical bytes\r\n" + source.replace("\n", "\r\n"), 1)
+    state = " const [rows, setRows] = useState<string[]>([]);\n"
+    cases["state_after_sink"] = (source.replace(state, "").replace(" return <button", state + " return <button"), 0)
+    hook_import = "import {useState} from 'react';\n"
+    cases["import_after_state"] = (source.replace(hook_import, "") + hook_import, 0)
+    cases["diagnostics"] = (source + "const broken = ;", 0)
+    cases["byte_budget"] = (source + "/*" + "x" * 1048576 + "*/", 0)
+    cases["node_budget"] = (source + "\n" + "\n".join(f"const v{i} = {i};" for i in range(2600)), 0)
+    # One shared imported hook and parser owner; each selected binding is distinct.
+    functions = source[source.index("export function Panel"):]
+    parts = []
+    for i in range(65):
+        part = functions
+        for token in ("Panel", "load", "rows", "setRows", "response", "raw", "result"):
+            part = part.replace(token, token + str(i))
+        parts.append(part)
+    cases["record_budget"] = (source[:source.index("export function Panel")] + "\n".join(parts), 64)
+    return cases
+
+
+@pytest.fixture(scope="module")
+def safeparse_native(tmp_path_factory):
+    if not shutil.which("node"):
+        pytest.skip("Node is required for actual native AST controls")
+    root = Path(__file__).resolve().parents[2]
+    directory = tmp_path_factory.mktemp("safeparse-native")
+    cases = _safeparse_cases()
+    paths = []
+    for name, (source, _) in cases.items():
+        path = directory / (name + ".tsx")
+        path.write_bytes(source.encode("utf-8"))
+        paths.append(str(path))
+    (directory / "never_execute.ts").write_text("throw new Error('TARGET_MUST_NOT_EXECUTE');", encoding="utf-8")
+    result = subprocess.run(["node", str(root / "tools/engines/ast_sequencer.cjs"), "--batch-json", *paths],
+        cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=90)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    return {name: (source, payload[str(directory / (name + '.tsx'))], count) for name, (source, count) in cases.items()}
+
+
+@pytest.mark.parametrize("name", list(_safeparse_cases()))
+def test_safeparse_success_native_finite_grammar(name, safeparse_native):
+    import hashlib
+    from tools.engines.generate_atlas import _client_safeparse_success_evidence
+    source, native, expected = safeparse_native[name]
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    lane = meta["clientSafeParseSuccessEvidence"]
+    assert lane["record_count"] == len(lane["records"]) == expected, (name, lane)
+    assert lane["source_hash"] == hashlib.sha256(source.encode("utf-8")).hexdigest()
+    evidence = _client_safeparse_success_evidence(native, source)
+    assert len(evidence["records"]) == expected, (name, evidence)
+    if name in {"diagnostics", "byte_budget", "node_budget"}:
+        assert evidence["status"] == "unavailable" and evidence["reason"]
+    elif name == "record_budget":
+        assert evidence["status"] == "partial" and evidence["omitted"] == 1
+    else:
+        assert evidence["status"] == "observed" and evidence["omitted"] == 0
+    assert evidence["schema_authority"] == evidence["type_compatibility"] == "not_established"
+    assert evidence["runtime_proof"] == "not_performed" and evidence["mutation_proposed"] is False
+    if name == "unicode":
+        encoded = source.encode("utf-8")
+        spans = evidence["records"][0]["spans"]
+        for span in spans.values():
+            assert encoded[span["start"]:span["end"]].decode("utf-8")
+        assert encoded[spans["success_property"]["start"]:spans["success_property"]["end"]] == b"success"
+        assert encoded[spans["data_property"]["start"]:spans["data_property"]["end"]] == b"data"
+    # This optional source lane cannot add ordinary advisory findings.
+    result = analyze_runtime_intelligence_file("fixture", "Panel.tsx", source,
+        atlas_file={"features": meta["features"], "symbols": native, "client_safeparse_success_evidence": evidence})
+    assert not any(row["dimension"] == "target_runtime_schema_mutation" for row in result["findings"])
+
+
+@pytest.mark.parametrize("damage", ["missing", "version", "hash", "atlas_hash", "meta_duplicate", "degraded",
+    "count", "bool_count", "role", "extra_role", "bool_offset", "range", "line", "relation", "claim",
+    "header_claim", "duplicate", "partial", "omitted", "unknown_status", "unavailable_rows"])
+def test_safeparse_success_transport_refuses_corrupt_or_legacy(damage, safeparse_native):
+    from copy import deepcopy
+    from tools.engines.generate_atlas import _client_safeparse_success_evidence
+    source, raw, _ = safeparse_native["positive"]
+    native = deepcopy(raw)
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    lane = meta["clientSafeParseSuccessEvidence"]
+    row = lane["records"][0]
+    if damage == "missing": meta.pop("clientSafeParseSuccessEvidence")
+    elif damage == "version": lane["version"] = "old"
+    elif damage == "hash": lane["source_hash"] = "0" * 64
+    elif damage == "atlas_hash": meta["features"].append("Hash:" + "0" * 64)
+    elif damage == "meta_duplicate": native.append(deepcopy(meta))
+    elif damage == "degraded": meta["parserStatus"] = "degraded"
+    elif damage == "count": lane["record_count"] = 2
+    elif damage == "bool_count": lane["record_count"] = True
+    elif damage == "role": row["spans"].pop("condition_result_ref")
+    elif damage == "extra_role": row["spans"]["validated"] = row["spans"]["sink"]
+    elif damage == "bool_offset": row["spans"]["sink"]["start"] = True
+    elif damage == "range": row["spans"]["sink"]["end"] = len(source) * 4
+    elif damage == "line": row["spans"]["sink"]["line"] += 1
+    elif damage == "relation": row["spans"]["condition_result_ref"] = row["spans"]["result_binding"]
+    elif damage == "claim": row["validated"] = True
+    elif damage == "header_claim": lane["schema_authority"] = "validated"
+    elif damage == "duplicate": lane["records"].append(deepcopy(row)); lane["record_count"] = 2
+    elif damage == "partial": lane["status"] = "partial"; lane["reason"] = "record_budget_exceeded"; lane["omitted"] = 1
+    elif damage == "omitted": lane["omitted"] = True
+    elif damage == "unknown_status": lane["status"] = []
+    else: lane["status"] = "unavailable"; lane["reason"] = "node_budget_exceeded"
+    result = _client_safeparse_success_evidence(native, source)
+    assert result["status"] == "unavailable" and result["records"] == [] and result["reason"]
+
+
+def test_safeparse_success_reuses_shared_file_coordinate_batch(safeparse_native, monkeypatch):
+    from tools.engines import generate_atlas as atlas
+    source, native, _ = safeparse_native["unicode"]
+    context = {}
+    atlas._normalize_polyglot_symbols(native, source, "typescript", file_evidence_context=context)
+    def forbid(*args, **kwargs):
+        raise AssertionError("No second coordinate/index scan in production source-lane transport")
+    monkeypatch.setattr(atlas, "_utf16_offsets_to_utf8_byte_offsets", forbid)
+    monkeypatch.setattr(atlas, "_native_utf16_span_validator", forbid)
+    assert atlas._client_safeparse_success_evidence(native, source, context)["record_count"] == 1
+
+
+def test_safeparse_success_empty_lane_needs_no_coordinate_index(safeparse_native, monkeypatch):
+    from tools.engines import generate_atlas as atlas
+    source, native, _ = safeparse_native["empty"]
+    def forbid(*args, **kwargs):
+        raise AssertionError("Observed empty must not build a source coordinate index")
+    monkeypatch.setattr(atlas, "_utf16_offsets_to_utf8_byte_offsets", forbid)
+    monkeypatch.setattr(atlas, "_native_utf16_span_validator", forbid)
+    assert atlas._client_safeparse_success_evidence(native, source)["status"] == "observed"
+
+
+@pytest.mark.parametrize("name", ["positive", "empty", "record_budget", "byte_budget"])
+def test_safeparse_success_schema_discloses_coverage_and_refuses_claims(name, safeparse_native, tmp_path):
+    from tools.core.artifact_validator import validate_against_schema
+    from tools.engines.generate_atlas import _client_safeparse_success_evidence
+    source, native, _ = safeparse_native[name]
+    evidence = _client_safeparse_success_evidence(native, source)
+    schema = json.loads((Path(__file__).resolve().parents[2] / "config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    selected_schema = tmp_path / "selected-schema.json"
+    selected_schema.write_text(json.dumps({"$ref": "#/$defs/client_safeparse_success_evidence", "$defs": schema["$defs"]}), encoding="utf-8")
+    def errors(lane):
+        return validate_against_schema(selected_schema, "source_lane", lane)
+    assert errors(evidence) == []
+    assert errors({**evidence, "mutation_proposed": 0})
+    assert errors({**evidence, "schema_authority": "validated"})
+    assert errors({**evidence, "unproved_claim": True})
+
+
 def test_local_parser_result_transport_survives_sqlite_primary_reload(tmp_path, monkeypatch):
     from tools.core.atlas_io import load_atlas_data
     from tools.core.external_target_generation import external_target_output_slug
@@ -1164,6 +1836,10 @@ def test_local_parser_result_transport_survives_sqlite_primary_reload(tmp_path, 
     (target / "Raw.tsx").write_bytes(legacy_source.encode("utf-8"))
     input_source = fixture["local_parser_input_sink_cases"][0]["source"]
     (target / "Input.tsx").write_bytes(input_source.encode("utf-8"))
+    (target / "Safe.tsx").write_bytes(_safeparse_source().encode("utf-8"))
+    (target / "Effect.tsx").write_bytes(_effect_safeparse_source().encode("utf-8"))
+    (target / "Merge.tsx").write_bytes(_effect_merge_source().encode("utf-8"))
+    (target / "Early.tsx").write_bytes(_early_return_source().encode("utf-8"))
     env = dict(os.environ)
     for key in ("CODEMAPS_TARGET_PREFLIGHT_RECEIPT", "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256",
             "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE", "CODEMAPS_TARGET_PROJECTS"):
@@ -1179,7 +1855,23 @@ def test_local_parser_result_transport_survives_sqlite_primary_reload(tmp_path, 
         assert Path(path) != raw / "atlas.json", "Real SQLite primary is required"
         return native_read(path, *args, **kwargs)
     monkeypatch.setattr(json_io, "load_json_file", reject_atlas_shadow)
-    files = load_atlas_data(raw)["MAIN"]["files"]
+    loaded = load_atlas_data(raw)
+    files = loaded["MAIN"]["files"]
+    effect = files["Effect.tsx"]["effect_safeparse_callback_evidence"]
+    assert effect["status"] == "observed" and effect["record_count"] == 1
+    assert effect["schema_authority"] == "not_established" and effect["mutation_proposed"] is False
+    assert files["Safe.tsx"]["effect_safeparse_callback_evidence"]["record_count"] == 0
+    merge = files["Merge.tsx"]["effect_safeparse_merge_evidence"]
+    assert merge["status"] == "observed" and merge["record_count"] == 1
+    assert merge["merge_result_semantics"] == "not_established"
+    assert files["Merge.tsx"]["effect_safeparse_callback_evidence"]["record_count"] == 0
+    assert files["Effect.tsx"]["effect_safeparse_merge_evidence"]["record_count"] == 0
+    early = files["Early.tsx"]["safeparse_early_return_evidence"]
+    assert early["status"] == "observed" and early["record_count"] == 1
+    assert early["factory_semantics"] == early["continuation_safety"] == "not_established"
+    assert files["Early.tsx"]["effect_safeparse_callback_evidence"]["record_count"] == 0
+    assert files["Early.tsx"]["effect_safeparse_merge_evidence"]["record_count"] == 0
+    assert files["Effect.tsx"]["safeparse_early_return_evidence"]["record_count"] == 0
     data = files["Panel.tsx"]
     assert file_contract_is_current(data)
     assert not file_contract_is_current({**data, "ast_contract_version": "v18.32-response-field-evidence-transport"})
@@ -1197,6 +1889,14 @@ def test_local_parser_result_transport_survives_sqlite_primary_reload(tmp_path, 
     assert input_evidence["call_result_use"] == "not_selected_by_this_sink"
     assert input_evidence["parser_effect_on_input"] == "not_established"
     assert input_data["client_local_parser_result_evidence"]["records"] == []
+    safe = files["Safe.tsx"]
+    evidence = safe["client_safeparse_success_evidence"]
+    assert evidence["status"] == "observed" and evidence["record_count"] == 1
+    assert evidence["source_hash"] == safe["hash"] and evidence["ast_contract_version"] == safe["ast_contract_version"]
+    assert evidence["runtime_proof"] == "not_performed" and evidence["schema_authority"] == "not_established"
+    assert safe["client_local_parser_result_evidence"]["records"] == []
+    from tools.core.artifact_validator import validate_payload
+    assert validate_payload("atlas", loaded) == []
     old = analyze_runtime_intelligence_file("MAIN", "Raw.tsx", legacy_source, atlas_file=files["Raw.tsx"])
     rows = [row for row in old["findings"] if row["risk"] == "external_response_field_to_typed_react_state"]
     assert len(rows) == 1 and rows[0]["confidence"] == "needs_runtime_proof"
@@ -1383,3 +2083,767 @@ def test_react_v11_taxonomy_uses_declared_evidence_releases():
     assert not result["not_proven"]
     assert not result["unlinked"]
     assert not result["undeclared_linked"]
+
+
+def _factory_return_source():
+    return "import { z } from 'zod';\nexport const makeEmail = (options?: string) => {\n const message = options ?? 'Invalid';\n return z.string().regex(PATTERN, { message });\n};\n"
+
+
+def _factory_function_source(source):
+    return source.replace("export const makeEmail = (options?: string) =>", "export function makeEmail(options?: string)").replace("};\n", "}\n", 1)
+
+
+def _factory_parameter_sources():
+    caller = _early_return_source().replace("const complete", "const options = acquireOpaque();\nconst complete").replace("schemaFactory()", "schemaFactory(options)")
+    cases = {"caller":(caller,"caller",True),"caller_unicode":("\ufeff// 😀\r\n"+caller.replace("\n","\r\n"),"caller",True),
+        "caller_comment":(caller.replace("schemaFactory(options)","schemaFactory(/*arg*/ options /*end*/)"),"caller",True),
+        "caller_component":(caller.replace("const {email}","export function Component() {\nconst {email}")+"}\n","caller",True)}
+    changes = {"literal":("schemaFactory(options)","schemaFactory('value')"),"spread":("schemaFactory(options)","schemaFactory(...options)"),
+        "two":("schemaFactory(options)","schemaFactory(options, options)"),"trailing":("schemaFactory(options)","schemaFactory(options,)"),
+        "property":("schemaFactory(options)","schemaFactory(options.value)"),"expression":("schemaFactory(options)","schemaFactory(acquireOpaque())"),
+        "mutable":("const options =","let options ="),"typed":("const options =","const options: unknown ="),
+        "multiple":("const options = acquireOpaque();","const options = acquireOpaque(), other = 1;"),
+        "late":("const options = acquireOpaque();\n",""),"assigned":("const complete", "options = other;\nconst complete"),
+        "property_write":("const complete","options.value = other;\nconst complete"),"shadow":("const complete","function other(options) {}\nconst complete"),
+        "destructured":("const options = acquireOpaque();","const {options} = acquireOpaque();"),
+        "nested":("const options = acquireOpaque();\nconst complete", "const complete"),
+        "type_import":("import {schemaFactory}","import type {schemaFactory}"),
+        "escaped_reference":("schemaFactory(options)","schemaFactory(opt\\u0069ons)"),
+        "escaped_declaration":("const options =","const opt\\u0069ons ="),
+        "optional_call":("schemaFactory(options)","schemaFactory?.(options)")}
+    for name,(a,b) in changes.items(): cases["caller_"+name]=(caller.replace(a,b),"caller",False)
+    cases["caller_late"]=(cases["caller_late"][0]+"const options = acquireOpaque();\n","caller",False)
+    cases["caller_nested"]=(cases["caller_nested"][0].replace(" try {"," const options = acquireOpaque();\n try {"),"caller",False)
+    formal = "import {z} from 'never-execute';\nexport const make = (settings) => z.string().regex(settings);\nthrow new Error('MUST_NOT_EXECUTE');"
+    cases.update({"formal":(formal,"formal",True),"formal_bare":(formal.replace("(settings)","settings",1),"formal",True),
+        "formal_typed":(formal.replace("(settings)","(settings: {value: string})",1),"formal",True),
+        "formal_function":(formal.replace("export const make = (settings) => z.string().regex(settings);","export function make(settings) { return z.string().regex(settings); }"),"formal",True),
+        "formal_unicode":("\ufeff// 😀\r\n"+formal.replace("\n","\r\n"),"formal",True)})
+    exclusions={"default":"(settings = opaque())","optional":"(settings?: unknown)","rest":"(...settings)","destructured":"({settings})", "multiple":"(settings, other)","trailing":"(settings,)"}
+    for name,signature in exclusions.items(): cases["formal_"+name]=(formal.replace("(settings)",signature,1),"formal",False)
+    cases["formal_written"]=(formal.replace("throw new Error", "settings = other; throw new Error").replace("=> z.string().regex(settings);", "=> { settings = other; return z.string().regex(settings); };"),"formal",False)
+    cases["formal_shadow"]=(formal+"\nfunction unrelated(settings) {}","formal",False)
+    cases["formal_this"]=("import {z} from 'never-execute'; export function make(this: unknown) { return z.string(); }","formal",False)
+    cases["formal_escaped"]=(formal.replace("(settings)","(set\\u0074ings)",1),"formal",False)
+    return cases
+
+
+def _factory_parameter_use_sources():
+    source="import {z} from 'never-execute';\nexport const make = (settings: unknown) => z.min(settings).max(settings, other).refine(other, settings);\nthrow new Error('MUST_NOT_EXECUTE');"
+    cases={"arrow":(source,3),"unicode":("\ufeff// 😀\r\n"+source.replace("\n","\r\n"),3),
+        "function":(source.replace("export const make = (settings: unknown) =>", "export function make(settings: unknown) { return").replace(";\nthrow", "; }\nthrow"),3),
+        "bare":(source.replace("(settings: unknown)","settings"),3),
+        "comments":(source.replace(".min(settings)",".min(/*name*/settings/*end*/)"),3)}
+    prefix="import {z} from 'never-execute';\nexport const make = (settings) => "
+    expressions={"repeated":("z.regex(settings,settings)",2),"unused":("z.regex(other)",0),
+        "property":("z.regex(settings.value)",0),"shorthand":("z.regex({settings})",0),
+        "nested":("z.refine(x => settings)",0),"wrapped":("z.regex(opaque(settings))",0),
+        "spread":("z.regex(settings,...other)",0),"trailing":("z.regex(settings,)",0),
+        "five_arguments":("z.regex(settings,1,2,3,4)",0),"escaped":("z.regex(set\\u0074ings)",0),
+        "alias":("{ const alias=settings; return z.regex(alias); }",0)}
+    cases.update({name:(prefix+expression+";",count) for name,(expression,count) in expressions.items()})
+    factories=[]
+    for i in range(9):
+        factories.append(f"export const make{i} = (settings{i}) => z."+".".join(f"m{j}(settings{i})" for j in range(8))+";")
+    cases["budget"]=("import {z} from 'never-execute';\n"+"\n".join(factories),64)
+    return cases
+
+
+@pytest.fixture(scope="module")
+def factory_parameter_use_native(tmp_path_factory):
+    directory=tmp_path_factory.mktemp("factory-parameter-use-source")
+    cases=_factory_parameter_use_sources()
+    paths=[]
+    for name,(source,_) in cases.items():
+        path=directory/(name+".tsx")
+        path.write_bytes(source.encode("utf-8")); paths.append(str(path))
+    root=Path(__file__).resolve().parents[2]
+    run=subprocess.run(["node",str(root/"tools/engines/ast_sequencer.cjs"),"--batch-json",*paths],cwd=root,capture_output=True,text=True,encoding="utf-8",timeout=90)
+    assert run.returncode==0,run.stderr
+    native=json.loads(run.stdout)
+    return {name:(source,native[path],expected) for (name,(source,expected)),path in zip(cases.items(),paths)}
+
+
+@pytest.mark.parametrize("name",list(_factory_parameter_use_sources()))
+def test_factory_parameter_use_native_transport_and_schema(factory_parameter_use_native,tmp_path,monkeypatch,name):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    source,native,expected=factory_parameter_use_native[name]
+    context={}
+    atlas._normalize_polyglot_symbols(native,source,"typescript",file_evidence_context=context)
+    def forbid(*a,**k): raise AssertionError("Reuse the one file coordinate batch")
+    monkeypatch.setattr(atlas,"_utf16_offsets_to_utf8_byte_offsets",forbid)
+    monkeypatch.setattr(atlas,"_native_utf16_span_validator",forbid)
+    result=atlas._factory_return_construction_evidence(native,source,context)
+    assert result["status"]=="observed",result
+    assert sum(len(r.get("parameter_uses",[])) for r in result["records"])==expected,result
+    assert sum(r.get("parameter_uses_omitted",0) for r in result["records"])==(8 if name=="budget" else 0)
+    if name=="budget":
+        assert result["record_count"]==9 and result["omitted"]==0
+    encoded=source.encode("utf-8")
+    for row in result["records"]:
+        for index,use in enumerate(row.get("parameter_uses",[])):
+            span=row["spans"][f"parameter_use_{index}"]
+            assert encoded[span["start"]:span["end"]].decode("utf-8")==row["parameter_name"]
+    if name=="arrow":
+        assert [(r["call_index"],r["argument_index"]) for r in result["records"][0]["parameter_uses"]]==[(0,0),(1,0),(2,1)]
+    schema=json.loads((Path(__file__).resolve().parents[2]/"config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path=tmp_path/"schema.json"
+    path.write_text(json.dumps({"$ref":"#/$defs/factory_return_construction_evidence","$defs":schema["$defs"]}),encoding="utf-8")
+    assert validate_against_schema(path,"factory",result)==[]
+
+
+@pytest.mark.parametrize("damage",["missing_uses","extra_field","boolean_index","wrong_index","wrong_call","wrong_reference","argument_boundary","missing_role","extra_role","negative_omitted","boolean_omitted","false_budget","hidden_row","duplicate_use"])
+def test_factory_parameter_use_refuses_corrupt_transport(factory_parameter_use_native,damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    source,native,_=factory_parameter_use_native["budget" if damage=="hidden_row" else "arrow"]
+    native=deepcopy(native)
+    lane=next(r for r in native if r["name"]=="__file_meta__")["factoryReturnConstructionEvidence"]
+    row=lane["records"][-1 if damage=="hidden_row" else 0]
+    if damage=="missing_uses": row.pop("parameter_uses")
+    elif damage=="extra_field": row["parameter_uses"][0]["effects"]="proved"
+    elif damage=="boolean_index": row["parameter_uses"][0]["argument_index"]=True
+    elif damage=="wrong_index": row["parameter_uses"][1]["argument_index"]=1
+    elif damage=="wrong_call": row["parameter_uses"][0]["call_index"]=2
+    elif damage=="wrong_reference": row["spans"]["parameter_use_0"]=row["spans"]["parameter_binding"]
+    elif damage=="argument_boundary": row["spans"]["use_0_argument_0"]["end"]+=1
+    elif damage=="missing_role": row["spans"].pop("parameter_use_0")
+    elif damage=="extra_role": row["spans"]["parameter_use_999"]=row["spans"]["parameter_use_0"]
+    elif damage=="negative_omitted": row["parameter_uses_omitted"]=-1
+    elif damage=="boolean_omitted": row["parameter_uses_omitted"]=True
+    elif damage=="false_budget": row["parameter_uses_omitted"]=1
+    elif damage=="hidden_row": row["parameter_uses_omitted"]=-1
+    elif damage=="duplicate_use":
+        index=len(row["parameter_uses"])
+        row["parameter_uses"].append(deepcopy(row["parameter_uses"][0]))
+        row["spans"][f"parameter_use_{index}"]=deepcopy(row["spans"]["parameter_use_0"])
+        row["spans"][f"use_{index}_argument_0"]=deepcopy(row["spans"]["use_0_argument_0"])
+    result=atlas._factory_return_construction_evidence(native,source)
+    assert result["status"]=="unavailable" and not result["records"],result
+
+
+@pytest.fixture(scope="module")
+def factory_parameter_native(tmp_path_factory):
+    directory=tmp_path_factory.mktemp("factory-parameter-source")
+    cases=_factory_parameter_sources()
+    paths=[]
+    for name,(source,_,_) in cases.items():
+        path=directory/(name+".tsx")
+        path.write_bytes(source.encode("utf-8"))
+        paths.append(str(path))
+    root=Path(__file__).resolve().parents[2]
+    run=subprocess.run(["node",str(root/"tools/engines/ast_sequencer.cjs"),"--batch-json",*paths],cwd=root,capture_output=True,text=True,encoding="utf-8",timeout=90)
+    assert run.returncode==0,run.stderr
+    native=json.loads(run.stdout)
+    return {name:(source,native[path],kind,expected) for (name,(source,kind,expected)),path in zip(cases.items(),paths)}
+
+
+@pytest.mark.parametrize("name",list(_factory_parameter_sources()))
+def test_factory_parameter_native_source_and_transport(factory_parameter_native,name,tmp_path,monkeypatch):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    source,native,kind,expected=factory_parameter_native[name]
+    context={}
+    atlas._normalize_polyglot_symbols(native,source,"typescript",file_evidence_context=context)
+    def forbid(*a,**k): raise AssertionError("No second coordinate map")
+    monkeypatch.setattr(atlas,"_utf16_offsets_to_utf8_byte_offsets",forbid)
+    monkeypatch.setattr(atlas,"_native_utf16_span_validator",forbid)
+    lane="safeparse_early_return_evidence" if kind=="caller" else "factory_return_construction_evidence"
+    evidence=(atlas._safeparse_early_return_evidence if kind=="caller" else atlas._factory_return_construction_evidence)(native,source,context)
+    assert evidence["status"]=="observed",(name,evidence)
+    rows=evidence["records"]
+    assert bool(rows and (kind=="caller" or "parameter_name" in rows[0])) is expected,(name,evidence)
+    schema=json.loads((Path(__file__).resolve().parents[2]/"config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path=tmp_path/"schema.json"
+    path.write_text(json.dumps({"$ref":"#/$defs/"+lane,"$defs":schema["$defs"]}),encoding="utf-8")
+    assert validate_against_schema(path,"source",evidence)==[],(name,evidence)
+    if expected:
+        row=rows[0]
+        role="factory_argument" if kind=="caller" else "parameter_binding"
+        spelling="options" if kind=="caller" else "settings"
+        assert source.encode("utf-8")[row["spans"][role]["start"]:row["spans"][role]["end"]].decode("utf-8")==spelling
+
+
+@pytest.mark.parametrize("kind",["caller","formal"])
+@pytest.mark.parametrize("damage",["name","missing_role","extra_role","coordinate","version","arity","field","claim"])
+def test_factory_parameter_transport_refusals(factory_parameter_native,kind,damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    source,native,_,_=factory_parameter_native[kind]
+    native=deepcopy(native)
+    meta=next(r for r in native if r["name"]=="__file_meta__")
+    lane=meta["safeParseEarlyReturnEvidence" if kind=="caller" else "factoryReturnConstructionEvidence"]
+    row=lane["records"][0]
+    role="factory_argument" if kind=="caller" else "parameter_binding"
+    name="factory_argument_name" if kind=="caller" else "parameter_name"
+    if damage=="name": row[name]="other"
+    elif damage=="missing_role": row["spans"].pop(role)
+    elif damage=="extra_role": row["spans"]["unknown"]=row["spans"][role]
+    elif damage=="coordinate": row["spans"][role]["start"]+=1
+    elif damage=="version": lane["version"]="old"
+    elif damage=="arity":
+        if kind=="caller": row["spans"]["factory_argument"]["end"]+=1
+        else: row["spans"]["parameters_close"]=row["spans"]["parameters_open"]
+    elif damage=="field": row["value"]="not source authority"
+    elif damage=="claim": lane["runtime_proof"]="passed"
+    result=(atlas._safeparse_early_return_evidence if kind=="caller" else atlas._factory_return_construction_evidence)(native,source)
+    assert result["status"]=="unavailable" and result["records"]==[],result
+
+
+@pytest.mark.parametrize("kind",["caller","formal"])
+@pytest.mark.parametrize("damage",["boolean_name","missing_name","missing_span","bad_form","non_mapping_spans","this_parameter"])
+def test_factory_parameter_schema_and_stored_refusals(factory_parameter_native,tmp_path,kind,damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    from tools.core.factory_return_contract import factory_return_stored_problem
+    from tools.core.safeparse_early_return_contract import early_return_stored_problem
+    from tools.core.source_coordinates import _utf8_span_validator
+    source,native,_,_=factory_parameter_native[kind]
+    lane="safeparse_early_return_evidence" if kind=="caller" else "factory_return_construction_evidence"
+    result=(atlas._safeparse_early_return_evidence if kind=="caller" else atlas._factory_return_construction_evidence)(native,source)
+    validator=_utf8_span_validator(source,[s for row in result["records"] for s in row["spans"].values()])
+    changed=deepcopy(result)
+    row=changed["records"][0]
+    name="factory_argument_name" if kind=="caller" else "parameter_name"
+    if damage=="boolean_name": row[name]=True
+    elif damage=="missing_name": row.pop(name)
+    elif damage=="missing_span": row["spans"].pop("factory_argument" if kind=="caller" else "parameter_binding")
+    elif damage=="bad_form":
+        if kind=="caller": row["spans"]["not_a_role"]={}
+        else: row["parameter_form"]="unknown"
+    elif damage=="non_mapping_spans": row["spans"]=None
+    elif damage=="this_parameter":
+        if kind=="caller": row[name]="not an identifier"
+        else: row[name]="this"
+    guard=early_return_stored_problem if kind=="caller" else factory_return_stored_problem
+    assert guard(changed,result["source_hash"],validator,ast_contract_version=atlas.AST_CONTRACT_VERSION)
+    schema=json.loads((Path(__file__).resolve().parents[2]/"config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path=tmp_path/"schema.json"
+    path.write_text(json.dumps({"$ref":"#/$defs/"+lane,"$defs":schema["$defs"]}),encoding="utf-8")
+    assert validate_against_schema(path,"changed",changed)
+
+
+def _factory_return_cases():
+    source = _factory_return_source()
+    cases = {"block": (source, 1), "expression": ("import {z} from 'zod'; export const make = () => z.object({id: z.string()}).optional();", 1),
+        "alias": (source.replace("{ z }", "{ z as schema }").replace("z.string()", "schema.string()"), 1),
+        "unicode": ("\ufeff// 😀\r\n" + source.replace("\n", "\r\n"), 1),
+        "unknown_library": (source.replace("'zod'", "'arbitrary-uninstalled-library'"), 1),
+        "empty": ("export const ordinary = () => 1;", 0)}
+    changes = {"type_only": ("{ z }", "{ type z }"), "type_clause": ("import {", "import type {"),
+        "namespace": ("{ z }", "* as z"), "default": ("{ z }", "z"), "local_root": ("import { z } from 'zod';", "const z = other;"),
+        "not_exported": ("export const", "const"), "let": ("export const", "export let"), "async": ("= (options", "= async (options"),
+        "generic": ("z.string()", "z.string<string>()"), "optional": ("z.string()", "z?.string()"),
+        "computed": ("z.string()", "z['string']()"), "cast": ("z.string()", "(z as any).string()"),
+        "indirect": ("z.string()", "other(z).string()"),
+        "wrapped_return": ("return z.string().regex(PATTERN, { message });", "return (z.string().regex(PATTERN, { message }));"),
+        "conditional": ("return z.string().regex(PATTERN, { message });", "return options ? z.string() : z.number();"),
+        "branch": ("return z.string().regex(PATTERN, { message });", "if (options) return z.string(); return z.number();"),
+        "prefix_let": ("const message", "let message"), "later_statement": ("{ message });", "{ message }); notify();"),
+        "too_many_parameters": ("(options?: string)", "(a,b,c,d,e)"),
+        "rest": ("(options?: string)", "(...options: unknown[])"),
+        "chain_budget": ("z.string()", "z.a().b().c().d().e().f().g().h().i()")}
+    cases.update({name: (source.replace(*change), 0) for name,change in changes.items()})
+    cases.update(root_write=(source + "z.string = other;", 0), factory_write=(source + "makeEmail = other;", 0),
+        root_destructuring_write=(source + "({z} = other);", 0),
+        shadow=(source + "function other(z: unknown) {}", 0), import_after=(source.replace("import { z } from 'zod';", "") + "import { z } from 'zod';", 0),
+        diagnostics=("import {", 0), byte_budget=(source + "/*" + "x" * 1048576 + "*/", 0),
+        node_budget=(source + "const huge = [" + ",".join("0" for _ in range(11000)) + "];", 0),
+        record_budget=("import {z} from 'zod';\n" + "\n".join(f"export const make{i} = () => z.string();" for i in range(65)), 64))
+    function = _factory_function_source(source)
+    cases.update(function=(function,1),function_unicode=("\ufeff// 😀\r\n"+function.replace("\n","\r\n"),1),
+        function_alias=(function.replace("{ z }","{ z as schema }").replace("z.string()","schema.string()"),1),
+        function_comment=(function.replace("export function", "export /* source */ function"),1))
+    functions = {"not_exported":("export function","function"),"default":("export function","export default function"),
+        "async":("export function","export async function"),"generator":("function makeEmail","function* makeEmail"),
+        "type_parameter":("makeEmail(options", "makeEmail<T>(options"),"rest":("options?: string","...options: unknown[]"),
+        "destructured_parameter":("options?: string","{options}: unknown"),
+        "branch":("return z.string().regex(PATTERN, { message });","if(options) return z.string(); return z.number();"),
+        "type_only":("{ z }","{ type z }"),"nested":("export function makeEmail", "function outer() { function makeEmail")}
+    cases.update({"function_"+name:(function.replace(a,b)+( "}" if name=="nested" else ""),0) for name,(a,b) in functions.items()})
+    cases.update(function_overload=(function.replace("export function makeEmail", "export function makeEmail(value: string): unknown;\nexport function makeEmail"),0),
+        function_write=(function+"makeEmail = other;",0),function_shadow=(function+"function other(makeEmail: unknown) {}",0),
+        function_expression=(source.replace("(options?: string) =>", "function(options?: string)"),0),
+        function_record_budget=("import {z} from 'zod';\n"+"\n".join(f"export function make{i}() {{ return z.string(); }}" for i in range(65)),64))
+    return cases
+
+
+@pytest.fixture(scope="module")
+def factory_return_native(tmp_path_factory):
+    cases = _factory_return_cases()
+    root = Path(__file__).resolve().parents[2]
+    directory = tmp_path_factory.mktemp("factory-return-source")
+    paths = []
+    for name,(source, _) in cases.items():
+        path = directory / (name + ".tsx")
+        path.write_bytes(source.encode("utf-8"))
+        paths.append(str(path))
+    process = subprocess.run(["node", str(root / "tools/engines/ast_sequencer.cjs"), "--batch-json", *paths],
+        cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=90)
+    assert process.returncode == 0, process.stderr
+    native = json.loads(process.stdout)
+    return {name:(source, native[path], expected) for (name,(source,expected)),path in zip(cases.items(), paths)}
+
+
+@pytest.mark.parametrize("name", list(_factory_return_cases()))
+def test_factory_return_source_and_transport(name, factory_return_native):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.factory_return_contract import factory_return_record_valid
+    from tools.core.source_coordinates import _utf8_span_validator
+    source, native, expected = factory_return_native[name]
+    lane = next(row for row in native if row["name"] == "__file_meta__")["factoryReturnConstructionEvidence"]
+    assert lane["record_count"] == expected, (name, lane)
+    normalized = atlas._factory_return_construction_evidence(native, source)
+    assert normalized["record_count"] == expected, (name, normalized)
+    assert normalized["factory_semantics"] == normalized["argument_semantics"] == normalized["schema_authority"] == "not_established"
+    assert normalized["runtime_proof"] == "not_performed" and normalized["mutation_proposed"] is False
+    assert normalized["status"] == ("unavailable" if name in {"diagnostics", "byte_budget", "node_budget"} else "partial" if name in {"record_budget","function_record_budget"} else "observed")
+    for row in normalized["records"]:
+        assert factory_return_record_valid(row, _utf8_span_validator(source, row["spans"].values()))
+    if expected and name not in {"record_budget","function_record_budget"}:
+        assert normalized["records"][0]["methods"] == (["object", "optional"] if name == "expression" else ["string", "regex"])
+
+
+@pytest.mark.parametrize("damage", ["missing", "hash", "version", "parser", "count", "bool_count", "omitted", "extra", "factory", "method", "module", "type_only", "body", "span", "open", "order", "duplicate", "hidden", "function_kind", "function_binding", "function_keyword", "function_body", "missing_kind"])
+def test_factory_return_transport_refuses_corruption(factory_return_native, damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    source, original, _ = factory_return_native["record_budget" if damage == "hidden" else "function" if damage.startswith("function_") else "block"]
+    raw = deepcopy(original)
+    meta = next(row for row in raw if row["name"] == "__file_meta__")
+    lane = meta["factoryReturnConstructionEvidence"]
+    record = lane["records"][-1 if damage == "hidden" else 0]
+    if damage == "missing": meta.pop("factoryReturnConstructionEvidence")
+    elif damage == "hash": lane["source_hash"] = "0" * 64
+    elif damage == "version": lane["version"] = "old"
+    elif damage == "parser": meta["parserStatus"] = "degraded"
+    elif damage == "count": lane["record_count"] += 1
+    elif damage == "bool_count": lane["record_count"] = True
+    elif damage == "omitted": lane["omitted"] = 1
+    elif damage == "extra": record["schema_validated"] = True
+    elif damage == "factory": record["factory_name"] = "other"
+    elif damage == "method": record["methods"][0] = "number"
+    elif damage == "module": record["import_binding"]["source"] = "other"
+    elif damage == "type_only": record["import_binding"]["type_only"] = True
+    elif damage == "body": record["body_kind"] = "expression"
+    elif damage in {"span", "hidden"}: record["spans"]["root"]["line"] += 1
+    elif damage == "open": record["spans"]["open_0"] = record["spans"]["close_0"]
+    elif damage == "order": record["spans"]["method_0"] = record["spans"]["method_1"]
+    elif damage == "duplicate": lane["records"] *= 2; lane["record_count"] = 2
+    elif damage == "function_kind": record["factory_kind"] = "const_arrow"
+    elif damage == "missing_kind": record.pop("factory_kind")
+    elif damage == "function_binding": record["spans"]["factory_binding"] = record["spans"]["root"]
+    elif damage == "function_keyword": record["spans"]["factory"]["start"] += 1
+    elif damage == "function_body": record["body_kind"] = "expression"
+    result = atlas._factory_return_construction_evidence(raw, source)
+    assert result["status"] == "unavailable" and result["records"] == [] and result["reason"]
+
+
+@pytest.mark.parametrize("name", ["block", "expression", "unicode", "empty", "record_budget", "node_budget","function","function_unicode","function_record_budget"])
+def test_factory_return_schema_and_shared_coordinate_batch(factory_return_native, tmp_path, monkeypatch, name):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    source, native, _ = factory_return_native[name]
+    context = {}
+    atlas._normalize_polyglot_symbols(native, source, "typescript", file_evidence_context=context)
+    if name in {"block", "expression", "unicode", "record_budget","function","function_unicode","function_record_budget"}:
+        def forbid(*a, **k): raise AssertionError("Do not rebuild the file coordinate map")
+        monkeypatch.setattr(atlas, "_utf16_offsets_to_utf8_byte_offsets", forbid)
+        monkeypatch.setattr(atlas, "_native_utf16_span_validator", forbid)
+    result = atlas._factory_return_construction_evidence(native, source, context)
+    schema = json.loads((Path(__file__).resolve().parents[2] / "config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path = tmp_path / "factory-schema.json"
+    path.write_text(json.dumps({"$ref": "#/$defs/factory_return_construction_evidence", "$defs": schema["$defs"]}), encoding="utf-8")
+    assert validate_against_schema(path, "factory", result) == []
+    if result["records"]:
+        from copy import deepcopy
+        for key,value in (("type_only", 0), ("source", "x" * 181)):
+            invalid = deepcopy(result)
+            invalid["records"][0]["import_binding"][key] = value
+            assert validate_against_schema(path, "factory", invalid)
+        for key,value in (("factory_kind","unknown"),("factory_kind",True)):
+            invalid=deepcopy(result)
+            invalid["records"][0][key]=value
+            assert validate_against_schema(path,"factory",invalid)
+        if name.startswith("function"):
+            invalid=deepcopy(result)
+            invalid["records"][0]["body_kind"]="expression"
+            assert validate_against_schema(path,"factory",invalid)
+    for key,value in (("factory_semantics", "proved"), ("schema_authority", "validated"), ("mutation_proposed", 0), ("extra", True)):
+        assert validate_against_schema(path, "factory", {**result, key:value})
+
+
+def test_factory_return_real_atlas_sqlite_transport(tmp_path):
+    from tools.core.atlas_io import load_atlas_file_metadata
+    from tools.core.external_target_generation import external_target_output_slug
+    from tools.core.source_snapshot_reader import read_source_snapshot_binding
+    root = Path(__file__).resolve().parents[2]
+    target = tmp_path / "factory-source"
+    target.mkdir()
+    source = "\ufeff// 😀\r\n" + _factory_argument_source().replace("\n", "\r\n") + "\r\nthrow new Error('MUST_NOT_EXECUTE');"
+    (target / "Factory.tsx").write_bytes(source.encode("utf-8"))
+    env = dict(os.environ)
+    for key in ("CODEMAPS_TARGET_PREFLIGHT_RECEIPT", "CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256", "CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE", "CODEMAPS_TARGET_PROJECTS"):
+        env.pop(key, None)
+    env["CODEMAPS_TARGET_ROOT"] = str(target)
+    process = subprocess.run([sys.executable, "-B", "-m", "tools.engines.generate_atlas"], cwd=root, env=env,
+        capture_output=True, text=True, encoding="utf-8", timeout=90)
+    assert process.returncode == 0, process.stdout[-1600:] + process.stderr[-1600:]
+    raw = root / "output/external_targets" / external_target_output_slug(str(target)) / ".raw"
+    info = load_atlas_file_metadata(raw, "MAIN", "Factory.tsx")
+    lane = info["factory_return_construction_evidence"]
+    assert lane["status"] == "observed" and lane["record_count"] == 1
+    assert lane["records"][0]["methods"] == ["string", "regex"]
+    snapshot = read_source_snapshot_binding(raw, "MAIN", "Factory.tsx", expected_hash=info["hash"])
+    assert snapshot["status"] == "ok" and snapshot["content"].encode("utf-8") == source.encode("utf-8")
+    assert lane["schema_authority"] == lane["factory_semantics"] == "not_established" and lane["runtime_proof"] == "not_performed"
+    arguments = info["factory_argument_const_evidence"]
+    assert arguments["status"] == "observed" and arguments["record_count"] == 2
+    assert [(row["name"],row["binding_scope"]) for row in arguments["records"]] == [("PATTERN","module_const"),("message","factory_const")]
+    assert arguments["argument_semantics"] == "not_established" and arguments["mutation_proposed"] is False
+
+
+def _factory_argument_source():
+    return _factory_return_source().replace("export const", "const PATTERN = /@/;\nexport const")
+
+
+def _resolver_factory_cases():
+    source = """import {zodResolver as resolverAdapter} from '@hookform/resolvers/zod';
+import {makeSchema as resolverFactory} from './never_execute';
+const secretRotation = opaque;
+export const Form = () => ({resolver: resolverAdapter(resolverFactory(Boolean(secretRotation)))});
+"""
+    cases = {"positive":(source,1),"unicode":("\ufeff// e\u0301 \U0001f680\r\n"+source.replace("\n","\r\n"),1),
+        "zero":(source.replace("Boolean(secretRotation)",""),1),"opaque_four":(source.replace("Boolean(secretRotation)","first(), {value}, 3, (other)"),1),
+        "empty":("const value = 1;",0)}
+    replacements = {
+        "wrong_module":("@hookform/resolvers/zod","unrelated"), "wrong_export":("zodResolver as resolverAdapter","other as resolverAdapter"),
+        "resolver_type":("import {zodResolver","import type {zodResolver"), "factory_type":("import {makeSchema","import type {makeSchema"),
+        "resolver_default":("{zodResolver as resolverAdapter}","resolverAdapter"), "factory_default":("{makeSchema as resolverFactory}","resolverFactory"),
+        "resolver_optional":("resolverAdapter(resolverFactory","resolverAdapter?.(resolverFactory"),
+        "factory_optional":("resolverFactory(Boolean","resolverFactory?.(Boolean"),
+        "resolver_generic":("resolverAdapter(resolverFactory","resolverAdapter<Schema>(resolverFactory"),
+        "factory_generic":("resolverFactory(Boolean","resolverFactory<Schema>(Boolean"),
+        "factory_member":("resolverAdapter(resolverFactory(","resolverAdapter(object.resolverFactory("),
+        "factory_wrapped":("resolverAdapter(resolverFactory(Boolean(secretRotation)))","resolverAdapter((resolverFactory(Boolean(secretRotation))))"),
+        "factory_cast":("resolverAdapter(resolverFactory(Boolean(secretRotation)))","resolverAdapter(resolverFactory(Boolean(secretRotation)) as Schema)"),
+        "resolver_extra":("resolverAdapter(resolverFactory(Boolean(secretRotation)))","resolverAdapter(resolverFactory(Boolean(secretRotation)), options)"),
+        "resolver_trailing":("resolverAdapter(resolverFactory(Boolean(secretRotation)))","resolverAdapter(resolverFactory(Boolean(secretRotation)),)"),
+        "factory_trailing":("Boolean(secretRotation)","Boolean(secretRotation),"),
+        "factory_spread":("Boolean(secretRotation)","...values"), "factory_five":("Boolean(secretRotation)","a,b,c,d,e"),
+        "not_factory_call":("resolverFactory(Boolean(secretRotation))","resolverFactory"),
+        "namespace_factory":("resolverAdapter(resolverFactory(","resolverAdapter(Factories.resolverFactory("),
+        "resolver_shadow":("() => ({resolver:","(resolverAdapter) => ({resolver:"),
+        "factory_shadow":("() => ({resolver:","(resolverFactory) => ({resolver:"),
+    }
+    for name,(before,after) in replacements.items():
+        assert before in source,name
+        cases[name]=(source.replace(before,after),0)
+    for name,write in (("resolver_write","resolverAdapter = other;"),("factory_write","resolverFactory.prop = other;")):
+        cases[name]=(source+write,0)
+    cases["diagnostics"]=(source+"const = ;",0)
+    cases["byte_budget"]=(source+"/*"+"x"*1048576+"*/",0)
+    cases["node_budget"]=(source+";0"*11000,0)
+    prefix=source[:source.index("export const Form")]
+    cases["record_budget"]=(prefix+"\n".join(f"const slot{i} = resolverAdapter(resolverFactory(i{i}));" for i in range(65)),64)
+    return cases
+
+
+@pytest.fixture(scope="module")
+def resolver_factory_native(tmp_path_factory):
+    root=Path(__file__).resolve().parents[2]
+    directory=tmp_path_factory.mktemp("resolver-factory-native")
+    cases=_resolver_factory_cases()
+    paths=[]
+    for name,(source,_) in cases.items():
+        path=directory/(name+".tsx"); path.write_bytes(source.encode("utf-8")); paths.append(str(path))
+    result=subprocess.run(["node",str(root/"tools/engines/ast_sequencer.cjs"),"--batch-json",*paths],cwd=root,capture_output=True,text=True,encoding="utf-8",timeout=90)
+    assert result.returncode==0,result.stderr
+    payload=json.loads(result.stdout)
+    return {name:(source,payload[path],count) for (name,(source,count)),path in zip(cases.items(),paths)}
+
+
+@pytest.mark.parametrize("name",list(_resolver_factory_cases()))
+def test_resolver_factory_native_and_transport(resolver_factory_native,name,tmp_path):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    source,native,expected=resolver_factory_native[name]
+    lane=next(r for r in native if r["name"]=="__file_meta__")["resolverFactoryEvidence"]
+    assert lane["record_count"]==expected,(name,lane)
+    result=atlas._resolver_factory_evidence(native,source)
+    assert result["record_count"]==expected,(name,result)
+    assert result["factory_semantics"]==result["argument_semantics"]==result["schema_authority"]=="not_established"
+    assert result["runtime_proof"]=="not_performed" and result["mutation_proposed"] is False
+    if name in {"diagnostics","node_budget","byte_budget"}: assert result["status"]=="unavailable"
+    elif name=="record_budget": assert result["status"]=="partial" and result["omitted"]==1
+    else: assert result["status"]=="observed"
+    schema=json.loads((Path(__file__).resolve().parents[2]/"config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path=tmp_path/"resolver-schema.json"
+    path.write_text(json.dumps({"$ref":"#/$defs/resolver_factory_evidence","$defs":schema["$defs"]}),encoding="utf-8")
+    assert validate_against_schema(path,"resolver",result)==[]
+    assert validate_against_schema(path,"resolver",{**result,"mutation_proposed":0})
+    if expected:
+        row=result["records"][0]; encoded=source.encode("utf-8")
+        for role,text in (("resolver_ref",b"resolverAdapter"),("factory_ref",b"resolverFactory")):
+            span=row["spans"][role]; assert encoded[span["start"]:span["end"]]==text
+
+
+@pytest.mark.parametrize("damage",["missing","count_bool","count","partial","hash","offset","version","extra","row_extra","argument_count","name","binding","module","parent","duplicate","hidden"])
+def test_resolver_factory_transport_refuses_corruption(resolver_factory_native,damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    source,native,_=resolver_factory_native["record_budget" if damage=="hidden" else "positive"]
+    native=deepcopy(native); meta=next(r for r in native if r["name"]=="__file_meta__"); lane=meta["resolverFactoryEvidence"]
+    row=lane["records"][0]
+    if damage=="missing": meta.pop("resolverFactoryEvidence")
+    elif damage=="count_bool": lane["record_count"]=True
+    elif damage=="count": lane["record_count"]+=1
+    elif damage=="partial": lane.update(status="partial",omitted=1,reason="record_budget_exceeded")
+    elif damage=="hash": lane["source_hash"]="0"*64
+    elif damage=="offset": lane["offset_unit"]="utf8_bytes"
+    elif damage=="version": lane["version"]="old"
+    elif damage=="extra": lane["runtime_proof"]="performed"
+    elif damage=="row_extra": row["value"]="inferred"
+    elif damage=="argument_count": row["argument_count"]=True
+    elif damage=="name": row["resolver_local_name"]="other"
+    elif damage=="binding": row["spans"]["factory_import_binding"]["end"]-=1
+    elif damage=="module": row["spans"]["resolver_module"]["start"]+=1
+    elif damage=="parent": row["spans"]["factory_call"]=deepcopy(row["spans"]["resolver_call"])
+    elif damage=="duplicate": lane["records"].append(deepcopy(row)); lane["record_count"]+=1
+    elif damage=="hidden": lane["records"][-1]["factory_local_name"]="other"
+    result=atlas._resolver_factory_evidence(native,source)
+    assert result["status"]=="unavailable" and not result["records"] and result["record_count"]==0
+
+
+def _callback_guard_sources():
+    source="import {z} from 'never-execute';\nexport const make = (isUpdate: boolean) => z.min(isUpdate).superRefine((val,ctx) => { if(isUpdate) return; ctx.addIssue(val); });\nthrow new Error('Never execute');"
+    cases={"arrow":(source,1),"unicode":("\ufeff// 😀\r\n"+source.replace("\n","\r\n"),1),
+        "function":(source.replace("export const make = (isUpdate: boolean) =>", "export function make(isUpdate: boolean) { return").replace(";\nthrow", "; }\nthrow"),1),
+        "comments":(source.replace("if(isUpdate) return;","if(/*guard*/isUpdate) /*then*/ return;"),1),
+        "zero_params":(source.replace("(val,ctx)","()"),1)}
+    changes={"async":("(val,ctx) =>", "async (val,ctx) =>"), "function_callback":("(val,ctx) =>", "function(val,ctx)"),
+        "negated":("if(isUpdate)","if(!isUpdate)"), "property":("if(isUpdate)","if(isUpdate.value)"),
+        "wrapped":("if(isUpdate)","if((isUpdate))"),"else":("return; ctx", "return; else throw val; ctx"),
+        "return_value":("return; ctx","return val; ctx"),"block_return":("return; ctx","{ return; } ctx"),
+        "later_guard":("{ if(isUpdate)","{ unknown(); if(isUpdate)"),"nested_guard":("{ if(isUpdate) return;", "{ if(val) { if(isUpdate) return; }"),
+        "wrong_method":(".superRefine(",".refine("),"wrapped_callback":(".superRefine((val,ctx) => { if(isUpdate) return; ctx.addIssue(val); })", ".superRefine(((val,ctx) => { if(isUpdate) return; ctx.addIssue(val); }))"),
+        "shadow_callback":("(val,ctx)","(isUpdate,ctx)"),"typed_callback":("(val,ctx)","(val: unknown,ctx)"),
+        "default_callback":("(val,ctx)","(val=other,ctx)"),"rest_callback":("(val,ctx)","(...val)"),
+        "trailing_callback":("(val,ctx)","(val,ctx,)"),"duplicate_callback":("(val,ctx)","(val,val)"),
+        "trailing_argument":("ctx.addIssue(val); });", "ctx.addIssue(val); },);"),
+        "spread_argument":("ctx.addIssue(val); });", "ctx.addIssue(val); },...other);"),
+        "escaped":("if(isUpdate)","if(isUpda\\u0074e)"),"factory_optional":("isUpdate: boolean", "isUpdate?: boolean")}
+    cases.update({name:(source.replace(a,b),0) for name,(a,b) in changes.items()})
+    cases.update(written=(source+"isUpdate = true;",1),
+        callback_write=(source.replace("ctx.addIssue(val);", "isUpdate = false;"),0),
+        late_shadow=(source+"function other(isUpdate: unknown) {}",0),
+        byte_budget=(source+"/*"+"x"*1048576+"*/",0),
+        node_budget=(source+"const huge=["+",".join("0" for _ in range(11000))+"];",0),
+        budget=("import {z} from 'never-execute';\n"+"\n".join(f"export const make{i} = (p{i}) => z."+".".join(f"superRefine(() => {{ if(p{i}) return; }})" for _ in range(8))+";" for i in range(9)),64))
+    return cases
+
+
+@pytest.fixture(scope="module")
+def callback_guard_native(tmp_path_factory):
+    directory=tmp_path_factory.mktemp("callback-guard-source"); cases=_callback_guard_sources(); paths=[]
+    for name,(source,_) in cases.items():
+        path=directory/(name+".tsx"); path.write_bytes(source.encode("utf-8")); paths.append(str(path))
+    process=subprocess.run(["node",str(Path(__file__).resolve().parents[2]/"tools/engines/ast_sequencer.cjs"),"--batch-json",*paths],capture_output=True,text=True,encoding="utf-8",timeout=90)
+    assert process.returncode==0,process.stderr
+    rows=json.loads(process.stdout)
+    return {name:(source,rows[path],expected) for (name,(source,expected)),path in zip(cases.items(),paths)}
+
+
+@pytest.mark.parametrize("name",list(_callback_guard_sources()))
+def test_callback_guard_native_source_and_shared_transport(callback_guard_native,name,tmp_path,monkeypatch):
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    from tools.core.factory_return_contract import factory_return_stored_problem
+    from tools.core.atlas_ast_contract import AST_CONTRACT_VERSION
+    from tools.inspect_target import _safeparse_snapshot_spans
+    source,native,expected=callback_guard_native[name]; context={}
+    atlas._normalize_polyglot_symbols(native,source,"typescript",file_evidence_context=context)
+    def forbid(*a,**k): raise AssertionError("No second coordinate index")
+    if name not in {"byte_budget","node_budget"}:
+        monkeypatch.setattr(atlas,"_utf16_offsets_to_utf8_byte_offsets",forbid)
+        monkeypatch.setattr(atlas,"_native_utf16_span_validator",forbid)
+    lane=atlas._factory_return_construction_evidence(native,source,context)
+    assert sum(len(r.get("callback_guard_reads",[])) for r in lane["records"])==expected,(name,lane)
+    schema=json.loads((Path(__file__).resolve().parents[2]/"config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path=tmp_path/"schema.json"; path.write_text(json.dumps({"$ref":"#/$defs/factory_return_construction_evidence","$defs":schema["$defs"]}),encoding="utf-8")
+    assert validate_against_schema(path,"callback",lane)==[]
+    if lane["status"]=="observed":
+        info={"factory_return_construction_evidence":lane}; valid=_safeparse_snapshot_spans(info,source,lane["source_hash"],None)
+        assert factory_return_stored_problem(lane,lane["source_hash"],valid,ast_contract_version=AST_CONTRACT_VERSION)==""
+    if name in {"arrow","unicode","function","comments","zero_params"}:
+        row=lane["records"][0]
+        assert len(row["parameter_uses"])==1 and row["callback_guard_reads"][0]["call_index"]==1
+    if name=="budget": assert sum(r["callback_guard_reads_omitted"] for r in lane["records"])==8
+    assert lane["runtime_proof"]=="not_performed" and lane["factory_semantics"]=="not_established"
+
+
+@pytest.mark.parametrize("damage",["version","missing","extra","bool_call","bool_argument","wrong_method","reference","body","branch","return","callback","argument","parameters","duplicate","omitted","bool_omitted","hidden"])
+def test_callback_guard_transport_refuses_all_retained_rows(callback_guard_native,damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    source,original,_=callback_guard_native["budget" if damage=="hidden" else "arrow"]
+    raw=deepcopy(original); lane=next(r for r in raw if r["name"]=="__file_meta__")["factoryReturnConstructionEvidence"]
+    row=lane["records"][-1 if damage=="hidden" else 0]; guard=row["callback_guard_reads"][0] if row["callback_guard_reads"] else None
+    if damage=="version": lane["version"]="old"
+    elif damage=="missing": row.pop("callback_guard_reads")
+    elif damage=="extra": guard["executed"]=True
+    elif damage=="bool_call": guard["call_index"]=True
+    elif damage=="bool_argument": guard["argument_index"]=False
+    elif damage=="wrong_method": row["methods"][guard["call_index"]]="refine"
+    elif damage in {"reference","body","branch","return","callback"}: row["spans"]["guard_0_"+damage]["start"]+=1
+    elif damage=="argument": row["spans"]["guard_0_argument_0"]=deepcopy(row["spans"]["parameter"])
+    elif damage=="parameters": guard["callback_parameters"]=["isUpdate"]
+    elif damage=="duplicate": row["callback_guard_reads"].append(deepcopy(guard))
+    elif damage in {"omitted","hidden"}: row["callback_guard_reads_omitted"]=-1
+    elif damage=="bool_omitted": row["callback_guard_reads_omitted"]=True
+    result=atlas._factory_return_construction_evidence(raw,source)
+    assert result["status"]=="unavailable" and not result["records"],(damage,result)
+
+
+def _factory_argument_cases():
+    source = _factory_argument_source()
+    cases = {"positive":(source,2), "unicode":("\ufeff// 😀\r\n" + source.replace("\n","\r\n"),2),
+        "expression":("import {z} from 'zod'; const PATTERN = /@/; export const make = () => z.regex(PATTERN);",1),
+        "empty":("export const ordinary = () => 1;",0), "diagnostics":("import {",0),
+        "opaque_initializer":(source.replace("PATTERN = /@/", "PATTERN = unknownSideEffect()"),2),
+        "alias":(source.replace("{ z }", "{ z as validator }").replace("z.string()", "validator.string()"),2),
+        "unknown_library":(source.replace("'zod'", "'uninstalled-unknown-library'"),2)}
+    changes = {"direct":("{ message }","message",2), "mutable":("const PATTERN","let PATTERN",1),
+        "typed":("PATTERN =", "PATTERN: unknown =",1), "unknown_reference":("regex(PATTERN", "regex(MISSING",1),
+        "parameter":("regex(PATTERN", "regex(options",1), "wrapped":("regex(PATTERN", "regex((PATTERN)",1),
+        "literal_not_reference":("regex(PATTERN", "regex('PATTERN'",1),
+        "property":("{ message }","{ message: message }",1), "spread_object":("{ message }","{ ...message }",1),
+        "duplicate_property":("{ message }","{ message, message }",1), "object_trailing_comma":("{ message }","{ message, }",1),
+        "trailing_comma":("{ message });","{ message },);",0), "spread_argument":("regex(PATTERN", "regex(...PATTERN",0),
+        "argument_budget":("{ message });","{ message }, 1, 2, 3);",0),
+        "destructured_binding":("const PATTERN = /@/;","const {PATTERN} = object;",1),
+        "local_shorthand_write":("return z.string()", "const ignored = (({message} = object)); return z.string()",1)}
+    cases.update({name:(source.replace(a,b),count) for name,(a,b,count) in changes.items()})
+    cases.update(late=(source.replace("const PATTERN = /@/;\n","") + "const PATTERN = /@/;",1),
+        assigned=(source + "PATTERN = other;",1), compound=(source + "PATTERN += other;",1),
+        property_write=(source + "PATTERN.extra = other;",1), destructuring_write=(source + "({PATTERN} = other);",1),
+        shadow=(source + "function other(PATTERN: unknown) {}",1),
+        record_budget=("import {z} from 'zod'; const PATTERN = /@/;\n" + "\n".join(f"export const make{i} = () => z.regex(PATTERN, PATTERN);" for i in range(33)),64),
+        parent_budget=("import {z} from 'zod';\n" + "\n".join(f"export const make{i} = () => z.string();" for i in range(65)),0),
+        node_budget=(source + "const huge = [" + ",".join("0" for _ in range(11000)) + "];",0),
+        byte_budget=(source + "/*" + "x" * 1048576 + "*/",0))
+    function=_factory_function_source(source)
+    cases.update(function=(function,2),function_unicode=("\ufeff// 😀\r\n"+function.replace("\n","\r\n"),2),
+        function_opaque=(function.replace("PATTERN = /@/","PATTERN = mustNeverExecute()"),2),
+        function_mutable=(function.replace("const PATTERN","let PATTERN"),1),
+        function_written=(function+"PATTERN = other;",1),
+        function_late=(function.replace("const PATTERN = /@/;\n","")+"const PATTERN = /@/;",1),
+        function_parameter=(function.replace("regex(PATTERN","regex(options"),1),
+        function_shadow=(function+"function other(message: string) {}",1))
+    return cases
+
+
+@pytest.fixture(scope="module")
+def factory_argument_native(tmp_path_factory):
+    root = Path(__file__).resolve().parents[2]
+    cases = _factory_argument_cases()
+    directory = tmp_path_factory.mktemp("factory-arguments")
+    paths = []
+    for name,(source,_) in cases.items():
+        path = directory / (name + ".tsx")
+        path.write_bytes(source.encode("utf-8"))
+        paths.append(str(path))
+    process = subprocess.run(["node",str(root / "tools/engines/ast_sequencer.cjs"),"--batch-json",*paths],cwd=root,
+        capture_output=True,text=True,encoding="utf-8",timeout=90)
+    assert process.returncode == 0, process.stderr
+    rows = json.loads(process.stdout)
+    return {name:(source,rows[path],count) for (name,(source,count)),path in zip(cases.items(),paths)}
+
+
+@pytest.mark.parametrize("name",list(_factory_argument_cases()))
+def test_factory_argument_source_const_links_and_unknown_values(factory_argument_native,name):
+    from tools.engines import generate_atlas as atlas
+    source,native,expected = factory_argument_native[name]
+    meta = next(row for row in native if row["name"] == "__file_meta__")
+    lane = meta["factoryArgumentConstEvidence"]
+    assert lane["record_count"] == expected, (name,lane)
+    result = atlas._factory_argument_const_evidence(native,source)
+    assert result["record_count"] == expected, (name,result)
+    assert result["status"] == ("unavailable" if name in {"parent_budget","node_budget","byte_budget","diagnostics"} else "partial" if name == "record_budget" else "observed")
+    assert result["schema_authority"] == result["factory_semantics"] == result["argument_semantics"] == "not_established"
+    assert result["runtime_proof"] == "not_performed" and result["mutation_proposed"] is False
+    if name in {"positive","unicode","opaque_initializer","alias","unknown_library"}:
+        assert [(row["name"],row["binding_scope"],row["argument_index"]) for row in result["records"]] == [("PATTERN","module_const",0),("message","factory_const",1)]
+    if name == "record_budget": assert result["omitted"] == 2
+    if name == "parent_budget": assert result["reason"] == "construction_record_budget_exceeded"
+
+
+@pytest.mark.parametrize("damage",["missing","hash","version","parser","count","bool_count","omitted","extra","name","kind","scope","reference","initializer","const","line","index","index_bool","argument_count","argument_count_bool","argument_index","order","duplicate","parent_missing","parent_hash","parent_method","parent_partial","hidden","function_kind","function_parent_kind","missing_factory_kind","function_module_order"])
+def test_factory_argument_transport_refuses_corrupt_or_unjoined(factory_argument_native,damage):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    source,original,_ = factory_argument_native["record_budget" if damage == "hidden" else "function" if damage.startswith("function_") else "positive"]
+    raw = deepcopy(original)
+    meta = next(row for row in raw if row["name"] == "__file_meta__")
+    lane = meta["factoryArgumentConstEvidence"]
+    row = lane["records"][-1 if damage == "hidden" else 0]
+    if damage == "missing": meta.pop("factoryArgumentConstEvidence")
+    elif damage == "hash": lane["source_hash"] = "0" * 64
+    elif damage == "version": lane["version"] = "old"
+    elif damage == "parser": meta["parserStatus"] = "degraded"
+    elif damage == "count": lane["record_count"] += 1
+    elif damage == "bool_count": lane["record_count"] = True
+    elif damage == "omitted": lane["omitted"] = 1
+    elif damage == "extra": row["value"] = "validated"
+    elif damage == "name": row["name"] = "other"
+    elif damage == "kind": row["kind"] = "object_shorthand"
+    elif damage == "scope": row["binding_scope"] = "factory_const"
+    elif damage == "reference": row["spans"]["reference"] = row["spans"]["binding"]
+    elif damage == "initializer": row["spans"]["initializer"] = row["spans"]["binding"]
+    elif damage == "const": row["spans"]["const_keyword"] = row["spans"]["binding"]
+    elif damage in {"line","hidden"}: row["spans"]["reference"]["line"] += 1
+    elif damage == "index": row["call_index"] = 0
+    elif damage == "index_bool": row["call_index"] = True
+    elif damage == "argument_count": row["argument_count"] = 1
+    elif damage == "argument_count_bool": row["argument_count"] = True
+    elif damage == "argument_index": row["argument_index"] = 1
+    elif damage == "order": row["spans"]["argument_0"],row["spans"]["argument_1"] = row["spans"]["argument_1"],row["spans"]["argument_0"]
+    elif damage == "duplicate": lane["records"].append(deepcopy(row)); lane["record_count"] += 1
+    elif damage == "parent_missing": meta.pop("factoryReturnConstructionEvidence")
+    elif damage == "parent_hash": meta["factoryReturnConstructionEvidence"]["source_hash"] = "0" * 64
+    elif damage == "parent_method": meta["factoryReturnConstructionEvidence"]["records"][0]["methods"][0] = "other"
+    elif damage == "parent_partial": meta["factoryReturnConstructionEvidence"].update(status="partial",reason="record_budget_exceeded",omitted=1)
+    elif damage == "function_kind": row["factory_kind"]="const_arrow"
+    elif damage == "function_parent_kind": meta["factoryReturnConstructionEvidence"]["records"][0]["factory_kind"]="const_arrow"
+    elif damage == "missing_factory_kind": row.pop("factory_kind")
+    elif damage == "function_module_order": row["spans"]["declaration_list"]=row["spans"]["factory"]
+    result = atlas._factory_argument_const_evidence(raw,source)
+    assert result["status"] == "unavailable" and result["records"] == [] and result["reason"], (damage,result)
+
+
+@pytest.mark.parametrize("name",["positive","unicode","empty","record_budget","parent_budget","node_budget","function","function_unicode"])
+def test_factory_argument_schema_and_shared_coordinate_batch(factory_argument_native,tmp_path,monkeypatch,name):
+    from copy import deepcopy
+    from tools.engines import generate_atlas as atlas
+    from tools.core.artifact_validator import validate_against_schema
+    source,native,_ = factory_argument_native[name]
+    context = {}
+    atlas._normalize_polyglot_symbols(native,source,"typescript",file_evidence_context=context)
+    if name in {"positive","unicode","record_budget","function","function_unicode"}:
+        def forbid(*a,**k): raise AssertionError("No second coordinate/hash index in the production path")
+        monkeypatch.setattr(atlas,"_utf16_offsets_to_utf8_byte_offsets",forbid)
+        monkeypatch.setattr(atlas,"_native_utf16_span_validator",forbid)
+    result = atlas._factory_argument_const_evidence(native,source,context)
+    schema = json.loads((Path(__file__).resolve().parents[2] / "config/schemas/atlas.schema.json").read_text(encoding="utf-8"))
+    path = tmp_path / "factory-argument-schema.json"
+    path.write_text(json.dumps({"$ref":"#/$defs/factory_argument_const_evidence","$defs":schema["$defs"]}),encoding="utf-8")
+    assert validate_against_schema(path,"arguments",result) == []
+    for key,value in (("argument_semantics","proved"),("runtime_proof","performed"),("mutation_proposed",0),("extra",True)):
+        assert validate_against_schema(path,"arguments",{**result,key:value})
+    if result["records"]:
+        for key,value in (("argument_count",True),("argument_count",5),("kind","other"),("binding_scope","parameter"),("name","x" * 129),("factory_kind","unknown")):
+            invalid = deepcopy(result)
+            invalid["records"][0][key] = value
+            assert validate_against_schema(path,"arguments",invalid), (key,value)

@@ -43,6 +43,14 @@
     "max_subjects": 16,
     "granularity": "captured_import_record_set_not_occurrence",
     "authority_rule": "Source-bound captured records and consumed SAGE path-model policy only. No occurrence, resolved endpoint, native-effective policy, causal dominance, runtime, absence or mutation authority.",
+    "occurrences": {
+      "kind": "nexora.audit_import_occurrences",
+      "version": "v1-static-es-import-bindings",
+      "max_file_rows": 256,
+      "max_projection_rows": 32,
+      "max_source_bytes": 2097152,
+      "authority_rule": "Optional captured-snapshot AST navigation only. Preserve canonical record evidence. No live freshness, resolution, absence, causal, native/runtime or mutation authority."
+    },
     "extensions": {
       "declared_layer_import_restriction": {
         "kind": "nexora.audit_import_subject",
@@ -61,6 +69,12 @@
         }
       }
     }
+  },
+  "audit_import_location_brief_policy": {
+    "version": "v1-captured-navigation-summary",
+    "max_items": 3,
+    "max_locations_per_item": 2,
+    "claim_boundary": "Captured snapshot navigation only; recheck live source before editing. No mutation authority. Missing or omitted locations do not prove absence."
   },
   "allowed_tool_roles": [
     "human_hitl",
@@ -260,6 +274,15 @@
     "agent_rule": "Default work-queue briefs must show a small patch-sized queue, preserve total counts, and require follow-up pagination or filters for omitted items. Audit rule and severity filters and Module Integrity path filters treat user text literally; percent and underscore are not pattern operators."
   },
   "symbol_search_policy": {
+    "class_accessor_search": {
+      "version": "v1-recorded-class-accessors",
+      "scope": "recorded_identifier_named_class_accessors_only",
+      "kind_types": {
+        "getter": "ClassGetter",
+        "setter": "ClassSetter"
+      },
+      "rule": "ClassGetter/ClassSetter rows are independent search-only projections of recorded file-local identifier-named Class accessor syntax. Preserve declaring class, static marker, member spans, getter/setter pairs and project/file collisions. They are not methods or declaration/dependency facts. No accessor evaluation, value, read/write flow, inheritance, runtime behavior, public API, live source/edit authority or complete source-tree inventory is established. Separate legacy/partial/unavailable coverage from candidates and display counts; no result does not prove absence. Queries never migrate, rescan or backfill Atlas."
+    },
     "declaration_search": {
       "version": "v1-stored-declaration-search",
       "default_plane": "indexed",

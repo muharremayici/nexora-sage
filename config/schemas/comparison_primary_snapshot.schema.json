@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "private:comparison-primary-snapshot:v1",
+  "$defs": {
+    "contract": {
+      "const": {
+        "version": "v1-private-supplied-connection-primary-snapshot",
+        "artifact_id": "hitl_approval_ledger",
+        "maximum_payload_bytes": 131072,
+        "maximum_manifest_bytes": 8192,
+        "maximum_part_bytes": 65536,
+        "maximum_parts": 32,
+        "maximum_generation_characters": 128,
+        "maximum_json_depth": 32,
+        "decoded_nodes": 16384,
+        "decoded_scalar_bytes": 131072,
+        "maximum_entries": 64,
+        "wrapper_fields": [
+          "meta",
+          "summary",
+          "integrity",
+          "entries"
+        ],
+        "expected_fields": [
+          "full_payload_sha256",
+          "canonical_entries_sha256"
+        ],
+        "fixture_evidence_only": true,
+        "runtime_admission": false,
+        "production_enabled": false,
+        "publication_authority": false,
+        "maximum_native_integer": 9007199254740991
+      }
+    }
+  },
+  "description": "Disabled structural evidence reader. Bounds are prototype I/O/metadata cuts, not live runtime caps, trusted connection/domain/revision binding or complete cost proof."
+}

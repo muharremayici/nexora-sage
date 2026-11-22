@@ -11,6 +11,53 @@
     "evidence_policy"
   ],
   "properties": {
+    "dependency_witness": {
+      "type": "object",
+      "required": [
+        "version",
+        "max_trace_nodes",
+        "max_path_nodes",
+        "max_candidates",
+        "max_reference_characters",
+        "max_group_bytes",
+        "max_brief_candidates",
+        "proof_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-loaded-directed-graph-navigation"
+        },
+        "max_trace_nodes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_path_nodes": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "max_candidates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_reference_characters": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_group_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_brief_candidates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "proof_boundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "_meta": {
       "type": "object"
     },

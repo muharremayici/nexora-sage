@@ -72,7 +72,7 @@ def fixture(tmp_path, native_imports, monkeypatch):
     return _fixture(tmp_path, native_imports['.ts'], monkeypatch)
 
 
-def _fixture(tmp_path, native, monkeypatch, *, rel_path='domain/Panel.ts', content=CONTENT, profile='HEXAGONAL_PURE'):
+def _fixture(tmp_path, native, monkeypatch, *, rel_path='domain/Panel.ts', content=CONTENT, profile='HEXAGONAL_PURE', occurrence_evidence=None):
     raw = tmp_path / '.raw'; raw.mkdir()
     root = tmp_path / 'repo'; source_root = root / 'src'
     (source_root / 'domain').mkdir(parents=True); (source_root / 'widgets').mkdir()
@@ -88,6 +88,8 @@ def _fixture(tmp_path, native, monkeypatch, *, rel_path='domain/Panel.ts', conte
         'ast_contract_version': AST_CONTRACT_VERSION, 'parser_evidence': {'status': 'observed'},
         'workspace_rel': f'src/{rel_path}', 'repo_relative_path': f'src/{rel_path}',
         'import_records': records}
+    if occurrence_evidence is not None:
+        meta['import_occurrence_evidence'] = deepcopy(occurrence_evidence)
     atlas = {'MAIN': {'root_path': str(source_root), 'project_type': 'typescript',
         'files': {rel_path: meta}, 'dependencies': {}, 'symbols': []}}
     store = ArtifactStore(raw_dir=raw); store.use_sqlite = True; store.backend = 'hybrid_sqlite'

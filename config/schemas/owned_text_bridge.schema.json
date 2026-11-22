@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "max_files",
+    "max_source_bytes",
+    "max_request_bytes",
+    "max_response_bytes",
+    "max_request_id_chars",
+    "virtual_file",
+    "claim_boundary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": "v2-owned-utf8-single-ts"
+    },
+    "schema": {
+      "const": "config/schemas/owned_text_bridge.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "max_files": {
+      "type": "integer",
+      "const": 1
+    },
+    "max_source_bytes": {
+      "type": "integer",
+      "const": 1048576
+    },
+    "max_request_bytes": {
+      "type": "integer",
+      "const": 1450000
+    },
+    "max_response_bytes": {
+      "type": "integer",
+      "const": 8388608
+    },
+    "max_request_id_chars": {
+      "type": "integer",
+      "const": 64
+    },
+    "virtual_file": {
+      "const": "/__sage_owned_text__/entry.ts"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

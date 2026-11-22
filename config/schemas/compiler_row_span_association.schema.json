@@ -1,0 +1,711 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "config/schemas/compiler_row_span_association.schema.json",
+  "title": "Private supplied row-span metadata association",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "locator_policy_sha256",
+        "span_policy_sha256",
+        "row_policy_sha256",
+        "image_policy_sha256",
+        "model",
+        "input_kind",
+        "method",
+        "purpose",
+        "decision_version",
+        "decision_purpose",
+        "privacy",
+        "result_status",
+        "limits",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-row-span-association"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_row_span_association.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "locator_policy_sha256": {
+          "const": "ef7a346bbf45f3046ec6dc1ba626e99b5c1781eff948e69c72471fc1fb0c51f6"
+        },
+        "span_policy_sha256": {
+          "const": "aa5c12622bc2dc3bc68edc60f9f9cb25f5714fd5e38829e5e7e9c0abff5e2e2e"
+        },
+        "row_policy_sha256": {
+          "const": "1895ec6acf0f99abc858d90b2dc59bf1b823c9513031367499e0094169345a9a"
+        },
+        "image_policy_sha256": {
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "model": {
+          "const": "supplied_canonical_metadata_row_span_consistency_v1"
+        },
+        "input_kind": {
+          "const": "two_canonical_json_strings_v1"
+        },
+        "method": {
+          "const": "reviewed_retained_row_span_metadata_consistency_v1"
+        },
+        "purpose": {
+          "const": "associate_one_retained_row_span"
+        },
+        "decision_version": {
+          "const": "v1-pre-span-row-occurrence-decision"
+        },
+        "decision_purpose": {
+          "const": "select_one_retained_row_occurrence"
+        },
+        "privacy": {
+          "const": "selected_occurrence_hashes_local_spans_only_v1"
+        },
+        "result_status": {
+          "const": "SELECTED_ROW_SPAN_METADATA_CONSISTENCY_RECORDED_NOT_ORIGIN_ATTESTATION"
+        },
+        "limits": {
+          "const": {
+            "locator_bytes": 8192,
+            "span_receipt_bytes": 8192,
+            "metadata_bytes": 2097152,
+            "output_bytes": 8192,
+            "candidate_count": 16,
+            "metadata_byte_work_units": 2097152,
+            "image_bytes": 41943040,
+            "operation_ms": 30000
+          }
+        },
+        "claim_boundary": {
+          "const": "Disabled supplied constructed canonical metadata consistency only. No producer execution authentication, origin/intent/same-read/freshness/permission, grammar replay, actual owner/controller, source acquisition, runtime/production/semantic/cache/publication or physical resource guarantee."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "locator_result_sha256",
+        "span_receipt_sha256",
+        "locator_expected_sha256",
+        "span_expected_sha256",
+        "decision_sha256",
+        "candidate_sha256",
+        "locator_policy_sha256",
+        "locator_schema_sha256",
+        "span_policy_sha256",
+        "span_schema_sha256",
+        "origin_ref_sha256",
+        "selection_ref_sha256",
+        "occurrence_index",
+        "source",
+        "selection",
+        "invocation_id",
+        "purpose"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_result_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selection_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "occurrence_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "const": "associate_one_retained_row_span"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_text_utf8_sha256",
+        "source_utf16_units",
+        "source_utf8_bytes"
+      ],
+      "properties": {
+        "source_text_utf8_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_utf16_units": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_utf16",
+        "end_utf16",
+        "start_utf8",
+        "end_utf8",
+        "view_utf16_units",
+        "view_utf8_bytes",
+        "view_text_sha256"
+      ],
+      "properties": {
+        "start_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf16_units": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "view_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "view_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "purpose",
+        "locator_result_sha256",
+        "candidate_sha256",
+        "occurrence_index",
+        "source",
+        "selection",
+        "origin_ref_sha256",
+        "span_invocation_id",
+        "span_version",
+        "span_policy_sha256",
+        "span_schema_sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-pre-span-row-occurrence-decision"
+        },
+        "purpose": {
+          "const": "select_one_retained_row_occurrence"
+        },
+        "locator_result_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "occurrence_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "span_version": {
+          "const": "v1-private-supplied-exact-span-selection"
+        },
+        "span_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator_status",
+        "scan_complete_within_model",
+        "observation_sha256",
+        "candidate_count",
+        "certified_prefix_end_utf16",
+        "certified_prefix_end_utf8",
+        "examined_through_utf16",
+        "examined_through_utf8",
+        "unscanned_tail_code_units",
+        "unknown_tail_candidate_count",
+        "gap_sha256",
+        "gap_code"
+      ],
+      "properties": {
+        "locator_status": {
+          "enum": [
+            "ROW_CANDIDATE_SCAN_COMPLETED_WITHIN_FINITE_MODEL_NOT_TABLE",
+            "PARTIAL_ROW_CANDIDATE_SCAN_UNKNOWN_LEXICAL_TAIL_NOT_TABLE"
+          ]
+        },
+        "scan_complete_within_model": {
+          "type": "boolean"
+        },
+        "observation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidate_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "certified_prefix_end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "certified_prefix_end_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "examined_through_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "examined_through_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unscanned_tail_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_tail_candidate_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "gap_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "gap_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "unsupported_token",
+            "unsupported_string",
+            "unclosed_comment",
+            "unclosed_string",
+            "unsupported_line_separator",
+            null
+          ]
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator_input_utf8_bytes",
+        "span_input_utf8_bytes",
+        "context_canonical_bytes",
+        "metadata_reserved_bytes",
+        "input_copies_reserved_bytes",
+        "output_reserved_bytes",
+        "known_inputs_reserved_bytes",
+        "prepublication_metadata_byte_work_units",
+        "terminal_byte_work_reserved_units",
+        "input_bytes_hashed",
+        "checked_candidate_count"
+      ],
+      "properties": {
+        "locator_input_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span_input_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_canonical_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_copies_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prepublication_metadata_byte_work_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "terminal_byte_work_reserved_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_bytes_hashed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checked_candidate_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_execution_authenticated",
+        "origin_authenticated",
+        "locator_origin_attested",
+        "selection_intent_authenticated",
+        "same_read_attested",
+        "source_freshness_verified",
+        "physical_path_verified",
+        "global_byte_line_mapping_verified",
+        "read_authority_granted",
+        "filesystem_capture_attested",
+        "controller_request_admitted",
+        "owner_request_admitted",
+        "actual_grammar_replayed",
+        "table_membership_verified",
+        "table_complete",
+        "binding_resolved",
+        "actual_export_set_complete",
+        "input_code_evaluated",
+        "compiler_loaded",
+        "runtime_verified",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "publication_authority"
+      ],
+      "properties": {
+        "producer_execution_authenticated": {
+          "const": false
+        },
+        "origin_authenticated": {
+          "const": false
+        },
+        "locator_origin_attested": {
+          "const": false
+        },
+        "selection_intent_authenticated": {
+          "const": false
+        },
+        "same_read_attested": {
+          "const": false
+        },
+        "source_freshness_verified": {
+          "const": false
+        },
+        "physical_path_verified": {
+          "const": false
+        },
+        "global_byte_line_mapping_verified": {
+          "const": false
+        },
+        "read_authority_granted": {
+          "const": false
+        },
+        "filesystem_capture_attested": {
+          "const": false
+        },
+        "controller_request_admitted": {
+          "const": false
+        },
+        "owner_request_admitted": {
+          "const": false
+        },
+        "actual_grammar_replayed": {
+          "const": false
+        },
+        "table_membership_verified": {
+          "const": false
+        },
+        "table_complete": {
+          "const": false
+        },
+        "binding_resolved": {
+          "const": false
+        },
+        "actual_export_set_complete": {
+          "const": false
+        },
+        "input_code_evaluated": {
+          "const": false
+        },
+        "compiler_loaded": {
+          "const": false
+        },
+        "runtime_verified": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "publication_authority": {
+          "const": false
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "method",
+        "purpose",
+        "producer_policy_sha256",
+        "producer_schema_sha256",
+        "expected_sha256",
+        "locator_result_sha256",
+        "span_receipt_sha256",
+        "locator_expected_sha256",
+        "span_expected_sha256",
+        "decision_sha256",
+        "candidate_sha256",
+        "span_content_sha256",
+        "origin_ref_sha256",
+        "selection_ref_sha256",
+        "occurrence_index",
+        "source",
+        "selection",
+        "coverage",
+        "cost",
+        "raw_source_retained",
+        "private_metadata_cleared",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-row-span-association"
+        },
+        "status": {
+          "const": "SELECTED_ROW_SPAN_METADATA_CONSISTENCY_RECORDED_NOT_ORIGIN_ATTESTATION"
+        },
+        "method": {
+          "const": "reviewed_retained_row_span_metadata_consistency_v1"
+        },
+        "purpose": {
+          "const": "associate_one_retained_row_span"
+        },
+        "producer_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producer_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_result_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selection_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "occurrence_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "coverage": {
+          "$ref": "#/$defs/coverage"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        },
+        "raw_source_retained": {
+          "const": false
+        },
+        "private_metadata_cleared": {
+          "const": true
+        },
+        "flags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    }
+  }
+}

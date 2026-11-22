@@ -7,6 +7,7 @@ import re
 from tools.core.config import DYNAMIC_CONFIG, ENVIRONMENT, PRIMARY_ALIAS, normalize_path
 from tools.core.language_registry import index_files, language_extensions
 from tools.core.path_identity import strip_current_directory_prefix
+from tools.core.target_repository_trust import is_target_path_contained
 
 
 _NEAREST_CONFIG_ROOT_CACHE: dict[tuple[str, str], str] = {}
@@ -244,7 +245,7 @@ def _resolve_go_module_import(source: str, project_root: str, current_file_dir: 
     return ""
 
 
-def _scoped_alias_map(current_file_dir: str, project_root: str) -> dict[str, str]:
+def _scoped_alias_map(current_file_dir: str, project_root: str, *, strict: bool = False) -> dict[str, str]:
     scopes = ENVIRONMENT.get("scoped_path_aliases", []) or []
     if not current_file_dir or not project_root or not isinstance(scopes, list):
         return {}
@@ -268,19 +269,37 @@ def _scoped_alias_map(current_file_dir: str, project_root: str) -> dict[str, str
         return {}
 
     selected = matches[0]
+    if strict and sum(item.get("scope_root", ".") == selected.get("scope_root", ".") for item in matches) != 1:
+        return {}
+    if strict and (not isinstance(selected.get("path_aliases"), dict)
+            or any(not isinstance(selected.get(key, "."), str) or os.path.isabs(selected.get(key, "."))
+                   for key in ("scope_root", "base_url"))):
+        return {}
     scope_root = to_os_path(str(selected.get("scope_root") or "."))
     base_url = to_os_path(str(selected.get("base_url") or "."))
     alias_map: dict[str, str] = {}
     for alias_key, alias_targets in (selected.get("path_aliases") or {}).items():
         if not isinstance(alias_targets, list) or not alias_targets:
+            if strict:
+                return {}
             continue
+        if strict and (not isinstance(alias_key, str) or not alias_key
+                or len(alias_targets) != 1 or not isinstance(alias_targets[0], str) or not alias_targets[0]
+                or os.path.isabs(alias_targets[0]) or alias_key.count("*") > 1
+                or any(token in alias_key.rstrip("*") for token in ("*", "?", "[", "\\", "::"))
+                or "*" in alias_targets[0].removesuffix("/*")):
+            return {}
         clean_alias = str(alias_key)[:-1] if str(alias_key).endswith("*") else str(alias_key)
         clean_target = strip_current_directory_prefix(str(alias_targets[0]).replace("/*", "")).strip("/") or "."
         target_abs = os.path.abspath(os.path.join(project_abs, scope_root, base_url, to_os_path(clean_target)))
         try:
             if os.path.commonpath((project_abs, target_abs)) != project_abs:
+                if strict:
+                    return {}
                 continue
         except ValueError:
+            if strict:
+                return {}
             continue
         alias_map[clean_alias] = to_posix_path(os.path.relpath(target_abs, project_abs))
     return alias_map
@@ -307,8 +326,12 @@ def get_alias_map(current_file_dir: str = "", project_root: str = "") -> dict[st
     return alias_map or {"@/": "src"}
 
 
-def resolve_project_import(source: str, current_file_dir: str, workspace_root: str, project_root: str, alias_map: dict[str, str] | None = None, language: str = "typescript") -> str:
+def resolve_project_import(source: str, current_file_dir: str, workspace_root: str, project_root: str, alias_map: dict[str, str] | None = None, language: str = "typescript", *, declared_alias_only: bool = False) -> str:
     source = source or ""
+    if declared_alias_only and (not source or source.startswith(".") or os.path.isabs(source)
+            or any(token in source for token in ("\\", "::", "?", "#", "\x00"))
+            or any(part in {"", ".", ".."} for part in source.split("/")) or not alias_map):
+        return source
     
     # [Polyglot] Python Module Resolution (e.g. "my_package.utils")
     if language == "python" and not source.startswith(".") and not os.path.isabs(source):
@@ -329,7 +352,7 @@ def resolve_project_import(source: str, current_file_dir: str, workspace_root: s
             if os.path.isfile(candidate):
                 return to_posix_path(os.path.relpath(candidate, project_root))
 
-    if language in {"typescript", "javascript"} and not source.startswith("."):
+    if not declared_alias_only and language in {"typescript", "javascript"} and not source.startswith("."):
         workspace_package_target = _resolve_workspace_package_import(source, project_root)
         if workspace_package_target:
             return workspace_package_target
@@ -422,18 +445,32 @@ def resolve_project_import(source: str, current_file_dir: str, workspace_root: s
         return deduped
 
     matched_alias_entries: list[tuple[str, str, str]] = []
+    declared_candidates = set()
+    matching_length = max((len(alias) for alias in alias_map if _source_matches_alias(source, alias)), default=0)
     for alias, rel_target in sorted_aliases:
         if not _source_matches_alias(source, alias):
+            continue
+        if declared_alias_only and len(alias) != matching_length:
             continue
 
         source_tail = source[len(alias):].lstrip("/\\")
         matched_alias_entries.append((alias, rel_target, source_tail))
-        candidate_roots = _candidate_bases_for_alias(rel_target)
+        candidate_roots = ([os.path.join(project_root, to_os_path(rel_target))] if declared_alias_only
+                           else _candidate_bases_for_alias(rel_target))
         for base_root in candidate_roots:
             resolved_base = os.path.join(base_root, source_tail.replace("/", os.sep))
             for candidate in expand_filesystem_candidates(resolved_base, language=language):
                 if os.path.isfile(candidate):
+                    if declared_alias_only:
+                        canonical = os.path.realpath(candidate)
+                        if is_target_path_contained(workspace_root, canonical):
+                            declared_candidates.add(canonical)
+                        continue
                     return to_posix_path(os.path.relpath(candidate, project_root))
+
+    if declared_alias_only:
+        return (to_posix_path(os.path.relpath(next(iter(declared_candidates)), project_root))
+                if len(declared_candidates) == 1 else source)
 
     # Alias matched but static map couldn't resolve path; apply conservative
     # project-root fallbacks to reduce false negatives.
@@ -450,3 +487,40 @@ def resolve_project_import(source: str, current_file_dir: str, workspace_root: s
             if os.path.isfile(candidate):
                 return to_posix_path(os.path.relpath(candidate, project_root))
     return source
+
+
+def workspace_import_source_candidate(source: str, current_file_dir: str, workspace_root: str,
+                                      source_project: str, projects: dict, *, language="typescript") -> dict | None:
+    """Adapt the existing declared-alias resolver to selected project ownership, not graph authority."""
+    if language not in {"typescript", "javascript"} or source_project not in projects:
+        return None
+    root = os.path.realpath(workspace_root)
+    current = os.path.realpath(current_file_dir)
+    source_root = os.path.realpath(projects[source_project])
+    if (not is_target_path_contained(root, current)
+            or not is_target_path_contained(root, source_root)
+            or not is_target_path_contained(source_root, current)):
+        return None
+    aliases = _scoped_alias_map(current_file_dir, workspace_root, strict=True)
+    resolved = resolve_project_import(source, current_file_dir, root, root, aliases,
+                                      language, declared_alias_only=True)
+    if resolved == source:
+        return None
+    target = os.path.realpath(os.path.join(root, to_os_path(resolved)))
+    if not is_target_path_contained(root, target):
+        return None
+    owners = []
+    for key, value in projects.items():
+        project_root = os.path.realpath(value)
+        if is_target_path_contained(root, project_root) and is_target_path_contained(project_root, target):
+            owners.append((len(project_root), str(key), project_root))
+    owners.sort(reverse=True)
+    if (not owners or owners[0][1] == source_project
+            or len(owners) > 1 and owners[0][0] == owners[1][0]):
+        return None
+    _, target_project, target_root = owners[0]
+    if not target_project or any(token in target_project for token in ("::", "/", "\\")):
+        return None
+    rel = to_posix_path(os.path.relpath(target, target_root))
+    return {"version": "v1-declared-workspace-alias-source", "source_project": source_project,
+            "target_ref": f"{target_project}::{rel}", "workspace_rel": to_posix_path(os.path.relpath(target, root))}

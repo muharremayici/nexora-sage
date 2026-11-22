@@ -490,7 +490,80 @@
     ],
     "sqlite_writer_rule": "release-proof steps with raw_artifact persistence are SQLite writers and must be serialized when dependency-linked or when more than one selected writer exists",
     "parallel_intent_behavior": "fail_closed_with_serial_execution_plan",
-    "max_parallel_sqlite_writers": 1
+    "max_parallel_sqlite_writers": 1,
+    "review_queue_execution": {
+      "schema": "nexora_review_readiness_queue_v1",
+      "authority": "diagnostic_queue_only_no_proof_reuse_seal_or_publication",
+      "source_steps_owner": "distribution_test_profiles.test_execution.candidate_preflight.source_validator_steps",
+      "additional_step_ids": [
+        "manual_validator_execution_plan",
+        "agent_surface_manual_seal_pack",
+        "system_health_check"
+      ],
+      "dependency_rule": "complete_registered_closure_no_external_receipt_admission",
+      "wait_rule": "preserve_and_block_no_automatic_reexecution",
+      "timeout_seconds": 180,
+      "output_limit_bytes": 1048576
+    },
+    "outcome_observation": {
+      "schema": "nexora_recorded_review_outcomes_v1",
+      "authority": "recorded_outcome_observation_only_no_skip_execution_or_authority",
+      "maximum_receipts": 8,
+      "maximum_receipt_bytes": 1048576,
+      "maximum_snapshot_bytes": 4194304,
+      "maximum_log_bytes": 1048576,
+      "native_continuation_assessment": {
+        "schema": "nexora_native_continuation_assessment_v1",
+        "authority": "read_only_native_interruption_assessment_no_dispatch",
+        "maximum_checkpoint_bytes": 4194304
+      },
+      "owners": {
+        "agent_surface_manual_seal_pack": {
+          "mode": "agent_review_pack",
+          "artifact_kind": "agent_surface_manual_seal_pack",
+          "artifact_version": "v1",
+          "pending_status": "AGENT_MANUAL_REVIEW_REQUIRED",
+          "ready_status": "READY_FOR_HUMAN_REVIEW",
+          "pending_returncode": 1,
+          "ready_returncode": 0,
+          "pending_review_status": "needs_agent_manual_review",
+          "human_pending_review_status": "pending",
+          "reviewed_status_owner": "agent_surface_seal_contract.review_tracker_policy.reviewed_sample_status"
+        },
+        "system_health_check": {
+          "mode": "release_health",
+          "artifact_kind": "system_health_check",
+          "artifact_version": "v1",
+          "blocked_status": "FAIL",
+          "ready_status": "PASS",
+          "returncode": 0,
+          "wait_checks": [
+            {
+              "category": "release_governance",
+              "name": "seal_impact_validation",
+              "statuses": [
+                "FAIL"
+              ],
+              "condition": "human_seal_absent",
+              "seal_impact_statuses": [
+                "needs_human_seal",
+                "human_reseal_required"
+              ],
+              "reason": "HUMAN_AUTHORITY_REQUIRED"
+            },
+            {
+              "category": "installation_distribution",
+              "name": "installation_proof",
+              "statuses": [
+                "UNKNOWN"
+              ],
+              "condition": "missing_installation_evidence",
+              "reason": "INSTALLATION_EVIDENCE_REQUIRED"
+            }
+          ]
+        }
+      }
+    }
   },
   "subprocess_runtime_policy": {
     "default_rule": "Long-running or captured child processes must use tools.core.subprocess_telemetry.run_observed_subprocess so waits, timeouts, and process-tree termination are observable and cross-platform.",

@@ -1,0 +1,227 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "max_source_files",
+    "max_auxiliary_files",
+    "max_auxiliary_bytes",
+    "max_config_bytes",
+    "max_request_bytes",
+    "max_import_edges",
+    "max_type_properties",
+    "declaration_shape",
+    "module_specifier",
+    "capture_profile",
+    "bridge_profile",
+    "image_profile",
+    "parser_virtual_path",
+    "compiler_virtual_path",
+    "atlas_relative_path",
+    "auxiliary_virtual_path",
+    "auxiliary_atlas_path",
+    "config_virtual_path",
+    "config_atlas_path",
+    "input_observation_version",
+    "input_observation_schema",
+    "input_observation_authority",
+    "type_import_observation_version",
+    "type_import_observation_schema",
+    "claim_boundary",
+    "package_profile",
+    "compiler_metadata_profile",
+    "source_script_kind",
+    "react_namespace",
+    "component_contract",
+    "max_programs"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v8-private-react-dom-context"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_react_dom_handoff.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "max_source_files": {
+      "type": "integer",
+      "const": 1
+    },
+    "max_auxiliary_files": {
+      "type": "integer",
+      "const": 2
+    },
+    "max_auxiliary_bytes": {
+      "type": "integer",
+      "const": 65536
+    },
+    "max_config_bytes": {
+      "type": "integer",
+      "const": 8192
+    },
+    "max_request_bytes": {
+      "type": "integer",
+      "const": 4194304
+    },
+    "max_import_edges": {
+      "type": "integer",
+      "const": 3
+    },
+    "max_type_properties": {
+      "type": "integer",
+      "const": 1
+    },
+    "declaration_shape": {
+      "type": "string",
+      "const": "single_required_primitive_property"
+    },
+    "module_specifier": {
+      "type": "string",
+      "const": "./types"
+    },
+    "capture_profile": {
+      "type": "string",
+      "const": "private_owned_react_dom_capture"
+    },
+    "bridge_profile": {
+      "type": "string",
+      "const": "private_owned_tsx_text_bridge"
+    },
+    "image_profile": {
+      "type": "string",
+      "const": "private_react_dom_image"
+    },
+    "parser_virtual_path": {
+      "type": "string",
+      "const": "/__sage_owned_text__/entry.tsx"
+    },
+    "compiler_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/entry.tsx"
+    },
+    "atlas_relative_path": {
+      "type": "string",
+      "const": "entry.tsx"
+    },
+    "auxiliary_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/types.d.ts"
+    },
+    "auxiliary_atlas_path": {
+      "type": "string",
+      "const": "types.d.ts"
+    },
+    "config_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/tsconfig.json"
+    },
+    "config_atlas_path": {
+      "type": "string",
+      "const": "tsconfig.json"
+    },
+    "input_observation_version": {
+      "type": "string",
+      "const": "v5-private-react-input-summary"
+    },
+    "input_observation_schema": {
+      "type": "string",
+      "const": "config/schemas/compiler_react_input_observation.schema.json"
+    },
+    "input_observation_authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "type_import_observation_version": {
+      "type": "string",
+      "const": "v3-private-react-dom-edges"
+    },
+    "type_import_observation_schema": {
+      "type": "string",
+      "const": "config/schemas/react_dom_observation.schema.json"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "const": "One private input/onChange/currentTarget.value context with exact React/DOM symbol owners. No callback execution, rendering, production/semantic/cache or release authority."
+    },
+    "package_profile": {
+      "type": "string",
+      "const": "private_owned_react_packages"
+    },
+    "compiler_metadata_profile": {
+      "type": "string",
+      "const": "private_owned_react_dom_metadata"
+    },
+    "source_script_kind": {
+      "type": "string",
+      "const": "TSX"
+    },
+    "react_namespace": {
+      "type": "string",
+      "const": "React"
+    },
+    "component_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tag",
+        "attribute",
+        "event_attribute",
+        "target_member",
+        "value_member",
+        "dom_interface",
+        "event_interface"
+      ],
+      "properties": {
+        "tag": {
+          "type": "string",
+          "const": "input"
+        },
+        "attribute": {
+          "type": "string",
+          "const": "defaultValue"
+        },
+        "event_attribute": {
+          "type": "string",
+          "const": "onChange"
+        },
+        "target_member": {
+          "type": "string",
+          "const": "currentTarget"
+        },
+        "value_member": {
+          "type": "string",
+          "const": "value"
+        },
+        "dom_interface": {
+          "type": "string",
+          "const": "HTMLInputElement"
+        },
+        "event_interface": {
+          "type": "string",
+          "const": "ChangeEvent"
+        }
+      }
+    },
+    "max_programs": {
+      "type": "integer",
+      "const": 1
+    }
+  }
+}

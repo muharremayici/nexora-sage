@@ -1,0 +1,671 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private reviewed fixture API to prepared image",
+  "type": "object",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "expected_definition",
+        "result_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "model",
+        "evaluation_scope",
+        "entry_profile",
+        "capture_profile",
+        "image_profile",
+        "ingress_profile",
+        "preparation_profile",
+        "entry_policy_sha256",
+        "entry_schema_sha256",
+        "capture_policy_sha256",
+        "image_policy_sha256",
+        "ingress_policy_sha256",
+        "preparation_policy_sha256",
+        "source_sha256",
+        "schema_sha256",
+        "fixture_source_sha256",
+        "fixture_version",
+        "node_version",
+        "transform",
+        "parameters",
+        "compile_options",
+        "virtual_paths",
+        "api_keys",
+        "limits",
+        "denied_flags",
+        "result_status",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-loaded-fixture-image"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/loaded_fixture_image.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "policy"
+        },
+        "expected_definition": {
+          "type": "string",
+          "const": "expected"
+        },
+        "result_definition": {
+          "type": "string",
+          "const": "result"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "model": {
+          "type": "string",
+          "const": "reviewed_fixture_api_constructor_only_v1"
+        },
+        "evaluation_scope": {
+          "type": "string",
+          "const": "fixed_reviewed_first_party_fixture_only"
+        },
+        "entry_profile": {
+          "type": "string",
+          "const": "private_compiler_entry_owner"
+        },
+        "capture_profile": {
+          "type": "string",
+          "const": "compiler_library_inputs"
+        },
+        "image_profile": {
+          "type": "string",
+          "const": "private_input_image_experiment"
+        },
+        "ingress_profile": {
+          "type": "string",
+          "const": "private_prepared_compiler_image_ingress"
+        },
+        "preparation_profile": {
+          "type": "string",
+          "const": "private_compiler_declaration_text_handoff_preparation"
+        },
+        "entry_policy_sha256": {
+          "type": "string",
+          "const": "7b7861266affa4ca65e2a43c9cce31bff84938c30c862005791a0b5b56b2b779"
+        },
+        "entry_schema_sha256": {
+          "type": "string",
+          "const": "da0391e1c05556405e97044cb0ecc6baefc406dc4eb26650af0914ded996b693"
+        },
+        "capture_policy_sha256": {
+          "type": "string",
+          "const": "6482af0915e6d0da081b7543b887f770819ef1820549214ca9ebe88e651f8a02"
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "ingress_policy_sha256": {
+          "type": "string",
+          "const": "008a4141268c89bdd818a9a7275e5facb9663db61dc36687f817e8bd065c710f"
+        },
+        "preparation_policy_sha256": {
+          "type": "string",
+          "const": "14479bb3a324247bb45ea3798e8f8c7fd810986804c8059e378f1ba1d3e5659a"
+        },
+        "source_sha256": {
+          "type": "string",
+          "const": "dca14b0641bf739c5d2b9806852f7e7792a28e1062d4452a013aef2107b810ae"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "fixture_source_sha256": {
+          "type": "string",
+          "const": "b043c1026a4e4e0bfb03ec2568d95611763c02fad9e127a6f11852e518a4bf5e"
+        },
+        "fixture_version": {
+          "type": "string",
+          "const": "0.0.0-synthetic"
+        },
+        "node_version": {
+          "type": "string",
+          "const": "v24.18.0"
+        },
+        "transform": {
+          "type": "string",
+          "const": "identity_no_leading_bom_hashbang_v1"
+        },
+        "parameters": {
+          "type": "array",
+          "const": [
+            "exports",
+            "require",
+            "module",
+            "__filename",
+            "__dirname"
+          ]
+        },
+        "compile_options": {
+          "type": "object",
+          "const": {
+            "filename": "nexora-synthetic/fixture-api.cjs",
+            "lineOffset": 0,
+            "columnOffset": 0,
+            "produceCachedData": false,
+            "contextExtensions": []
+          }
+        },
+        "virtual_paths": {
+          "type": "object",
+          "const": {
+            "filename": "nexora-synthetic/fixture-api.cjs",
+            "dirname": "nexora-synthetic"
+          }
+        },
+        "api_keys": {
+          "type": "array",
+          "const": [
+            "version",
+            "parseConfigFileTextToJson",
+            "preProcessFile",
+            "createProgram"
+          ]
+        },
+        "limits": {
+          "type": "object",
+          "const": {
+            "context_bytes": 65536,
+            "metadata_bytes": 2097152,
+            "image_bytes": 41943040,
+            "operation_ms": 30000,
+            "output_bytes": 8192,
+            "max_entry_bytes": 16777216
+          }
+        },
+        "denied_flags": {
+          "type": "array",
+          "const": [
+            "compiler_loaded",
+            "loaded_code_attested",
+            "source_freshness_verified",
+            "snapshot_bound",
+            "native_execution_attested",
+            "native_project_equivalent",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ]
+        },
+        "result_status": {
+          "type": "string",
+          "const": "EVALUATED_FIXTURE_API_IMAGE_CONSTRUCTED_NOT_COMPILER_ADMISSION"
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "One reviewed authored fixture body and a private module-instance API token connect to one constructor-only prepared image. No installed TypeScript, Program, complete native cost or semantic/cache/production/publication admission."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry",
+        "policy_sha256",
+        "schema_sha256",
+        "owner_snapshot_sha256",
+        "compile_input_sha256",
+        "api_shape_sha256",
+        "image_context_sha256",
+        "source_context_sha256",
+        "node_version"
+      ],
+      "properties": {
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_sha256",
+            "entry_sha256",
+            "text_sha256",
+            "policy_sha256",
+            "schema_sha256"
+          ],
+          "properties": {
+            "context_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "entry_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "schema_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "owner_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compile_input_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "api_shape_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "node_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "bridge_expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loaded_expected_sha256",
+        "image_context_sha256",
+        "source_context_sha256"
+      ],
+      "properties": {
+        "loaded_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "source_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "invocation_id",
+        "compiler_version",
+        "atlas_snapshot_id",
+        "atlas_sha256",
+        "parser_response_sha256",
+        "compiler_source_sha256",
+        "source_inputs_sha256"
+      ],
+      "properties": {
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "atlas_snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parser_response_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_inputs_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "loaded_expected_sha256",
+        "image_context_sha256",
+        "source_context_sha256",
+        "entry_text_sha256",
+        "image_summary",
+        "compilations",
+        "invocations",
+        "constructor_calls",
+        "config_calls",
+        "preprocess_calls",
+        "program_calls",
+        "joint_metadata_reserved_bytes",
+        "known_joint_inputs_reserved_bytes",
+        "image_metadata_upper",
+        "evaluated_fixture_api_used",
+        "entry_owner_disposed",
+        "declaration_owner_disposed",
+        "image_disposed",
+        "loaded_token_disposed",
+        "callable_exposed",
+        "whole_image_within_limit",
+        "compiled_heap_bytes",
+        "runtime_heap_bytes",
+        "peak_rss_bytes",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-loaded-fixture-image"
+        },
+        "status": {
+          "type": "string",
+          "const": "EVALUATED_FIXTURE_API_IMAGE_CONSTRUCTED_NOT_COMPILER_ADMISSION"
+        },
+        "loaded_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entry_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "image_sha256",
+            "envelope_sha256",
+            "prepared_ingress_sha256",
+            "content_bytes",
+            "metadata_bytes",
+            "file_count",
+            "ingress_metadata_bytes",
+            "admission_stage_known_metadata_bytes",
+            "admission_stage_known_image_bytes",
+            "status",
+            "whole_image_within_limit",
+            "peak_rss_bytes",
+            "image_admitted",
+            "native_project_equivalent",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "loaded_code_attested"
+          ],
+          "properties": {
+            "image_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "envelope_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "prepared_ingress_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "content_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "file_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ingress_metadata_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "admission_stage_known_metadata_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "admission_stage_known_image_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "status": {
+              "type": "string",
+              "const": "PRIVATE_PREPARED_COMPILER_IMAGE_NOT_ADMITTED"
+            },
+            "whole_image_within_limit": {
+              "type": "null"
+            },
+            "peak_rss_bytes": {
+              "type": "null"
+            },
+            "image_admitted": {
+              "type": "boolean",
+              "const": false
+            },
+            "native_project_equivalent": {
+              "type": "boolean",
+              "const": false
+            },
+            "production_enabled": {
+              "type": "boolean",
+              "const": false
+            },
+            "semantic_lineage": {
+              "type": "boolean",
+              "const": false
+            },
+            "cache_eligible": {
+              "type": "boolean",
+              "const": false
+            },
+            "loaded_code_attested": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        },
+        "compilations": {
+          "type": "integer",
+          "const": 1
+        },
+        "invocations": {
+          "type": "integer",
+          "const": 1
+        },
+        "constructor_calls": {
+          "type": "integer",
+          "const": 1
+        },
+        "config_calls": {
+          "type": "integer",
+          "const": 1
+        },
+        "preprocess_calls": {
+          "type": "integer",
+          "const": 2
+        },
+        "program_calls": {
+          "type": "integer",
+          "const": 0
+        },
+        "joint_metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_joint_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "image_metadata_upper": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evaluated_fixture_api_used": {
+          "type": "boolean",
+          "const": true
+        },
+        "entry_owner_disposed": {
+          "type": "boolean",
+          "const": true
+        },
+        "declaration_owner_disposed": {
+          "type": "boolean",
+          "const": true
+        },
+        "image_disposed": {
+          "type": "boolean",
+          "const": true
+        },
+        "loaded_token_disposed": {
+          "type": "boolean",
+          "const": true
+        },
+        "callable_exposed": {
+          "type": "boolean",
+          "const": false
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "compiled_heap_bytes": {
+          "type": "null"
+        },
+        "runtime_heap_bytes": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "compiler_loaded",
+            "loaded_code_attested",
+            "source_freshness_verified",
+            "snapshot_bound",
+            "native_execution_attested",
+            "native_project_equivalent",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "compiler_loaded": {
+              "type": "boolean",
+              "const": false
+            },
+            "loaded_code_attested": {
+              "type": "boolean",
+              "const": false
+            },
+            "source_freshness_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "snapshot_bound": {
+              "type": "boolean",
+              "const": false
+            },
+            "native_execution_attested": {
+              "type": "boolean",
+              "const": false
+            },
+            "native_project_equivalent": {
+              "type": "boolean",
+              "const": false
+            },
+            "production_enabled": {
+              "type": "boolean",
+              "const": false
+            },
+            "semantic_lineage": {
+              "type": "boolean",
+              "const": false
+            },
+            "cache_eligible": {
+              "type": "boolean",
+              "const": false
+            },
+            "publication_authority": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

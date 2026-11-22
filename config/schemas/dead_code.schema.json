@@ -303,6 +303,7 @@
           "type": "boolean"
         },
         "mutation_proposed": {
+          "type": "boolean",
           "const": false
         },
         "allowed_outcomes": {
@@ -322,8 +323,59 @@
         "why": {
           "type": "string",
           "minLength": 1
+        },
+        "intent_review": {
+          "$ref": "#/$defs/intentReviewRequest"
         }
       }
+    },
+    "intentReviewRequest": {
+      "type": "object",
+      "required": [
+        "status",
+        "correlation_status",
+        "integration_status",
+        "mutation_proposed",
+        "questions"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "evidence_required",
+            "unavailable"
+          ]
+        },
+        "correlation_status": {
+          "const": "not_evaluated"
+        },
+        "integration_status": {
+          "const": "unknown"
+        },
+        "mutation_proposed": {
+          "type": "boolean",
+          "const": false
+        },
+        "policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "exclusionItem": {
       "type": "object",
@@ -391,6 +443,7 @@
               "minLength": 1
             },
             "mutation_proposed": {
+              "type": "boolean",
               "const": false
             },
             "evidence": {
@@ -446,6 +499,7 @@
           "minLength": 1
         },
         "mutation_proposed": {
+          "type": "boolean",
           "const": false
         },
         "evidence": {

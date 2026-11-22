@@ -1,0 +1,222 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "image_sha256",
+    "handoff_sha256",
+    "image_policy_sha256",
+    "config",
+    "compiler_libraries",
+    "program_completeness_established",
+    "semantic_lineage",
+    "production_enabled",
+    "project_declaration",
+    "synthetic_jsx_contract"
+  ],
+  "properties": {
+    "version": {
+      "const": "v4-private-tsx-input-summary"
+    },
+    "authority": {
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "const": "matched_reported_program"
+    },
+    "image_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handoff_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "image_policy_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "target_config",
+        "raw_sha256",
+        "host_text_sha256",
+        "raw_bytes",
+        "atlas_context_sha256"
+      ],
+      "properties": {
+        "owner": {
+          "const": "owned_synthetic_atlas_auxiliary"
+        },
+        "target_config": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "host_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_bytes": {
+          "type": "integer"
+        },
+        "atlas_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "compiler_libraries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captured_count",
+        "captured_raw_bytes",
+        "captured_manifest_sha256",
+        "reported_program_used_count",
+        "reported_program_used_raw_bytes",
+        "positive_read_matched_count",
+        "captured_not_reported_used_count",
+        "captured_not_reported_used_raw_bytes",
+        "reported_used_manifest_sha256"
+      ],
+      "properties": {
+        "captured_count": {
+          "type": "integer"
+        },
+        "captured_raw_bytes": {
+          "type": "integer"
+        },
+        "captured_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reported_program_used_count": {
+          "type": "integer"
+        },
+        "reported_program_used_raw_bytes": {
+          "type": "integer"
+        },
+        "positive_read_matched_count": {
+          "type": "integer"
+        },
+        "captured_not_reported_used_count": {
+          "type": "integer"
+        },
+        "captured_not_reported_used_raw_bytes": {
+          "type": "integer"
+        },
+        "reported_used_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "program_completeness_established": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "project_declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "raw_sha256",
+        "host_text_sha256",
+        "raw_bytes",
+        "atlas_context_sha256",
+        "reported_program_seen",
+        "positive_read_matched"
+      ],
+      "properties": {
+        "owner": {
+          "const": "owned_atlas_auxiliary_input"
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "host_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_bytes": {
+          "type": "integer"
+        },
+        "reported_program_seen": {
+          "type": "boolean",
+          "const": true
+        },
+        "positive_read_matched": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "synthetic_jsx_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "raw_sha256",
+        "host_text_sha256",
+        "raw_bytes",
+        "atlas_context_sha256",
+        "reported_program_seen",
+        "positive_read_matched",
+        "contract_kind"
+      ],
+      "properties": {
+        "owner": {
+          "const": "owned_synthetic_jsx_declaration"
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "host_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_bytes": {
+          "type": "integer"
+        },
+        "reported_program_seen": {
+          "type": "boolean",
+          "const": true
+        },
+        "positive_read_matched": {
+          "type": "boolean",
+          "const": true
+        },
+        "contract_kind": {
+          "const": "synthetic_jsx_contract_not_react_typings"
+        }
+      }
+    }
+  }
+}

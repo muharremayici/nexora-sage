@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Set
+from collections import deque
 
 # Sovereign Root Recovery (v19.7)
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +24,7 @@ from tools.core.test_impact_profiles import (
     static_candidate_evidence,
     static_test_evidence_policy,
 )
+from tools.core.test_dependency_witness import DependencyWitnessTrace, optional_witness_policy, attach_dependency_witnesses
 
 def is_test_file(path_str: str) -> bool:
     """
@@ -132,14 +134,19 @@ def _get_impact_graph(circular_deps: dict[str, Any] | None = None) -> tuple:
         logger.warning(f"Failed to load dependency graph for test matching: {e}")
         return None, None
 
-def get_reachable_dependents(start_node: str, rev_adj: dict) -> Set[str]:
+def get_reachable_dependents(start_node: str, rev_adj: dict, *, witness_trace=None) -> Set[str]:
     visited = set()
-    queue = [start_node]
+    queue = deque([start_node])
     while queue:
-        current = queue.pop(0)
+        current = queue.popleft()
         if current not in visited:
             visited.add(current)
-            queue.extend(rev_adj.get(current, []))
+            neighbors = rev_adj.get(current, [])
+            if witness_trace is not None:
+                neighbors = sorted(set(neighbors))
+                for child in neighbors:
+                    witness_trace.observe(child, current)
+            queue.extend(neighbors)
     return visited - {start_node}
 
 def find_impacted_tests(
@@ -166,9 +173,13 @@ def find_impacted_tests(
     
     # --- Vector A: Static Dependency Tracing ---
     nodes, rev_adj = _get_impact_graph(circular_deps)
+    witness_trace = None
     if nodes and target_node in nodes:
         direct_dependents = rev_adj.get(target_node, [])
-        all_dependents = get_reachable_dependents(target_node, rev_adj)
+        witness_policy = optional_witness_policy()
+        if witness_policy is not None:
+            witness_trace = DependencyWitnessTrace(target_node, witness_policy)
+        all_dependents = get_reachable_dependents(target_node, rev_adj, witness_trace=witness_trace)
         
         # Check direct dependents (Confidence: 1.0)
         for dep in direct_dependents:
@@ -241,6 +252,8 @@ def find_impacted_tests(
     )
     for item in sorted_tests:
         item["candidate_evidence"] = static_candidate_evidence(item)
+    dependency_navigation = attach_dependency_witnesses(sorted_tests, atlas=atlas, target=target_node,
+        reverse=rev_adj or {}, trace=witness_trace, context=_file_context)
     
     return {
         "target": target_node,
@@ -251,6 +264,7 @@ def find_impacted_tests(
         "target_project": target_context.get("project") or project_key,
         "target_file": target_context.get("repo_relative_path"),
         "target_file_context": target_context,
+        "dependency_navigation": dependency_navigation,
         "impacted_tests": sorted_tests
     }
 

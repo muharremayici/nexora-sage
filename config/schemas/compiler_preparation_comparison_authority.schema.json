@@ -1,0 +1,429 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sage:private-preparation-comparison-authority-metadata:v1",
+  "title": "Private declared metadata only; never an admission authority",
+  "x-metadata-copy-charge-ceiling": 65536,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,127}(?![\\s\\S])"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "source",
+        "schema_sha256",
+        "source_sha256",
+        "state",
+        "scope",
+        "cut",
+        "issuance_scope",
+        "approval",
+        "caps",
+        "acquisition",
+        "default_enabled",
+        "runtime_admission_enabled",
+        "production_enabled",
+        "denied_flags",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-preparation-comparison-authority-metadata"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_preparation_comparison_authority.schema.json"
+        },
+        "source": {
+          "type": "string",
+          "const": "tools/core/compiler_preparation_comparison_authority.py"
+        },
+        "schema_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "state": {
+          "type": "string",
+          "const": "unavailable"
+        },
+        "scope": {
+          "type": "string",
+          "const": "declared_authority_metadata_only"
+        },
+        "cut": {
+          "type": "string",
+          "const": "six_preparation_equality_key_comparators_only"
+        },
+        "issuance_scope": {
+          "type": "string",
+          "const": "one_invocation_one_completed_capture"
+        },
+        "approval": {
+          "type": "null",
+          "const": null
+        },
+        "caps": {
+          "type": "null",
+          "const": null
+        },
+        "acquisition": {
+          "type": "null",
+          "const": null
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "runtime_admission_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "denied_flags": {
+          "type": "array",
+          "const": [
+            "quota_authority_verified",
+            "policy_provenance_verified",
+            "source_identity_verified",
+            "copy_witness_verified",
+            "invocation_identity_verified",
+            "reservation_arithmetic_verified",
+            "runtime_admission",
+            "current_owner_enforcement",
+            "compiler_loaded",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "Metadata consistency is not approval, provenance, a copy witness, reservation or runtime admission."
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "cut",
+        "issuance_scope"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-preparation-comparison-authority-metadata"
+        },
+        "cut": {
+          "type": "string",
+          "const": "six_preparation_equality_key_comparators_only"
+        },
+        "issuance_scope": {
+          "type": "string",
+          "const": "one_invocation_one_completed_capture"
+        },
+        "approval": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/approval"
+          }
+        },
+        "caps": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/caps"
+          }
+        },
+        "acquisition": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/acquisition"
+          }
+        },
+        "binding": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/binding"
+          }
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_ref",
+        "decision_ref",
+        "policy_snapshot_sha256"
+      ],
+      "properties": {
+        "principal_ref": {
+          "$ref": "#/$defs/identifier"
+        },
+        "decision_ref": {
+          "$ref": "#/$defs/identifier"
+        },
+        "policy_snapshot_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fuel",
+        "payload"
+      ],
+      "properties": {
+        "fuel": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payload": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "acquisition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_ref",
+        "policy_source_ref",
+        "policy_snapshot_sha256"
+      ],
+      "properties": {
+        "producer_ref": {
+          "$ref": "#/$defs/identifier"
+        },
+        "policy_source_ref": {
+          "type": "string",
+          "const": "config/analysis_snapshot_lineage_contract.json:artifacts.ts_diagnostics.private_compiler_preparation_comparison_authority"
+        },
+        "policy_snapshot_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "invocation_ref",
+        "copy_witness_ref",
+        "source_sha256",
+        "cut"
+      ],
+      "properties": {
+        "invocation_ref": {
+          "$ref": "#/$defs/identifier"
+        },
+        "copy_witness_ref": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cut": {
+          "type": "string",
+          "const": "six_preparation_equality_key_comparators_only"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "metadata_state",
+        "runtime_status",
+        "missing_fields",
+        "declared_caps",
+        "matching_declared_policy_identity",
+        "flags",
+        "full_work_units",
+        "physical_fit"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "METADATA_VALID_RUNTIME_UNAVAILABLE"
+        },
+        "metadata_state": {
+          "type": "string",
+          "enum": [
+            "INCOMPLETE_DECLARATIONS",
+            "COMPLETE_DECLARATIONS_NOT_AUTHORITY"
+          ]
+        },
+        "runtime_status": {
+          "type": "string",
+          "const": "UNAVAILABLE"
+        },
+        "missing_fields": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "approval",
+              "caps",
+              "acquisition",
+              "binding"
+            ]
+          }
+        },
+        "declared_caps": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/caps"
+          }
+        },
+        "matching_declared_policy_identity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "quota_authority_verified",
+            "policy_provenance_verified",
+            "source_identity_verified",
+            "copy_witness_verified",
+            "invocation_identity_verified",
+            "reservation_arithmetic_verified",
+            "runtime_admission",
+            "current_owner_enforcement",
+            "compiler_loaded",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "quota_authority_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "policy_provenance_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "source_identity_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "copy_witness_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "invocation_identity_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "reservation_arithmetic_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "runtime_admission": {
+              "type": "boolean",
+              "const": false
+            },
+            "current_owner_enforcement": {
+              "type": "boolean",
+              "const": false
+            },
+            "compiler_loaded": {
+              "type": "boolean",
+              "const": false
+            },
+            "production_enabled": {
+              "type": "boolean",
+              "const": false
+            },
+            "semantic_lineage": {
+              "type": "boolean",
+              "const": false
+            },
+            "cache_eligible": {
+              "type": "boolean",
+              "const": false
+            },
+            "publication_authority": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        },
+        "full_work_units": {
+          "type": "null",
+          "const": null
+        },
+        "physical_fit": {
+          "type": "null",
+          "const": null
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "#/$defs/metadata"
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "matched",
+    "code",
+    "owner_context_sha256",
+    "consumer_policy_sha256",
+    "input_image_sha256",
+    "input_envelope_sha256",
+    "image_row_count",
+    "native_row_count",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "native_project_equivalent",
+    "program_completeness_established",
+    "raw_messages_retained"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-owned-diagnostic-correspondence"
+    },
+    "authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PRIVATE_DIAGNOSTIC_CORRESPONDENCE_MATCH_NOT_ADMITTED",
+        "PRIVATE_DIAGNOSTIC_CORRESPONDENCE_REFUSED"
+      ]
+    },
+    "matched": {
+      "type": "boolean"
+    },
+    "code": {
+      "type": "string"
+    },
+    "owner_context_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "consumer_policy_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "input_image_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "input_envelope_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "image_row_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "native_row_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_project_equivalent": {
+      "type": "boolean",
+      "const": false
+    },
+    "program_completeness_established": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_messages_retained": {
+      "type": "boolean",
+      "const": false
+    }
+  }
+}

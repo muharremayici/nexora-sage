@@ -1,0 +1,692 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora.compiler_entry_identity",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "scope",
+        "status",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "entry_role",
+        "entry_policy_sha256",
+        "entry_schema_sha256",
+        "capture_policy_sha256",
+        "image_policy_sha256",
+        "role_policy_sha256",
+        "role_aliases_sha256",
+        "source_sha256",
+        "identity_source_sha256",
+        "limits",
+        "scope_limits",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-identity"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_entry_identity.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scope": {
+          "const": "temporary_synthetic_five_role_identity_only"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIVE_ROLE_IDENTITY_OBSERVED_NOT_COMPILER_ADMISSION"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "entry_role": {
+          "const": "installed_entry"
+        },
+        "entry_policy_sha256": {
+          "const": "7b7861266affa4ca65e2a43c9cce31bff84938c30c862005791a0b5b56b2b779"
+        },
+        "entry_schema_sha256": {
+          "const": "da0391e1c05556405e97044cb0ecc6baefc406dc4eb26650af0914ded996b693"
+        },
+        "capture_policy_sha256": {
+          "const": "6482af0915e6d0da081b7543b887f770819ef1820549214ca9ebe88e651f8a02"
+        },
+        "image_policy_sha256": {
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "role_policy_sha256": {
+          "const": "7e27fdd857d49b91c9fa52660ad929e8c4e79e248396ead4500865235d61e5d5"
+        },
+        "role_aliases_sha256": {
+          "const": "4b4a663470ae9ab5b693e4550e6a857fedbb73ffa6d435d0dcd0910dc356e56e"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "identity_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "limits": {
+          "const": {
+            "context_bytes": 65536,
+            "metadata_bytes": 2097152,
+            "image_bytes": 41943040,
+            "output_bytes": 8192,
+            "operation_ms": 30000
+          }
+        },
+        "scope_limits": {
+          "const": {
+            "metadata_raw_bytes": 4096,
+            "entry_raw_bytes": 65536,
+            "raw_bytes": 81920,
+            "delivered_bytes": 81925
+          }
+        },
+        "claim_boundary": {
+          "const": "Disabled trusted-first-party temporary synthetic identity data only. One ordered checked acquisition is not an atomic snapshot, permission authentication, loaded code, native/Atlas/compiler-input or physical-cost admission."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "root_text",
+        "entry_expected",
+        "roles",
+        "max_total_raw_bytes",
+        "max_delivered_bytes"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "root_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policy_sha256",
+            "schema_sha256",
+            "capture_policy_sha256",
+            "image_policy_sha256",
+            "provenance_sha256",
+            "manifest_sha256",
+            "lockfile_sha256",
+            "package_sha256",
+            "entry_sha256",
+            "text_sha256",
+            "entry_relative_sha256",
+            "invocation_id",
+            "owner_id",
+            "compiler_version",
+            "entry_bytes"
+          ],
+          "properties": {
+            "policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "schema_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "capture_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "image_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "provenance_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "manifest_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "lockfile_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "package_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "entry_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "entry_relative_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "invocation_id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "owner_id": {
+              "type": "string",
+              "const": "typescript"
+            },
+            "compiler_version": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.+-]+$"
+            },
+            "entry_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provenance",
+            "manifest",
+            "lockfile",
+            "installed_package",
+            "installed_entry"
+          ],
+          "properties": {
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expected_sha256",
+                "expectation_class",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expected_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "expectation_class": {
+                  "const": "historical_supplied"
+                },
+                "anchor_ref_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expected_sha256",
+                "expectation_class",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expected_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "expectation_class": {
+                  "const": "historical_supplied"
+                },
+                "anchor_ref_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "lockfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expected_sha256",
+                "expectation_class",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expected_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "expectation_class": {
+                  "const": "historical_supplied"
+                },
+                "anchor_ref_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "installed_package": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expected_sha256",
+                "expectation_class",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expected_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "expectation_class": {
+                  "const": "historical_supplied"
+                },
+                "anchor_ref_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "installed_entry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relative_path",
+                "max_raw_bytes",
+                "expected_sha256",
+                "expectation_class",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "relative_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_raw_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "expected_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "expectation_class": {
+                  "const": "historical_supplied"
+                },
+                "anchor_ref_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        },
+        "max_total_raw_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_delivered_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "invocation_id",
+        "expected_sha256",
+        "policy_sha256",
+        "schema_sha256",
+        "records",
+        "entry",
+        "accounting",
+        "known_named_partial_bytes",
+        "full_native_cost",
+        "physical_heap_rss",
+        "ordered_acquisition_completed",
+        "entry_owner_allocated",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-identity"
+        },
+        "status": {
+          "const": "SYNTHETIC_FIVE_ROLE_IDENTITY_OBSERVED_NOT_COMPILER_ADMISSION"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "records": {
+          "type": "array",
+          "minItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "relative_path",
+              "declared_path_sha256",
+              "member_path_sha256",
+              "size_bytes",
+              "raw_sha256",
+              "expected_sha256",
+              "expectation_class",
+              "anchor_ref_sha256"
+            ],
+            "properties": {
+              "role": {
+                "enum": [
+                  "provenance",
+                  "manifest",
+                  "lockfile",
+                  "installed_package",
+                  "installed_entry"
+                ]
+              },
+              "relative_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "declared_path_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "member_path_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "raw_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "expected_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "expectation_class": {
+                "const": "historical_supplied"
+              },
+              "anchor_ref_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "raw_sha256",
+            "text_sha256",
+            "size_bytes",
+            "text_code_units"
+          ],
+          "properties": {
+            "raw_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "text_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "text_code_units": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open_attempts",
+            "open_returns",
+            "read_attempts",
+            "read_returns",
+            "close_attempts",
+            "close_returns",
+            "open_unknown",
+            "read_unknown",
+            "close_unknown",
+            "known_delivered_bytes",
+            "secondary_cleanup_errors"
+          ],
+          "properties": {
+            "open_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_delivered_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "secondary_cleanup_errors": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "known_named_partial_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "full_native_cost": {
+          "type": "null"
+        },
+        "physical_heap_rss": {
+          "type": "null"
+        },
+        "ordered_acquisition_completed": {
+          "const": true
+        },
+        "entry_owner_allocated": {
+          "const": false
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "atomic_snapshot_verified",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "complete_compiler_inputs",
+            "snapshot_bound",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "read_authority_granted": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "physical_path_binding_verified": {
+              "const": false
+            },
+            "atomic_snapshot_verified": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "native_execution_attested": {
+              "const": false
+            },
+            "complete_compiler_inputs": {
+              "const": false
+            },
+            "snapshot_bound": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "role_fields": {
+      "const": {
+        "provenance": "provenance_sha256",
+        "manifest": "manifest_sha256",
+        "lockfile": "lockfile_sha256",
+        "installed_package": "package_sha256",
+        "installed_entry": "entry_sha256"
+      }
+    }
+  }
+}

@@ -18,12 +18,22 @@ from tools.core.audit_rules import build_rule_taxonomy
 from tools.core.agent_packet_budget import COMPACT_AGENT_PACKET_TOKENS, DEFAULT_AGENT_PACKET_BUDGET_TOKENS, context_budget_profile
 from tools.core.agent_snippet_renderer import render_target_source_snippets
 from tools.core.atlas_io import load_atlas_data
+from tools.core.atlas_ast_contract import (AST_CONTRACT_VERSION, SAFE_PARSE_SUCCESS_ROLES,
+    EFFECT_SAFE_PARSE_ROLES, safe_parse_success_stored_problem, effect_safe_parse_stored_problem,
+    EFFECT_SAFE_PARSE_MERGE_ROLES, effect_safe_parse_merge_stored_problem)
+from tools.core.safeparse_early_return_contract import EARLY_RETURN_ROLES, early_return_roles, early_return_stored_problem
+from tools.core.factory_return_contract import (factory_return_roles, factory_return_stored_problem,
+    factory_argument_roles, factory_argument_stored_problem, resolver_factory_roles, resolver_factory_stored_problem)
 from tools.core.config import DOCTRINE, RAW_DIR, REPORTS_DIR, ROOT as ANALYZED_REPOSITORY_ROOT, save_json_atomic, save_text_atomic
 from tools.core.honesty_telemetry import record_honesty_event
 from tools.core.declaration_contract_view import render_declaration_inspection
+from tools.core.declared_artifact_view import render_declared_artifact_inspection
 from tools.core.json_io import load_json_file
+from tools.core.dead_code_intent_review import intent_review_request, project_intent_review_request, project_wiring_review_candidate
+from tools.core.wiring_source_observations import BOUNDARIES as WIRING_BOUNDARIES, stored_wiring_observation_problem
 from tools.core.manifest_source_links import manifest_source_link_group_valid
 from tools.core.operational_limits import sqlite_read_timeout_seconds
+from tools.core.source_coordinates import _utf8_span_validator
 
 
 AGENT_INSPECTION_MAX_TARGET_SPANS = 6
@@ -351,6 +361,577 @@ def _with_context_budget(yaml_lines: list[str]) -> list[str]:
         f"  status: {json.dumps(profile.get('status') or 'unknown', ensure_ascii=False)}",
         f"  exact_tokenizer: {str(bool(profile.get('exact_tokenizer'))).lower()}",
     ]
+
+
+def project_wiring_source_observations(payload: dict, file_info: Any, source_status: dict, *,
+                                       snapshot_content=None, syntax_sections=None) -> None:
+    """Last-priority stored review context, never pairing facts into intent.
+
+    The MCP caller owns verified primary metadata and snapshot reads. This view
+    cannot evict old facts, enlarge budgets or authorize target mutation.
+    """
+    if not isinstance(file_info, dict) or "wiring_source_observations" not in file_info:
+        return
+    evidence = file_info["wiring_source_observations"]
+    section = {"status": "unavailable", "reason": "stored_observations_unavailable", "records": [],
+        "shown": 0, "omitted": None, "record_count": None, "producer_omitted": None,
+        "source_binding": "unavailable", "edit_authority": "not_granted", **WIRING_BOUNDARIES,
+        "scope": "file_wide"}
+    grounded = (all(source_status.get(key) is True for key in ("inside_root", "exists", "indexed"))
+        and source_status.get("source_snapshot_status") == "ok" and source_status.get("drift_check_status") == "match"
+        and isinstance(evidence, dict) and isinstance(file_info.get("hash"), str)
+        and isinstance(file_info.get("parser_evidence"), dict)
+        and file_info["parser_evidence"].get("status") == "observed"
+        and file_info["parser_evidence"].get("parser_kind") == "typescript_compiler_api"
+        and evidence.get("source_hash") == file_info["hash"] == source_status.get("source_snapshot_hash")
+        and evidence.get("ast_contract_version") == file_info.get("ast_contract_version"))
+    if isinstance(evidence, dict) and evidence.get("status") == "unavailable":
+        problem = "producer_evidence_unavailable"
+    else:
+        problem = stored_wiring_observation_problem(evidence, snapshot_content) if grounded else "source_binding_unavailable"
+    records = []
+    guidance = None
+    if not problem:
+        records = evidence["records"]
+        section.update(status=evidence["status"], reason="stored_finite_source_facts_only", record_count=len(records),
+            omitted=len(records), producer_omitted=evidence["omitted"], source_binding="snapshot_and_live_match")
+        if records:
+            guidance = intent_review_request()
+            section["review_policy"] = guidance.get("policy") or "unavailable"
+        else:
+            section["empty_result_meaning"] = "not_a_clean_bill_or_completed_integration"
+    else:
+        section["reason"] = problem
+    older = dict(syntax_sections or {})
+    if isinstance(payload.get("manifest_type_entry_links"), dict):
+        older["manifest_type_entry_links"] = payload["manifest_type_entry_links"]
+    used = sum(len(value.get("records", [])) for value in older.values()
+               if isinstance(value, dict) and isinstance(value.get("records"), list))
+    def with_view(value):
+        return {**payload, "wiring_source_observations": value,
+                **({"wiring_review_request": guidance} if guidance is not None else {})}
+    def fits(value):
+        reserved = ({**value, "reason": "shared_compact_or_record_budget_omission"}
+                    if value.get("omitted") else value)
+        return (context_budget_profile(json.dumps({**older, "wiring_source_observations": reserved}, ensure_ascii=False),
+                    budget_tokens=COMPACT_AGENT_PACKET_TOKENS)["status"] == "pass"
+            and all(context_budget_profile(text, budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] == "pass"
+                for text in (json.dumps(with_view(reserved), ensure_ascii=False), render_agent_inspection_brief(with_view(reserved)))))
+    if not fits(section):
+        return  # No room for an honest header; absence grants no fact/intent authority.
+    from copy import deepcopy
+    for row in records[:max(0, AGENT_INSPECTION_MAX_TARGET_SPANS - used)]:
+        span = row["spans"]["import_binding" if row["kind"] == "named_import_without_identifier_occurrence" else "attribute"]
+        item = {key: deepcopy(value) for key,value in row.items() if key != "spans"}
+        item["span"] = deepcopy(span)
+        item["source_followup"] = {"tool": "inspect_file", "file_path": source_status.get("target_ref") or "",
+            "line_start": span["line"], "line_end": span["end_line"]}
+        candidate = {**section, "records": [*section["records"], item], "shown": section["shown"] + 1,
+                     "omitted": section["omitted"] - 1}
+        if not fits(candidate):
+            break
+        section = candidate
+    if section["omitted"]:
+        section["reason"] = "shared_compact_or_record_budget_omission"
+    payload["wiring_source_observations"] = section
+    if guidance is not None:
+        # Guidance is not syntax evidence: keep it separate, under the existing
+        # complete packet budget, rather than padding each source-fact record.
+        payload["wiring_review_request"] = guidance
+    review_candidate = project_wiring_review_candidate(section)
+    if review_candidate is not None:
+        # The optional label is lower priority than every existing fact. If it
+        # cannot fit, withhold the label rather than shortening any evidence.
+        candidate_payload = {**payload, "wiring_review_candidate": review_candidate}
+        if all(context_budget_profile(text, budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] == "pass"
+               for text in (json.dumps(candidate_payload, ensure_ascii=False), render_agent_inspection_brief(candidate_payload))):
+            payload["wiring_review_candidate"] = review_candidate
+
+
+def project_safeparse_success_evidence(payload: dict, file_info: Any, source_status: dict, *,
+                                      snapshot_content=None, syntax_sections=None, coordinate_cache=None) -> None:
+    """Preserve the older state-lane interface and priority."""
+    _project_safeparse_evidence(payload, file_info, source_status, snapshot_content=snapshot_content,
+        syntax_sections=syntax_sections, coordinate_cache=coordinate_cache, effect=False)
+
+
+def project_effect_safeparse_callback_evidence(payload: dict, file_info: Any, source_status: dict, *,
+                                              snapshot_content=None, syntax_sections=None, coordinate_cache=None) -> None:
+    """Last-priority effect/callback source orientation, never validation authority."""
+    _project_safeparse_evidence(payload, file_info, source_status, snapshot_content=snapshot_content,
+        syntax_sections=syntax_sections, coordinate_cache=coordinate_cache, effect=True)
+
+
+def project_effect_safeparse_merge_evidence(payload: dict, file_info: Any, source_status: dict, *,
+                                           snapshot_content=None, syntax_sections=None, coordinate_cache=None) -> None:
+    _project_safeparse_evidence(payload, file_info, source_status, snapshot_content=snapshot_content,
+        syntax_sections=syntax_sections, coordinate_cache=coordinate_cache, effect=True, merge=True)
+
+
+def project_safeparse_early_return_evidence(payload: dict, file_info: Any, source_status: dict, *,
+                                          snapshot_content=None, syntax_sections=None, coordinate_cache=None,
+                                          source_candidate=None) -> None:
+    _project_safeparse_evidence(payload, file_info, source_status, snapshot_content=snapshot_content,
+        syntax_sections=syntax_sections, coordinate_cache=coordinate_cache, effect=False, early=True,
+        source_candidate=source_candidate)
+
+
+def project_resolver_factory_evidence(payload: dict, file_info: Any, source_status: dict, *,
+                                      snapshot_content=None, syntax_sections=None, coordinate_cache=None,
+                                      source_candidate=None, parameter_focus=False, chain_focus=False) -> None:
+    _project_safeparse_evidence(payload, file_info, source_status, snapshot_content=snapshot_content,
+        syntax_sections=syntax_sections, coordinate_cache=coordinate_cache, effect=False, resolver=True,
+        source_candidate=source_candidate, parameter_focus=parameter_focus, chain_focus=chain_focus)
+
+
+def project_factory_return_construction(file_info, symbol, source_binding, *, snapshot_content=None, target_ref=""):
+    """Optional definition syntax; caller owns verified primary/live binding."""
+    base = {"status": "unavailable", "reason": "construction_metadata_missing", "source_binding": "unavailable",
+        "schema_authority": "not_established", "factory_semantics": "not_established", "argument_semantics": "not_established",
+        "runtime_proof": "not_performed", "edit_authority": "not_granted", "mutation_proposed": False}
+    if not isinstance(file_info, dict) or "factory_return_construction_evidence" not in file_info:
+        return base
+    identity, parser = file_info.get("hash"), file_info.get("parser_evidence")
+    if (source_binding != "snapshot_and_live_match" or not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+            or file_info.get("ast_contract_version") != AST_CONTRACT_VERSION or not isinstance(parser, dict)
+            or parser.get("status") != "observed" or parser.get("parser_kind") != "typescript_compiler_api"):
+        return {**base, "reason": "construction_source_binding_unavailable"}
+    evidence = file_info["factory_return_construction_evidence"]
+    rows = evidence.get("records") if isinstance(evidence, dict) else None
+    valid_span = (_safeparse_snapshot_spans(file_info, snapshot_content, identity, None)
+        if isinstance(rows, list) and 0 < len(rows) <= 64 else None)
+    problem = factory_return_stored_problem(evidence, identity, valid_span, ast_contract_version=AST_CONTRACT_VERSION)
+    if problem:
+        return {**base, "reason": problem}
+    if (not isinstance(symbol, dict) or symbol.get("type") not in {"Arrow","Function"} or symbol.get("exported") is not True
+            or symbol.get("export_kind") != "named" or not isinstance(target_ref, str) or not target_ref
+            or any(type(symbol.get(key)) is not int for key in ("start", "end"))):
+        return {**base, "reason": "selected_factory_identity_unavailable"}
+    kind = "function_declaration" if symbol["type"] == "Function" else "const_arrow"
+    matches = [row for row in rows if row["factory_name"] == symbol.get("name") and row["factory_kind"] == kind
+        and row["spans"]["factory" if kind == "function_declaration" else "factory_binding"]["start"] == symbol["start"]
+        and row["spans"]["factory"]["end"] == symbol["end"]]
+    base.update(source_binding="snapshot_and_live_match", coverage_status=evidence["status"], producer_omitted=evidence["omitted"])
+    if len(matches) != 1:
+        return {**base, "status": "not_observed", "reason": "selected_factory_not_in_retained_finite_records"}
+    from copy import deepcopy
+    row = matches[0]
+    returned = row["spans"]["returned"]
+    return {**base, "status": "observed", "reason": "returned_expression_syntax_only", "methods": list(row["methods"]),
+        **({"single_parameter": {"name":row["parameter_name"], "source_followup":{"tool":"inspect_file", "file_path":target_ref,
+            "line_start":row["spans"]["parameter"]["line"], "line_end":row["spans"]["parameter"]["end_line"]},
+            "source_uses":_project_factory_parameter_uses(row,target_ref)}} if "parameter_name" in row else {}),
+        "body_kind": row["body_kind"], "factory_kind":row["factory_kind"], "import_binding": dict(row["import_binding"]), "return_span": deepcopy(returned),
+        "argument_bindings": _project_factory_argument_bindings(file_info,row,identity,valid_span,target_ref),
+        **({"callback_guard_reads":_project_factory_callback_guards(row,target_ref)} if "parameter_name" in row else {}),
+        "source_followup": {"tool": "inspect_file", "file_path": target_ref,
+            "line_start": returned["line"], "line_end": returned["end_line"]}}
+
+
+def _project_factory_callback_guards(row,target_ref):
+    """Definition-only captured-formal syntax, not actual/formal or effects."""
+    from copy import deepcopy
+    def follow(span):
+        return {"tool":"inspect_file","file_path":target_ref,"line_start":span["line"],"line_end":span["end_line"]}
+    records=[{"method_name":row["methods"][guard["call_index"]],"call_index":guard["call_index"],
+        "argument_index":guard["argument_index"],"formal_name":row["parameter_name"],
+        "reference_span":deepcopy(row["spans"][f"guard_{i}_reference"]),
+        "formal_source_followup":follow(row["spans"]["parameter"]),
+        "source_followup":follow(row["spans"][f"guard_{i}_branch"])} for i,guard in enumerate(row["callback_guard_reads"])]
+    return {"status":"observed" if records else "not_observed",
+        "reason":"first_bare_if_formal_return_in_superrefine_arrow_source_only" if records else "no_retained_callback_guard_read_not_absence",
+        "records":records,"record_count":len(records),"shown":len(records),"omitted":0,"producer_omitted":row["callback_guard_reads_omitted"],
+        "source_binding":"snapshot_and_live_match","association_scope":"factory_definition_only",
+        "argument_value_semantics":"not_established","parameter_effects":"not_established","callback_activation":"not_established",
+        "runtime_proof":"not_performed","edit_authority":"not_granted","mutation_proposed":False}
+
+
+def _resolver_parameter_source_association(record,candidate,caller_ref):
+    """Join already source-validated facts, never resolve/evaluate an actual.
+
+    The enclosing projector validates every caller row before invoking the
+    existing candidate owner, which independently grounds the entire factory
+    lane and selected definition. Do not mutate its import-keyed cached result.
+    """
+    base={"status":"unavailable","reason":"single_required_formal_source_binding_unavailable","source_binding":"unavailable",
+        "association_scope":"resolver_argument_position_to_factory_formal","argument_value_semantics":"not_established",
+        "type_compatibility":"not_established","parameter_usage":"not_established","parameter_effects":"not_established",
+        "callback_activation":"not_established","runtime_proof":"not_performed","edit_authority":"not_granted","mutation_proposed":False}
+    if type(record.get("argument_count")) is not int or record["argument_count"]!=1:
+        return {**base,"reason":"single_factory_argument_required"}
+    construction=candidate.get("return_construction")
+    if not isinstance(construction,dict): return base
+    parameter=construction.get("single_parameter")
+    if (candidate.get("status")!="source_candidate" or candidate.get("source_binding")!="snapshot_and_live_match"
+            or construction.get("status")!="observed" or not isinstance(parameter,dict)):
+        return base
+    from copy import deepcopy
+    actual=record["spans"]["argument_0"]
+    return {**base,"status":"observed","reason":"single_argument_to_required_formal_source_position_only",
+        "source_binding":"snapshot_and_live_match","argument_index":0,"actual_source_kind":"opaque_argument_expression",
+        "formal_name":parameter["name"],"actual_span":deepcopy(actual),
+        "actual_source_followup":{"tool":"inspect_file","file_path":caller_ref,"line_start":actual["line"],"line_end":actual["end_line"],"evidence_focus":"resolver_parameter"},
+        "formal_source_followup":deepcopy(parameter["source_followup"])}
+
+
+def _resolver_source_followup_chain(record,candidate,caller_ref,association):
+    """A short navigation path over existing facts, not data/execution flow.
+
+    Caller rows and every retained factory row have already passed their owners.
+    Stop at the first missing correspondence. Multiple/omitted callback guards
+    require followup, not an arbitrary choice of a supposedly complete chain.
+    """
+    from copy import deepcopy
+    call=record["spans"]["resolver_call"]
+    steps=[{"kind":"resolver_call","name":record["resolver_local_name"],"argument_count":record["argument_count"],
+        "source_followup":{"tool":"inspect_file","file_path":caller_ref,"line_start":call["line"],"line_end":call["end_line"],"evidence_focus":"resolver_chain"}}]
+    if record["argument_count"]==1: steps[0]["argument_span"]=deepcopy(record["spans"]["argument_0"])
+    result={"status":"partial","reason":"factory_source_binding_unavailable","steps":steps,
+        "interpretation":"source_correspondences_not_value_or_execution_flow","argument_value_semantics":"not_established",
+        "parameter_effects":"not_established","callback_activation":"not_established","runtime_proof":"not_performed",
+        "edit_authority":"not_granted","mutation_proposed":False}
+    if candidate.get("status")!="source_candidate" or candidate.get("source_binding")!="snapshot_and_live_match": return result
+    steps.append({"kind":"factory_definition","name":candidate["target"]["symbol"],"source_followup":deepcopy(candidate["source_followup"])})
+    if association.get("status")!="observed": return {**result,"reason":association["reason"]}
+    steps.append({"kind":"formal_parameter","name":association["formal_name"],"argument_index":association["argument_index"],
+        "source_followup":deepcopy(association["formal_source_followup"])})
+    guards=candidate["return_construction"]["callback_guard_reads"]
+    result.update(callback_guard_record_count=guards["record_count"],callback_guard_producer_omitted=guards["producer_omitted"])
+    if guards["status"]!="observed": return {**result,"reason":guards["reason"]}
+    if guards["record_count"]!=1 or guards["producer_omitted"]:
+        return {**result,"reason":"callback_guard_selection_required_or_producer_omitted"}
+    guard=guards["records"][0]
+    if guard["formal_name"]!=association["formal_name"]: return {**result,"reason":"callback_formal_source_association_unavailable"}
+    steps.append({"kind":"callback_guard_read","method_name":guard["method_name"],"call_index":guard["call_index"],
+        "association_scope":"factory_definition_only","source_followup":deepcopy(guard["source_followup"])})
+    return {**result,"status":"observed","reason":"four_source_correspondences_only_not_runtime_proof"}
+
+
+def _project_factory_parameter_uses(row,target_ref):
+    """Only fully validated parent rows enter this internal optional projection."""
+    from copy import deepcopy
+    uses = [{"method_name":row["methods"][use["call_index"]], "call_index":use["call_index"],
+        "argument_index":use["argument_index"], "reference_span":deepcopy(row["spans"][f"parameter_use_{index}"]),
+        "source_followup":{"tool":"inspect_file","file_path":target_ref,
+            "line_start":row["spans"][f"parameter_use_{index}"]["line"],"line_end":row["spans"][f"parameter_use_{index}"]["end_line"]}}
+        for index,use in enumerate(row["parameter_uses"])]
+    return {"status":"observed" if uses else "not_observed", "reason":"direct_identifier_argument_source_only" if uses else "no_retained_direct_identifier_use_not_absence",
+        "records":uses,"record_count":len(uses),"shown":len(uses),"omitted":0,"producer_omitted":row["parameter_uses_omitted"],
+        "source_binding":"snapshot_and_live_match","parameter_effects":"not_established","runtime_proof":"not_performed",
+        "edit_authority":"not_granted","mutation_proposed":False}
+
+
+def _project_factory_argument_bindings(file_info, selected, identity, valid_span, target_ref):
+    base = {"status":"unavailable", "reason":"argument_metadata_missing", "records":[], "record_count":None,
+        "shown":0, "omitted":None, "producer_omitted":None, "source_binding":"unavailable",
+        "argument_semantics":"not_established", "runtime_proof":"not_performed", "edit_authority":"not_granted", "mutation_proposed":False}
+    evidence = file_info.get("factory_argument_const_evidence")
+    if evidence is None: return base
+    problem = factory_argument_stored_problem(evidence,file_info["factory_return_construction_evidence"],identity,
+        valid_span,ast_contract_version=AST_CONTRACT_VERSION)
+    if problem: return {**base,"reason":problem}
+    matches = [row for row in evidence["records"] if row["factory_name"] == selected["factory_name"] and row["spans"]["factory"] == selected["spans"]["factory"]]
+    from copy import deepcopy
+    records = [{"method_name":row["method_name"], "call_index":row["call_index"], "argument_index":row["argument_index"],
+        "kind":row["kind"], "name":row["name"], "binding_scope":row["binding_scope"], "reference_span":deepcopy(row["spans"]["reference"]),
+        "source_followup":{"tool":"inspect_file", "file_path":target_ref,
+            "line_start":row["spans"]["declaration_list"]["line"], "line_end":row["spans"]["declaration_list"]["end_line"]}} for row in matches]
+    return {**base,"status":"observed" if records else "not_observed", "reason":"source_const_associations_only" if records else "selected_factory_not_in_retained_argument_records_not_absence",
+        "records":records, "record_count":len(records), "shown":len(records), "omitted":0,
+        "coverage_status":evidence["status"], "producer_omitted":evidence["omitted"], "source_binding":"snapshot_and_live_match"}
+
+
+def _safeparse_snapshot_spans(file_info, snapshot_content, identity, cache):
+    # One snapshot hash and coordinate batch for all finite lanes per inspection.
+    # The cache is invocation-local, never a reusable source/primary authority.
+    if (cache is not None and cache.get("identity") == identity and cache.get("file_info") is file_info
+            and cache.get("content") is snapshot_content and "validator" in cache):
+        return cache["validator"]
+    import hashlib
+    validator = None
+    if (isinstance(snapshot_content, str) and len(snapshot_content.encode("utf-8")) <= 1048576
+            and hashlib.sha256(snapshot_content.encode("utf-8")).hexdigest() == identity):
+        spans = []
+        for key, roles in (("client_safeparse_success_evidence", SAFE_PARSE_SUCCESS_ROLES),
+                ("effect_safeparse_callback_evidence", EFFECT_SAFE_PARSE_ROLES),
+                ("effect_safeparse_merge_evidence", EFFECT_SAFE_PARSE_MERGE_ROLES),
+                ("safeparse_early_return_evidence", None), ("factory_return_construction_evidence", None),
+                ("factory_argument_const_evidence", None), ("resolver_factory_evidence", None)):
+            lane = file_info.get(key)
+            rows = lane.get("records") if isinstance(lane, dict) else None
+            selector = resolver_factory_roles if key == "resolver_factory_evidence" else early_return_roles if key == "safeparse_early_return_evidence" else factory_argument_roles if key == "factory_argument_const_evidence" else factory_return_roles
+            if (isinstance(rows, list) and 0 < len(rows) <= 64 and all(isinstance(row, dict)
+                    and isinstance(row.get("spans"), dict) and set(row["spans"]) == (selector(row) if roles is None else roles) for row in rows)):
+                spans.extend(span for row in rows for span in row["spans"].values())
+        validator = _utf8_span_validator(snapshot_content, spans)
+    if cache is not None:
+        cache.update(identity=identity, file_info=file_info, content=snapshot_content, validator=validator)
+    return validator
+
+
+def _project_safeparse_evidence(payload: dict, file_info: Any, source_status: dict, *,
+                               snapshot_content, syntax_sections, coordinate_cache, effect, merge=False, early=False, resolver=False,
+                               source_candidate=None, parameter_focus=False, chain_focus=False) -> None:
+    """Last-priority source facts; keep older sections and authority untouched."""
+    key = "effect_safeparse_callback_evidence" if effect else "client_safeparse_success_evidence"
+    roles = EFFECT_SAFE_PARSE_ROLES if effect else SAFE_PARSE_SUCCESS_ROLES
+    stored_problem = effect_safe_parse_stored_problem if effect else safe_parse_success_stored_problem
+    if merge:
+        key, roles = "effect_safeparse_merge_evidence", EFFECT_SAFE_PARSE_MERGE_ROLES
+        stored_problem = effect_safe_parse_merge_stored_problem
+    if early:
+        key, roles = "safeparse_early_return_evidence", EARLY_RETURN_ROLES
+        stored_problem = early_return_stored_problem
+    if resolver:
+        key, roles = "resolver_factory_evidence", None
+        stored_problem = resolver_factory_stored_problem
+    linked = early or resolver
+    if not isinstance(file_info, dict) or key not in file_info:
+        return  # Legacy is not synthesized as an observed empty scan.
+    evidence = file_info[key]
+    section = {"status": "unavailable", "reason": "source_binding_unavailable", "records": [],
+        "record_count": None, "shown": 0, "omitted": None, "producer_omitted": None,
+        "source_binding": "unavailable", "scope": "file_wide_finite_grammar_only", "schema_authority": "not_established",
+        "type_compatibility": "not_established", "runtime_proof": "not_performed",
+        "edit_authority": "not_granted", "mutation_proposed": False}
+    if merge:
+        section.update(prior_value_semantics="not_established", merge_result_semantics="not_established")
+    if early:
+        section.update(factory_semantics="not_established", continuation_safety="not_established")
+    if resolver:
+        section.update(factory_semantics="not_established", argument_semantics="not_established", form_semantics="not_established")
+        if parameter_focus:
+            section["detail_scope"]="argument_formal_position_only_construction_and_callback_details_not_requested"
+        if chain_focus:
+            section["detail_scope"]="compact_source_followup_chain_other_optional_details_not_requested"
+    identity = file_info.get("hash")
+    parser = file_info.get("parser_evidence")
+    grounded = (all(source_status.get(key) is True for key in ("inside_root", "exists", "indexed"))
+        and source_status.get("source_snapshot_status") == "ok" and source_status.get("drift_check_status") == "match"
+        and isinstance(identity, str) and re.fullmatch(r"[0-9a-f]{64}", identity)
+        and source_status.get("source_snapshot_hash") == identity and file_info.get("ast_contract_version") == AST_CONTRACT_VERSION
+        and isinstance(parser, dict) and parser.get("status") == "observed" and parser.get("parser_kind") == "typescript_compiler_api")
+    records = evidence.get("records") if isinstance(evidence, dict) else None
+    valid_span = None
+    if grounded and isinstance(records, list) and 0 < len(records) <= 64:
+        if all(isinstance(row, dict) and isinstance(row.get("spans"), dict)
+               and set(row["spans"]) == (resolver_factory_roles(row) if resolver else early_return_roles(row) if early else roles) for row in records):
+            valid_span = _safeparse_snapshot_spans(file_info, snapshot_content, identity, coordinate_cache)
+    problem = "source_binding_unavailable"
+    if grounded:
+        problem = (stored_problem(evidence, identity, valid_span, ast_contract_version=AST_CONTRACT_VERSION) if linked
+            else stored_problem(evidence, identity, valid_span))
+    if problem:
+        section["reason"] = problem
+    else:
+        section.update(status=evidence["status"], reason="source_syntax_only", record_count=len(records),
+            omitted=len(records), producer_omitted=evidence["omitted"], source_binding="snapshot_and_live_match")
+        if not records:
+            section["empty_result_meaning"] = "not_absence_or_clean_code"
+    older = dict(syntax_sections or {})
+    for key in ("manifest_type_entry_links", "wiring_source_observations"):
+        if isinstance(payload.get(key), dict):
+            older[key] = payload[key]
+    key = "resolver_factory_evidence" if resolver else "safeparse_early_return_evidence" if early else "effect_safeparse_merge_evidence" if merge else "effect_safeparse_callback_evidence" if effect else "client_safeparse_success_evidence"
+    if effect and isinstance(payload.get("client_safeparse_success_evidence"), dict):
+        older["client_safeparse_success_evidence"] = payload["client_safeparse_success_evidence"]
+    if merge and isinstance(payload.get("effect_safeparse_callback_evidence"), dict):
+        older["effect_safeparse_callback_evidence"] = payload["effect_safeparse_callback_evidence"]
+    if linked:
+        for older_key in ("client_safeparse_success_evidence", "effect_safeparse_callback_evidence", "effect_safeparse_merge_evidence"):
+            if isinstance(payload.get(older_key), dict):
+                older[older_key] = payload[older_key]
+        if resolver and isinstance(payload.get("safeparse_early_return_evidence"), dict):
+            older["safeparse_early_return_evidence"] = payload["safeparse_early_return_evidence"]
+    used = sum(len(value.get("records", [])) for value in older.values()
+        if isinstance(value, dict) and isinstance(value.get("records"), list))
+    def fits(value):
+        reserved = {**value, "reason": "shared_compact_or_record_budget_omission"} if value.get("omitted") else value
+        candidate = {**payload, key: reserved}
+        return (context_budget_profile(json.dumps({**older, key: reserved}, ensure_ascii=False),
+                    budget_tokens=COMPACT_AGENT_PACKET_TOKENS)["status"] == "pass"
+            and all(context_budget_profile(text, budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)["status"] == "pass"
+                for text in (json.dumps(candidate, indent=2, ensure_ascii=False), render_agent_inspection_brief(candidate))))
+    if not fits(section):
+        if effect or linked:
+            # A tiny disclosure is not observed-empty and carries no fact/count
+            # or source authority. Preserve all older sections and both limits.
+            notice = {"status": "withheld_budget"}
+            if fits(notice):
+                payload[key] = notice
+        return  # No honest header fits: no fact/absence authority, no older eviction.
+    if not problem:
+        from copy import deepcopy
+        constructions, parameter_groups, resolver_parameter_groups = [], [], []
+        chain_extra_spans=0
+        for row in records[:max(0, AGENT_INSPECTION_MAX_TARGET_SPANS - used)]:
+            spans = row["spans"]
+            anchor = "resolver_call" if resolver else "guard" if early else "sink"
+            item = {"span": deepcopy(spans[anchor]),
+                "source_followup": {"tool": "inspect_file", "file_path": source_status.get("target_ref") or "",
+                    "line_start": spans["resolver_call" if resolver else "callback_binding" if early else "effect" if effect else "fetch"]["line"], "line_end": spans[anchor]["end_line"]}}
+            if effect:
+                item["source_followup"]["evidence_focus"] = "effect_safeparse_merge" if merge else "effect_safeparse"
+            if merge:
+                item["prior_source_followup"] = {"tool": "inspect_file", "file_path": source_status.get("target_ref") or "",
+                    "line_start": spans["prior_declaration"]["line"], "line_end": spans["prior_declaration"]["end_line"],
+                    "evidence_focus": "effect_safeparse_merge"}
+            if early:
+                item["source_followup"]["evidence_focus"] = "safeparse_early_return"
+                for followup, role in (("input_source_followup", "input_declaration"), ("factory_source_followup", "factory_import")):
+                    item[followup] = {"tool": "inspect_file", "file_path": source_status.get("target_ref") or "",
+                        "line_start": spans[role]["line"], "line_end": spans[role]["end_line"], "evidence_focus": "safeparse_early_return"}
+            if resolver:
+                item.update(resolver_local_name=row["resolver_local_name"], factory_local_name=row["factory_local_name"], argument_count=row["argument_count"])
+                item["source_followup"]["evidence_focus"] = "resolver_factory"
+                for followup,role in (("factory_source_followup","factory_import"),("resolver_source_followup","resolver_import")):
+                    item[followup] = {"tool":"inspect_file","file_path":source_status.get("target_ref") or "",
+                        "line_start":spans[role]["line"],"line_end":spans[role]["end_line"],"evidence_focus":"resolver_factory"}
+            if linked:
+                item["factory_source_candidate"] = (source_candidate(row, valid_span) if source_candidate else
+                    {"status": "unresolved", "reason": "source_candidate_not_requested", "source_binding": "unavailable"})
+                # Settle all older record/definition fields before this new
+                # optional detail. Never evict an old row to fit enrichment.
+                item["factory_source_candidate"] = dict(item["factory_source_candidate"])
+                resolver_parameter = (_resolver_parameter_source_association(row,item["factory_source_candidate"],source_status.get("target_ref") or "")
+                    if resolver else None)
+                if chain_focus:
+                    chain=_resolver_source_followup_chain(row,item["factory_source_candidate"],source_status.get("target_ref") or "",resolver_parameter)
+                construction = item["factory_source_candidate"].pop("return_construction", None)
+                parameter = item["factory_source_candidate"].pop("call_parameter_binding", None)
+                if chain_focus:
+                    if used+section["shown"]+chain_extra_spans+len(chain["steps"])>AGENT_INSPECTION_MAX_TARGET_SPANS: break
+                    item={"source_chain":chain}
+            candidate = {**section, "records": [*section["records"], item], "shown": section["shown"] + 1,
+                "omitted": section["omitted"] - 1}
+            if not fits(candidate):
+                break
+            section = candidate
+            if chain_focus: chain_extra_spans+=len(chain["steps"])-1
+            if linked and construction is not None and not parameter_focus and not chain_focus:
+                constructions.append((section["shown"] - 1, construction))
+            if early and parameter is not None:
+                parameter_groups.append((section["shown"] - 1, parameter))
+            if resolver and resolver_parameter is not None and not chain_focus:
+                resolver_parameter_groups.append((section["shown"] - 1,resolver_parameter))
+        if section["omitted"]:
+            section["reason"] = "shared_compact_or_record_budget_omission"
+        if linked:
+            argument_groups, callback_groups = [], []
+            for index, construction in constructions:
+                construction = dict(construction)
+                # Internal formal metadata feeds only the separately budgeted
+                # actual/formal association, not older construction summaries.
+                construction.pop("single_parameter",None)
+                arguments = construction.pop("argument_bindings",None)
+                callbacks = construction.pop("callback_guard_reads",None)
+                for detail in (construction, {"status": "withheld_budget"}):
+                    candidate = deepcopy(section)
+                    candidate["records"][index]["factory_source_candidate"]["return_construction"] = detail
+                    if fits(candidate):
+                        section = candidate
+                        if detail is construction and isinstance(arguments,dict): argument_groups.append((index,arguments))
+                        # Resolver is already the last optional lane. Do not
+                        # enrich earlier safeParse output and crowd that older
+                        # resolver lane before its records have settled.
+                        if resolver and detail is construction and isinstance(callbacks,dict): callback_groups.append((index,callbacks))
+                        break
+            remaining = max(0,AGENT_INSPECTION_MAX_TARGET_SPANS - used - section["shown"])
+            for index, arguments in argument_groups:
+                group = deepcopy(arguments)
+                rows = group.pop("records",[])
+                group["records"] = []
+                if rows:
+                    group.update(shown=0,omitted=len(rows),reason="shared_compact_or_record_budget_omission")
+                candidate = deepcopy(section)
+                target = candidate["records"][index]["factory_source_candidate"]["return_construction"]
+                target["argument_bindings"] = group
+                if not fits(candidate):
+                    target["argument_bindings"] = {"status":"withheld_budget"}
+                    if fits(candidate): section = candidate
+                    continue
+                section = candidate
+                for row in rows[:remaining]:
+                    candidate = deepcopy(section)
+                    group = candidate["records"][index]["factory_source_candidate"]["return_construction"]["argument_bindings"]
+                    group["records"].append(row)
+                    group["shown"] += 1
+                    group["omitted"] -= 1
+                    if not group["omitted"]: group["reason"] = arguments["reason"]
+                    if not fits(candidate): break
+                    section = candidate
+                    remaining -= 1
+            # This new source association is last priority. Its two source
+            # followups consume the existing shared span budget, never old rows.
+            def settle_parameter_associations(groups):
+                nonlocal section,remaining
+                use_groups=[]
+                for index,parameter in groups:
+                    parameter=dict(parameter)
+                    uses=parameter.pop("source_uses",None)
+                    detail=parameter if parameter["status"]!="observed" or remaining>=2 else {"status":"withheld_budget"}
+                    for choice in (detail,{"status":"withheld_budget"}):
+                        candidate=deepcopy(section)
+                        candidate["records"][index]["factory_source_candidate"]["call_parameter_binding"]=choice
+                        if fits(candidate):
+                            section=candidate
+                            if choice is parameter and parameter["status"]=="observed":
+                                remaining-=2
+                                if isinstance(uses,dict): use_groups.append((index,uses))
+                            break
+                return use_groups
+            use_groups=settle_parameter_associations(parameter_groups)
+            # New source-use facts fit only after every older association. No
+            # old enrichment is evicted and each additional range costs a span.
+            for index,uses in use_groups:
+                group = deepcopy(uses)
+                rows = group.pop("records")
+                group.update(records=[],shown=0,omitted=len(rows))
+                if rows: group["reason"] = "shared_compact_or_record_budget_omission"
+                candidate = deepcopy(section)
+                target = candidate["records"][index]["factory_source_candidate"]["call_parameter_binding"]
+                target["source_uses"] = group
+                if not fits(candidate):
+                    target["source_uses"] = {"status":"withheld_budget"}
+                    if fits(candidate): section = candidate
+                    continue
+                section = candidate
+                for row in rows[:remaining]:
+                    candidate = deepcopy(section)
+                    group = candidate["records"][index]["factory_source_candidate"]["call_parameter_binding"]["source_uses"]
+                    group["records"].append(row)
+                    group["shown"] += 1
+                    group["omitted"] -= 1
+                    if not group["omitted"]: group["reason"] = uses["reason"]
+                    if not fits(candidate): break
+                    section = candidate
+                    remaining -= 1
+            # Definition-only callback guards are newer/lower priority than
+            # direct source uses and actual/formal bindings. Two source ranges
+            # per row consume the existing shared allowance; no cap increase.
+            for index,callbacks in callback_groups:
+                group=deepcopy(callbacks); rows=group.pop("records")
+                group.update(records=[],shown=0,omitted=len(rows))
+                if rows: group["reason"]="shared_compact_or_record_budget_omission"
+                candidate=deepcopy(section)
+                target=candidate["records"][index]["factory_source_candidate"]["return_construction"]
+                target["callback_guard_reads"]=group
+                if not fits(candidate):
+                    target["callback_guard_reads"]={"status":"withheld_budget"}
+                    if fits(candidate): section=candidate
+                    continue
+                section=candidate
+                for row in rows[:remaining//2]:
+                    candidate=deepcopy(section)
+                    group=candidate["records"][index]["factory_source_candidate"]["return_construction"]["callback_guard_reads"]
+                    group["records"].append(row); group["shown"]+=1; group["omitted"]-=1
+                    if not group["omitted"]: group["reason"]=callbacks["reason"]
+                    if not fits(candidate): break
+                    section=candidate; remaining-=2
+            # New positional-only associations fit after ALL older callback
+            # facts and consume the same two-range allowance as the old join.
+            settle_parameter_associations(resolver_parameter_groups)
+    payload[key] = section
 
 
 def _norm(value: str) -> str:
@@ -805,6 +1386,8 @@ def _compact_dead_row(row: dict[str, Any], workspace_index: dict[str, str] | Non
             "mutation_proposed": actionability.get("mutation_proposed"),
             "allowed_outcomes": _list_sample(actionability.get("allowed_outcomes"), 8),
             "why": actionability.get("why"),
+            **({"intent_review": project_intent_review_request(actionability.get("intent_review"))}
+               if actionability.get("level") == "manual_intent_decision" or "intent_review" in actionability else {}),
         },
     }
 
@@ -1230,6 +1813,10 @@ def _agent_findings(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "symbol": row.get("symbol"),
                 "confidence": row.get("confidence"),
                 "evidence": row.get("reason") or "Dead-code engine linked this candidate to the target.",
+                **({"intent_review": project_intent_review_request(row["actionability"].get("intent_review"))}
+                   if isinstance(row.get("actionability"), dict) and (
+                       row["actionability"].get("level") == "manual_intent_decision"
+                       or "intent_review" in row["actionability"]) else {}),
             }
         )
     for row in payload.get("merge_decisions", [])[:6]:
@@ -1248,6 +1835,8 @@ def _agent_findings(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def render_agent_inspection_brief(payload: dict[str, Any], *, debug: bool = False) -> str:
+    if payload.get("inspection_plane") == "declared_artifact":
+        return render_declared_artifact_inspection(payload)
     if payload.get("inspection_plane") == "declaration_contract":
         return render_declaration_inspection(payload)
     target = payload.get("target", {}) if isinstance(payload.get("target"), dict) else {}
@@ -1477,6 +2066,29 @@ def render_agent_inspection_brief(payload: dict[str, Any], *, debug: bool = Fals
     source_links = payload.get("manifest_type_entry_links")
     if isinstance(source_links, dict):
         yaml_lines.append("manifest_type_entry_links: " + json.dumps(source_links, ensure_ascii=False))
+    wiring_observations = payload.get("wiring_source_observations")
+    if isinstance(wiring_observations, dict):
+        yaml_lines.append("wiring_source_observations: " + json.dumps(wiring_observations, ensure_ascii=False))
+    wiring_review = payload.get("wiring_review_request")
+    if isinstance(wiring_review, dict):
+        yaml_lines.append("wiring_review_request: " + json.dumps(wiring_review, ensure_ascii=False))
+    wiring_candidate = payload.get("wiring_review_candidate")
+    if isinstance(wiring_candidate, dict):
+        yaml_lines.append("wiring_review_candidate: " + json.dumps(wiring_candidate, ensure_ascii=False))
+    safeparse = payload.get("client_safeparse_success_evidence")
+    if isinstance(safeparse, dict):
+        yaml_lines.append("client_safeparse_success_evidence: " + json.dumps(safeparse, ensure_ascii=False))
+    effect_safeparse = payload.get("effect_safeparse_callback_evidence")
+    if isinstance(effect_safeparse, dict):
+        yaml_lines.append("effect_safeparse_callback_evidence: " + json.dumps(effect_safeparse, ensure_ascii=False))
+    if isinstance(payload.get("effect_safeparse_merge_evidence"), dict):
+        yaml_lines.append("effect_safeparse_merge_evidence: " + json.dumps(payload["effect_safeparse_merge_evidence"], ensure_ascii=False))
+    if isinstance(payload.get("safeparse_early_return_evidence"), dict):
+        yaml_lines.append("safeparse_early_return_evidence: " + json.dumps(payload["safeparse_early_return_evidence"], ensure_ascii=False))
+    if isinstance(payload.get("resolver_factory_evidence"), dict):
+        yaml_lines.append("resolver_factory_evidence: " + json.dumps(payload["resolver_factory_evidence"], ensure_ascii=False))
+    if isinstance(payload.get("evidence_focus"), dict):
+        yaml_lines.append("evidence_focus: " + json.dumps(payload["evidence_focus"], ensure_ascii=False))
     yaml_lines.extend(
         [
             "path_contract:",
@@ -1641,8 +2253,20 @@ def main() -> int:
     group.add_argument("--file", dest="file_target")
     group.add_argument("--folder", dest="folder_target")
     group.add_argument("--symbol", dest="symbol_target")
+    group.add_argument("--registry-contract", help="Explicit target-relative JSON key-ID contract; read-only, no Atlas refresh.")
+    parser.add_argument("--target-root", help="Absolute target root, required only with --registry-contract.")
     args = parser.parse_args()
 
+    if args.registry_contract:
+        if not args.target_root:
+            parser.error("--registry-contract requires an explicit --target-root")
+        from tools.core.declarative_registry_review import review_declarative_registry
+
+        payload = review_declarative_registry(args.target_root, args.registry_contract)
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0 if payload["status"] in {"checked_within_declared_scope", "empty_declared_registry"} else 1
+    if args.target_root:
+        parser.error("--target-root is only supported with --registry-contract")
     if args.file_target:
         payload = write_inspection("file", args.file_target)
     elif args.folder_target:

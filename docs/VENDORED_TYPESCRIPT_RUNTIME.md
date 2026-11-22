@@ -47,3 +47,7 @@ python .\tools\validate_react_fixtures.py
 - Owner: Nexora SAGE governance
 - Provenance contract: `config-provenance-v1`
 - Upgrade review must include lockfile hash, license check, diagnostic-count diff and smoke command results.
+
+## Analysis evidence boundary
+
+Package/lock/entry metadata and library-read observations do not attest the exact bytes evaluated by Node or a closed runtime/dependency graph. Experimental entry-loading and isolated-evaluator work do not activate a public semantic/runtime capability. Source provenance, executed diagnostics and release authority remain separate.

@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "compiler_version",
+    "type_only",
+    "extension",
+    "is_external_library_import",
+    "compiler_invocations",
+    "program_completeness_established",
+    "native_project_equivalent",
+    "semantic_lineage",
+    "production_enabled",
+    "handoff_sha256",
+    "source_path_sha256",
+    "source_host_sha256",
+    "target_path_sha256",
+    "target_host_sha256",
+    "module_specifier_sha256",
+    "import_name_sha256"
+  ],
+  "properties": {
+    "version": {
+      "const": "v1-private-cached-type-import"
+    },
+    "authority": {
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "const": "matched_cached_resolution"
+    },
+    "compiler_version": {
+      "const": "5.9.3"
+    },
+    "type_only": {
+      "const": true,
+      "type": "boolean"
+    },
+    "extension": {
+      "const": ".d.ts"
+    },
+    "is_external_library_import": {
+      "const": false,
+      "type": "boolean"
+    },
+    "compiler_invocations": {
+      "const": 1,
+      "type": "integer"
+    },
+    "program_completeness_established": {
+      "const": false,
+      "type": "boolean"
+    },
+    "native_project_equivalent": {
+      "const": false,
+      "type": "boolean"
+    },
+    "semantic_lineage": {
+      "const": false,
+      "type": "boolean"
+    },
+    "production_enabled": {
+      "const": false,
+      "type": "boolean"
+    },
+    "handoff_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "source_path_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "source_host_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "target_path_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "target_host_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "module_specifier_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "import_name_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
