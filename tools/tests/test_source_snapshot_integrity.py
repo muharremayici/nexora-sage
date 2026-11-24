@@ -7,7 +7,7 @@ import math
 from copy import deepcopy
 from contextlib import contextmanager
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import time
 
 import pytest
@@ -22,6 +22,21 @@ from tools.mcp import server as mcp_server
 ROOT = Path(__file__).resolve().parents[2]
 
 from tools.tests.test_state_flow_jsx_prop_callback_contract import jsx_atlas_run as wiring_view_atlas_run
+
+
+def _long_snapshot_target(root):
+    while len(str(root)) <= 260:
+        root = root / ("deep-source-" * 8)
+    return root
+
+
+def test_long_snapshot_target_from_short_temp_root():
+    for root in (PurePosixPath("/tmp/t"), PureWindowsPath("C:/t")):
+        target = _long_snapshot_target(root)
+        assert target.is_relative_to(root)
+        assert len(str(target)) > 260
+        assert all(len(part) <= 255 for part in target.relative_to(root).parts)
+        assert _long_snapshot_target(target) == target
 
 
 def _record_snapshot_cost_property(record, case_id, key, value):
@@ -549,8 +564,8 @@ def test_resolver_factory_actual_primary_refusals(imported_parser_atlas_run,tmp_
     target,_,original=imported_parser_atlas_run
     local=tmp_path/"target"
     if long_path:
-        local=local/("deep-source-"*8)/("fixture-"*10)
-        assert len(str(local))>260
+        local = _long_snapshot_target(local)
+        assert len(str(local)) > 260
     Path(native_filesystem_path(local)).mkdir(parents=True)
     atlas=deepcopy(original); files=atlas["MAIN"]["files"]
     for file in files: Path(native_filesystem_path(local/file)).write_bytes((target/file).read_bytes())
@@ -651,8 +666,9 @@ def test_callback_guard_public_definition_only_and_older_budget(imported_parser_
 @pytest.mark.parametrize("damage",["none","caller_drift","target_drift","missing_snapshot","corrupt_primary","legacy","hidden","bool_count","omitted","span","ast"])
 def test_callback_guard_actual_primary_refusals(imported_parser_atlas_run,tmp_path,monkeypatch,partitioned,damage):
     import sqlite3
-    target,_,original=imported_parser_atlas_run; local=tmp_path/("deep-source-"*8)/("fixture-"*10)
-    assert len(str(local))>260
+    target, _, original = imported_parser_atlas_run
+    local = _long_snapshot_target(tmp_path)
+    assert len(str(local)) > 260
     Path(native_filesystem_path(local)).mkdir(parents=True)
     atlas=deepcopy(original); files=atlas["MAIN"]["files"]
     for file in files: Path(native_filesystem_path(local/file)).write_bytes((target/file).read_bytes())
@@ -766,8 +782,9 @@ def test_resolver_position_last_priority_preserves_older_callback_and_fields(imp
 @pytest.mark.parametrize("focus",["resolver_parameter","resolver_chain"])
 def test_resolver_position_actual_primary_refusals(imported_parser_atlas_run,tmp_path,monkeypatch,partitioned,damage,focus):
     import sqlite3
-    target,_,original=imported_parser_atlas_run; local=tmp_path/("deep-source-"*8)/("fixture-"*10)
-    assert len(str(local))>260
+    target, _, original = imported_parser_atlas_run
+    local = _long_snapshot_target(tmp_path)
+    assert len(str(local)) > 260
     Path(native_filesystem_path(local)).mkdir(parents=True)
     atlas=deepcopy(original); files=atlas["MAIN"]["files"]
     for file in files: Path(native_filesystem_path(local/file)).write_bytes((target/file).read_bytes())
@@ -1227,7 +1244,7 @@ def test_safeparse_view_actual_sqlite_machine_brief_and_primary_refusal(tmp_path
     source, original = safeparse_view_inputs["early_unicode" if lane_key == "safeparse_early_return_evidence" else "merge_unicode" if lane_key == "effect_safeparse_merge_evidence" else "effect_unicode" if lane_key.startswith("effect_") else "unicode"]
     target = tmp_path / "target"
     if long_path:
-        target = target / ("deep-source-" * 8) / ("fixture-" * 10)
+        target = _long_snapshot_target(target)
         assert len(str(target)) > 260
     Path(native_filesystem_path(target)).mkdir(parents=True)
     file = Path(native_filesystem_path(target / "Panel.tsx"))

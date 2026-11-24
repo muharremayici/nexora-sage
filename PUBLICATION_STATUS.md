@@ -1,15 +1,3 @@
 # Publication Status
 
-Status: `PUBLIC_RELEASE`
-
-Version: `1.9.0`
-Public release date: `2026-11-22`
-Public notice identity: `Nexora SAGE Project`
-License boundary: `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Free-Trial-1.0.0`
-
-Explicit human publication authority is retained outside this public
-distribution. Its private receipt is bound here by SHA-256:
-`4b79f000d24da2e484ae98bf30a678374ec6152ca2381db8968680012c968d2a`.
-
-This release offers no commercial license, Small Business grant, CLA or
-external copyrighted-contribution intake, or Countdown/AGPL transition.
+Version 1.9.0 is a draft CI candidate. Final delivery requires a separately verified release tree and publication decision.
