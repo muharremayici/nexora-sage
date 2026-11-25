@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora.private.native_approval_ledger_baseline.v1",
+  "title": "Private native approval-ledger baseline and expected-preimage metadata",
+  "description": "A closed structural format only. No SQL is installed, provenance authenticated, state migrated, approval issued or native runtime enabled by schema conformance.",
+  "$ref": "#/$defs/baseline_record",
+  "$defs": {
+    "contract": {
+      "const": {
+        "version": "v1-private-native-ledger-baseline-contract",
+        "state": "specified_not_installed",
+        "schema_owner": "tools.core.db.SQLiteManager",
+        "database_schema": "main",
+        "table_name": "hitl_approval_ledger_baseline",
+        "record_definition": "#/$defs/baseline_record",
+        "preimage_definition": "#/$defs/preimage",
+        "primary_key": [
+          "artifact_id"
+        ],
+        "payload_table": "state_payloads",
+        "payload_key": "name",
+        "column_derivation": "one_scalar_column_per_closed_baseline_record_property",
+        "mutable_properties": [
+          "revision",
+          "full_payload_sha256"
+        ],
+        "metadata_copy_charge_ceiling": 4096,
+        "canonical_form_byte_ceiling": 16384,
+        "semantic_obligations": [
+          "native_builtin_integer_and_SQLite_integer_types",
+          "revision_zero_full_identity_matches_baseline",
+          "current_full_identity_matches_exact_persisted_body",
+          "baseline_full_and_entries_match_exact_initial_body",
+          "independent_provisioning_origin_is_not_self_certified",
+          "domain_and_origin_immutable_within_generation",
+          "expected_whole_preimage_checked_under_owned_outer_transaction",
+          "every_authoritative_rewrite_advances_revision_exactly_once",
+          "identical_bytes_do_not_reset_revision_or_spend_history",
+          "revision_exhaustion_refuses_without_wrap_or_generation_reset",
+          "all_reserved_writers_participate_before_native_activation",
+          "unknown_restore_or_spend_continuity_requires_reconciliation"
+        ],
+        "schema_installation_enabled": false,
+        "bootstrap_enabled": false,
+        "migration_enabled": false,
+        "runtime_admission": false,
+        "production_enabled": false,
+        "publication_authority": false
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "maxLength": 64
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "$comment": "Portable exact metadata integer range, not a native history or work quota. JSON Schema integer accepts mathematical integral floats; the future native binder must separately require builtin/SQLite integer types."
+    },
+    "baseline_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "artifact_id",
+        "routing_scope",
+        "installation_sha256",
+        "tenant_sha256",
+        "db_generation_sha256",
+        "provisioning_receipt_sha256",
+        "baseline_mode",
+        "baseline_revision",
+        "baseline_full_payload_sha256",
+        "baseline_entries_sha256",
+        "revision",
+        "full_payload_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "v1-native-hitl-ledger-baseline-metadata"
+        },
+        "artifact_id": {
+          "const": "hitl_approval_ledger"
+        },
+        "routing_scope": {
+          "const": "installation_non_tenant"
+        },
+        "installation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "tenant_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "db_generation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "provisioning_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "baseline_mode": {
+          "type": "string",
+          "enum": [
+            "create_only",
+            "migrate_exact_primary"
+          ]
+        },
+        "baseline_revision": {
+          "type": "integer",
+          "const": 0
+        },
+        "baseline_full_payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "baseline_entries_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "full_payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "$comment": "Declared digest labels and an epoch-zero origin are not proof of installation, tenant, generation, provisioning, history or human/key intent. Cross-field and transaction obligations are semantic prerequisites, not JSON Schema conclusions."
+    },
+    "preimage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "artifact_id",
+        "routing_scope",
+        "installation_sha256",
+        "tenant_sha256",
+        "db_generation_sha256",
+        "revision",
+        "full_payload_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/baseline_record/properties/schema_version"
+        },
+        "artifact_id": {
+          "$ref": "#/$defs/baseline_record/properties/artifact_id"
+        },
+        "routing_scope": {
+          "$ref": "#/$defs/baseline_record/properties/routing_scope"
+        },
+        "installation_sha256": {
+          "$ref": "#/$defs/baseline_record/properties/installation_sha256"
+        },
+        "tenant_sha256": {
+          "$ref": "#/$defs/baseline_record/properties/tenant_sha256"
+        },
+        "db_generation_sha256": {
+          "$ref": "#/$defs/baseline_record/properties/db_generation_sha256"
+        },
+        "revision": {
+          "$ref": "#/$defs/baseline_record/properties/revision"
+        },
+        "full_payload_sha256": {
+          "$ref": "#/$defs/baseline_record/properties/full_payload_sha256"
+        }
+      },
+      "$comment": "Expected data only, never an opaque capability, current snapshot reservation, approval or source-authenticated domain."
+    }
+  }
+}

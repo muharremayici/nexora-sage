@@ -281,6 +281,14 @@ def _sample(name: str, producer: Callable[[], str]) -> dict[str, Any]:
     }
 
 
+def sample_state_flow_for_review(target_root: str = "") -> dict[str, Any]:
+    return _sample("state_flow", lambda: mcp_server.get_state_flow(max_items=5, target_root=target_root))
+
+
+def sample_missing_watchdog_for_review() -> dict[str, Any]:
+    return _sample("watchdog_session_missing", _sample_missing_watchdog_session)
+
+
 def _sample_missing_watchdog_session() -> str:
     original_raw_dir = mcp_server.RAW_DIR
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -1298,7 +1306,7 @@ def build_review(target_root: str = "") -> dict[str, Any]:
         _sample("violation_work_queue", lambda: work_queue_body),
         _sample("merge_review_queue", lambda: mcp_server.get_merge_review_queue(max_items=2, target_root=target_root)),
         _sample("merge_review_queue_json", lambda: mcp_server.get_merge_review_queue(max_items=2, target_root=target_root, format="json")),
-        _sample("state_flow", lambda: mcp_server.get_state_flow(max_items=5, target_root=target_root)),
+        sample_state_flow_for_review(target_root),
         _sample("ui_architecture", lambda: mcp_server.get_ui_architecture(max_items=5, target_root=target_root)),
         _sample("dead_code", lambda: mcp_server.get_dead_code(max_items=5, target_root=target_root)),
         _sample("circular_dependencies", lambda: mcp_server.get_circular_dependencies(max_items=5, target_root=target_root)),
@@ -1309,7 +1317,7 @@ def build_review(target_root: str = "") -> dict[str, Any]:
         _sample("surgical_context", lambda: mcp_server.get_surgical_context("Project", target_root=target_root)),
         _sample("clone_context", lambda: mcp_server.find_clones("Project", max_items=3, target_root=target_root)),
         _sample("inspect_folder", lambda: mcp_server.inspect_folder("src/shared/types", target_root=target_root)),
-        _sample("watchdog_session_missing", _sample_missing_watchdog_session),
+        sample_missing_watchdog_for_review(),
         _sample("simulate_change_impact", lambda: mcp_server.simulate_change_impact("src/shared/types/project.ts", target_root=target_root)),
         _sample("work_queue_roundtrip_inspect", lambda: mcp_server.inspect_file(roundtrip_target, target_root=target_root)),
         _sample("work_queue_roundtrip_impact", lambda: mcp_server.get_impact_radius(roundtrip_target, target_root=target_root)),

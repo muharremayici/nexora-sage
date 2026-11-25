@@ -1,8 +1,29 @@
 {
   "meta": {
     "kind": "dead_code_language_agnostic_core_contract",
-    "version": "v2",
-    "description": "Machine-readable scope for the dead-code language-agnostic core validator. The validator consumes this contract instead of owning legacy token lists or required doctrine sections locally."
+    "version": "v3",
+    "description": "Machine-readable dead-code core validation scope and bounded manual intent-review guidance. Validation and runtime consumers share this owner without treating guidance as observed wiring evidence."
+  },
+  "intent_review_request": {
+    "id": "dead_code_intent_review_request_v1",
+    "limits": {
+      "maximum_questions": 3,
+      "maximum_question_characters": 180
+    },
+    "questions": [
+      "Inspect actual import/export consumers and callback, UI-action or state bindings before interpreting this unused symbol as unfinished integration.",
+      "Look for contrary evidence: intentionally obsolete behavior, retained public/framework contracts, dynamic entrypoints or existing consumers.",
+      "Keep delete, complete_integration, retain_contract and unknown separate; obtain target-native or runtime evidence where static observations cannot decide."
+    ]
+  },
+  "manual_review_candidate": {
+    "id": "incomplete_wiring_review_candidate_v1",
+    "required_fact_kinds": [
+      "named_import_without_identifier_occurrence",
+      "inline_empty_jsx_callback"
+    ],
+    "status": "needs_manual_intent_review",
+    "basis": "same_file_source_fact_cooccurrence_only"
   },
   "forbidden_engine_tokens": [
     "projectslice",

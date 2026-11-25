@@ -1,0 +1,138 @@
+{
+  "type": "object",
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "max_source_files",
+    "max_auxiliary_files",
+    "max_auxiliary_bytes",
+    "max_config_bytes",
+    "max_request_bytes",
+    "bridge_profile",
+    "image_profile",
+    "parser_virtual_path",
+    "compiler_virtual_path",
+    "atlas_relative_path",
+    "auxiliary_virtual_path",
+    "auxiliary_atlas_path",
+    "config_virtual_path",
+    "config_atlas_path",
+    "input_observation_version",
+    "input_observation_schema",
+    "input_observation_authority",
+    "claim_boundary",
+    "max_jsx_bytes",
+    "jsx_atlas_path",
+    "jsx_virtual_path"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v4-private-tsx-captured-config"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_tsx_config_handoff.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "max_source_files": {
+      "type": "integer",
+      "const": 1
+    },
+    "max_auxiliary_files": {
+      "type": "integer",
+      "const": 3
+    },
+    "max_auxiliary_bytes": {
+      "type": "integer",
+      "const": 65536
+    },
+    "max_config_bytes": {
+      "type": "integer",
+      "const": 8192
+    },
+    "max_request_bytes": {
+      "type": "integer",
+      "const": 1600000
+    },
+    "bridge_profile": {
+      "type": "string",
+      "const": "private_owned_tsx_text_bridge"
+    },
+    "image_profile": {
+      "type": "string",
+      "const": "private_input_image_experiment"
+    },
+    "parser_virtual_path": {
+      "type": "string",
+      "const": "/__sage_owned_text__/entry.tsx"
+    },
+    "compiler_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/entry.tsx"
+    },
+    "atlas_relative_path": {
+      "type": "string",
+      "const": "entry.tsx"
+    },
+    "auxiliary_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/types.d.ts"
+    },
+    "auxiliary_atlas_path": {
+      "type": "string",
+      "const": "types.d.ts"
+    },
+    "config_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/tsconfig.json"
+    },
+    "config_atlas_path": {
+      "type": "string",
+      "const": "tsconfig.json"
+    },
+    "input_observation_version": {
+      "type": "string",
+      "const": "v4-private-tsx-input-summary"
+    },
+    "input_observation_schema": {
+      "type": "string",
+      "const": "config/schemas/compiler_tsx_input_observation.schema.json"
+    },
+    "input_observation_authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "max_jsx_bytes": {
+      "type": "integer",
+      "const": 8192
+    },
+    "jsx_atlas_path": {
+      "type": "string",
+      "const": "jsx.d.ts"
+    },
+    "jsx_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/jsx.d.ts"
+    }
+  }
+}

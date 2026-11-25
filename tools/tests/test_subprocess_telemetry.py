@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import time
+from types import SimpleNamespace
 from pathlib import Path
 import subprocess
 from copy import deepcopy
@@ -131,7 +132,7 @@ def raw_capture(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess_telemetry, "terminate_process_tree", terminate)
     def run(**changes):
         arguments = {"command": ["fixture-python", "fixture.py"], "cwd": tmp_path,
-            "label": "raw-fixture", "timeout": 0.1, "env": {"KEEP": "value", "PYTHONUTF8": "0"},
+            "label": "raw-fixture", "timeout": 5, "env": {"KEEP": "value", "PYTHONUTF8": "0"},
             "raw_observation": True}
         arguments.update(changes)
         return run_observed_subprocess(**arguments)
@@ -222,12 +223,40 @@ def test_raw_mode_read_error_is_not_empty_capture_success(raw_capture):
     assert result.stdout.error == "read:OSError" and result.stdout.sha256 is None
 
 
-def test_raw_mode_nonbinary_pipe_is_refused(raw_capture):
-    class TextPipe(io.StringIO):
-        pass
-    raw_capture[0].stdout = TextPipe("text is not raw")
-    result = raw_capture[1]()
-    assert not result.capture_complete and result.stdout.error == "read:ValueError"
+@pytest.mark.parametrize(
+    ("elapsed_at_poll", "reason", "stdout_error"),
+    [
+        pytest.param(0.0, "capture_error", "read:ValueError", id="reader-error-before-deadline"),
+        pytest.param(1.0, "timeout", None, id="deadline-before-result-consumption"),
+    ],
+)
+def test_raw_mode_nonbinary_pipe_is_refused(raw_capture, monkeypatch, elapsed_at_poll, reason, stdout_error):
+    import threading
+
+    class SettledReader(threading.Thread):
+        def start(self):
+            super().start()
+            # Each synthetic pipe emits one terminal event. Both fit in the queue.
+            self.join(timeout=5)
+            assert not self.is_alive(), "synthetic raw reader failed to settle"
+
+    process, run, *_ = raw_capture
+    process.stdout = io.StringIO("text is not raw")
+    timeout = 1
+    ticks = iter((0.0, elapsed_at_poll))
+    # A lost reader event also reaches the deadline on the next poll.
+    observer_clock = SimpleNamespace(monotonic=lambda: next(ticks, timeout))
+    observer_threads = SimpleNamespace(
+        Thread=SettledReader, Event=threading.Event, TIMEOUT_MAX=threading.TIMEOUT_MAX,
+    )
+    monkeypatch.setattr(subprocess_telemetry, "time", observer_clock)
+    monkeypatch.setattr(subprocess_telemetry, "threading", observer_threads)
+
+    result = run(timeout=timeout)
+    assert not result.capture_complete and result.termination_reason == reason
+    assert result.timed_out is (reason == "timeout")
+    assert result.stdout.error == stdout_error and result.stdout.sha256 is None
+    assert result.cleanup.parent_exited and result.cleanup.readers_joined
 
 
 def test_raw_mode_close_failure_is_not_complete(raw_capture):

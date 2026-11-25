@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private live config and held Atlas correspondence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "schema_sha256",
+    "commit_schema_sha256",
+    "default_enabled",
+    "native_execution_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "config_profile",
+    "detail_limit_from",
+    "metadata_limit_from",
+    "success_status",
+    "unknown_status",
+    "refusal_codes",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-live-config-context"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/typescript_live_config_context.schema.json"
+    },
+    "schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commit_schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_execution_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "config_profile": {
+      "type": "string",
+      "const": "private_owned_config_extends"
+    },
+    "detail_limit_from": {
+      "type": "string",
+      "const": "semantic_context.max_observations"
+    },
+    "metadata_limit_from": {
+      "type": "string",
+      "const": "config_limit_profile.image_profile.limits.metadata_bytes"
+    },
+    "success_status": {
+      "type": "string",
+      "const": "LIVE_CONFIG_ATLAS_CORRESPONDENCE_NOT_BOUND"
+    },
+    "unknown_status": {
+      "type": "string",
+      "const": "UNKNOWN_LIVE_CONFIG_CONTEXT"
+    },
+    "refusal_codes": {
+      "type": "array",
+      "const": [
+        "live_config_owner_unavailable",
+        "live_config_metadata_invalid",
+        "live_config_budget_exceeded",
+        "live_config_parent_mismatch",
+        "live_config_project_unavailable",
+        "live_config_observation_unavailable",
+        "live_config_source_unavailable",
+        "live_config_source_mismatch"
+      ]
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project",
+        "source_sha256",
+        "parent_validation_sha256",
+        "observation_sha256"
+      ],
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_validation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "basis",
+        "code",
+        "parent_snapshot_id",
+        "atlas_sha256",
+        "parent_commit_sha256",
+        "parent_validation_sha256",
+        "project_sha256",
+        "config_observation_sha256",
+        "config_binding_sha256",
+        "source_sha256",
+        "config_matched",
+        "source_record_matched",
+        "config_code",
+        "source_code",
+        "source_records",
+        "semantic_gap_view",
+        "snapshot_bound",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "native_project_equivalent",
+        "loaded_code_attested"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-live-config-context"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "UNKNOWN_LIVE_CONFIG_CONTEXT",
+            "LIVE_CONFIG_ATLAS_CORRESPONDENCE_NOT_BOUND"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "const": "held_atlas_config_correspondence_only"
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "live_config_owner_unavailable",
+            "live_config_metadata_invalid",
+            "live_config_budget_exceeded",
+            "live_config_parent_mismatch",
+            "live_config_project_unavailable",
+            "live_config_observation_unavailable",
+            "live_config_source_unavailable",
+            "live_config_source_mismatch"
+          ]
+        },
+        "parent_snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_commit_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_validation_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "project_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_observation_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_matched": {
+          "type": "boolean"
+        },
+        "source_record_matched": {
+          "type": "boolean"
+        },
+        "config_code": {
+          "type": "string",
+          "pattern": "^(config_extends_[a-z_]+)?$"
+        },
+        "source_code": {
+          "type": "string",
+          "pattern": "^(config_declared_root_[a-z_]+)?$"
+        },
+        "source_records": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shown",
+            "omitted"
+          ],
+          "properties": {
+            "shown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "omitted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "semantic_gap_view": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "gap_count"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "UNAVAILABLE_NO_COLLECTOR_INPUT"
+            },
+            "gap_count": {
+              "type": "null"
+            }
+          }
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_project_equivalent": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "join_attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "result"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "RESULT_RETURNED",
+            "UNAVAILABLE"
+          ]
+        },
+        "result": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/result"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "UNAVAILABLE"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "result": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "const": "RESULT_RETURNED"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "result": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

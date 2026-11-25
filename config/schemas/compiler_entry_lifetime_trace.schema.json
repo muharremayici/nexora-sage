@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora:compiler_entry_lifetime_trace",
+  "title": "Disabled synthetic entry-owner lifetime trace",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "scope",
+        "result_status",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "root_member",
+        "boundary_prefix",
+        "role_paths",
+        "synthetic_version",
+        "limits",
+        "owner_policy_sha256",
+        "owner_schema_sha256",
+        "owner_source_sha256",
+        "source_sha256",
+        "denied_flags",
+        "claim_boundary",
+        "schema_sha256"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-entry-owner-trace"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_entry_lifetime_trace.schema.json"
+        },
+        "scope": {
+          "type": "string",
+          "const": "temporary_synthetic_entry_owner_lifetime_only"
+        },
+        "result_status": {
+          "type": "string",
+          "const": "SYNTHETIC_ENTRY_OWNER_TRACE_COMPLETED_NOT_COMPILER_ADMITTED"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "root_member": {
+          "type": "string",
+          "const": "synthetic entry fixture"
+        },
+        "boundary_prefix": {
+          "type": "string",
+          "const": "sage-entry-trace-"
+        },
+        "role_paths": {
+          "type": "object",
+          "const": {
+            "provenance": "config/third_party_distribution_contract.json",
+            "manifest": "tools/engines/package.json",
+            "lockfile": "tools/engines/package-lock.json",
+            "package": "tools/engines/node_modules/typescript/package.json",
+            "entry": "tools/engines/node_modules/typescript/lib/entry.js"
+          }
+        },
+        "synthetic_version": {
+          "type": "string",
+          "const": "0.0.0-synthetic"
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context_bytes",
+            "metadata_bytes",
+            "image_bytes",
+            "operation_ms",
+            "events",
+            "output_bytes",
+            "role_bytes"
+          ],
+          "properties": {
+            "context_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "image_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "operation_ms": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "events": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "role_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "owner_policy_sha256": {
+          "type": "string",
+          "const": "7b7861266affa4ca65e2a43c9cce31bff84938c30c862005791a0b5b56b2b779"
+        },
+        "owner_schema_sha256": {
+          "type": "string",
+          "const": "da0391e1c05556405e97044cb0ecc6baefc406dc4eb26650af0914ded996b693"
+        },
+        "owner_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "denied_flags": {
+          "type": "array",
+          "const": [
+            "read_authority_granted",
+            "source_freshness_verified",
+            "atomic_snapshot_verified",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "compiled_storage_priced",
+            "whole_transaction_complete",
+            "physical_memory_bounded",
+            "reservation_change_eligible",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ]
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "Source-fixed temporary-synthetic entry-owner metadata only; no evaluation, installed origin, full transaction/native/physical cost, reservation change or production/release authority."
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "owner_source_sha256",
+        "entry_expected"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "owner_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entry_expected": {
+          "type": "object"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "kind",
+        "role",
+        "first",
+        "second"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "transaction_begin",
+            "open_attempt",
+            "open_return",
+            "open_unknown",
+            "allocation_request",
+            "backing_ready",
+            "read_attempt",
+            "read_return",
+            "read_unknown",
+            "close_attempt",
+            "close_return",
+            "close_unknown",
+            "view_handoff",
+            "text_ready",
+            "owner_publish",
+            "borrow_begin",
+            "text_use",
+            "owner_release",
+            "owner_abort",
+            "owner_scope_complete"
+          ]
+        },
+        "role": {
+          "enum": [
+            null,
+            "provenance",
+            "manifest",
+            "lockfile",
+            "package",
+            "entry"
+          ]
+        },
+        "first": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "second": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "scope",
+        "expected_sha256",
+        "events",
+        "entry_sha256",
+        "text_sha256",
+        "delivered_entry_bytes",
+        "role_opens",
+        "role_closes",
+        "metadata_reserved_bytes",
+        "known_named_inputs_reserved_bytes",
+        "owner_scope_complete",
+        "recording_incomplete",
+        "owner_released",
+        "compiled_retention_bytes",
+        "physical_fit",
+        "transaction_settled",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-synthetic-entry-owner-trace"
+        },
+        "status": {
+          "const": "SYNTHETIC_ENTRY_OWNER_TRACE_COMPLETED_NOT_COMPILER_ADMITTED"
+        },
+        "scope": {
+          "const": "temporary_synthetic_entry_owner_lifetime_only"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "events": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "entry_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "delivered_entry_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "role_opens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "role_closes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_named_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owner_scope_complete": {
+          "const": true
+        },
+        "recording_incomplete": {
+          "const": false
+        },
+        "owner_released": {
+          "const": true
+        },
+        "compiled_retention_bytes": {
+          "type": "null"
+        },
+        "physical_fit": {
+          "type": "null"
+        },
+        "transaction_settled": {
+          "const": false
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "read_authority_granted",
+            "source_freshness_verified",
+            "atomic_snapshot_verified",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "compiled_storage_priced",
+            "whole_transaction_complete",
+            "physical_memory_bounded",
+            "reservation_change_eligible",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "read_authority_granted": {
+              "type": "boolean",
+              "const": false
+            },
+            "source_freshness_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "atomic_snapshot_verified": {
+              "type": "boolean",
+              "const": false
+            },
+            "compiler_loaded": {
+              "type": "boolean",
+              "const": false
+            },
+            "input_code_evaluated": {
+              "type": "boolean",
+              "const": false
+            },
+            "compiled_storage_priced": {
+              "type": "boolean",
+              "const": false
+            },
+            "whole_transaction_complete": {
+              "type": "boolean",
+              "const": false
+            },
+            "physical_memory_bounded": {
+              "type": "boolean",
+              "const": false
+            },
+            "reservation_change_eligible": {
+              "type": "boolean",
+              "const": false
+            },
+            "production_enabled": {
+              "type": "boolean",
+              "const": false
+            },
+            "semantic_lineage": {
+              "type": "boolean",
+              "const": false
+            },
+            "cache_eligible": {
+              "type": "boolean",
+              "const": false
+            },
+            "publication_authority": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

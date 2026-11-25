@@ -19,9 +19,10 @@ from tools.core.release_validation_dependencies import (
     SCHEMA_PATH,
     disposition_by_step,
     load_release_validation_dependency_contract,
-    resolve_step_dependency_identity,
+    build_release_validation_dependency_context,
     validate_dependency_contract,
 )
+from tools.core.release_validation_source_recipe import validate_family_declared_inputs
 
 
 REPORT_PATH = RAW_DIR / "release_validation_dependency_contract_validation.json"
@@ -63,6 +64,23 @@ def run_validation(*, root: Path = ROOT) -> dict[str, Any]:
         counts: dict[str, int] = {}
         for disposition in dispositions.values():
             counts[disposition] = counts.get(disposition, 0) + 1
+        family_recipes = {
+            step_id: recipe for step_id, recipe in contract.get("source_recipes", {}).items()
+            if isinstance(recipe, dict) and recipe.get("kind") in ("test_family_input_recipe_v1", "test_family_input_recipe_v2")
+        }
+        checks.append(_check(
+            "family_recipe_observations_do_not_admit_reuse",
+            all(recipe.get("native_reuse_enabled") is False
+                and dispositions.get(step_id) == "global_source_fingerprint_until_mapped"
+                for step_id, recipe in family_recipes.items()),
+            {"declared_family_observers": len(family_recipes)},
+        ))
+        declared_input_errors = {
+            step_id: errors for step_id, recipe in family_recipes.items()
+            if (errors := validate_family_declared_inputs(recipe, root=root))
+        }
+        checks.append(_check("family_declared_inputs_are_available_without_execution",
+                             not declared_input_errors, declared_input_errors))
         checks.append(
             _check(
                 "all_release_steps_have_one_explicit_disposition",
@@ -83,23 +101,25 @@ def run_validation(*, root: Path = ROOT) -> dict[str, Any]:
             )
         )
         try:
-            reviewed = resolve_step_dependency_identity(
-                "source_layer_classification_policy_validation",
-                root=root,
-                contract=contract,
-            )
+            dependency_context = build_release_validation_dependency_context(root=root, contract=contract)
+            reviewed_steps = {
+                step_id: dependency_context.get("reviewed_step_identities", {}).get(step_id, {})
+                for step_id in contract["validation"]["reviewed_semantic_step_ids"]
+            }
             checks.append(
                 _check(
                     "reviewed_leaf_semantic_closure_is_complete",
-                    reviewed.get("reuse_eligible") is True
-                    and reviewed.get("identity_mode") == "semantic_closure_content_identity"
-                    and int((reviewed.get("closure") or {}).get("file_count") or 0) > 0,
-                    {
+                    dependency_context.get("complete") is True and bool(reviewed_steps) and all(
+                        reviewed.get("reuse_eligible") is True
+                        and reviewed.get("identity_mode") == "semantic_closure_content_identity"
+                        and int((reviewed.get("closure") or {}).get("file_count") or 0) > 0
+                        for reviewed in reviewed_steps.values()),
+                    {step_id: {
                         "reuse_eligible": reviewed.get("reuse_eligible"),
                         "identity_mode": reviewed.get("identity_mode"),
                         "file_count": (reviewed.get("closure") or {}).get("file_count"),
                         "reasons": reviewed.get("reasons"),
-                    },
+                    } for step_id, reviewed in reviewed_steps.items()},
                 )
             )
         except Exception as exc:

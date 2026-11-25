@@ -25,8 +25,10 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict
 
 from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core import distribution_unit_input_identity as unit_identity
+from tools.core import distribution_dependency_recheck as dependency_recheck
 
-AUTHORITY = "diagnostic_only_no_release_reuse"
+AUTHORITY = unit_identity.INPUT_AUTHORITY
 SCHEMA = "nexora_sage_diagnostic_test_unit_pilot_v1"
 BINDING_SCHEMA = "nexora_sage_diagnostic_unit_parent_binding_v1"
 STARTUP_PROTOCOL = "isolated_no_site_no_autoload_no_conftest_explicit_empty_config_v1"
@@ -59,12 +61,43 @@ def _under(root: Path, relative: str) -> Path:
     return path
 
 
-def load_spec(root: Path, unit: str) -> dict:
-    contract = json.loads(_bytes(root / "config/release_validation_dependency_contract.json"))
+def _capture_project_inputs(root: Path, unit: str) -> dict:
+    policy_bytes = _bytes(root / "config/release_validation_dependency_contract.json")
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate unit policy key")
+            result[key] = value
+        return result
+    contract = json.loads(policy_bytes, object_pairs_hook=unique_object)
     spec = contract.get("diagnostic_test_unit_pilots", {}).get(unit)
     if (not isinstance(spec, dict) or spec.get("authority") != AUTHORITY
             or spec.get("canonical_profile_reuse_enabled") is not False):
         raise ValueError("Unknown or over-authorized diagnostic test unit")
+    if "input_contract_version" in spec:
+        from jsonschema import Draft202012Validator, ValidationError
+
+        schema_bytes = _bytes(root / "config/schemas/release_validation_dependency_contract.schema.json")
+        schema = json.loads(schema_bytes, object_pairs_hook=unique_object)
+        if spec["input_contract_version"] != "v2":
+            raise ValueError("Unsupported diagnostic input version")
+        effective_schema = unit_identity.unit_schema_projection(schema, unit)
+        try:
+            Draft202012Validator(effective_schema).validate(spec)
+        except ValidationError as exc:
+            raise ValueError("Malformed v2 pilot input contract") from exc
+        unit_identity.project_roles(spec)
+        files = {p: (_read_unit_file_snapshot(root, p, unit_identity.METADATA_PROJECTION["max_bytes"])
+                     if p == "pyproject.toml" else _bytes(_under(root, p)))
+                 for p in spec["project_inputs"]}
+        projected, provenance = unit_identity.project_facts(unit, spec, files, policy_bytes)
+        for relative in spec["required_absent_paths"]:
+            if os.path.lexists(native_filesystem_path(_under(root, relative))):
+                raise ValueError(f"Pilot startup boundary changed: {relative}")
+        return {"spec": spec, "files": files, "project_inputs_sha256": projected,
+                "provenance": provenance, "schema_bytes": schema_bytes, "effective_schema": effective_schema,
+                "output_policy": contract.get("diagnostic_unit_output_observation")}
     required = {"authority", "canonical_profile_reuse_enabled", "test_path", "expected_tests",
         "reviewed_source_sha256", "review_digest_algorithm", "required_absent_paths", "runtime_distributions", "timeout_seconds"}
     if (set(spec) != required or not isinstance(spec["reviewed_source_sha256"], dict)
@@ -80,13 +113,20 @@ def load_spec(root: Path, unit: str) -> dict:
         raise ValueError("Pilot input review is incomplete")
     if spec.get("test_path") not in spec["reviewed_source_sha256"]:
         raise ValueError("Pilot test is outside the reviewed input set")
+    files = {}
     for relative, expected in spec["reviewed_source_sha256"].items():
-        if _review_digest(_bytes(_under(root, relative))) != expected:
+        files[relative] = _bytes(_under(root, relative))
+        if _review_digest(files[relative]) != expected:
             raise ValueError(f"Pilot input requires a new source review: {relative}")
     for relative in spec["required_absent_paths"]:
         if _under(root, relative).exists():
             raise ValueError(f"Pilot startup boundary changed: {relative}")
-    return spec
+    return {"spec": spec, "files": files, "provenance": None,
+            "output_policy": contract.get("diagnostic_unit_output_observation")}
+
+
+def load_spec(root: Path, unit: str) -> dict:
+    return _capture_project_inputs(root, unit)["spec"]
 
 
 def _wheel_inventory(distribution, name: str) -> tuple[list[str], str, str]:
@@ -117,13 +157,12 @@ def _wheel_inventory(distribution, name: str) -> tuple[list[str], str, str]:
     return paths, record, manifests[0]
 
 
-def _package_inputs(names: list[str]) -> dict[str, bytes]:
-    # Copy a finite wheel-file set, not the host site-packages directory or .pth hooks.
+def _distribution_inputs(names: list[str]):
+    """Shared fresh discovery/requirements/RECORD owner for both observation modes."""
     from packaging.requirements import Requirement
     from packaging.utils import canonicalize_name
 
     declared = {canonicalize_name(name) for name in names}
-    result: dict[str, bytes] = {}
     for name in sorted(declared):
         distribution = importlib.metadata.distribution(name)
         for requirement in distribution.requires or []:
@@ -132,11 +171,22 @@ def _package_inputs(names: list[str]) -> dict[str, bytes]:
                 if canonicalize_name(parsed.name) not in declared:
                     raise ValueError(f"Undeclared pytest dependency: {parsed.name}")
         entries, record, manifest = _wheel_inventory(distribution, name)
+        yield name, distribution, entries, record, manifest
+
+
+def _dependency_path_selected(relative: str) -> bool:
+    # Installed CLI scripts and bytecode are not loaded by this -I -S protocol.
+    return not (".." in Path(relative).parts or Path(relative).is_absolute()
+                or "__pycache__" in Path(relative).parts or relative.endswith(".pyc"))
+
+
+def _package_inputs(names: list[str]) -> dict[str, bytes]:
+    # Copy a finite wheel-file set, not the host site-packages directory or .pth hooks.
+    result: dict[str, bytes] = {}
+    for name, distribution, entries, record, manifest in _distribution_inputs(names):
         captured_manifest = None
         for relative in entries:
-            if ".." in Path(relative).parts or Path(relative).is_absolute():
-                continue  # Installed CLI scripts are not loaded by this -I -S protocol.
-            if "__pycache__" in Path(relative).parts or relative.endswith(".pyc"):
+            if not _dependency_path_selected(relative):
                 continue
             path = Path(distribution.locate_file(relative))
             if path.is_symlink():
@@ -151,6 +201,67 @@ def _package_inputs(names: list[str]) -> dict[str, bytes]:
                 or captured_manifest.decode("utf-8").splitlines() != record.splitlines()):
             raise ValueError(f"Wheel inventory changed during capture: {name}")
     return result
+
+
+def _recheck_package_inputs(names: list[str], expected: dict[str, bytes], *,
+                            unit: str, invocation: str) -> dict:
+    """Fresh wheel acquisition against owner-held bytes; never a second payload map."""
+    row = {"schema": "nexora_sage_dependency_payload_recheck_v1",
+        "authority": "diagnostic_only_no_test_or_release_admission", "unit_id": unit,
+        "owner_invocation_id": invocation, "status": "UNAVAILABLE", "payload_checks_complete": False,
+        "dependency_inputs_sha256": None, "distribution_observations": 0, "inventory_resolutions": 0,
+        "candidate_paths_observed": 0, "unique_paths_observed": 0, "payload_bytes_seen": 0,
+        "max_chunk_bytes_seen": 0, "eof_probe_reads": 0, "reason_codes": [],
+        "reuse": False, "may_skip_tests": False, "fresh_native_baseline": False,
+        "canonical_profile_reuse_enabled": False}
+    if (not isinstance(unit, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", unit)
+            or not isinstance(invocation, str) or not invocation.strip()
+            or type(expected) is not dict or any(type(p) is not str or not p or type(v) is not bytes
+                                                for p, v in expected.items())):
+        row["reason_codes"].append("invalid_held_dependency_request")
+        return row
+    hashes, seen = {}, set()
+    try:
+        for name, distribution, entries, record, manifest in _distribution_inputs(names):
+            # These counters describe completed discovery, not failed read attempts.
+            row["distribution_observations"] += 1
+            row["inventory_resolutions"] += 1
+            captured_manifest = None
+            for relative in entries:
+                if not _dependency_path_selected(relative):
+                    continue
+                row["candidate_paths_observed"] += 1
+                seen.add(relative)
+                row["unique_paths_observed"] = len(seen)
+                if relative not in expected:
+                    row.update(status="CHANGED", reason_codes=["dependency_path_added"])
+                    return row
+                path = Path(distribution.locate_file(relative))
+                if path.is_symlink():
+                    raise ValueError("Symlink in pytest wheel input")
+                with Path(native_filesystem_path(path)).open("rb", buffering=0) as stream:
+                    observed = dependency_recheck.compare_stream(stream.read, expected[relative])
+                    row["payload_bytes_seen"] += observed["bytes_seen"]
+                    row["max_chunk_bytes_seen"] = max(row["max_chunk_bytes_seen"], observed["max_chunk_bytes_seen"])
+                    row["eof_probe_reads"] += observed["eof_probe_reads"]
+                if observed["status"] != "MATCH":
+                    row.update(status=observed["status"], reason_codes=[observed["reason"]])
+                    return row
+                hashes[relative] = observed["sha256"]
+                if relative == manifest:
+                    # Substitution is valid only after a fresh exact read through EOF.
+                    captured_manifest = expected[relative]
+            if (captured_manifest is None
+                    or captured_manifest.decode("utf-8").splitlines() != record.splitlines()):
+                raise ValueError("Wheel inventory changed during capture")
+        if seen != set(expected):
+            row.update(status="CHANGED", reason_codes=["dependency_path_missing"])
+            return row
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError) as exc:
+        row["reason_codes"].append(f"dependency_input_unavailable:{type(exc).__name__}")
+        return row
+    row.update(status="MATCH", payload_checks_complete=True, dependency_inputs_sha256=_digest(hashes))
+    return row
 
 
 def _runtime_identity() -> str:
@@ -175,33 +286,96 @@ def _runtime_identity() -> str:
     return _digest([sys.version, platform.platform(), rows])
 
 
-def build_inputs(root: Path, unit: str) -> tuple[dict, dict[str, bytes]]:
-    spec = load_spec(root, unit)
-    files = {relative: _bytes(_under(root, relative)) for relative in spec["reviewed_source_sha256"]}
-    dependencies = _package_inputs(spec["runtime_distributions"])
+def _build_input_context(root: Path, unit: str, *, project_context=None, dependency_capture=None) -> dict:
+    context = _capture_project_inputs(root, unit) if project_context is None else project_context
+    spec, files = context["spec"], context["files"]
+    component = None
+    if dependency_capture is None:
+        dependencies = _package_inputs(spec["runtime_distributions"])
+    else:
+        if context["provenance"] is None:
+            raise ValueError("Shared dependency capture requires reviewed v2 inputs")
+        dependencies, component = dependency_capture(spec["runtime_distributions"])
     files.update({"deps/" + relative: value for relative, value in dependencies.items()})
+    if component is None and context["provenance"] is not None:
+        component = _digest({p: hashlib.sha256(v).hexdigest() for p, v in dependencies.items()})
+    context["identity"] = _compose_input_identity(root, unit, context, dependency_component=component)
+    return context
+
+
+def _compose_input_identity(root: Path, unit: str, context: dict, *, dependency_component=None) -> dict:
+    """One identity interpretation shared by full capture and v2 after observation."""
+    spec = context["spec"]
     engine_paths = ["tools/core/distribution_test_unit_pilot.py", "tools/run_distribution_tests.py",
-                    "tools/core/unmanaged_atomic_io.py"]
+                    "tools/core/unmanaged_atomic_io.py", "tools/core/distribution_unit_input_identity.py",
+                    "tools/core/distribution_dependency_recheck.py", "tools/core/distribution_test_selection.py"]
+    engine = {p: hashlib.sha256(_bytes(root / p)).hexdigest() for p in engine_paths}
+    if context["provenance"] is not None:
+        if not isinstance(dependency_component, str) or not re.fullmatch("[0-9a-f]{64}", dependency_component):
+            raise ValueError("Incomplete dependency input observation")
+        engine["config/schemas/release_validation_dependency_contract.schema.json"] = _digest(context["effective_schema"])
+        input_digests = {"canonical_profile_reuse_enabled": False,
+            "project_inputs_sha256": context["project_inputs_sha256"],
+            "dependency_inputs_sha256": dependency_component}
+    else:
+        input_digests = {"source_inputs_sha256": _digest({k: hashlib.sha256(v).hexdigest() for k, v in context["files"].items()})}
     identity = {
-        "schema": SCHEMA, "authority": AUTHORITY, "unit": unit,
-        "source_inputs_sha256": _digest({k: hashlib.sha256(v).hexdigest() for k, v in files.items()}),
+        "schema": unit_identity.IDENTITY_SCHEMA if context["provenance"] is not None else SCHEMA,
+        "authority": AUTHORITY, "unit": unit, **input_digests,
         "spec_sha256": _digest(spec), "runtime_sha256": _runtime_identity(),
-        "engine_sha256": _digest({p: hashlib.sha256(_bytes(root / p)).hexdigest() for p in engine_paths}),
+        "engine_sha256": _digest(engine),
         "environment": {k: os.environ.get(k, "") for k in ("SYSTEMROOT", "WINDIR")},
         "expected_tests": spec["expected_tests"],
         "startup": STARTUP_PROTOCOL,
     }
-    return identity, files
+    return identity
+
+
+def _recheck_input_context(root: Path, unit: str, before: dict, invocation: str) -> dict:
+    if (not isinstance(before, dict) or not _identity_is_complete(before.get("identity"))
+            or before["identity"]["schema"] != unit_identity.IDENTITY_SCHEMA
+            or before["identity"]["unit"] != unit or not isinstance(invocation, str) or not invocation.strip()
+            or not unit_identity.provenance_is_complete(before.get("provenance"), unit,
+                project_paths=before.get("spec", {}).get("project_inputs", {}))):
+        raise ValueError("V2 after observation requires owner-held current context")
+    context = _capture_project_inputs(root, unit)
+    if context["provenance"] is None:
+        raise ValueError("Input contract version changed during execution")
+    # Release fresh project payloads before reading dependencies; raw facts are held.
+    context.pop("files")
+    expected = {p[len("deps/"):]: value for p, value in before["files"].items() if p.startswith("deps/")}
+    observed = _recheck_package_inputs(context["spec"]["runtime_distributions"], expected,
+        unit=unit, invocation=invocation)
+    context["dependency_recheck"] = observed
+    context["identity"] = (_compose_input_identity(root, unit, context,
+        dependency_component=observed["dependency_inputs_sha256"])
+        if observed["status"] == "MATCH" and observed["payload_checks_complete"] else None)
+    return context
+
+
+def build_inputs(root: Path, unit: str) -> tuple[dict, dict[str, bytes]]:
+    context = _build_input_context(root, unit)
+    return context["identity"], context["files"]
 
 
 def _identity_is_complete(identity: object) -> bool:
     fields = {"schema", "authority", "unit", "source_inputs_sha256", "spec_sha256", "runtime_sha256",
               "engine_sha256", "environment", "startup", "expected_tests"}
-    if (not isinstance(identity, dict) or set(identity) != fields or identity.get("schema") != SCHEMA
+    version2 = isinstance(identity, dict) and identity.get("schema") == unit_identity.IDENTITY_SCHEMA
+    hashes = {"source_inputs_sha256", "spec_sha256", "runtime_sha256", "engine_sha256"}
+    if version2:
+        fields = (fields - {"source_inputs_sha256"}) | {"project_inputs_sha256", "dependency_inputs_sha256", "canonical_profile_reuse_enabled"}
+        hashes = (hashes - {"source_inputs_sha256"}) | {"project_inputs_sha256", "dependency_inputs_sha256"}
+        if (identity.get("canonical_profile_reuse_enabled") is not False
+                or not isinstance(identity.get("unit"), str)
+                or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", identity["unit"])):
+            return False
+    if (not isinstance(identity, dict) or set(identity) != fields
+            or identity.get("schema") != (unit_identity.IDENTITY_SCHEMA if version2 else SCHEMA)
             or identity.get("authority") != AUTHORITY or not identity.get("unit")
             or not identity.get("startup") or not identity.get("expected_tests")
             or any(not re.fullmatch("[0-9a-f]{64}", str(identity.get(key, "")))
-                   for key in ("source_inputs_sha256", "spec_sha256", "runtime_sha256", "engine_sha256"))
+                   for key in hashes)
             or not isinstance(identity.get("environment"), dict)
             or set(identity["environment"]) != {"SYSTEMROOT", "WINDIR"}):
         return False
@@ -211,6 +385,22 @@ def _identity_is_complete(identity: object) -> bool:
 def compare_parent_unit_binding(issued: object, envelope: object, current: object,
                                 observed: object) -> list[str]:
     """Compare parent-held observations only; no execution, receipt import or authority."""
+    return _compare_parent_unit_binding(issued, envelope, current, observed, version2=False)
+
+
+def compare_parent_unit_binding_v2(issued: object, envelope: object, current: object,
+                                   observed: object, provenance_before: object,
+                                   provenance_after: object) -> list[str]:
+    """Diagnostic comparison only; provenance must be independently held by the caller."""
+    if (not unit_identity.provenance_is_complete(provenance_before, "jsonc_parser")
+            or not unit_identity.provenance_is_complete(provenance_after, "jsonc_parser")
+            or provenance_before != provenance_after):
+        return ["missing_or_changed_parent_held_provenance"]
+    return _compare_parent_unit_binding(issued, envelope, current, observed,
+        version2=True, provenance=provenance_before)
+
+
+def _compare_parent_unit_binding(issued, envelope, current, observed, *, version2, provenance=None):
     reasons = []
     context_fields = {"dispatch_event_binding", "dispatch_decision", "dispatch_id", "parent_step_id",
         "parent_attempt_id", "parent_execution_status", "parent_dependency_results", "run_identity",
@@ -224,7 +414,9 @@ def compare_parent_unit_binding(issued: object, envelope: object, current: objec
             or any(not isinstance(issued[k], str) or not re.fullmatch("[0-9a-f]{64}", issued[k]) for k in sha_keys)
             or issued["parent_execution_status"] != "RUNNING"):
         reasons.append("invalid_issued_parent_context")
-    if (not _identity_is_complete(current) or current.get("unit") != issued["unit_id"]
+    if (not _identity_is_complete(current)
+            or current.get("schema") != (unit_identity.IDENTITY_SCHEMA if version2 else SCHEMA)
+            or current.get("unit") != issued["unit_id"]
             or current.get("startup") != STARTUP_PROTOCOL
             or not isinstance(current.get("expected_tests"), list)
             or not all(isinstance(n, str) and n for n in current.get("expected_tests", []))
@@ -234,7 +426,8 @@ def compare_parent_unit_binding(issued: object, envelope: object, current: objec
         "unit_context", "actual_execution", "issued_context_sha256", "receipt_sha256"}
     if not isinstance(envelope, dict) or set(envelope) != required:
         return [*reasons, "unsupported_or_incomplete_binding_envelope"]
-    if (envelope["schema"] != BINDING_SCHEMA or envelope["authority"] != AUTHORITY
+    if (envelope["schema"] != (unit_identity.BINDING_SCHEMA if version2 else BINDING_SCHEMA)
+            or envelope["authority"] != AUTHORITY
             or envelope["canonical_profile_reuse_enabled"] is not False):
         reasons.append("binding_scope_or_authority_invalid")
     if envelope["parent_context"] != issued or envelope["issued_context_sha256"] != _digest(issued):
@@ -242,6 +435,8 @@ def compare_parent_unit_binding(issued: object, envelope: object, current: objec
     unit = {"unit_id": current["unit"], "unit_spec_sha256": current["spec_sha256"],
         "expected_test_nodeids": current["expected_tests"], "execution_protocol": STARTUP_PROTOCOL,
         "input_identity_before": current, "input_identity_after": current}
+    if version2:
+        unit.update(input_provenance_before=provenance, input_provenance_after=provenance)
     if envelope["unit_context"] != unit:
         reasons.append("unit_identity_protocol_or_test_union_mismatch")
     execution_fields = {"child_invocation_id", "execution_status", "returncode", "timed_out", "skipped",
@@ -264,11 +459,13 @@ def compare_parent_unit_binding(issued: object, envelope: object, current: objec
     return reasons
 
 
-def reuse_decision(identity: dict, previous: dict, invocation: str) -> dict:
+def reuse_decision(identity: dict, previous: dict, invocation: str, *, provenance=None) -> dict:
     reasons = []
+    version2 = identity.get("schema") == unit_identity.IDENTITY_SCHEMA
     if not _identity_is_complete(identity):
         reasons.append("incomplete_current_unit_identity")
-    if (previous.get("schema") != SCHEMA or previous.get("authority") != AUTHORITY
+    if (previous.get("schema") != (unit_identity.BASELINE_SCHEMA if version2 else SCHEMA)
+            or previous.get("authority") != AUTHORITY
             or previous.get("canonical_profile_reuse_enabled") is not False):
         reasons.append("wrong_scope_or_authority")
     if not invocation or previous.get("invocation") != invocation:
@@ -279,6 +476,10 @@ def reuse_decision(identity: dict, previous: dict, invocation: str) -> dict:
         reasons.append("prior_not_clean_actual_execution")
     if previous.get("identity") != identity:
         reasons.append("unit_input_identity_changed")
+    if version2 and (not unit_identity.provenance_is_complete(provenance, identity.get("unit"))
+            or previous.get("input_provenance_before") != provenance
+            or previous.get("input_provenance_after") != provenance):
+        reasons.append("missing_or_changed_input_provenance")
     if sorted(previous.get("test_names") or []) != sorted(identity.get("expected_tests") or []):
         reasons.append("test_union_mismatch")
     body = {k: v for k, v in previous.items() if k != "receipt_sha256"}
@@ -294,7 +495,10 @@ def _execute(files: dict[str, bytes], spec: dict) -> dict:
             destination = _under(root, relative)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(content)
-        (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+        (root / "pytest.ini").write_bytes(b"[pytest]\n")
+        version2 = spec.get("input_contract_version") == "v2"
+        if version2 and not _unit_capsule_inputs_match(root, files, b"[pytest]\n"):
+            raise ValueError("Copied pilot inputs differ from captured bytes")
         command = [sys.executable, "-I", "-S", "-B", "-c", BOOTSTRAP,
             "-q", "-c", "pytest.ini", "--noconftest", "--import-mode=importlib",
             "-p", "no:cacheprovider", "--junitxml=result.xml", spec["test_path"]]
@@ -302,6 +506,8 @@ def _execute(files: dict[str, bytes], spec: dict) -> dict:
         environment.update(PYTEST_DISABLE_PLUGIN_AUTOLOAD="1", TEMP=scratch, TMP=scratch)
         result = subprocess.run(command, cwd=root, env=environment, capture_output=True,
             text=True, encoding="utf-8", errors="replace", timeout=spec["timeout_seconds"], check=False)
+        if version2 and not _unit_capsule_inputs_match(root, files, b"[pytest]\n"):
+            raise ValueError("Copied pilot inputs changed during execution")
         print(result.stdout[-6000:], flush=True)
         if result.stderr:
             print(result.stderr[-2000:], file=sys.stderr, flush=True)
@@ -320,23 +526,30 @@ def _execute(files: dict[str, bytes], spec: dict) -> dict:
 def run_pilot(root: Path, unit: str) -> dict:
     started = time.perf_counter()
     print(f"[distribution-unit-pilot] unit={unit} phase=review_and_identity diagnostic_only", flush=True)
-    identity, files = build_inputs(root, unit)
+    before = _build_input_context(root, unit)
+    identity, files, spec = before["identity"], before["files"], before["spec"]
     identity_seconds = time.perf_counter() - started
     print(f"[distribution-unit-pilot] phase=isolated_execution identity_seconds={identity_seconds:.3f}", flush=True)
-    spec = load_spec(root, unit)
     invocation = str(uuid.uuid4())
     result = _execute(files, spec)
     executed = time.perf_counter()
     print("[distribution-unit-pilot] phase=recheck_inputs", flush=True)
-    after, _ = build_inputs(root, unit)
-    if after != identity:
+    after = (_recheck_input_context(root, unit, before, invocation)
+             if before["provenance"] is not None else _build_input_context(root, unit))
+    if before["provenance"] is not None and after["dependency_recheck"]["status"] == "UNAVAILABLE":
+        reasons = after["dependency_recheck"].get("reason_codes", [])
+        raise ValueError(f"Pilot input recheck unavailable ({','.join(reasons)}); result is not reusable")
+    if after["identity"] != identity or after["provenance"] != before["provenance"]:
         raise ValueError("Pilot inputs changed during execution; result is not reusable")
-    baseline = {**result, "schema": SCHEMA, "authority": AUTHORITY,
+    schema = unit_identity.BASELINE_SCHEMA if before["provenance"] is not None else SCHEMA
+    baseline = {**result, "schema": schema, "authority": AUTHORITY,
         "canonical_profile_reuse_enabled": False, "identity": identity,
         "invocation": invocation, "execution_status": "COMPLETED"}
+    if before["provenance"] is not None:
+        baseline.update(input_provenance_before=before["provenance"], input_provenance_after=after["provenance"])
     baseline["receipt_sha256"] = _digest(baseline)
-    warm = reuse_decision(after, baseline, invocation)
-    return {"schema": SCHEMA, "authority": AUTHORITY,
+    warm = reuse_decision(after["identity"], baseline, invocation, provenance=after["provenance"])
+    return {"schema": schema, "authority": AUTHORITY,
         "canonical_profile_reuse_enabled": False,
         "status": "DIAGNOSTIC_PASS" if warm["reuse"] else "FAIL", "baseline": baseline,
         "warm_decision": warm, "fresh_test_processes": 1, "warm_test_processes": 0,
@@ -352,14 +565,18 @@ def _unit_output_digest(value: object) -> str:
         separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
 
 
-def _load_unit_output_policy(root: Path) -> dict:
+def _load_unit_output_policy(root: Path, *, context=None) -> dict:
     """Validate the diagnostic extension through its owning schema, without defaults."""
     from jsonschema import Draft202012Validator, SchemaError, ValidationError
     from tools.core.json_io import load_json_object_strict
 
-    contract = load_json_object_strict(root / "config/release_validation_dependency_contract.json")
-    schema = load_json_object_strict(root / "config/schemas/release_validation_dependency_contract.schema.json")
-    section = contract.get("diagnostic_unit_output_observation")
+    if context is None:
+        contract = load_json_object_strict(root / "config/release_validation_dependency_contract.json")
+        section = contract.get("diagnostic_unit_output_observation")
+    else:
+        section = context["output_policy"]
+    schema = (json.loads(context["schema_bytes"]) if context is not None and "schema_bytes" in context
+              else load_json_object_strict(root / "config/schemas/release_validation_dependency_contract.schema.json"))
     section_schema = schema["properties"]["diagnostic_unit_output_observation"]
     try:
         Draft202012Validator.check_schema(section_schema)
@@ -545,16 +762,25 @@ def _observe_diagnostic_unit_outputs(root: Path, unit: str) -> dict:
     capsule = None
     raw = None
     try:
-        policy = _load_unit_output_policy(root)
+        project = _capture_project_inputs(root, unit)
+        policy = _load_unit_output_policy(root, context=project)
         stream_policy = load_raw_observation_policy()
         if unit not in policy["units"]:
             raise ValueError("Unit is not registered for diagnostic output observation")
-        spec = load_spec(root, unit)
-        identity, files = build_inputs(root, unit)
+        before = _build_input_context(root, unit, project_context=project)
+        identity, files, spec = before["identity"], before["files"], before["spec"]
+        version2 = before["provenance"] is not None
+        expected_schema = (unit_identity.OUTPUT_SCHEMA if version2 else "nexora_sage_diagnostic_unit_output_observation_v1")
+        if policy["schema"] != expected_schema:
+            raise ValueError("Unit input and output schema versions differ")
+        row["schema"] = expected_schema
+        if version2:
+            row.update(input_identity_before=identity, input_identity_after=None,
+                input_provenance_before=before["provenance"], input_provenance_after=None)
         if (not _identity_is_complete(identity) or identity["unit"] != unit
                 or identity["startup"] != STARTUP_PROTOCOL or identity["spec_sha256"] != _digest(spec)
                 or identity["expected_tests"] != spec["expected_tests"] or not spec["test_path"].endswith(".py")
-                or identity["source_inputs_sha256"] != _digest({k: hashlib.sha256(v).hexdigest() for k, v in files.items()})):
+                or (not version2 and identity["source_inputs_sha256"] != _digest({k: hashlib.sha256(v).hexdigest() for k, v in files.items()}))):
             raise ValueError("Prepared unit identity is incomplete or inconsistent")
         capsule = tempfile.TemporaryDirectory(prefix="sage-unit-output-")
         directory = Path(capsule.name)
@@ -580,7 +806,7 @@ def _observe_diagnostic_unit_outputs(root: Path, unit: str) -> dict:
         row["prepared_plan_identity"] = {**plan, "digest_algorithm": policy["digest_algorithm"],
             "junit_policy_sha256": _unit_output_digest(policy), "pytest_ini_sha256": hashlib.sha256(ini).hexdigest()}
         row["producer_identity_references"] = {"launcher_source_sha256": hashlib.sha256(_bytes(Path(__file__))).hexdigest(),
-            "legacy_unit_input_identity_sha256": _digest(identity),
+            ("unit_execution_identity_sha256" if version2 else "legacy_unit_input_identity_sha256"): _digest(identity),
             "boundary": "Source references only; loaded producer/runtime closure is not attested."}
         row["owner_invocation_id"] = str(uuid.uuid4())
         row["launch_attempted"], row["status"] = True, "INCOMPLETE_OBSERVATION"
@@ -609,12 +835,21 @@ def _observe_diagnostic_unit_outputs(root: Path, unit: str) -> dict:
                     row["raw_capture"] = asdict(raw)
             if row["launch_attempted"]:
                 try:
-                    after, _ = build_inputs(root, unit)
-                    unchanged = (after == identity and load_spec(root, unit) == spec
+                    after = (_recheck_input_context(root, unit, before, row["owner_invocation_id"])
+                             if version2 else _build_input_context(root, unit))
+                    if version2:
+                        row.update(input_identity_after=after["identity"], input_provenance_after=after["provenance"])
+                        if after["dependency_recheck"]["status"] != "MATCH":
+                            row["reasons"].extend("dependency_input_recheck:" + code
+                                for code in after["dependency_recheck"].get("reason_codes", []))
+                    unchanged = (after["identity"] == identity and after["provenance"] == before["provenance"]
+                        and after["spec"] == spec
                         and _unit_capsule_inputs_match(directory, files, ini)
-                        and _load_unit_output_policy(root) == policy
+                        and _load_unit_output_policy(root, context=after) == policy
                         and load_raw_observation_policy() == stream_policy)
-                    row["input_recheck"] = "unchanged" if unchanged else "changed"
+                    row["input_recheck"] = ("unavailable"
+                        if version2 and after["dependency_recheck"]["status"] == "UNAVAILABLE"
+                        else "unchanged" if unchanged else "changed")
                 except (OSError, ValueError, TypeError, KeyError, UnicodeError) as exc:
                     row["input_recheck"] = "unavailable"
                     row["reasons"].append(f"unit_input_recheck:{type(exc).__name__}")

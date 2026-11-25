@@ -27,11 +27,10 @@ def _canonical_json_bytes(payload: Any) -> bytes:
     ).encode("utf-8")
 
 
-def doctrine_source_fingerprint(manifest_path: Path = MANIFEST_PATH) -> str:
-    """Fingerprint manifest and pack semantics without host-specific byte drift."""
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+def doctrine_source_fingerprint_from_payloads(manifest: Any, packs: dict[str, Any]) -> str:
+    """Fingerprint already captured payloads; never read, compile or write files."""
     if not isinstance(manifest, dict):
-        raise ValueError(f"Doctrine manifest is not an object: {manifest_path}")
+        raise ValueError("Doctrine manifest is not an object")
 
     digest = hashlib.sha256()
     digest.update(b"manifest\0")
@@ -43,18 +42,37 @@ def doctrine_source_fingerprint(manifest_path: Path = MANIFEST_PATH) -> str:
         if not isinstance(entry, dict) or not entry.get("path"):
             raise ValueError(f"Doctrine pack entry missing path: {entry}")
         rel_path = str(entry["path"]).replace("\\", "/")
-        pack_path = manifest_path.parent / rel_path
         digest.update(b"pack\0")
         digest.update(rel_path.encode("utf-8"))
         digest.update(b"\0")
-        if not pack_path.exists():
+        if rel_path not in packs:
             if entry.get("required", True):
-                raise FileNotFoundError(f"Required doctrine pack is missing: {pack_path}")
+                raise FileNotFoundError("Required captured doctrine pack is missing")
             digest.update(b"optional-missing")
             continue
-        pack_payload = json.loads(pack_path.read_text(encoding="utf-8-sig"))
-        digest.update(_canonical_json_bytes(pack_payload))
+        digest.update(_canonical_json_bytes(packs[rel_path]))
     return digest.hexdigest()
+
+
+def doctrine_source_fingerprint(manifest_path: Path = MANIFEST_PATH) -> str:
+    """Fingerprint manifest and pack semantics without host-specific byte drift."""
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Doctrine manifest is not an object: {manifest_path}")
+    active = manifest.get("active_doctrines")
+    if not isinstance(active, list) or not active:
+        raise ValueError("Doctrine manifest must declare non-empty active_doctrines")
+    packs = {}
+    for entry in active:
+        if not isinstance(entry, dict) or not entry.get("path"):
+            raise ValueError("Doctrine pack entry missing path")
+        relative = str(entry["path"]).replace("\\", "/")
+        path = manifest_path.parent / relative
+        if path.exists():
+            packs[relative] = json.loads(path.read_text(encoding="utf-8-sig"))
+        elif entry.get("required", True):
+            raise FileNotFoundError(f"Required doctrine pack is missing: {path}")
+    return doctrine_source_fingerprint_from_payloads(manifest, packs)
 
 
 def _load_json(path: Path) -> dict[str, Any]:

@@ -1,0 +1,876 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "config/schemas/compiler_row_span_composition.schema.json",
+  "title": "Private supplied synthetic row-span composition",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "locator_policy_sha256",
+        "span_policy_sha256",
+        "association_policy_sha256",
+        "row_policy_sha256",
+        "image_policy_sha256",
+        "model",
+        "budget_model",
+        "input_kind",
+        "method",
+        "purpose",
+        "deadline_policy",
+        "privacy",
+        "result_status",
+        "limits",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-row-span-composition"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_row_span_composition.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "locator_policy_sha256": {
+          "const": "ef7a346bbf45f3046ec6dc1ba626e99b5c1781eff948e69c72471fc1fb0c51f6"
+        },
+        "span_policy_sha256": {
+          "const": "aa5c12622bc2dc3bc68edc60f9f9cb25f5714fd5e38829e5e7e9c0abff5e2e2e"
+        },
+        "association_policy_sha256": {
+          "const": "a5b38636d40ae7d44af3ce547109af1eb5623d86087650502163a48adfca2177"
+        },
+        "row_policy_sha256": {
+          "const": "1895ec6acf0f99abc858d90b2dc59bf1b823c9513031367499e0094169345a9a"
+        },
+        "image_policy_sha256": {
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "model": {
+          "const": "supplied_synthetic_once_per_stage_row_span_composition_v1"
+        },
+        "budget_model": {
+          "const": "sum_reference_child_graphs_parent_templates_and_codecs_v1"
+        },
+        "input_kind": {
+          "const": "same_process_builtin_supplied_string_v1"
+        },
+        "method": {
+          "const": "reviewed_once_per_stage_supplied_row_span_v1"
+        },
+        "purpose": {
+          "const": "compose_one_supplied_synthetic_row_span"
+        },
+        "deadline_policy": {
+          "const": "one_original_monotonic_parent_deadline_v1"
+        },
+        "privacy": {
+          "const": "selected_metadata_and_bounded_stage_facts_only_v1"
+        },
+        "result_status": {
+          "const": "SUPPLIED_SYNTHETIC_ROW_SPAN_COMPOSITION_RECORDED_NOT_ORIGIN_ATTESTATION"
+        },
+        "limits": {
+          "const": {
+            "source_utf16_units": 8192,
+            "parent_metadata_bytes": 2097152,
+            "locator_snapshot_bytes": 8192,
+            "span_receipt_bytes": 8192,
+            "association_receipt_bytes": 8192,
+            "composition_receipt_bytes": 8192,
+            "parent_byte_work_units": 2097152,
+            "image_bytes": 41943040,
+            "operation_ms": 30000
+          }
+        },
+        "claim_boundary": {
+          "const": "Disabled same-process supplied-synthetic composition only. Local calls/returns are not execution or origin authentication; no actual file/acquisition/owner/controller/runtime/production/semantic/cache/publication or physical resource claim."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "source",
+        "candidate",
+        "origin_ref_sha256",
+        "invocations",
+        "purpose"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "candidate": {
+          "$ref": "#/$defs/candidate"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "invocations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "composition",
+            "locator",
+            "span",
+            "association"
+          ],
+          "properties": {
+            "composition": {
+              "type": "string",
+              "minLength": 1
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1
+            },
+            "span": {
+              "type": "string",
+              "minLength": 1
+            },
+            "association": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "purpose": {
+          "const": "compose_one_supplied_synthetic_row_span"
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_index",
+        "start_utf16",
+        "end_utf16",
+        "start_utf8",
+        "end_utf8",
+        "line_1based",
+        "column_utf16_0based",
+        "view_utf16_units",
+        "view_utf8_bytes",
+        "view_text_sha256",
+        "single_row_grammar_policy_sha256"
+      ],
+      "properties": {
+        "occurrence_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "line_1based": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column_utf16_0based": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf16_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "single_row_grammar_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_text_utf8_sha256",
+        "source_utf16_units",
+        "source_utf8_bytes"
+      ],
+      "properties": {
+        "source_text_utf8_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_utf16_units": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_utf16",
+        "end_utf16",
+        "start_utf8",
+        "end_utf8",
+        "view_utf16_units",
+        "view_utf8_bytes",
+        "view_text_sha256"
+      ],
+      "properties": {
+        "start_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_utf16_units": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "view_utf8_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "view_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator_status",
+        "scan_complete_within_model",
+        "observation_sha256",
+        "candidate_count",
+        "certified_prefix_end_utf16",
+        "certified_prefix_end_utf8",
+        "examined_through_utf16",
+        "examined_through_utf8",
+        "unscanned_tail_code_units",
+        "unknown_tail_candidate_count",
+        "gap_sha256",
+        "gap_code"
+      ],
+      "properties": {
+        "locator_status": {
+          "enum": [
+            "ROW_CANDIDATE_SCAN_COMPLETED_WITHIN_FINITE_MODEL_NOT_TABLE",
+            "PARTIAL_ROW_CANDIDATE_SCAN_UNKNOWN_LEXICAL_TAIL_NOT_TABLE"
+          ]
+        },
+        "scan_complete_within_model": {
+          "type": "boolean"
+        },
+        "observation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidate_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "certified_prefix_end_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "certified_prefix_end_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "examined_through_utf16": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "examined_through_utf8": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unscanned_tail_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_tail_candidate_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "gap_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "gap_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "unsupported_token",
+            "unsupported_string",
+            "unclosed_comment",
+            "unclosed_string",
+            "unsupported_line_separator",
+            null
+          ]
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_execution_authenticated",
+        "origin_authenticated",
+        "locator_origin_attested",
+        "selection_intent_authenticated",
+        "same_read_attested",
+        "source_freshness_verified",
+        "physical_path_verified",
+        "global_byte_line_mapping_verified",
+        "read_authority_granted",
+        "filesystem_capture_attested",
+        "controller_request_admitted",
+        "owner_request_admitted",
+        "actual_grammar_replayed",
+        "table_membership_verified",
+        "table_complete",
+        "binding_resolved",
+        "actual_export_set_complete",
+        "input_code_evaluated",
+        "compiler_loaded",
+        "runtime_verified",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "publication_authority"
+      ],
+      "properties": {
+        "producer_execution_authenticated": {
+          "const": false
+        },
+        "origin_authenticated": {
+          "const": false
+        },
+        "locator_origin_attested": {
+          "const": false
+        },
+        "selection_intent_authenticated": {
+          "const": false
+        },
+        "same_read_attested": {
+          "const": false
+        },
+        "source_freshness_verified": {
+          "const": false
+        },
+        "physical_path_verified": {
+          "const": false
+        },
+        "global_byte_line_mapping_verified": {
+          "const": false
+        },
+        "read_authority_granted": {
+          "const": false
+        },
+        "filesystem_capture_attested": {
+          "const": false
+        },
+        "controller_request_admitted": {
+          "const": false
+        },
+        "owner_request_admitted": {
+          "const": false
+        },
+        "actual_grammar_replayed": {
+          "const": false
+        },
+        "table_membership_verified": {
+          "const": false
+        },
+        "table_complete": {
+          "const": false
+        },
+        "binding_resolved": {
+          "const": false
+        },
+        "actual_export_set_complete": {
+          "const": false
+        },
+        "input_code_evaluated": {
+          "const": false
+        },
+        "compiler_loaded": {
+          "const": false
+        },
+        "runtime_verified": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "publication_authority": {
+          "const": false
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator",
+        "span",
+        "association"
+      ],
+      "properties": {
+        "locator": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "association": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "child_locator_reserved_bytes",
+        "child_span_reserved_bytes",
+        "child_association_reserved_bytes",
+        "parent_fixed_metadata_bytes",
+        "parent_dynamic_template_bytes",
+        "parent_metadata_reserved_bytes",
+        "parent_metadata_reference_reserved_bytes",
+        "parent_codec_reference_reserved_bytes",
+        "parent_source_reference_reserved_bytes",
+        "joint_reserved_bytes",
+        "locator_snapshot_bytes",
+        "span_receipt_bytes",
+        "association_receipt_bytes",
+        "locator_work_units_observed",
+        "locator_source_identity_bytes_observed",
+        "locator_candidate_identity_bytes_observed",
+        "span_source_identity_bytes_expected",
+        "span_prefix_work_units_expected",
+        "association_prepublication_byte_work_observed",
+        "association_terminal_byte_work_reserved",
+        "association_terminal_byte_work_derived",
+        "parent_prepublication_byte_work_units",
+        "parent_terminal_byte_work_reserved_units",
+        "span_native_counters_observed",
+        "parent_byte_work_reserved_units"
+      ],
+      "properties": {
+        "child_locator_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "child_span_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "child_association_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_fixed_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_dynamic_template_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_metadata_reference_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_codec_reference_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_source_reference_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "joint_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locator_snapshot_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span_receipt_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "association_receipt_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locator_work_units_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locator_source_identity_bytes_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locator_candidate_identity_bytes_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span_source_identity_bytes_expected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span_prefix_work_units_expected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "association_prepublication_byte_work_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "association_terminal_byte_work_reserved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "association_terminal_byte_work_derived": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_prepublication_byte_work_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent_terminal_byte_work_reserved_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "span_native_counters_observed": {
+          "const": false
+        },
+        "parent_byte_work_reserved_units": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "method",
+        "purpose",
+        "deadline_policy",
+        "producer_policy_sha256",
+        "producer_schema_sha256",
+        "expected_sha256",
+        "locator_snapshot_sha256",
+        "span_receipt_sha256",
+        "association_receipt_sha256",
+        "locator_expected_sha256",
+        "span_expected_sha256",
+        "association_expected_sha256",
+        "decision_sha256",
+        "candidate_sha256",
+        "origin_ref_sha256",
+        "source",
+        "selection",
+        "coverage",
+        "calls",
+        "returns",
+        "cost",
+        "flags",
+        "raw_source_retained",
+        "private_refs_cleared"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-row-span-composition"
+        },
+        "status": {
+          "const": "SUPPLIED_SYNTHETIC_ROW_SPAN_COMPOSITION_RECORDED_NOT_ORIGIN_ATTESTATION"
+        },
+        "method": {
+          "const": "reviewed_once_per_stage_supplied_row_span_v1"
+        },
+        "purpose": {
+          "const": "compose_one_supplied_synthetic_row_span"
+        },
+        "deadline_policy": {
+          "const": "one_original_monotonic_parent_deadline_v1"
+        },
+        "producer_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producer_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "association_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "span_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "association_expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "coverage": {
+          "$ref": "#/$defs/coverage"
+        },
+        "calls": {
+          "$ref": "#/$defs/counts"
+        },
+        "returns": {
+          "$ref": "#/$defs/counts"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        },
+        "flags": {
+          "$ref": "#/$defs/flags"
+        },
+        "raw_source_retained": {
+          "const": false
+        },
+        "private_refs_cleared": {
+          "const": true
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "native_stage",
+        "calls",
+        "returns",
+        "known_sha256",
+        "parent_byte_work_units",
+        "receipt_emitted",
+        "source_cleared"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": [
+            "start",
+            "policy",
+            "preflight",
+            "locator_call",
+            "locator_validate",
+            "decision",
+            "span_call",
+            "span_codec",
+            "association_call",
+            "association_codec",
+            "settlement",
+            "publish"
+          ]
+        },
+        "native_stage": {
+          "type": "string",
+          "enum": [
+            "start",
+            "policy",
+            "input",
+            "scan",
+            "mapping",
+            "coverage",
+            "selection",
+            "settlement",
+            "publish",
+            "documents",
+            "unknown"
+          ]
+        },
+        "calls": {
+          "$ref": "#/$defs/counts"
+        },
+        "returns": {
+          "$ref": "#/$defs/counts"
+        },
+        "known_sha256": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "locator",
+            "span",
+            "association"
+          ],
+          "properties": {
+            "locator": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "span": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "association": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "parent_byte_work_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "receipt_emitted": {
+          "const": false
+        },
+        "source_cleared": {
+          "const": true
+        }
+      }
+    }
+  }
+}

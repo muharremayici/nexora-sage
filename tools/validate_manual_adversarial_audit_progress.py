@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +13,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.config import CONFIG_DIR, RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
-from tools.core.json_io import load_json_file
+from tools.core.json_io import load_json_file, load_json_object_strict, load_raw_artifact_primary_with_identity
+from tools.core.pipeline_registry import catalog_args_from_execution_policy, step_registry_from_catalog
 from tools.core.manual_audit_contract_identity import contract_fingerprint
 
 
@@ -23,6 +25,7 @@ SOURCE_LAYER_TAXONOMY_PATH = CONFIG_DIR / "source_layer_taxonomy.json"
 SYSTEM_SPINE_REGISTRY_PATH = CONFIG_DIR / "system_spine_registry.json"
 RELEASE_PROOF_STEPS_CONTRACT_PATH = CONFIG_DIR / "release_proof_steps_contract.json"
 PIPELINE_STEP_REGISTRY_PATH = RAW_DIR / "pipeline_step_registry.json"
+PIPELINE_EXECUTION_POLICY_PATH = CONFIG_DIR / "pipeline_execution_policy.json"
 RAW_OUTPUT_PATH = RAW_DIR / "manual_adversarial_audit_progress_validation.json"
 REPORT_OUTPUT_PATH = REPORTS_DIR / "manual_adversarial_audit_progress_validation.md"
 
@@ -40,6 +43,25 @@ def _rows(value: Any) -> list[dict[str, Any]]:
     return [row for row in value if isinstance(row, dict)]
 
 
+def _pipeline_step_registry() -> tuple[dict[str, Any], str]:
+    primary = load_raw_artifact_primary_with_identity(PIPELINE_STEP_REGISTRY_PATH)
+    if primary is not None:
+        return primary[0], "generated_runtime_registry"
+    try:
+        registry = load_json_object_strict(
+            PIPELINE_STEP_REGISTRY_PATH, label="Pipeline step registry", bypass_proxy=True,
+        )
+    except FileNotFoundError:
+        from tools.orchestrators.orchestrator import build_step_catalog
+
+        policy = load_json_object_strict(PIPELINE_EXECUTION_POLICY_PATH, label="Pipeline execution policy")
+        catalog = build_step_catalog(
+            catalog_args_from_execution_policy(policy), stale_projects=None, changed_files=None,
+        )
+        return step_registry_from_catalog(catalog), "source_catalog"
+    return registry, "generated_runtime_registry"
+
+
 def build_validation() -> dict[str, Any]:
     checklist = load_json_file(CHECKLIST_PATH, {})
     progress = load_json_file(PROGRESS_PATH, {})
@@ -47,7 +69,23 @@ def build_validation() -> dict[str, Any]:
     source_taxonomy = load_json_file(SOURCE_LAYER_TAXONOMY_PATH, {})
     system_spine_registry = load_json_file(SYSTEM_SPINE_REGISTRY_PATH, {})
     release_proof_steps_contract = load_json_file(RELEASE_PROOF_STEPS_CONTRACT_PATH, {})
-    pipeline_step_registry = load_json_file(PIPELINE_STEP_REGISTRY_PATH, {})
+    pipeline_registry_source = "unavailable"
+    pipeline_registry_steps: list[dict[str, Any]] = []
+    pipeline_registry_issue = None
+    try:
+        registry, origin = _pipeline_step_registry()
+        steps = registry.get("steps") if isinstance(registry, dict) else None
+        if not isinstance(steps, list) or not steps or any(
+            not isinstance(step, dict) or not isinstance(step.get("slug"), str) or not step["slug"].strip()
+            for step in steps
+        ):
+            raise ValueError("Pipeline step registry requires nonempty ordered steps with slugs")
+        if len({step["slug"] for step in steps}) != len(steps):
+            raise ValueError("Pipeline step registry contains duplicate slugs")
+        pipeline_registry_steps = steps
+        pipeline_registry_source = origin
+    except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
+        pipeline_registry_issue = {"scope": "pipeline_steps", "registry_error": f"{type(exc).__name__}: {exc}"}
 
     checklist_layers = _rows(checklist.get("audit_layers")) if isinstance(checklist, dict) else []
     source_policy = checklist.get("source_layer_coverage_policy", {}) if isinstance(checklist, dict) else {}
@@ -231,14 +269,11 @@ def build_validation() -> dict[str, Any]:
     fresh_audit_start_issues: list[dict[str, Any]] = []
     fresh_order = _rows(fresh_audit_start_policy.get("order"))
     fresh_order_by_scope = {str(row.get("scope") or ""): row for row in fresh_order if row.get("scope")}
-    pipeline_registry_steps = _rows(pipeline_step_registry.get("steps"))
-    pipeline_registry_available = PIPELINE_STEP_REGISTRY_PATH.exists() and bool(pipeline_registry_steps)
-    declared_pipeline_count = fresh_order_by_scope.get("pipeline_steps", {}).get("expected_count")
     actual_counts = {
         "macro_audit_layers": len(checklist_layers),
         "source_layers": len(source_taxonomy_order),
         "system_spine_nodes": len(_rows(system_spine_registry.get("spine_nodes"))),
-        "pipeline_steps": len(pipeline_registry_steps) if pipeline_registry_available else declared_pipeline_count,
+        "pipeline_steps": len(pipeline_registry_steps),
         "release_proof_steps": len(_rows(release_proof_steps_contract.get("steps"))),
     }
     required_fresh_scopes = [
@@ -338,65 +373,6 @@ def build_validation() -> dict[str, Any]:
         if status not in {"not_started", "in_progress", "complete"}:
             issues.append({"scope": scope, "invalid_status": status})
         if not expected_order:
-            if scope == "pipeline_steps" and not pipeline_registry_available:
-                projected_order = [current_item_id, *next_item_ids]
-                if status not in {"not_started", "in_progress", "complete"}:
-                    issues.append(
-                        {
-                            "scope": scope,
-                            "status": status,
-                            "expected": ["not_started", "in_progress", "complete"],
-                            "mode": "source_clean_projection_without_generated_runtime_registry",
-                        }
-                    )
-                if not projected_order or not all(str(item).strip() for item in projected_order):
-                    issues.append(
-                        {
-                            "scope": scope,
-                            "missing_projected_cursor_items": True,
-                            "mode": "source_clean_projection_without_generated_runtime_registry",
-                        }
-                    )
-                if not isinstance(current_item_index, int) or current_item_index < 0:
-                    issues.append(
-                        {
-                            "scope": scope,
-                            "current_item_index": current_item_index,
-                            "expected": "non_negative_integer",
-                            "mode": "source_clean_projection_without_generated_runtime_registry",
-                        }
-                    )
-                if status == "complete":
-                    if not isinstance(declared_pipeline_count, int) or declared_pipeline_count <= 0:
-                        issues.append(
-                            {
-                                "scope": scope,
-                                "declared_pipeline_count": declared_pipeline_count,
-                                "expected": "positive_integer",
-                                "mode": "source_clean_projection_without_generated_runtime_registry",
-                            }
-                        )
-                    elif len(completed_item_ids) != declared_pipeline_count:
-                        issues.append(
-                            {
-                                "scope": scope,
-                                "completed_item_count": len(completed_item_ids),
-                                "expected_count": declared_pipeline_count,
-                                "mode": "source_clean_projection_without_generated_runtime_registry",
-                            }
-                        )
-                    elif current_item_index != declared_pipeline_count - 1:
-                        issues.append(
-                            {
-                                "scope": scope,
-                                "current_item_index": current_item_index,
-                                "expected_index": declared_pipeline_count - 1,
-                                "mode": "source_clean_projection_without_generated_runtime_registry",
-                            }
-                        )
-                if not str(row.get("selection_rule") or "").strip():
-                    issues.append({"scope": scope, "missing": "selection_rule"})
-                return issues
             issues.append({"scope": scope, "empty_expected_order": True})
             return issues
         if current_item_id not in expected_order:
@@ -463,6 +439,8 @@ def build_validation() -> dict[str, Any]:
         return issues
 
     micro_walkthrough_issues: list[dict[str, Any]] = []
+    if pipeline_registry_issue is not None:
+        micro_walkthrough_issues.append(pipeline_registry_issue)
     micro_scope_rows = _rows(micro_walkthrough_progress.get("scopes"))
     micro_scope_by_id = {str(row.get("scope") or ""): row for row in micro_scope_rows if row.get("scope")}
     pipeline_fingerprints = {
@@ -477,7 +455,7 @@ def build_validation() -> dict[str, Any]:
         if row.get("id")
     }
     expected_micro_scopes = {
-        "pipeline_steps": ("output/.raw/pipeline_step_registry.json", pipeline_step_order, pipeline_fingerprints if pipeline_registry_available else None),
+        "pipeline_steps": ("output/.raw/pipeline_step_registry.json", pipeline_step_order, pipeline_fingerprints),
         "release_proof_steps": ("config/release_proof_steps_contract.json", release_proof_step_order, release_fingerprints),
         "artifact_connectivity": ("output/.raw/system_connectivity_map.json", artifact_connectivity_order, None),
     }
@@ -489,6 +467,8 @@ def build_validation() -> dict[str, Any]:
         row = micro_scope_by_id.get(scope)
         if not row:
             micro_walkthrough_issues.append({"missing_micro_scope": scope})
+            continue
+        if scope == "pipeline_steps" and pipeline_registry_issue is not None:
             continue
         micro_walkthrough_issues.extend(_validate_micro_cursor(scope, row, expected_order, expected_source, expected_fingerprints))
     extra_micro_scopes = sorted(set(micro_scope_by_id) - set(expected_micro_scopes))
@@ -642,7 +622,7 @@ def build_validation() -> dict[str, Any]:
             "source_layer_spot_check_next": next_source_layer_ids,
             "micro_walkthrough_status": micro_walkthrough_progress.get("status") if isinstance(micro_walkthrough_progress, dict) else "",
             "micro_walkthrough_scopes": len(micro_scope_rows),
-            "pipeline_step_registry_source": "generated_runtime_registry" if pipeline_registry_available else "source_clean_projection_without_generated_runtime_registry",
+            "pipeline_step_registry_source": pipeline_registry_source,
             "derived_pending_layers": derived_pending_layers,
             "temporary_excursions": len(_rows(progress.get("temporary_excursions"))) if isinstance(progress, dict) else 0,
             "total_checks": len(checks),

@@ -1,0 +1,464 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "code",
+    "matched",
+    "input_image_sha256",
+    "input_envelope_sha256",
+    "image",
+    "native",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "native_project_equivalent",
+    "program_completeness_established",
+    "raw_messages_retained"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-owned-diagnostic-projection"
+    },
+    "authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PRIVATE_DIAGNOSTIC_ROWS_PROJECTED_NOT_ADMITTED",
+        "PRIVATE_DIAGNOSTIC_PROJECTION_INCOMPLETE_NOT_ADMITTED"
+      ]
+    },
+    "code": {
+      "type": "string"
+    },
+    "matched": {
+      "type": "boolean"
+    },
+    "input_image_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "input_envelope_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "code",
+        "diagnostic_calls",
+        "reported_count",
+        "projected_count",
+        "rows",
+        "binding",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "native_project_equivalent",
+        "program_completeness_established",
+        "raw_messages_retained"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PROJECTED",
+            "REFUSED"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "diagnostic_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reported_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "projected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "category",
+              "source_role",
+              "source_raw_sha256",
+              "source_host_sha256",
+              "file_sha256",
+              "line",
+              "character",
+              "reported_start",
+              "message_sha256",
+              "message_utf8_bytes"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^TS[0-9]+$"
+              },
+              "category": {
+                "type": "string"
+              },
+              "source_role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source_raw_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "source_host_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "file_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "character": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reported_start": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "message_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "message_utf8_bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "atlas_snapshot_id",
+            "atlas_sha256",
+            "handoff_sha256",
+            "input_policy_sha256",
+            "image_policy_sha256",
+            "projection_policy_sha256",
+            "compiler_source_sha256",
+            "compiler_version"
+          ],
+          "properties": {
+            "atlas_snapshot_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "atlas_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "handoff_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "image_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "projection_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "compiler_source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "compiler_version": {
+              "type": "string",
+              "const": "5.9.3"
+            }
+          }
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_project_equivalent": {
+          "type": "boolean",
+          "const": false
+        },
+        "program_completeness_established": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_messages_retained": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "native": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "code",
+        "diagnostic_calls",
+        "reported_count",
+        "projected_count",
+        "rows",
+        "binding",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "native_project_equivalent",
+        "program_completeness_established",
+        "raw_messages_retained"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PROJECTED",
+            "REFUSED"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "diagnostic_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reported_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "projected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "category",
+              "source_role",
+              "source_raw_sha256",
+              "source_host_sha256",
+              "file_sha256",
+              "line",
+              "character",
+              "reported_start",
+              "message_sha256",
+              "message_utf8_bytes"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^TS[0-9]+$"
+              },
+              "category": {
+                "type": "string"
+              },
+              "source_role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source_raw_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "source_host_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "file_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "character": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reported_start": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "message_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "message_utf8_bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "atlas_snapshot_id",
+            "atlas_sha256",
+            "handoff_sha256",
+            "input_policy_sha256",
+            "image_policy_sha256",
+            "projection_policy_sha256",
+            "compiler_source_sha256",
+            "compiler_version"
+          ],
+          "properties": {
+            "atlas_snapshot_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "atlas_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "handoff_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "image_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "projection_policy_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "compiler_source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "compiler_version": {
+              "type": "string",
+              "const": "5.9.3"
+            }
+          }
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_project_equivalent": {
+          "type": "boolean",
+          "const": false
+        },
+        "program_completeness_established": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_messages_retained": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_project_equivalent": {
+      "type": "boolean",
+      "const": false
+    },
+    "program_completeness_established": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_messages_retained": {
+      "type": "boolean",
+      "const": false
+    }
+  }
+}

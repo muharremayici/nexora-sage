@@ -248,3 +248,62 @@ def save_package_transition(
         raise ValueError("Work package ledger changed during transition")
     save_json_atomic(ledger_path, updated)
     return updated
+
+def save_work_package_scope_amendment(
+    reviewed_plan: dict[str, Any], *, expected_plan_identity: str,
+) -> dict[str, Any]:
+    """Apply one reviewed scope-only amendment through the native atomic writer.
+
+    An already-authorized caller invokes this private development API. A plan or
+    its digest is a freshness constraint, never proof of human approval. Preserve
+    the existing independent-editor limitation: rechecks precede one atomic file
+    replacement; they do not claim a cross-process compare-and-swap transaction.
+    """
+    from tools.core.distribution_policy import is_clean_install_root
+    from tools.core.governance_trace import fingerprint
+    from tools.core.json_syntax import loads_json_strict
+    from tools.core.work_package_receipts import (
+        build_work_package_scope_amendment_plan, propose_work_package_evidence,
+    )
+
+    if is_clean_install_root(CODE_MAPS_DIR):
+        raise ValueError("scope_amendment_writer_requires_development_workspace")
+    owned_path = _inherited_dirty_source_path("config/sage_active_work_package.json", CODE_MAPS_DIR)
+    if LEDGER_PATH.is_symlink() or LEDGER_PATH.resolve() != owned_path.resolve():
+        raise ValueError("scope_amendment_writer_requires_owned_ledger")
+    if not isinstance(reviewed_plan, dict) or fingerprint(reviewed_plan) != expected_plan_identity:
+        raise ValueError("scope_amendment_reviewed_plan_identity_mismatch")
+    captured_plan = deepcopy(reviewed_plan)
+    original_bytes = LEDGER_PATH.read_bytes()
+    ledger = loads_json_strict(original_bytes.decode("utf-8-sig"))
+    if not isinstance(ledger, dict):
+        raise ValueError("scope_amendment_writer_invalid_ledger")
+    package = package_from_ledger(ledger)
+    package_history(ledger)
+    arguments = {
+        "package": package,
+        "requested_paths": captured_plan.get("requested_paths"),
+        "approved_path_identities": captured_plan.get("approved_path_identities"),
+        "expected_binding": captured_plan.get("package_binding_before"),
+        "expected_baseline_identity": captured_plan.get("baseline_identity_before"),
+        "expected_package_snapshot_identity": captured_plan.get("package_snapshot_identity_before"),
+    }
+    current_plan = build_work_package_scope_amendment_plan(**arguments)
+    if current_plan != captured_plan:
+        raise ValueError("scope_amendment_reviewed_plan_mismatch")
+    projection = propose_work_package_evidence()
+    projected = projection.get("package", {})
+    binding = current_plan["package_binding_before"]
+    if (projection.get("mutation_preflight", {}).get("ready") is not True
+            or projected.get("id") != binding["package_id"]
+            or projected.get("identity") != binding["package_identity"]
+            or projected.get("source_identity") != binding["source_identity"]
+            or projected.get("status") != "in_progress"):
+        raise ValueError("scope_amendment_current_bootstrap_required")
+    updated = {**ledger, "active_package": current_plan["package_after"]}
+    if (build_work_package_scope_amendment_plan(**arguments) != current_plan
+            or fingerprint(reviewed_plan) != expected_plan_identity
+            or LEDGER_PATH.read_bytes() != original_bytes):
+        raise ValueError("scope_amendment_changed_before_write")
+    save_json_atomic(LEDGER_PATH, updated)
+    return updated

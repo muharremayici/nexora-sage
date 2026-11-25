@@ -1,0 +1,423 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora.compiler_text_owner",
+  "title": "Disabled text-only declared compiler entry owner",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "expected_definition",
+        "borrow_expected_definition",
+        "snapshot_definition",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "capture_profile",
+        "image_profile",
+        "capture_policy_sha256",
+        "image_policy_sha256",
+        "provenance_relative_path",
+        "owner_id",
+        "model",
+        "text_policy",
+        "root_authority",
+        "relative_path_pattern",
+        "snapshot_status",
+        "refusal_codes",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-text-owner"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_text_owner.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "policy"
+        },
+        "expected_definition": {
+          "type": "string",
+          "const": "expected"
+        },
+        "borrow_expected_definition": {
+          "type": "string",
+          "const": "borrow_expected"
+        },
+        "snapshot_definition": {
+          "type": "string",
+          "const": "snapshot"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "capture_profile": {
+          "type": "string",
+          "const": "compiler_library_inputs"
+        },
+        "image_profile": {
+          "type": "string",
+          "const": "private_input_image_experiment"
+        },
+        "capture_policy_sha256": {
+          "type": "string",
+          "const": "6482af0915e6d0da081b7543b887f770819ef1820549214ca9ebe88e651f8a02"
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "provenance_relative_path": {
+          "type": "string",
+          "const": "config/third_party_distribution_contract.json"
+        },
+        "owner_id": {
+          "type": "string",
+          "const": "typescript"
+        },
+        "model": {
+          "type": "string",
+          "const": "single_declared_compiler_entry_text_only_v1"
+        },
+        "text_policy": {
+          "type": "string",
+          "const": "strict_utf8_preserve_bom_shebang_crlf_v1"
+        },
+        "root_authority": {
+          "type": "string",
+          "const": "trusted_first_party_invocation_only"
+        },
+        "relative_path_pattern": {
+          "type": "string",
+          "const": "^[A-Za-z0-9_./-]+$"
+        },
+        "snapshot_status": {
+          "type": "string",
+          "const": "COMPILER_TEXT_ENTRY_HELD_NOT_EVALUATED"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "entry_policy_invalid",
+            "entry_expected_invalid",
+            "entry_identity",
+            "entry_path_refused",
+            "entry_input_unavailable",
+            "entry_input_invalid",
+            "entry_budget",
+            "entry_encoding_refused",
+            "entry_deadline",
+            "entry_order",
+            "entry_internal_error"
+          ]
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "Disabled declared-entry text-only ownership under trusted first-party authority and independently pinned input/selection. Disjoint private brand cannot enter synthetic evaluators. Only synthetic inputs verified; no installed acquisition, runtime/compiler/current freshness, image/RSS, hostile sandbox, production/semantic/cache or publication acceptance."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "capture_policy_sha256",
+        "image_policy_sha256",
+        "provenance_sha256",
+        "manifest_sha256",
+        "lockfile_sha256",
+        "package_sha256",
+        "entry_sha256",
+        "text_sha256",
+        "entry_relative_sha256",
+        "invocation_id",
+        "owner_id",
+        "compiler_version",
+        "entry_bytes"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "capture_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "provenance_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "lockfile_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "package_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entry_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entry_relative_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "const": "typescript"
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.+-]+$"
+        },
+        "entry_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "borrow_expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_sha256",
+        "entry_sha256",
+        "text_sha256",
+        "policy_sha256",
+        "schema_sha256"
+      ],
+      "properties": {
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entry_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "state",
+        "code",
+        "context_sha256",
+        "entry_sha256",
+        "text_sha256",
+        "policy_sha256",
+        "schema_sha256",
+        "capture_read_bytes",
+        "metadata_bytes",
+        "known_owner_input_bytes",
+        "retained_entry_bytes",
+        "retained_text_code_units",
+        "open_file_handles",
+        "entry_input_verified",
+        "entry_owner_registered",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "entry_evaluated",
+        "compiler_loaded",
+        "loaded_code_attested",
+        "native_execution_attested",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "image_admitted",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-text-owner"
+        },
+        "status": {
+          "type": "string",
+          "const": "COMPILER_TEXT_ENTRY_HELD_NOT_EVALUATED"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "READY",
+            "BORROWING",
+            "ABORTED",
+            "DISPOSED"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entry_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "capture_read_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_owner_input_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retained_entry_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retained_text_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "open_file_handles": {
+          "type": "integer",
+          "const": 0
+        },
+        "entry_input_verified": {
+          "type": "boolean"
+        },
+        "entry_owner_registered": {
+          "type": "boolean"
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "entry_evaluated": {
+          "type": "boolean",
+          "const": false
+        },
+        "compiler_loaded": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "image_admitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  }
+}

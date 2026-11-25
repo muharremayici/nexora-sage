@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ if str(CODE_MAPS_DIR) not in sys.path:
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
 from tools.core.json_io import load_json_file
+from tools.core.release_validation_source_recipe import observe_current_process_context, compiled_input_payload_identity
 
 
 ENGINE_PATH = CODE_MAPS_DIR / "tools" / "engines" / "quality_gate.py"
@@ -212,12 +214,19 @@ def run_validation() -> dict[str, Any]:
         ),
     ]
 
+    compiled_input_identity = compiled_input_payload_identity(doctrine)
     payload = {
         "meta": {"kind": "quality_gate_policy_core_validation", "version": "v1"},
         "summary": {
             "total_checks": len(checks),
             "passed_checks": sum(1 for check in checks if check["passed"]),
             "failed_checks": sum(1 for check in checks if not check["passed"]),
+            "source_input_context": {
+                "reported_at": datetime.now(timezone.utc).isoformat(),
+                "process": observe_current_process_context(),
+                "compiled_doctrine_source_fingerprint": compiled_input_identity["source_fingerprint"],
+                "compiled_doctrine_semantic_sha256": compiled_input_identity["semantic_sha256"],
+            },
         },
         "checks": checks,
     }

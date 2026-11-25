@@ -24,8 +24,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", required=True, help="Relative manifest path inside the log bundle.")
     parser.add_argument("--trust-class")
     parser.add_argument("--diagnostic-format", choices=sorted(_contract()["normalization"]["formats"]),
-                        help="Opt-in bounded warning observations; absence never means clean diagnostics.")
+                        help="Opt-in bounded captured-format observations; absence never means clean diagnostics.")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--format", choices=("summary", "brief"), default="summary",
+                        help="Default JSON summary, or bounded same-invocation ESLint observations (not execution proof).")
     parser.add_argument("--atlas-raw-dir", type=Path, help="Opt-in existing Atlas storage root; never refreshes Atlas.")
     parser.add_argument("--atlas-project", help="Exact Atlas project key; source correspondence only, not run proof.")
     args = parser.parse_args(argv)
@@ -52,12 +54,22 @@ def main(argv: list[str] | None = None) -> int:
                                      diagnostic_format=args.diagnostic_format, atlas=atlas,
                                      atlas_commit=commit, atlas_project=args.atlas_project)
     save_json_atomic(output, payload)
-    print(json.dumps(payload["summary"], ensure_ascii=False))
-    if "diagnostic_observations" in payload:
+    if args.format == "brief":
+        from tools.core.native_eslint_brief import render_eslint_brief
+        print(render_eslint_brief(payload), end="")
+    else:
+        print(json.dumps(payload["summary"], ensure_ascii=False))
+    if args.format == "summary" and "diagnostic_observations" in payload:
         observed = payload["diagnostic_observations"]
         print(json.dumps({"diagnostic_status": observed["status"], "coverage": observed["coverage"],
                           "unique_observations": len(observed["items"]),
                           "occurrences": sum(len(row["occurrences"]) for row in observed["items"])}))
+        if observed.get("coverage") == "declared_eslint_json_results_only":
+            print(json.dumps({"reported_result_files": len(observed["file_results"]),
+                "active_diagnostics": sum(row["category"] == "active" for row in observed["items"]),
+                "suppressed_diagnostics": sum(row["category"] == "suppressed" for row in observed["items"]),
+                "source_locations": observed["source_locations"], "cleanliness": observed["cleanliness"],
+                "historical_execution": payload["authority"]["historical_execution"]}))
     lineage_ok = True
     if args.atlas_raw_dir is not None:
         lineage = write_lineage_receipt(artifact_id="native_run_log_receipt",

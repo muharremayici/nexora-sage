@@ -1,6 +1,6 @@
 # Nexora SAGE
 
-Current version: **1.8.0**.
+Current version: **1.9.0**.
 
 AI made code generation cheap.
 It did not make architecture cheap.
@@ -241,9 +241,36 @@ SAGE is also built by the same principles it gives to AI agents: scoped intent, 
 
 ## License
 
-This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.8.0 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
+This repository is offered under either PolyForm Noncommercial 1.0.0 or PolyForm Free Trial 1.0.0 when the selected grant covers the intended use. The grants are alternatives, not cumulative permissions. Nexora SAGE 1.9.0 preserves the v1.0.0 grant boundary and offers no permission, contribution-rights agreement, or automatic future-license transition beyond the two shipped grants. `LICENSE` and the shipped grant texts are authoritative; `LICENSING.md` provides a human-readable guide.
 
 `NOTICE.md` states the SAGE-specific release-status, evidence, certification and
 human-review boundaries. In particular, a SAGE `PASS` or release-proof is
 bounded engineering evidence, not a certification that a target repository is
 safe, secure, compliant, deployable or fit for a particular purpose.
+
+
+### Runtime version-query observations
+
+The installation preflight owns its per-command version-query limits in
+`config/installation_preflight_contract.json`: Node and npm use thirty seconds.
+Git uses five seconds. Each query runs once with an owned
+process and a separate bounded cleanup interval. JSON observations retain status,
+elapsed time, budget, native exit and bounded output. These are local runtime
+observations, not package integrity, analysis correctness or release acceptance.
+
+A resolved command that times out, exits unsuccessfully or returns empty/invalid
+version output remains unavailable for planning. It is reported as an unverified
+query rather than an instruction to reinstall a supposedly missing runtime.
+Actual PATH lookup failure retains the existing missing-manager guidance.
+No query result authorizes a retry, system-runtime installation or publication.
+
+`observed_status` retains the query result independently of cleanup. The bounded
+`cleanup_observation` records the attempted method, native return code, owned
+child return codes and error type/code/operation without error text. An exited
+direct child does not certify descendant cleanup: an unconfirmed cleanup keeps
+`status=cleanup_unconfirmed` and `available=false`, including a natural-exit race.
+
+Changes to this observation contract or its consumers select the dedicated probe
+regressions through the owned early-consumer map. Candidate preparation also
+retains one delayed-startup regression before expensive test families. Its node
+ceiling is twenty; the existing 180-second, 64-case and 1 MiB limits are unchanged.

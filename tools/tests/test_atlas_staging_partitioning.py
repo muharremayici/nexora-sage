@@ -34,6 +34,42 @@ def test_primary_file_selector_handles_escaped_exact_keys_and_chunk_boundaries(c
         chunk_size=chunk, max_value_bytes=4096) == expected
 
 
+@pytest.mark.parametrize("chunk", [1, 4])
+@pytest.mark.parametrize("boundary", ["empty", "blank", "padded", "trailing"])
+def test_primary_file_selector_whitespace_chunk_and_eof_boundaries(chunk, boundary):
+    import io
+
+    class ObservedText(io.StringIO):
+        def __init__(self, text):
+            super().__init__(text)
+            self.reads = []
+
+        def read(self, size=-1):
+            value = super().read(size)
+            self.reads.append((size, value))
+            return value
+
+    document = '{"MAIN":{"files":{"a.ts":{"ok":true}}}}'
+    text = {
+        "empty": "",
+        "blank": " \t\r\n" * 2,
+        "padded": " \t\r\n" + document + " \t\r\n",
+        "trailing": " \t\r\n" + document + " \t\r\nx",
+    }[boundary]
+    stream = ObservedText(text)
+    if boundary == "padded":
+        assert select_json_object_path(stream, ("MAIN", "files", "a.ts"),
+            chunk_size=chunk, max_value_bytes=64) == {"ok": True}
+        assert stream.reads[-1][1] == ""
+    else:
+        with pytest.raises(ValueError):
+            select_json_object_path(stream, ("MAIN", "files", "a.ts"),
+                chunk_size=chunk, max_value_bytes=64)
+    assert "".join(value for _, value in stream.reads) == text
+    assert all(size == chunk for size, _ in stream.reads)
+    assert not stream.closed
+
+
 @pytest.mark.parametrize("text", [
     '{"MAIN":{"files":{"a.ts":{}}},"MAIN":{}}',
     '{"MAIN":{"files":{"a.ts":{}},"files":{}}}',

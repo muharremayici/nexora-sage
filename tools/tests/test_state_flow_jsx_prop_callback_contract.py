@@ -241,6 +241,10 @@ def jsx_atlas_run(tmp_path_factory):
     from tools.core.external_target_generation import external_target_output_slug
     target = tmp_path_factory.mktemp('jsx-atlas')
     sources = {
+        'Review.tsx': """import {performExport as selected} from './Child';
+export function Review() { return <button onClick={() => {}} />; }
+throw new Error('Target must never execute');
+""",
         'Panel.tsx': """import {Child as Picked} from './Child';
 export function Parent() {
   const target = () => {};
@@ -269,6 +273,33 @@ throw new Error('Target must never execute');
     atlas = load_atlas_data(raw)
     assert set(atlas['MAIN']['files']) == set(sources)
     return target, raw, atlas
+
+
+def test_wiring_observations_persist_through_actual_atlas_generation(jsx_atlas_run):
+    from tools.core.wiring_source_observations import IMPORT, CALLBACK
+    target, _, atlas = jsx_atlas_run
+    record = atlas['MAIN']['files']['Review.tsx']
+    lane = record['wiring_source_observations']
+    assert lane['status'] == 'observed' and lane['record_count'] == 2
+    assert {row['kind'] for row in lane['records']} == {IMPORT, CALLBACK}
+    assert lane['ast_contract_version'] == record['ast_contract_version'] == AST_CONTRACT_VERSION
+    assert lane['source_hash'] == hashlib.sha256((target/'Review.tsx').read_bytes()).hexdigest()
+    assert lane['integration_status'] == 'unknown' and lane['correlation_status'] == 'not_evaluated'
+    assert lane['mutation_proposed'] is False
+
+
+def test_wiring_observations_cache_reuse_preserves_full_atlas_snapshot(jsx_atlas_run):
+    from tools.core.atlas_io import load_atlas_data
+    target, raw, before = jsx_atlas_run
+    env = dict(os.environ)
+    for key in ('CODEMAPS_TARGET_PREFLIGHT_RECEIPT', 'CODEMAPS_TARGET_PREFLIGHT_RECEIPT_SHA256',
+                'CODEMAPS_TARGET_PREFLIGHT_REUSE_MODE', 'CODEMAPS_TARGET_PROJECTS'):
+        env.pop(key, None)
+    env['CODEMAPS_TARGET_ROOT'] = str(target)
+    run = subprocess.run([sys.executable, '-B', '-m', 'tools.engines.generate_atlas'], cwd=ROOT,
+        env=env, capture_output=True, text=True, encoding='utf-8', timeout=90)
+    assert run.returncode == 0, run.stderr or run.stdout
+    assert load_atlas_data(raw) == before
 
 
 def _jsx_join(atlas, limit=4, budget=1000):

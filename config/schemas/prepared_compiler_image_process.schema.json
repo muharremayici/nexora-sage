@@ -1,0 +1,687 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora.prepared_compiler_image_process",
+  "title": "Disabled synthetic prepared-base-image process",
+  "$defs": {
+    "driver_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "layout_profile",
+        "preparation_profile",
+        "ingress_profile",
+        "source_profile",
+        "image_profile",
+        "bridge_profile",
+        "result_definition",
+        "expected_completion_definition",
+        "context_definition",
+        "result_status",
+        "model",
+        "compiler_basis",
+        "source_basis",
+        "input_kinds",
+        "image_policy_sha256",
+        "source_policy_sha256",
+        "bridge_policy_sha256",
+        "preparation_policy_sha256",
+        "ingress_policy_sha256",
+        "refusal_codes",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-prepared-base-image-process"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/prepared_compiler_image_process.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "driver_policy"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "layout_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_layout"
+        },
+        "preparation_profile": {
+          "type": "string",
+          "const": "private_compiler_declaration_text_handoff_preparation"
+        },
+        "ingress_profile": {
+          "type": "string",
+          "const": "private_prepared_compiler_image_ingress"
+        },
+        "source_profile": {
+          "type": "string",
+          "const": "private_owned_config_handoff"
+        },
+        "image_profile": {
+          "type": "string",
+          "const": "private_input_image_experiment"
+        },
+        "bridge_profile": {
+          "type": "string",
+          "const": "private_owned_text_bridge"
+        },
+        "result_definition": {
+          "type": "string",
+          "const": "driver_result"
+        },
+        "expected_completion_definition": {
+          "type": "string",
+          "const": "driver_expected_completion"
+        },
+        "context_definition": {
+          "type": "string",
+          "const": "image_context"
+        },
+        "result_status": {
+          "type": "string",
+          "const": "SYNTHETIC_PREPARED_BASE_IMAGE_PROCESS_COMPLETED_NOT_NATIVE_ADMITTED"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_prepared_base_image_one_credit_v1"
+        },
+        "compiler_basis": {
+          "type": "string",
+          "const": "caller_declared_synthetic_protocol_double"
+        },
+        "source_basis": {
+          "type": "string",
+          "const": "synthetic_declared_outer_refs"
+        },
+        "input_kinds": {
+          "type": "array",
+          "const": [
+            "source",
+            "auxiliary",
+            "config"
+          ]
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "source_policy_sha256": {
+          "type": "string",
+          "const": "eb946a90457daa5112e582e77aca9da53ebdb8706f59f2b9762063a10caefb25"
+        },
+        "bridge_policy_sha256": {
+          "type": "string",
+          "const": "1581b896fee12941947a10af6dfd7299e37989f065cee2168da9f5488c4677fb"
+        },
+        "preparation_policy_sha256": {
+          "type": "string",
+          "const": "14479bb3a324247bb45ea3798e8f8c7fd810986804c8059e378f1ba1d3e5659a"
+        },
+        "ingress_policy_sha256": {
+          "type": "string",
+          "const": "008a4141268c89bdd818a9a7275e5facb9663db61dc36687f817e8bd065c710f"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "stream_driver_context_invalid",
+            "stream_driver_deadline",
+            "stream_driver_cancelled",
+            "stream_driver_bootstrap_budget",
+            "stream_driver_response_budget",
+            "stream_driver_stderr_budget",
+            "stream_driver_response_incomplete",
+            "stream_driver_response_invalid",
+            "stream_driver_response_trailing",
+            "stream_driver_pipe",
+            "stream_driver_encoder_refused",
+            "stream_driver_child_failed",
+            "stream_driver_cleanup_unsettled"
+          ]
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "Disabled synthetic constructor-only process over the existing one-credit wire and IO cleanup. Complete declared fixture refs and parent-only image oracle; no installed TypeScript/Program/replay, source freshness, real source/capture, native/loaded code, RSS/erasure/hostile isolation, production/semantics/cache or release authority."
+        }
+      }
+    },
+    "image_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atlas_snapshot_id",
+        "atlas_sha256",
+        "policy_sha256",
+        "compiler_source_sha256",
+        "producer_run_id",
+        "compiler_version",
+        "source_sha256"
+      ],
+      "properties": {
+        "atlas_snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producer_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "source_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atlas_snapshot_id",
+        "atlas_sha256",
+        "parser_response_sha256",
+        "bridge_policy_sha256",
+        "image_policy_sha256",
+        "handoff_policy_sha256",
+        "source_sha256",
+        "compiler_source_sha256",
+        "auxiliary_raw_sha256",
+        "auxiliary_host_sha256",
+        "auxiliary_context_sha256",
+        "config_raw_sha256",
+        "config_host_sha256",
+        "config_context_sha256",
+        "invocation_id",
+        "parser_virtual_path",
+        "compiler_virtual_path",
+        "atlas_relative_path",
+        "compiler_version",
+        "auxiliary_atlas_path",
+        "auxiliary_virtual_path",
+        "config_atlas_path",
+        "config_virtual_path",
+        "source_bytes",
+        "auxiliary_bytes",
+        "config_bytes"
+      ],
+      "properties": {
+        "atlas_snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parser_response_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bridge_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "image_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "handoff_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "auxiliary_raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "auxiliary_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "auxiliary_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parser_virtual_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compiler_virtual_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "atlas_relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "auxiliary_atlas_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "auxiliary_virtual_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config_atlas_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config_virtual_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "auxiliary_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "config_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "input_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path",
+        "role",
+        "bytes",
+        "raw_sha256",
+        "host_sha256",
+        "utf8Base64"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "source",
+            "auxiliary",
+            "config"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "source",
+            "auxiliary"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "utf8Base64": {
+          "type": "string"
+        }
+      }
+    },
+    "image_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "composition_schema",
+        "preparation_schema",
+        "admission",
+        "binding",
+        "source_context",
+        "entries"
+      ],
+      "properties": {
+        "composition_schema": {
+          "type": "object"
+        },
+        "preparation_schema": {
+          "type": "object"
+        },
+        "admission": {
+          "type": "object"
+        },
+        "binding": {
+          "$ref": "#/$defs/image_binding"
+        },
+        "source_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "binding",
+            "expected_sha256"
+          ],
+          "properties": {
+            "binding": {
+              "$ref": "#/$defs/source_binding"
+            },
+            "expected_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/input_entry"
+          }
+        }
+      }
+    },
+    "driver_expected_completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files_completed",
+        "raw_bytes_staged",
+        "image_summary"
+      ],
+      "properties": {
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "image_summary": {
+          "type": "object"
+        }
+      }
+    },
+    "driver_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "manifest_sha256",
+        "context_sha256",
+        "inventory_sha256",
+        "composition_policy_sha256",
+        "composition_schema_sha256",
+        "source_context_sha256",
+        "process_context_sha256",
+        "session_id",
+        "node_version",
+        "files_completed",
+        "raw_bytes_staged",
+        "image_summary",
+        "compiler_basis",
+        "source_basis",
+        "receiver_state",
+        "prepared_state",
+        "owned_buffer_bytes",
+        "retained_text_records",
+        "program_calls",
+        "declaration_text_pins_verified",
+        "image_constructor_verified_in_model",
+        "image_dispose_returned",
+        "real_source_transfer",
+        "raw_content_verified",
+        "host_text_verified",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "native_execution_attested",
+        "loaded_code_attested",
+        "image_admitted",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "whole_image_within_limit",
+        "peak_rss_bytes"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "result"
+        },
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-prepared-base-image-process"
+        },
+        "status": {
+          "type": "string",
+          "const": "SYNTHETIC_PREPARED_BASE_IMAGE_PROCESS_COMPLETED_NOT_NATIVE_ADMITTED"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "composition_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "composition_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "process_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "image_summary": {
+          "type": "object"
+        },
+        "compiler_basis": {
+          "type": "string",
+          "const": "caller_declared_synthetic_protocol_double"
+        },
+        "source_basis": {
+          "type": "string",
+          "const": "synthetic_declared_outer_refs"
+        },
+        "receiver_state": {
+          "type": "string",
+          "const": "DISPOSED"
+        },
+        "prepared_state": {
+          "type": "string",
+          "const": "DISPOSED"
+        },
+        "owned_buffer_bytes": {
+          "type": "integer",
+          "const": 0
+        },
+        "retained_text_records": {
+          "type": "integer",
+          "const": 0
+        },
+        "program_calls": {
+          "type": "integer",
+          "const": 0
+        },
+        "declaration_text_pins_verified": {
+          "type": "boolean",
+          "const": true
+        },
+        "image_constructor_verified_in_model": {
+          "type": "boolean",
+          "const": true
+        },
+        "image_dispose_returned": {
+          "type": "boolean",
+          "const": true
+        },
+        "real_source_transfer": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "host_text_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "image_admitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        }
+      }
+    }
+  }
+}

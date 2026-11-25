@@ -231,6 +231,12 @@ def test_public_setup_rejects_command_drift_before_execution(tmp_path, monkeypat
 @pytest.fixture
 def isolated_public_test_runner(tmp_path, monkeypatch):
     from tools.core import operational_limits, quality_gate_ci
+    from tools.core import distribution_test_execution
+
+    # These tests stub the child process and only prove fixture-init ordering.
+    # Actual plugin completion/refusal is covered by the real-child launch tests.
+    monkeypatch.setattr(distribution_test_execution, "build_execution_identity", lambda root: {})
+    monkeypatch.setattr(distribution_test_execution, "observe_journal", lambda *args: {"status": "FINISHED"})
 
     root = tmp_path / "distribution"
     fixture = root / "tools" / "tests" / "fixtures" / "src"
@@ -273,7 +279,7 @@ def test_public_setup_precedes_pytest_and_uses_only_the_owned_fixture_copy(
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(distribution_tests.subprocess, "run", execute)
-    assert distribution_tests._run_pytest(["test_selected.py"],
+    assert distribution_tests._run_pytest(["tools/tests/test_selected.py"],
         target_fixture=fixture.relative_to(root).as_posix(), collect_only=False,
         verbose=False, basetemp=None) == 0
     assert len(calls) == 2 and not copied_target[0].exists()
@@ -304,7 +310,7 @@ def test_public_setup_failure_never_starts_pytest_and_cleans_owned_target(
         assert distribution_tests._run_pytest(["test_selected.py"], **kwargs) == 9
     else:
         with pytest.raises(subprocess.TimeoutExpired if failure == "timeout" else KeyboardInterrupt):
-            distribution_tests._run_pytest(["test_selected.py"], **kwargs)
+            distribution_tests._run_pytest(["tools/tests/test_selected.py"], **kwargs)
     assert len(targets) == 1 and not targets[0].exists()
     assert (fixture / "source.ts").is_file()
 
@@ -325,7 +331,7 @@ def test_collection_and_canonical_execution_do_not_initialize(
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(distribution_tests.subprocess, "run", execute)
-    assert distribution_tests._run_pytest(["test_selected.py"],
+    assert distribution_tests._run_pytest(["tools/tests/test_selected.py"],
         target_fixture=fixture.relative_to(root).as_posix(), collect_only=collect_only,
         verbose=False, basetemp=None) == 0
     assert len(calls) == 1
@@ -346,7 +352,8 @@ def test_unclassified_test_fails_closed() -> None:
         pytest.skip("Canonical authority classification is not shipped publicly")
     payload = copy.deepcopy(distribution_tests._load_profile())
     public_rows = payload["classification"]["overrides"]["public_target_repository"]
-    public_rows.remove("tools/tests/test_distribution_test_profiles.py")
+    # Keep the missing-classification case independent of early-consumer registration.
+    public_rows.remove("tools/tests/test_jsonc_parser.py")
     with pytest.raises(ValueError, match="explicit authority classification"):
         distribution_tests._canonical_classification(payload)
 
@@ -370,11 +377,16 @@ def test_partition_is_an_exact_ordered_union_for_both_profiles() -> None:
 
 
 def test_public_profile_has_an_explicit_nonempty_slice_in_every_family() -> None:
+    payload = distribution_tests._load_profile()
     partitions, _, selected = distribution_tests.resolve_test_partitions(
         "public_target_repository"
     )
 
     assert selected == "public_target_repository"
+    assert list(partitions) == [
+        family for family in payload["partition"]["execution_order"]
+        if "public_target_repository" in payload["partition"]["families"][family]["profiles"]
+    ]
     assert all(partitions.values())
 
 
@@ -411,6 +423,8 @@ def test_partition_membership_is_independent_of_input_order() -> None:
 def _passing_shard_receipts(
     payload: dict, profile_name: str = "auto"
 ) -> dict[str, dict]:
+    # These fixtures author legacy v1 full-pytest receipts, not composed units.
+    payload.get("profiles", {}).get("canonical_all", {}).pop("execution_units_contract", None)
     partitions, _, selected_profile = (
         distribution_tests._resolve_test_partitions_from_payload(payload, profile_name)
     )
@@ -442,23 +456,23 @@ def _passing_shard_receipts(
     return receipts
 
 
-def test_family_receipt_join_reconstructs_the_exact_profile_union() -> None:
+@pytest.mark.parametrize("profile_name", ["auto", "public_target_repository"])
+def test_family_receipt_join_reconstructs_the_exact_profile_union(profile_name) -> None:
     payload = distribution_tests._load_profile()
-    receipts = _passing_shard_receipts(payload)
+    receipts = _passing_shard_receipts(payload, profile_name)
 
     combined = partition_receipts.combine_partition_receipts(
         payload,
-        "auto",
+        profile_name,
         receipts,
     )
-    tests, _ = distribution_tests.resolve_tests("auto")
+    tests, _ = distribution_tests.resolve_tests(profile_name)
+    expected_partitions, _, _ = distribution_tests.resolve_test_partitions(profile_name)
 
     assert combined["status"] == "PASS"
     assert combined["exact_profile_union"] is True
     assert combined["selected_test_count"] == len(tests)
-    assert [row["id"] for row in combined["shards"]] == list(
-        payload["partition"]["execution_order"]
-    )
+    assert [row["id"] for row in combined["shards"]] == list(expected_partitions)
     assert sorted(
         path for row in combined["shards"] for path in row["test_paths"]
     ) == tests
@@ -664,6 +678,8 @@ def test_receipt_join_cli_uses_current_primary_and_writes_managed_union(tmp_path
     monkeypatch.setattr(artifact_store, "STORE", store)
     monkeypatch.setattr(distribution_tests, "ROOT", tmp_path)
     monkeypatch.setattr(partition_receipts, "ROOT", tmp_path)
+    # The authored v1 receipts and the CLI must consume the same legacy policy.
+    monkeypatch.setattr(distribution_tests, "_load_profile", lambda: copy.deepcopy(payload))
     argv = ["join", "--profile", "auto"]
     first = None
     for family, receipt in receipts.items():
@@ -697,3 +713,152 @@ def test_receipt_join_cli_uses_current_primary_and_writes_managed_union(tmp_path
         assert all(len(row["sha256"]) == 64 for row in result["source_receipts"])
     else:
         assert result["exact_profile_union"] is False and result["errors"]
+
+
+
+def _shared_selection_fixture(root, *, projected=False):
+    """Authored inventory only; neither file contains executable tests."""
+    public = "tools/tests/test_public_case.py"
+    private = "tools/tests/test_private_case.py"
+    for relative in [public] + ([] if projected else [private]):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("raise AssertionError('inventory must not import tests')\n", encoding="utf-8")
+    partition = {"version": "1.0", "method": "filename_first_token", "unknown_token": "fail_closed",
+        "execution_order": ["one"], "families": {"one": {
+            "profiles": ["canonical_all", "public_target_repository"],
+            "tokens": ["public"] if projected else ["private", "public"]}}}
+    if projected:
+        return {"partition": partition, "public_projection": {
+            "included_test_paths": [public], "target_fixture": "tools/fixtures/target"}}
+    return {"partition": partition, "classification": {"test_glob": "tools/tests/test_*.py",
+        "default": "unclassified", "overrides": {
+            "private_maintainer": [private], "public_target_repository": [public]}},
+        "profiles": {"canonical_all": {"classifications": ["private_maintainer", "public_target_repository"]},
+                     "public_target_repository": {"classifications": ["public_target_repository"]}},
+        "test_execution": {"version": "1.0", "synthetic_signing": {
+            "environment_keys": ["NEXORA_HITL_SECRET", "CODEMAPS_HITL_SECRET"],
+            "public_test_value": "sage-synthetic-selection-fixture", "test_paths": [private]},
+            "diagnostics": {"schema": "nexora_distribution_pytest_failure_journal_v1",
+                            "maximum_failure_events": 1, "maximum_line_bytes": 4096}, "early_checks": []}}
+
+
+@pytest.mark.parametrize("profile", ["auto", "canonical_all", "public_target_repository"])
+def test_shared_selection_cli_adapter_uses_the_supplied_root(tmp_path, monkeypatch, profile):
+    from tools.core import distribution_test_selection as selection
+    payload = _shared_selection_fixture(tmp_path)
+    expected = selection._resolve_test_partitions_from_payload(payload, profile, root=tmp_path)
+    original = selection._resolve_test_partitions_from_payload
+    seen = []
+    def observe(value, name, **kwargs):
+        seen.append((value is payload, name, kwargs))
+        return original(value, name, **kwargs)
+    monkeypatch.setattr(selection, "_resolve_test_partitions_from_payload", observe)
+    monkeypatch.setattr(distribution_tests, "ROOT", tmp_path / "unused-default")
+    assert distribution_tests._resolve_test_partitions_from_payload(payload, profile, root=tmp_path) == expected
+    assert seen == [(True, profile, {"root": tmp_path, "alternate_root": True})]
+    monkeypatch.setattr(distribution_tests, "ROOT", tmp_path)
+    assert distribution_tests._resolve_test_partitions_from_payload(payload, profile) == expected
+    assert seen[-1] == (True, profile, {"root": tmp_path, "alternate_root": False})
+
+
+@pytest.mark.parametrize("damage", ["none", "duplicate", "extra", "missing", "profile", "alternate_root"])
+def test_shared_selection_public_projection_keeps_exact_inventory_refusals(tmp_path, monkeypatch, damage):
+    from tools.core import distribution_test_selection as selection
+    payload = _shared_selection_fixture(tmp_path, projected=True)
+    monkeypatch.setattr(distribution_tests, "ROOT", tmp_path)
+    if damage == "duplicate": payload["public_projection"]["included_test_paths"] *= 2
+    elif damage == "extra": (tmp_path / "tools/tests/test_extra_case.py").touch()
+    elif damage == "missing": (tmp_path / "tools/tests/test_public_case.py").unlink()
+    profile = "canonical_all" if damage == "profile" else "auto"
+    root_override = damage == "alternate_root"
+    if damage == "none":
+        actual = selection._resolve_test_partitions_from_payload(payload, profile, root=tmp_path)
+        assert distribution_tests._resolve_test_partitions_from_payload(payload, profile) == actual
+        assert actual == ({"one": ["tools/tests/test_public_case.py"]}, "tools/fixtures/target", "public_target_repository")
+    else:
+        with pytest.raises(ValueError):
+            selection._resolve_test_partitions_from_payload(payload, profile, root=tmp_path, alternate_root=root_override)
+        with pytest.raises(ValueError):
+            distribution_tests._resolve_test_partitions_from_payload(payload, profile,
+                **({"root": tmp_path} if root_override else {}))
+
+
+@pytest.mark.parametrize("damage", ["classification", "signing", "diagnostics", "early", "unclassified", "partition"])
+def test_shared_selection_canonical_contract_refusals_keep_their_owner(tmp_path, damage):
+    from tools.core import distribution_test_selection as selection
+    payload = _shared_selection_fixture(tmp_path)
+    if damage == "classification": payload["classification"]["default"] = "public_target_repository"
+    elif damage == "signing": payload["test_execution"]["synthetic_signing"]["test_paths"] = ["tools/tests/test_public_case.py"]
+    elif damage == "diagnostics": payload["test_execution"]["diagnostics"]["maximum_failure_events"] = True
+    elif damage == "early": payload["test_execution"]["early_checks"] = [{"changed_paths": ["x"], "test_paths": ["unknown"]}]
+    elif damage == "unclassified": payload["classification"]["overrides"]["private_maintainer"] = []
+    elif damage == "partition": payload["partition"]["families"]["one"]["tokens"] = ["public"]
+    with pytest.raises(ValueError): selection._resolve_test_partitions_from_payload(payload, "auto", root=tmp_path)
+    with pytest.raises(ValueError): distribution_tests._resolve_test_partitions_from_payload(payload, "auto", root=tmp_path)
+
+
+def test_shared_selection_preserves_lazy_constant_compatibility():
+    from tools.core import distribution_test_selection as selection
+    assert distribution_tests.KNOWN_CLASSIFICATIONS is selection.KNOWN_CLASSIFICATIONS
+    assert distribution_tests.KNOWN_PROFILES is selection.KNOWN_PROFILES
+    with pytest.raises(AttributeError): getattr(distribution_tests, "UNKNOWN_SELECTION_CONSTANT")
+
+
+@pytest.fixture
+def owned_probe_profile(tmp_path, monkeypatch):
+    # Exercise the public installation role with a separate contract under test.
+    installed_profile = tmp_path / "distribution_test_profiles.json"
+    projected = _shared_selection_fixture(tmp_path / "projected", projected=True)
+    installed_profile.write_text(json.dumps(projected), encoding="utf-8")
+    monkeypatch.setattr(distribution_tests, "PROFILE_PATH", installed_profile)
+
+    profile = _shared_selection_fixture(tmp_path / "canonical")
+    profile["test_execution"]["diagnostics"].update(
+        maximum_failure_events=32,
+        maximum_line_bytes=262144,
+        owned_probe_failure_observation={
+            "protocol": "owned_runtime_probe_failure_v1",
+            "producer_paths": ["tools/tests/test_public_case.py"],
+            "maximum_detail_bytes": 1024,
+            "maximum_properties": 32,
+        },
+    )
+    return profile
+
+
+def test_owned_probe_policy_optional_capability_preserves_existing_limits(owned_probe_profile):
+    from tools.core.distribution_test_selection import validate_execution_contract
+
+    diagnostics = validate_execution_contract(owned_probe_profile)["diagnostics"]
+    limits = {"maximum_failure_events": 32, "maximum_line_bytes": 262144}
+    assert {name: diagnostics[name] for name in limits} == limits
+    diagnostics.pop("owned_probe_failure_observation")
+    without_probe = validate_execution_contract(owned_probe_profile)["diagnostics"]
+    assert "owned_probe_failure_observation" not in without_probe
+    assert {name: without_probe[name] for name in limits} == limits
+
+
+@pytest.mark.parametrize("damage", ["none", "protocol", "protocol_type", "extra", "missing", "bool_bytes", "large_bytes",
+    "small_bytes", "bool_properties", "many_properties", "empty_paths", "duplicate_paths", "escape", "unregistered"])
+def test_owned_probe_policy_refuses_unbounded_unknown_or_unregistered_capability(owned_probe_profile, damage):
+    from tools.core.distribution_test_selection import validate_execution_contract
+
+    profile = owned_probe_profile
+    policy = profile["test_execution"]["diagnostics"]["owned_probe_failure_observation"]
+    if damage == "none": profile["test_execution"]["diagnostics"]["owned_probe_failure_observation"] = None
+    elif damage == "protocol": policy["protocol"] = "unknown"
+    elif damage == "protocol_type": policy["protocol"] = []
+    elif damage == "extra": policy["extra"] = True
+    elif damage == "missing": policy.pop("maximum_properties")
+    elif damage == "bool_bytes": policy["maximum_detail_bytes"] = True
+    elif damage == "large_bytes": policy["maximum_detail_bytes"] = 1025
+    elif damage == "small_bytes": policy["maximum_detail_bytes"] = 255
+    elif damage == "bool_properties": policy["maximum_properties"] = True
+    elif damage == "many_properties": policy["maximum_properties"] = 33
+    elif damage == "empty_paths": policy["producer_paths"] = []
+    elif damage == "duplicate_paths": policy["producer_paths"] *= 2
+    elif damage == "escape": policy["producer_paths"] = ["../tools/tests/test_probe.py"]
+    else: policy["producer_paths"] = ["tools/tests/test_unregistered_probe.py"]
+    with pytest.raises(ValueError, match="invalid_owned_probe_failure_policy"):
+        validate_execution_contract(profile)

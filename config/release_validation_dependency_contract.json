@@ -17,21 +17,12 @@
       "authority": "diagnostic_only_no_release_reuse",
       "canonical_profile_reuse_enabled": false,
       "test_path": "tools/tests/test_jsonc_parser.py",
-      "review_digest_algorithm": "sha256_utf8_lf_v1",
       "expected_tests": [
         "test_jsonc_parser_preserves_alias_globs_and_comment_like_strings",
         "test_jsonc_parser_supports_block_comments_without_hiding_strings",
         "test_jsonc_parser_rejects_unterminated_block_comment",
         "test_jsonc_parser_accepts_one_utf8_bom"
       ],
-      "reviewed_source_sha256": {
-        "tools/tests/test_jsonc_parser.py": "c71710c5ae7adb686333e2bf337dda34ae64bd2d90b0e9e56a6f649bd54c0dce",
-        "tools/core/jsonc.py": "b452e45c656f8992465ff98f0d50f9affb2df87e4f789213a105e6084c932168",
-        "tools/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "tools/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "tools/tests/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-        "pyproject.toml": "4b8ea653db52ff022fe667fca4b2e4e2ae424aa3807feed3ec31a579bc1df0b0"
-      },
       "required_absent_paths": [
         "pytest.ini",
         "setup.cfg",
@@ -48,11 +39,200 @@
         "pygments",
         "colorama"
       ],
-      "timeout_seconds": 30
+      "timeout_seconds": 30,
+      "input_contract_version": "v2",
+      "metadata_projection": {
+        "kind": "pyproject_project_version_scalar_span_v2",
+        "max_bytes": 65536,
+        "max_version_characters": 128
+      },
+      "project_inputs": {
+        "tools/tests/test_jsonc_parser.py": {
+          "role": "test_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "c71710c5ae7adb686333e2bf337dda34ae64bd2d90b0e9e56a6f649bd54c0dce"
+        },
+        "tools/core/jsonc.py": {
+          "role": "executable_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "b452e45c656f8992465ff98f0d50f9affb2df87e4f789213a105e6084c932168"
+        },
+        "tools/__init__.py": {
+          "role": "package_initializer",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "tools/core/__init__.py": {
+          "role": "package_initializer",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "tools/tests/__init__.py": {
+          "role": "package_initializer",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        "pyproject.toml": {
+          "role": "version_masked_unit_metadata",
+          "review_digest_algorithm": "sha256_utf8_lf_project_version_scalar_mask_v2",
+          "review_sha256": "3b403d44b65f7f3903590f0225e282efbd43086fd0139a7f27f9120259f1b3d6"
+        }
+      }
+    },
+    "compiler_operand_text_bound": {
+      "authority": "diagnostic_only_no_release_reuse",
+      "canonical_profile_reuse_enabled": false,
+      "test_path": "tools/tests/test_compiler_operand_text_bound.py",
+      "expected_tests": [
+        "test_literal_success_prefix_and_coarse_all_root_envelope_are_separate",
+        "test_each_rejection_includes_only_normal_prefix_plus_current_root[0-80]",
+        "test_each_rejection_includes_only_normal_prefix_plus_current_root[1-165]",
+        "test_each_rejection_includes_only_normal_prefix_plus_current_root[2-14]",
+        "test_each_rejection_includes_only_normal_prefix_plus_current_root[3-95]",
+        "test_each_rejection_includes_only_normal_prefix_plus_current_root[4-20]",
+        "test_each_rejection_includes_only_normal_prefix_plus_current_root[5-102]",
+        "test_zero_progress_is_not_zero_potential_or_complete_preparation_cost",
+        "test_retained_source_design_rejection_arithmetic_without_replaying_producer",
+        "test_returned_copy_ceiling_and_model_integer_boundary_are_bounded_metadata",
+        "test_empty_payload_requires_node_term",
+        "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[threw]",
+        "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[not_started]",
+        "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[unknown]",
+        "test_partial_or_unknown_copy_is_not_priced_with_its_partial_counters[returned_later]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[node_charges-0-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[node_charges-65537-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[node_charges-True-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges--1-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges-65537-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges-1.0-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[scalar_key_charges-100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000-metadata_copy_charges]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[ceiling-True-metadata_copy_ceiling]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[ceiling-65537-metadata_copy_ceiling]",
+        "test_copy_counter_type_overshoot_and_ceiling_refusals[outcome-None-metadata_copy_charges]",
+        "test_missing_metadata_is_not_rebuilt_from_other_fields[copy_charges]",
+        "test_missing_metadata_is_not_rebuilt_from_other_fields[root_model]",
+        "test_missing_metadata_is_not_rebuilt_from_other_fields[progress]",
+        "test_missing_metadata_is_not_rebuilt_from_other_fields[source_binding]",
+        "test_missing_metadata_is_not_rebuilt_from_other_fields[applicability]",
+        "test_every_explicit_applicability_condition_must_be_declared[returned_owned_tree]",
+        "test_every_explicit_applicability_condition_must_be_declared[ordinary_builtins]",
+        "test_every_explicit_applicability_condition_must_be_declared[fixed_schema_and_fixture]",
+        "test_every_explicit_applicability_condition_must_be_declared[no_same_value_refs]",
+        "test_every_explicit_applicability_condition_must_be_declared[no_repeated_comparison_paths]",
+        "test_every_explicit_applicability_condition_must_be_declared[successful_prefix_model_applicable]",
+        "test_truthy_applicability_is_not_true[1]",
+        "test_truthy_applicability_is_not_true[true]",
+        "test_truthy_applicability_is_not_true[None]",
+        "test_serial_progress_contradictions_and_boolean_counts_refuse[progress0]",
+        "test_serial_progress_contradictions_and_boolean_counts_refuse[progress1]",
+        "test_serial_progress_contradictions_and_boolean_counts_refuse[progress2]",
+        "test_serial_progress_contradictions_and_boolean_counts_refuse[progress3]",
+        "test_serial_progress_contradictions_and_boolean_counts_refuse[progress4]",
+        "test_root_order_and_bounded_coefficients[root_index-1-metadata_root_order]",
+        "test_root_order_and_bounded_coefficients[root_index-False-metadata_root_order]",
+        "test_root_order_and_bounded_coefficients[comparison_slots-True-metadata_root_coefficient]",
+        "test_root_order_and_bounded_coefficients[comparison_slots-65537-metadata_root_coefficient]",
+        "test_root_order_and_bounded_coefficients[literal_text_upper--1-metadata_root_coefficient]",
+        "test_root_order_and_bounded_coefficients[literal_text_upper-0-metadata_root_coherence]",
+        "test_root_order_and_bounded_coefficients[normal_returned_text_upper-65537-metadata_root_coefficient]",
+        "test_zero_slot_nonzero_literal_or_normal_upper_is_incoherent",
+        "test_fixed_six_root_cut_cannot_be_resized[0]",
+        "test_fixed_six_root_cut_cannot_be_resized[5]",
+        "test_fixed_six_root_cut_cannot_be_resized[7]",
+        "test_hash_shape_is_closed_without_source_authentication[x]",
+        "test_hash_shape_is_closed_without_source_authentication[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]",
+        "test_hash_shape_is_closed_without_source_authentication[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]",
+        "test_hash_shape_is_closed_without_source_authentication[False]",
+        "test_different_well_shaped_hashes_and_model_labels_never_authenticate_sources",
+        "test_request_version_and_unknown_value_schema_or_permission_fields_refuse",
+        "test_mapping_subclasses_are_refused_before_callbacks[copy_charges]",
+        "test_mapping_subclasses_are_refused_before_callbacks[root_model]",
+        "test_mapping_subclasses_are_refused_before_callbacks[progress]",
+        "test_mapping_subclasses_are_refused_before_callbacks[source_binding]",
+        "test_mapping_subclasses_are_refused_before_callbacks[applicability]",
+        "test_hostile_key_and_number_subclass_are_not_compared_or_converted",
+        "test_outputs_are_detached_and_one_failure_cannot_poison_later_results",
+        "test_module_is_unwired_pure_and_has_no_value_or_schema_argument"
+      ],
+      "required_absent_paths": [
+        "pytest.ini",
+        "setup.cfg",
+        "tox.ini",
+        "conftest.py",
+        "tools/conftest.py",
+        "tools/tests/conftest.py"
+      ],
+      "runtime_distributions": [
+        "pytest",
+        "pluggy",
+        "packaging",
+        "iniconfig",
+        "pygments",
+        "colorama"
+      ],
+      "timeout_seconds": 30,
+      "input_contract_version": "v2",
+      "metadata_projection": {
+        "kind": "pyproject_project_version_scalar_span_v2",
+        "max_bytes": 65536,
+        "max_version_characters": 128
+      },
+      "project_inputs": {
+        "tools/tests/test_compiler_operand_text_bound.py": {
+          "role": "test_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "7a4d4d8900150e03c9dd1e8e7963936bbc18345f52ab73d246ca5512b8478ede"
+        },
+        "tools/core/compiler_operand_text_bound.py": {
+          "role": "executable_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "9fc1ed6852e55eb03b63532d570004d3cc2abac08716a881a104e5bcc5c0ad1d"
+        },
+        "tools/core/compiler_entry_context_handoff.cjs": {
+          "role": "observed_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "8e82645c19fd26deae7884ec11c277505aa1872c519602131283ebbe02bf3493"
+        },
+        "tools/core/compiler_entry_context_projection.py": {
+          "role": "observed_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "e4e903ba525052e80a156be6dc1659dac218103fa6c12b4daf33defa10aa75eb"
+        },
+        "tools/core/compiler_stream_stager.cjs": {
+          "role": "observed_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "f3a72b058b3d2e6b5c5f96a32456c07dfa87dfad6d02ba869edce217275a831f"
+        },
+        "tools/core/compiler_schema_closure.py": {
+          "role": "observed_source",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "c7510d516fb30077174742c01e478b90bf3be173731da2d906bb99126e17d220"
+        },
+        "tools/__init__.py": {
+          "role": "package_initializer",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "tools/core/__init__.py": {
+          "role": "package_initializer",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "tools/tests/__init__.py": {
+          "role": "package_initializer",
+          "review_digest_algorithm": "sha256_utf8_lf_v1",
+          "review_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        "pyproject.toml": {
+          "role": "version_masked_unit_metadata",
+          "review_digest_algorithm": "sha256_utf8_lf_project_version_scalar_mask_v2",
+          "review_sha256": "3b403d44b65f7f3903590f0225e282efbd43086fd0139a7f27f9120259f1b3d6"
+        }
+      }
     }
   },
   "diagnostic_unit_output_observation": {
-    "schema": "nexora_sage_diagnostic_unit_output_observation_v1",
+    "schema": "nexora_sage_diagnostic_unit_output_observation_v2",
     "authority": "diagnostic_only_no_test_or_release_admission",
     "protocol": "isolated_no_site_exact_env_closed_stdin_xunit2_v2",
     "digest_algorithm": "sha256_json_utf8_canonical_v1",
@@ -85,7 +265,8 @@
       "global_source_fingerprint_until_mapped"
     ],
     "reviewed_semantic_step_ids": [
-      "source_layer_classification_policy_validation"
+      "source_layer_classification_policy_validation",
+      "next_boundary_policy_core"
     ],
     "require_exact_step_partition": true,
     "engine_test_sharding_status": "deterministic_exact_union_proof_family_steps_active_global_reuse_disabled",
@@ -93,6 +274,7 @@
     "engine_test_shard_step_ids": [
       "engine_contract_tests_target_agent",
       "engine_contract_tests_analysis_engines",
+      "engine_contract_tests_runtime_compiler",
       "engine_contract_tests_runtime_platform",
       "engine_contract_tests_governance_policy",
       "engine_contract_tests_release_distribution"
@@ -100,14 +282,20 @@
   },
   "semantic_reuse_engine_paths": [
     "tools/core/release_proof_resume.py",
+    "tools/core/release_proof_steps.py",
     "tools/run_release_proof_bundle.py",
     "tools/core/release_validation_dependencies.py",
+    "tools/core/release_validation_source_recipe.py",
+    "tools/core/release_source_index.py",
+    "tools/doctrine_compiler.py",
     "config/release_validation_dependency_contract.json",
-    "config/schemas/release_validation_dependency_contract.schema.json"
+    "config/schemas/release_validation_dependency_contract.schema.json",
+    "tools/core/distribution_test_selection.py"
   ],
   "step_dispositions": {
     "semantic_closure_reviewed": [
-      "source_layer_classification_policy_validation"
+      "source_layer_classification_policy_validation",
+      "next_boundary_policy_core"
     ],
     "same_invocation_shared_producer": [
       "release_clone_context_refresh",
@@ -201,6 +389,7 @@
       "engine_contract_tests_analysis_engines",
       "engine_contract_tests_governance_policy",
       "engine_contract_tests_release_distribution",
+      "engine_contract_tests_runtime_compiler",
       "engine_contract_tests_runtime_platform",
       "engine_contract_tests_target_agent",
       "engine_data_access",
@@ -229,7 +418,6 @@
       "mcp_surface_command_matrix",
       "merge_intelligence_regression",
       "modular_doctrine_registry",
-      "next_boundary_policy_core",
       "non_python_decision_inventory",
       "oracle_doctrine_hitl_integrity",
       "performance_budget",
@@ -326,6 +514,328 @@
         "sqlite_artifact_store",
         "validation_release_gates"
       ]
+    },
+    "next_boundary_policy_core": {
+      "proof_domain": "sage_on_repository",
+      "review_status": "reviewed",
+      "exact_paths": [
+        "tools/validate_next_boundary_policy_core.py",
+        "tools/engines/next_boundary_analyzer.py",
+        "config/next_boundary_policy.json"
+      ],
+      "source_text_only_paths": [
+        "tools/engines/next_boundary_analyzer.py"
+      ],
+      "transitive_local_python_imports": true,
+      "require_contract_path_expansions": false,
+      "contract_path_expansions": [],
+      "allowed_source_layers": [
+        "configuration_doctrine_policy",
+        "contextos_watchdog_mcp",
+        "core_runtime_services",
+        "discovery_config_truth",
+        "documentation_claims_evidence",
+        "external_target_corpus",
+        "generated_runtime_artifact",
+        "golden_truth_fixtures",
+        "installation_onboarding",
+        "orchestration_pipeline",
+        "package_runtime",
+        "react_surgical_intelligence",
+        "reporting_product_readiness",
+        "root_product_surface",
+        "schema_artifact_contracts",
+        "sqlite_artifact_store",
+        "validation_release_gates"
+      ],
+      "startup_configuration_tree": "config_full_tree_v1"
+    }
+  },
+  "source_recipes": {
+    "quality_gate_policy_core": {
+      "kind": "source_input_recipe_v1",
+      "proof_domain": "sage_on_repository",
+      "native_reuse_enabled": false,
+      "executable_python_roots": [
+        "tools/validate_quality_gate_policy_core.py"
+      ],
+      "source_text_reads": [
+        "tools/engines/quality_gate.py",
+        "tools/config_compiler.py",
+        "tools/orchestrators/discovery.py"
+      ],
+      "data_reads": [
+        "config/architecture_doctrine.json",
+        "config/quality_gate_policy.json",
+        "config/workload_profile.json",
+        "config/schemas/codemaps.config.schema.json",
+        "config/doctrines/manifest.json"
+      ],
+      "startup_inputs": [
+        "config/codemaps.config.json",
+        "config/codemaps.discovery.json",
+        "config/language_registry.json"
+      ],
+      "manifest_expansions": [
+        {
+          "manifest": "config/doctrines/manifest.json",
+          "json_pointer": "/active_doctrines/*/path",
+          "base": "manifest_parent"
+        }
+      ],
+      "producer_policy": "existing_prerequisite_required_not_verified",
+      "context_policy": "product_local_parent_observation_only",
+      "producer_bindings": [
+        {
+          "owner": "doctrine_manifest_fingerprint_v1",
+          "manifest": "config/doctrines/manifest.json",
+          "output": "config/architecture_doctrine.json"
+        }
+      ]
+    },
+    "engine_contract_tests_analysis_engines": {
+      "kind": "test_family_input_recipe_v2",
+      "proof_domain": "sage_on_sage",
+      "native_reuse_enabled": false,
+      "profile": "canonical_all",
+      "family": "analysis_engines",
+      "launch_python_roots": [
+        "tools/run_distribution_tests.py",
+        "tools/core/distribution_test_execution.py"
+      ],
+      "declared_inputs": [
+        "pyproject.toml",
+        "config/language_registry.json",
+        "config/third_party_distribution_contract.json",
+        "tools/engines/ast_sequencer.cjs",
+        "tools/engines/ts_diagnostics_collector.cjs",
+        "tools/core/typescript_diagnostic_payload.cjs",
+        "tools/tests/fixtures/owned_image_metadata_size.cjs",
+        "tools/core/ts_input_image_experiment.cjs",
+        "tools/validate_operational_parity.py",
+        "tools/validate_step_isolation.py",
+        "tools/ci_release_check.py"
+      ],
+      "coverage_gaps": [
+        "non_python_fixture_and_data_read_set",
+        "node_and_child_process_input_closure",
+        "pytest_plugin_and_startup_code",
+        "producer_roles_and_current_gate_binding",
+        "exact_union_and_native_policy_handoff",
+        "whole_source_stability_and_cost_limits"
+      ],
+      "presence_inputs": [
+        "PUBLIC_DISTRIBUTION_MANIFEST.json"
+      ],
+      "manifest_inputs": [
+        {
+          "manifest": "config/analysis_snapshot_lineage_contract.json",
+          "json_pointer": "/artifacts/ts_diagnostics/private_input_image_experiment/schema",
+          "base": "project_root"
+        }
+      ]
+    },
+    "engine_contract_tests_runtime_compiler": {
+      "kind": "test_family_input_recipe_v2",
+      "proof_domain": "sage_on_sage",
+      "native_reuse_enabled": false,
+      "profile": "canonical_all",
+      "family": "runtime_compiler",
+      "launch_python_roots": [
+        "tools/run_distribution_tests.py",
+        "tools/core/distribution_test_execution.py"
+      ],
+      "declared_inputs": [
+        "config/analysis_snapshot_lineage_contract.json",
+        "config/schemas/compiler_accessor_bridge.schema.json",
+        "config/schemas/compiler_entry_actual_identity.schema.json",
+        "config/schemas/compiler_entry_actual_use.schema.json",
+        "config/schemas/compiler_entry_actual_use_transport.schema.json",
+        "config/schemas/compiler_entry_comparison_owner.schema.json",
+        "config/schemas/compiler_entry_comparison_projection.schema.json",
+        "config/schemas/compiler_entry_evaluator.schema.json",
+        "config/schemas/compiler_entry_identity.schema.json",
+        "config/schemas/compiler_entry_identity_dispatch.schema.json",
+        "config/schemas/compiler_entry_identity_reader.schema.json",
+        "config/schemas/compiler_entry_identity_transport.schema.json",
+        "config/schemas/compiler_entry_lifetime_trace.schema.json",
+        "config/schemas/compiler_entry_owner.schema.json",
+        "config/schemas/compiler_entry_same_read_use.schema.json",
+        "config/schemas/compiler_entry_same_read_use_transport.schema.json",
+        "config/schemas/compiler_environment_api.schema.json",
+        "config/schemas/compiler_export_inventory.schema.json",
+        "config/schemas/compiler_export_recipe.schema.json",
+        "config/schemas/compiler_helper_site.schema.json",
+        "config/schemas/compiler_helper_window.schema.json",
+        "config/schemas/compiler_manifest_capsule.schema.json",
+        "config/schemas/compiler_metadata_actual.schema.json",
+        "config/schemas/compiler_metadata_actual_dispatch.schema.json",
+        "config/schemas/compiler_metadata_actual_observer.schema.json",
+        "config/schemas/compiler_metadata_dispatch.schema.json",
+        "config/schemas/compiler_metadata_integration.schema.json",
+        "config/schemas/compiler_metadata_observer.schema.json",
+        "config/schemas/compiler_owned_row_fragment.schema.json",
+        "config/schemas/compiler_owned_view_plan.schema.json",
+        "config/schemas/compiler_row_fragment.schema.json",
+        "config/schemas/compiler_row_locator.schema.json",
+        "config/schemas/compiler_row_span_association.schema.json",
+        "config/schemas/compiler_row_span_composition.schema.json",
+        "config/schemas/compiler_selection_capture.schema.json",
+        "config/schemas/compiler_span_selection.schema.json",
+        "config/schemas/compiler_text_owner.schema.json",
+        "config/schemas/compiler_text_selection.schema.json",
+        "config/schemas/compiler_text_window.schema.json",
+        "config/schemas/typescript_input_image_experiment.schema.json",
+        "config/third_party_distribution_contract.json",
+        "pyproject.toml",
+        "tools/core/compiler_canonical_envelope.cjs",
+        "tools/core/compiler_declaration_text.cjs",
+        "tools/core/compiler_entry_actual_use.py",
+        "tools/core/compiler_entry_actual_use_child.cjs",
+        "tools/core/compiler_entry_context_handoff.cjs",
+        "tools/core/compiler_entry_context_projection.py",
+        "tools/core/compiler_entry_evaluator.cjs",
+        "tools/core/compiler_entry_fixed_use_child.cjs",
+        "tools/core/compiler_entry_identity.cjs",
+        "tools/core/compiler_entry_identity_dispatch.py",
+        "tools/core/compiler_entry_identity_reader.py",
+        "tools/core/compiler_entry_identity_reader_child.cjs",
+        "tools/core/compiler_entry_identity_transport.py",
+        "tools/core/compiler_entry_identity_transport_child.cjs",
+        "tools/core/compiler_entry_lifetime_trace.cjs",
+        "tools/core/compiler_entry_metadata_work.cjs",
+        "tools/core/compiler_entry_owner.cjs",
+        "tools/core/compiler_entry_same_read_use.cjs",
+        "tools/core/compiler_entry_same_read_use_child.cjs",
+        "tools/core/compiler_entry_same_read_use_transport.py",
+        "tools/core/compiler_environment_api.cjs",
+        "tools/core/compiler_export_recipe.cjs",
+        "tools/core/compiler_five_role_io_guard.cjs",
+        "tools/core/compiler_five_role_scope.py",
+        "tools/core/compiler_identity_observation.py",
+        "tools/core/compiler_identity_pipe.py",
+        "tools/core/compiler_key_concat_bound.py",
+        "tools/core/compiler_metadata_actual.py",
+        "tools/core/compiler_metadata_actual_child.cjs",
+        "tools/core/compiler_metadata_dispatch.py",
+        "tools/core/compiler_metadata_integration.py",
+        "tools/core/compiler_metadata_integration_child.cjs",
+        "tools/core/compiler_metadata_structure.cjs",
+        "tools/core/compiler_operand_text_bound.py",
+        "tools/core/compiler_owned_row_fragment.cjs",
+        "tools/core/compiler_owned_view_basis.cjs",
+        "tools/core/compiler_owned_view_plan.cjs",
+        "tools/core/compiler_owner_trace_projection.py",
+        "tools/core/compiler_preparation_budget_context.py",
+        "tools/core/compiler_preparation_capture.cjs",
+        "tools/core/compiler_recursive_canonical_bound.py",
+        "tools/core/compiler_row_fragment.cjs",
+        "tools/core/compiler_row_locator.cjs",
+        "tools/core/compiler_row_span_association.cjs",
+        "tools/core/compiler_row_span_composition.cjs",
+        "tools/core/compiler_schema_closure.py",
+        "tools/core/compiler_sort_budget_ledger.py",
+        "tools/core/compiler_source_recipe_cursor.cjs",
+        "tools/core/compiler_span_selection.cjs",
+        "tools/core/compiler_stream_endpoint.cjs",
+        "tools/core/compiler_stream_stager.cjs",
+        "tools/core/compiler_text_window.cjs",
+        "tools/core/prepared_image_process.cjs",
+        "tools/core/ts_input_image_experiment.cjs",
+        "tools/engines/package-lock.json",
+        "tools/engines/package.json",
+        "tools/tests/fixtures/compiler_canonical_envelope_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_actual_use_fault.cjs",
+        "tools/tests/fixtures/compiler_entry_comparison_projection_vector.json",
+        "tools/tests/fixtures/compiler_entry_context_handoff_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_copy_charges_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_evaluator_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_identity_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_identity_reader_fault.cjs",
+        "tools/tests/fixtures/compiler_entry_identity_transport_fault.cjs",
+        "tools/tests/fixtures/compiler_entry_metadata_work_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_owner_harness.cjs",
+        "tools/tests/fixtures/compiler_entry_same_read_use_fault.cjs",
+        "tools/tests/fixtures/compiler_entry_same_read_use_harness.cjs",
+        "tools/tests/fixtures/compiler_environment_api_harness.cjs",
+        "tools/tests/fixtures/compiler_export_recipe_harness.cjs",
+        "tools/tests/fixtures/compiler_live_phased_comparison.cjs",
+        "tools/tests/fixtures/compiler_manifest_capsule_harness.cjs",
+        "tools/tests/fixtures/compiler_metadata_joint_harness.cjs",
+        "tools/tests/fixtures/compiler_metadata_observer_harness.cjs",
+        "tools/tests/fixtures/compiler_metadata_structure_harness.cjs",
+        "tools/tests/fixtures/compiler_owned_row_fragment_harness.cjs",
+        "tools/tests/fixtures/compiler_owned_row_wrapper_child.cjs",
+        "tools/tests/fixtures/compiler_owned_view_basis_harness.cjs",
+        "tools/tests/fixtures/compiler_owned_view_plan_harness.cjs",
+        "tools/tests/fixtures/compiler_owner_trace_shapes.json",
+        "tools/tests/fixtures/compiler_phased_owner_connection.cjs",
+        "tools/tests/fixtures/compiler_preparation_capture.cjs",
+        "tools/tests/fixtures/compiler_preparation_comparison_budget.cjs",
+        "tools/tests/fixtures/compiler_preparation_copy_attempt.cjs",
+        "tools/tests/fixtures/compiler_row_fragment_harness.cjs",
+        "tools/tests/fixtures/compiler_row_locator_harness.cjs",
+        "tools/tests/fixtures/compiler_row_span_association_harness.cjs",
+        "tools/tests/fixtures/compiler_row_span_composition_harness.cjs",
+        "tools/tests/fixtures/compiler_same_capture_comparison.cjs",
+        "tools/tests/fixtures/compiler_span_selection_harness.cjs",
+        "tools/tests/fixtures/compiler_stream_driver_peer.cjs",
+        "tools/tests/fixtures/compiler_stream_kernel_compatibility.cjs",
+        "tools/tests/fixtures/compiler_text_process_peer.cjs",
+        "tools/tests/fixtures/compiler_text_window_harness.cjs",
+        "tools/tests/fixtures/compiler_two_stage_owner_lease.cjs"
+      ],
+      "coverage_gaps": [
+        "non_python_fixture_and_data_read_set",
+        "node_and_child_process_input_closure",
+        "pytest_plugin_and_startup_code",
+        "producer_roles_and_current_gate_binding",
+        "exact_union_and_native_policy_handoff",
+        "whole_source_stability_and_cost_limits",
+        "branch_sensitive_launcher_inputs",
+        "current_prerequisite_semantics_vs_provenance",
+        "fresh_native_baseline_with_unit_identities"
+      ],
+      "presence_inputs": [
+        "PUBLIC_DISTRIBUTION_MANIFEST.json"
+      ],
+      "manifest_inputs": [
+        {
+          "manifest": "config/analysis_snapshot_lineage_contract.json",
+          "json_pointer": "/artifacts/ts_diagnostics/private_input_image_experiment/schema",
+          "base": "project_root"
+        }
+      ]
+    }
+  },
+  "completed_dependency_input_projection": {
+    "version": "v1",
+    "authority": "completed_identity_only_no_gate_or_checkpoint_relaxation",
+    "default_role": "full_evidence"
+  },
+  "persisted_test_unit_reuse": {
+    "schema": "nexora_sage_persisted_test_unit_reuse_v1",
+    "authority": "diagnostic_test_execution_reuse_only",
+    "scope": "development_diagnostic_only",
+    "enabled": true,
+    "allowed_units": [
+      "jsonc_parser",
+      "compiler_operand_text_bound"
+    ],
+    "cache_directory": "output/.operational/distribution_units"
+  },
+  "canonical_test_unit_admission": {
+    "schema": "nexora_sage_canonical_test_unit_admission_v1",
+    "authority": "test_evidence_only_no_release_or_publication_authority",
+    "profile": "canonical_all",
+    "enabled": true,
+    "units": {
+      "jsonc_parser": {
+        "family": "runtime_platform"
+      },
+      "compiler_operand_text_bound": {
+        "family": "runtime_compiler"
+      }
     }
   }
 }

@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "output_schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "raw_messages_retained",
+    "input_profile",
+    "diagnostic_calls_from_input",
+    "metadata_limit_from_input_image",
+    "formatter_contract",
+    "success_status",
+    "refusal_status",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-owned-diagnostic-projection"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_diagnostic_projection.schema.json"
+    },
+    "output_schema": {
+      "type": "string",
+      "const": "config/schemas/owned_diagnostic_projection_observation.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_messages_retained": {
+      "type": "boolean",
+      "const": false
+    },
+    "input_profile": {
+      "type": "string",
+      "const": "private_owned_react_barrel_handoff"
+    },
+    "diagnostic_calls_from_input": {
+      "type": "string",
+      "const": "max_programs"
+    },
+    "metadata_limit_from_input_image": {
+      "type": "string",
+      "const": "metadata_bytes"
+    },
+    "formatter_contract": {
+      "type": "string",
+      "const": "v1-six-field-typescript-diagnostic"
+    },
+    "success_status": {
+      "type": "string",
+      "const": "PRIVATE_DIAGNOSTIC_ROWS_PROJECTED_NOT_ADMITTED"
+    },
+    "refusal_status": {
+      "type": "string",
+      "const": "PRIVATE_DIAGNOSTIC_PROJECTION_INCOMPLETE_NOT_ADMITTED"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "const": "Private same-list formatting comparison only. No production artifact, lineage, complete Program, native-project, runtime/cache or release authority."
+    }
+  }
+}

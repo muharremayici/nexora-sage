@@ -1,0 +1,233 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "lineage_enabled",
+    "profile",
+    "compiler_options",
+    "limits",
+    "claim_boundary",
+    "package_policy_sha256",
+    "dom_library"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v3-private-react-dom-image"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_react_dom_image.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "lineage_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "profile": {
+      "type": "string",
+      "const": "synthetic_project_with_frozen_react_dom"
+    },
+    "compiler_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "module",
+        "moduleResolution",
+        "strict",
+        "noEmit",
+        "skipLibCheck",
+        "types",
+        "lib",
+        "jsx"
+      ],
+      "properties": {
+        "target": {
+          "type": "string",
+          "const": "ES2020"
+        },
+        "module": {
+          "type": "string",
+          "const": "CommonJS"
+        },
+        "moduleResolution": {
+          "type": "string",
+          "const": "Node10"
+        },
+        "strict": {
+          "type": "boolean",
+          "const": true
+        },
+        "noEmit": {
+          "type": "boolean",
+          "const": true
+        },
+        "skipLibCheck": {
+          "type": "boolean",
+          "const": false
+        },
+        "types": {
+          "type": "array",
+          "const": []
+        },
+        "lib": {
+          "type": "array",
+          "const": [
+            "ES2020",
+            "DOM"
+          ]
+        },
+        "jsx": {
+          "type": "string",
+          "const": "Preserve"
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_files",
+        "auxiliary_files",
+        "compiler_files",
+        "source_bytes",
+        "auxiliary_bytes",
+        "compiler_bytes",
+        "source_file_bytes",
+        "auxiliary_file_bytes",
+        "compiler_file_bytes",
+        "directories",
+        "directory_entries",
+        "directory_name_bytes",
+        "host_calls",
+        "metadata_bytes",
+        "image_bytes",
+        "capture_ms",
+        "replay_ms",
+        "rss_observation_bytes"
+      ],
+      "properties": {
+        "source_files": {
+          "type": "integer",
+          "const": 128
+        },
+        "auxiliary_files": {
+          "type": "integer",
+          "const": 64
+        },
+        "compiler_files": {
+          "type": "integer",
+          "const": 256
+        },
+        "source_bytes": {
+          "type": "integer",
+          "const": 4194304
+        },
+        "auxiliary_bytes": {
+          "type": "integer",
+          "const": 2097152
+        },
+        "compiler_bytes": {
+          "type": "integer",
+          "const": 33554432
+        },
+        "source_file_bytes": {
+          "type": "integer",
+          "const": 1048576
+        },
+        "auxiliary_file_bytes": {
+          "type": "integer",
+          "const": 1048576
+        },
+        "compiler_file_bytes": {
+          "type": "integer",
+          "const": 4194304
+        },
+        "directories": {
+          "type": "integer",
+          "const": 512
+        },
+        "directory_entries": {
+          "type": "integer",
+          "const": 8192
+        },
+        "directory_name_bytes": {
+          "type": "integer",
+          "const": 524288
+        },
+        "host_calls": {
+          "type": "integer",
+          "const": 8192
+        },
+        "metadata_bytes": {
+          "type": "integer",
+          "const": 2097152
+        },
+        "image_bytes": {
+          "type": "integer",
+          "const": 41943040
+        },
+        "capture_ms": {
+          "type": "integer",
+          "const": 30000
+        },
+        "replay_ms": {
+          "type": "integer",
+          "const": 60000
+        },
+        "rss_observation_bytes": {
+          "type": "integer",
+          "const": 536870912
+        }
+      }
+    },
+    "claim_boundary": {
+      "type": "string",
+      "const": "Private finite React DOM context only; no browser/runtime, production, semantic/cache or release authority."
+    },
+    "package_policy_sha256": {
+      "type": "string",
+      "const": "3494c44e22af41c08f215a3a459ac72a1a59b57e2bef99a5c1bd3bc3c60d3cbe"
+    },
+    "dom_library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "virtual_path",
+        "raw_sha256",
+        "host_sha256",
+        "bytes"
+      ],
+      "properties": {
+        "virtual_path": {
+          "type": "string",
+          "const": "/__sage_ts_image__/compiler/node_modules/typescript/lib/lib.dom.d.ts"
+        },
+        "raw_sha256": {
+          "type": "string",
+          "const": "080941d9f9ff9307f7e27a83bcd888b7c8270716c39af943532438932ec1d0b9"
+        },
+        "host_sha256": {
+          "type": "string",
+          "const": "080941d9f9ff9307f7e27a83bcd888b7c8270716c39af943532438932ec1d0b9"
+        },
+        "bytes": {
+          "type": "integer",
+          "const": 1874901
+        }
+      }
+    }
+  }
+}

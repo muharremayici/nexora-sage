@@ -1,0 +1,3533 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private compiler-library transport size plan, never transport admission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "schema_sha256",
+    "default_enabled",
+    "native_execution_enabled",
+    "raw_transport_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "wire_profile",
+    "image_profile",
+    "capture_profile",
+    "package_profile",
+    "model",
+    "size_status",
+    "budget_status",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-compiler-transport-size"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/compiler_library_transport_plan.schema.json"
+    },
+    "schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_execution_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "raw_transport_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "wire_profile": {
+      "type": "string",
+      "const": "private_owned_config_handoff"
+    },
+    "image_profile": {
+      "type": "string",
+      "const": "private_input_image_experiment"
+    },
+    "capture_profile": {
+      "type": "string",
+      "const": "compiler_library_inputs"
+    },
+    "package_profile": {
+      "type": "string",
+      "const": "private_owned_compiler_metadata_calibration"
+    },
+    "model": {
+      "type": "string",
+      "const": "canonical_json_base_and_compiler_v1"
+    },
+    "size_status": {
+      "type": "string",
+      "const": "COMPILER_TRANSPORT_SIZE_ONLY_NOT_ADMITTED"
+    },
+    "budget_status": {
+      "type": "string",
+      "const": "COMPILER_TRANSPORT_BUDGET_EXCEEDED_NOT_ADMITTED"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jsonl_bytes",
+        "sha256",
+        "source_bytes",
+        "config_bytes"
+      ],
+      "properties": {
+        "jsonl_bytes": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "config_bytes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "root",
+            "base"
+          ],
+          "properties": {
+            "root": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "base": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "code",
+        "context_sha256",
+        "inventory_sha256",
+        "declared_base_sha256",
+        "draft_wire_bytes",
+        "wire_limit_bytes",
+        "compiler_files",
+        "compiler_raw_bytes",
+        "image_content_lower_bound_bytes",
+        "package_included",
+        "constraints",
+        "whole_image_within_limit",
+        "current_reader_supported",
+        "base_content_verified",
+        "raw_frame_emitted",
+        "snapshot_bound",
+        "semantic_lineage",
+        "production_enabled",
+        "cache_eligible",
+        "loaded_code_attested",
+        "peak_rss_bytes",
+        "source_freshness_verified"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-transport-size"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "COMPILER_TRANSPORT_PLAN_UNAVAILABLE",
+            "COMPILER_TRANSPORT_SIZE_ONLY_NOT_ADMITTED",
+            "COMPILER_TRANSPORT_BUDGET_EXCEEDED_NOT_ADMITTED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "compiler_plan_policy_unavailable",
+            "compiler_plan_metadata_over_budget",
+            "compiler_plan_owner_unavailable",
+            "compiler_plan_identity_mismatch",
+            "compiler_plan_owned_bytes_mismatch"
+          ]
+        },
+        "context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "declared_base_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "draft_wire_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "wire_limit_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "compiler_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "compiler_raw_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "image_content_lower_bound_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "package_included": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "base_wire",
+            "source_raw",
+            "config_raw",
+            "library_count",
+            "library_file_raw",
+            "image_compiler_count",
+            "image_compiler_raw",
+            "package_metadata_raw",
+            "image_content_lower_bound",
+            "draft_wire"
+          ],
+          "properties": {
+            "base_wire": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "source_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "config_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "library_count": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "library_file_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_compiler_count": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_compiler_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "package_metadata_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_content_lower_bound": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "draft_wire": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "current_reader_supported": {
+          "type": "boolean",
+          "const": false
+        },
+        "base_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_frame_emitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "wire_adapter_expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_sha256",
+        "binding_sha256",
+        "parent_ref_sha256",
+        "source_request_id",
+        "config_invocation_id"
+      ],
+      "properties": {
+        "receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_ref_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_request_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "config_invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      }
+    },
+    "wire_adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "code",
+        "receipt_sha256",
+        "context_sha256",
+        "plan",
+        "base_content_verified",
+        "send_verified",
+        "native_execution_attested",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-wire-base-compiler-plan"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "WIRE_BASE_COMPILER_PLAN_UNAVAILABLE",
+            "WIRE_BASE_COMPILER_PLAN_RETURNED_NOT_ADMITTED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "wire_plan_policy_unavailable",
+            "wire_plan_metadata_over_budget",
+            "wire_plan_owner_unavailable",
+            "wire_plan_receipt_refused",
+            "wire_plan_identity_mismatch",
+            "wire_plan_compiler_mismatch",
+            "wire_plan_delegate_unavailable",
+            "wire_plan_result_refused",
+            "wire_plan_owner_changed"
+          ]
+        },
+        "receipt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "plan": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/result"
+          }
+        },
+        "base_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "send_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "WIRE_BASE_COMPILER_PLAN_RETURNED_NOT_ADMITTED"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "plan": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "COMPILER_TRANSPORT_SIZE_ONLY_NOT_ADMITTED",
+                  "COMPILER_TRANSPORT_BUDGET_EXCEEDED_NOT_ADMITTED"
+                ]
+              },
+              "code": {
+                "const": ""
+              }
+            }
+          },
+          "receipt_sha256": {
+            "type": "string"
+          },
+          "context_sha256": {
+            "type": "string"
+          },
+          "code": {
+            "const": ""
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "plan": {
+            "type": "null"
+          },
+          "receipt_sha256": {
+            "type": "null"
+          },
+          "context_sha256": {
+            "type": "null"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "type": "object"
+      }
+    },
+    "join_attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "code",
+        "result"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "RESULT_RETURNED",
+            "UNAVAILABLE",
+            "NOT_ATTEMPTED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "join_compiler_plan_base_failed",
+            "join_compiler_plan_inputs_unavailable",
+            "join_compiler_plan_measurement_required",
+            "join_compiler_plan_receipt_unavailable",
+            "join_compiler_plan_metadata_unavailable",
+            "join_compiler_plan_identity_mismatch",
+            "join_compiler_plan_adapter_unavailable",
+            "join_compiler_plan_result_unavailable"
+          ]
+        },
+        "result": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/wire_adapter"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "const": "WIRE_BASE_COMPILER_PLAN_RETURNED_NOT_ADMITTED"
+                  },
+                  "code": {
+                    "const": ""
+                  },
+                  "receipt_sha256": {
+                    "type": "string"
+                  },
+                  "context_sha256": {
+                    "type": "string"
+                  },
+                  "plan": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "COMPILER_TRANSPORT_SIZE_ONLY_NOT_ADMITTED",
+                          "COMPILER_TRANSPORT_BUDGET_EXCEEDED_NOT_ADMITTED"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "state": {
+            "const": "RESULT_RETURNED"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "const": ""
+          },
+          "result": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        },
+        "if": {
+          "properties": {
+            "state": {
+              "const": "NOT_ATTEMPTED"
+            }
+          },
+          "type": "object"
+        },
+        "then": {
+          "properties": {
+            "code": {
+              "const": "join_compiler_plan_base_failed"
+            }
+          },
+          "type": "object"
+        },
+        "else": {
+          "properties": {
+            "code": {
+              "enum": [
+                "join_compiler_plan_inputs_unavailable",
+                "join_compiler_plan_measurement_required",
+                "join_compiler_plan_receipt_unavailable",
+                "join_compiler_plan_metadata_unavailable",
+                "join_compiler_plan_identity_mismatch",
+                "join_compiler_plan_adapter_unavailable",
+                "join_compiler_plan_result_unavailable"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "type": "object"
+      }
+    },
+    "stream_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "wire_profile",
+        "image_profile",
+        "capture_profile",
+        "mapping_root",
+        "protocol_version",
+        "model",
+        "layout_status",
+        "budget_status",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-layout"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_library_transport_plan.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "stream_policy"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "wire_profile": {
+          "type": "string",
+          "const": "private_owned_config_handoff"
+        },
+        "image_profile": {
+          "type": "string",
+          "const": "private_input_image_experiment"
+        },
+        "capture_profile": {
+          "type": "string",
+          "const": "compiler_library_inputs"
+        },
+        "mapping_root": {
+          "type": "string",
+          "const": "/__sage_ts_image__/compiler"
+        },
+        "protocol_version": {
+          "type": "string",
+          "const": "v1-private-compiler-chunks"
+        },
+        "model": {
+          "type": "string",
+          "const": "canonical_jsonl_batched_records_v1"
+        },
+        "layout_status": {
+          "type": "string",
+          "const": "COMPILER_STREAM_LAYOUT_ONLY_NOT_ADMITTED"
+        },
+        "budget_status": {
+          "type": "string",
+          "const": "COMPILER_STREAM_LAYOUT_BUDGET_EXCEEDED_NOT_ADMITTED"
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "stream_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "owner_context_sha256"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "owner_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "stream_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_index",
+        "offset",
+        "raw_bytes"
+      ],
+      "properties": {
+        "file_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "stream_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "session_id",
+        "owner_context_sha256",
+        "context_sha256",
+        "policy_sha256",
+        "schema_sha256",
+        "inventory_sha256",
+        "compiler_source_sha256",
+        "compiler_version",
+        "mapping_root",
+        "files",
+        "layout"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-chunks"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "owner_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mapping_root": {
+          "type": "string",
+          "const": "/__sage_ts_image__/compiler"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "bytes",
+              "raw_sha256",
+              "host_text_sha256"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^lib[A-Za-z0-9_.-]*\\.d\\.ts$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "raw_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "host_text_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "layout": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "seq",
+              "jsonl_bytes",
+              "records"
+            ],
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "jsonl_bytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "records": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/stream_range"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "stream_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "code",
+        "budget_reason",
+        "context_sha256",
+        "inventory_sha256",
+        "manifest_sha256",
+        "manifest",
+        "frames",
+        "library_files",
+        "library_raw_bytes",
+        "frame_limit_bytes",
+        "wire_bytes_total",
+        "largest_frame_jsonl_bytes",
+        "manifest_json_bytes",
+        "record_count",
+        "chunked_files",
+        "constraints",
+        "package_included",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "current_reader_supported",
+        "raw_frame_emitted",
+        "raw_content_verified",
+        "base_content_verified",
+        "send_verified",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "loaded_code_attested",
+        "native_execution_attested",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-layout"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "COMPILER_STREAM_LAYOUT_UNAVAILABLE",
+            "COMPILER_STREAM_LAYOUT_ONLY_NOT_ADMITTED",
+            "COMPILER_STREAM_LAYOUT_BUDGET_EXCEEDED_NOT_ADMITTED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "stream_plan_policy_unavailable",
+            "stream_plan_metadata_over_budget",
+            "stream_plan_context_unavailable",
+            "stream_plan_owner_unavailable",
+            "stream_plan_inventory_mismatch",
+            "stream_plan_owned_bytes_mismatch",
+            "stream_plan_layout_unavailable",
+            "stream_plan_owner_changed",
+            "stream_plan_time_budget"
+          ]
+        },
+        "budget_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "library_count",
+            "library_file_raw",
+            "capture_library_raw_lower_bound",
+            "image_compiler_count",
+            "image_compiler_raw",
+            "image_compiler_file_raw",
+            "image_content_lower_bound",
+            "data_wire",
+            "open_wire",
+            "commit_wire",
+            "manifest_metadata",
+            "result_metadata"
+          ]
+        },
+        "context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifest_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifest": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/stream_manifest"
+          }
+        },
+        "frames": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "if": {
+            "type": "array"
+          },
+          "then": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "seq",
+                "kind",
+                "jsonl_bytes",
+                "records"
+              ],
+              "properties": {
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "data",
+                    "commit"
+                  ]
+                },
+                "jsonl_bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "records": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        "library_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "library_raw_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "frame_limit_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "wire_bytes_total": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "largest_frame_jsonl_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "manifest_json_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "record_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "chunked_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "library_count",
+            "library_file_raw",
+            "capture_library_raw_lower_bound",
+            "image_compiler_count",
+            "image_compiler_raw",
+            "image_compiler_file_raw",
+            "image_content_lower_bound",
+            "data_wire",
+            "open_wire",
+            "commit_wire",
+            "manifest_metadata",
+            "result_metadata"
+          ],
+          "properties": {
+            "library_count": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "library_file_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "capture_library_raw_lower_bound": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_compiler_count": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_compiler_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_compiler_file_raw": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "image_content_lower_bound": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "data_wire": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "open_wire": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "commit_wire": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "manifest_metadata": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "result_metadata": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "package_included": {
+          "type": "boolean",
+          "const": false
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "current_reader_supported": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_frame_emitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "base_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "send_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "if": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "COMPILER_STREAM_LAYOUT_UNAVAILABLE"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "context_sha256": {
+            "type": "null"
+          },
+          "inventory_sha256": {
+            "type": "null"
+          },
+          "manifest_sha256": {
+            "type": "null"
+          },
+          "manifest": {
+            "type": "null"
+          },
+          "frames": {
+            "type": "null"
+          },
+          "budget_reason": {
+            "type": "null"
+          },
+          "library_files": {
+            "type": "null"
+          },
+          "library_raw_bytes": {
+            "type": "null"
+          },
+          "frame_limit_bytes": {
+            "type": "null"
+          },
+          "wire_bytes_total": {
+            "type": "null"
+          },
+          "largest_frame_jsonl_bytes": {
+            "type": "null"
+          },
+          "manifest_json_bytes": {
+            "type": "null"
+          },
+          "record_count": {
+            "type": "null"
+          },
+          "chunked_files": {
+            "type": "null"
+          },
+          "code": {
+            "enum": [
+              "stream_plan_policy_unavailable",
+              "stream_plan_metadata_over_budget",
+              "stream_plan_context_unavailable",
+              "stream_plan_owner_unavailable",
+              "stream_plan_inventory_mismatch",
+              "stream_plan_owned_bytes_mismatch",
+              "stream_plan_layout_unavailable",
+              "stream_plan_owner_changed",
+              "stream_plan_time_budget"
+            ]
+          },
+          "constraints": {
+            "type": "object",
+            "properties": {
+              "library_count": {
+                "type": "null"
+              },
+              "library_file_raw": {
+                "type": "null"
+              },
+              "capture_library_raw_lower_bound": {
+                "type": "null"
+              },
+              "image_compiler_count": {
+                "type": "null"
+              },
+              "image_compiler_raw": {
+                "type": "null"
+              },
+              "image_compiler_file_raw": {
+                "type": "null"
+              },
+              "image_content_lower_bound": {
+                "type": "null"
+              },
+              "data_wire": {
+                "type": "null"
+              },
+              "open_wire": {
+                "type": "null"
+              },
+              "commit_wire": {
+                "type": "null"
+              },
+              "manifest_metadata": {
+                "type": "null"
+              },
+              "result_metadata": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "const": ""
+          },
+          "context_sha256": {
+            "type": "string"
+          },
+          "inventory_sha256": {
+            "type": "string"
+          },
+          "library_files": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "library_raw_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "frame_limit_bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "if": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "COMPILER_STREAM_LAYOUT_ONLY_NOT_ADMITTED"
+            }
+          }
+        },
+        "then": {
+          "type": "object",
+          "properties": {
+            "library_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "library_raw_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "frame_limit_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wire_bytes_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "largest_frame_jsonl_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "manifest_json_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "chunked_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "manifest": {
+              "type": "object"
+            },
+            "manifest_sha256": {
+              "type": "string"
+            },
+            "frames": {
+              "type": "array"
+            },
+            "budget_reason": {
+              "type": "null"
+            },
+            "constraints": {
+              "type": "object",
+              "properties": {
+                "library_count": {
+                  "const": true
+                },
+                "library_file_raw": {
+                  "const": true
+                },
+                "capture_library_raw_lower_bound": {
+                  "const": true
+                },
+                "image_compiler_count": {
+                  "const": true
+                },
+                "image_compiler_raw": {
+                  "const": true
+                },
+                "image_compiler_file_raw": {
+                  "const": true
+                },
+                "image_content_lower_bound": {
+                  "const": true
+                },
+                "data_wire": {
+                  "const": true
+                },
+                "open_wire": {
+                  "const": true
+                },
+                "commit_wire": {
+                  "const": true
+                },
+                "manifest_metadata": {
+                  "const": true
+                },
+                "result_metadata": {
+                  "const": true
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "type": "object",
+          "properties": {
+            "budget_reason": {
+              "type": "string",
+              "enum": [
+                "library_count",
+                "library_file_raw",
+                "capture_library_raw_lower_bound",
+                "image_compiler_count",
+                "image_compiler_raw",
+                "image_compiler_file_raw",
+                "image_content_lower_bound",
+                "data_wire",
+                "open_wire",
+                "commit_wire",
+                "manifest_metadata",
+                "result_metadata"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "library_count"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "library_count": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "library_file_raw"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "library_file_raw": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "capture_library_raw_lower_bound"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "capture_library_raw_lower_bound": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "image_compiler_count"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "image_compiler_count": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "image_compiler_raw"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "image_compiler_raw": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "image_compiler_file_raw"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "image_compiler_file_raw": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "image_content_lower_bound"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "image_content_lower_bound": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "data_wire"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "data_wire": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "open_wire"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "open_wire": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "commit_wire"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "commit_wire": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "manifest_metadata"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "manifest_metadata": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "budget_reason": {
+                    "const": "result_metadata"
+                  }
+                }
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "result_metadata": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "encoder_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "layout_profile",
+        "model",
+        "schema_sha256",
+        "refusal_codes",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-encoder"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_library_transport_plan.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "encoder_policy"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "layout_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_layout"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_in_memory_one_frame_credit_v1"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "stream_encoder_policy_invalid",
+            "stream_encoder_plan_invalid",
+            "stream_encoder_owner_unavailable",
+            "stream_encoder_owner_changed",
+            "stream_encoder_deadline",
+            "stream_encoder_order",
+            "stream_encoder_ack_invalid",
+            "stream_encoder_frame_mismatch",
+            "stream_encoder_internal",
+            "stream_encoder_interrupted"
+          ],
+          "items": {
+            "type": "string",
+            "enum": [
+              "stream_encoder_policy_invalid",
+              "stream_encoder_plan_invalid",
+              "stream_encoder_owner_unavailable",
+              "stream_encoder_owner_changed",
+              "stream_encoder_deadline",
+              "stream_encoder_order",
+              "stream_encoder_ack_invalid",
+              "stream_encoder_frame_mismatch",
+              "stream_encoder_internal",
+              "stream_encoder_interrupted"
+            ]
+          }
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "encoder_ack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "session_id",
+        "manifest_sha256",
+        "seq",
+        "frame_sha256",
+        "state"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-chunks"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "frame_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "STAGED",
+            "COMPLETE"
+          ]
+        }
+      }
+    },
+    "encoder_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "state",
+        "code",
+        "context_sha256",
+        "inventory_sha256",
+        "manifest_sha256",
+        "next_seq",
+        "frames_encoded",
+        "encoded_bytes",
+        "outstanding_frame_sha256",
+        "raw_frame_encoded",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "raw_frame_emitted",
+        "raw_content_verified",
+        "base_content_verified",
+        "send_verified",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "loaded_code_attested",
+        "native_execution_attested",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-encoder"
+        },
+        "status": {
+          "type": "string",
+          "const": "COMPILER_STREAM_ENCODER_MODEL_ONLY_NOT_SENT"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "READY",
+            "AWAITING_ACK",
+            "COMMIT_PENDING_EOF",
+            "AWAITING_FINAL_ACK",
+            "COMPLETE",
+            "ABORTED",
+            "DISPOSED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "stream_encoder_policy_invalid",
+            "stream_encoder_plan_invalid",
+            "stream_encoder_owner_unavailable",
+            "stream_encoder_owner_changed",
+            "stream_encoder_deadline",
+            "stream_encoder_order",
+            "stream_encoder_ack_invalid",
+            "stream_encoder_frame_mismatch",
+            "stream_encoder_internal",
+            "stream_encoder_interrupted"
+          ]
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "next_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "frames_encoded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "encoded_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outstanding_frame_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_frame_encoded": {
+          "type": "boolean"
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "raw_frame_emitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "base_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "send_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "AWAITING_ACK",
+                  "COMMIT_PENDING_EOF",
+                  "AWAITING_FINAL_ACK"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "outstanding_frame_sha256": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "outstanding_frame_sha256": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "const": "ABORTED"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "enum": [
+                  "stream_encoder_policy_invalid",
+                  "stream_encoder_plan_invalid",
+                  "stream_encoder_owner_unavailable",
+                  "stream_encoder_owner_changed",
+                  "stream_encoder_deadline",
+                  "stream_encoder_order",
+                  "stream_encoder_ack_invalid",
+                  "stream_encoder_frame_mismatch",
+                  "stream_encoder_internal",
+                  "stream_encoder_interrupted"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "READY",
+                  "AWAITING_ACK",
+                  "COMMIT_PENDING_EOF",
+                  "AWAITING_FINAL_ACK",
+                  "COMPLETE"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    },
+    "stager_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "layout_profile",
+        "model",
+        "schema_sha256",
+        "refusal_codes",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-stager"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_library_transport_plan.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "stager_policy"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "layout_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_layout"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_python_independent_raw_staging_v1"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "stream_stager_policy_invalid",
+            "stream_stager_expected_invalid",
+            "stream_stager_deadline",
+            "stream_stager_order",
+            "stream_stager_frame_invalid",
+            "stream_stager_record_invalid",
+            "stream_stager_raw_identity",
+            "stream_stager_trailing",
+            "stream_stager_credit",
+            "stream_stager_budget",
+            "stream_stager_incomplete",
+            "stream_stager_interrupted",
+            "stream_stager_internal"
+          ],
+          "items": {
+            "type": "string",
+            "enum": [
+              "stream_stager_policy_invalid",
+              "stream_stager_expected_invalid",
+              "stream_stager_deadline",
+              "stream_stager_order",
+              "stream_stager_frame_invalid",
+              "stream_stager_record_invalid",
+              "stream_stager_raw_identity",
+              "stream_stager_trailing",
+              "stream_stager_credit",
+              "stream_stager_budget",
+              "stream_stager_incomplete",
+              "stream_stager_interrupted",
+              "stream_stager_internal"
+            ]
+          }
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "stager_expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "owner_context_sha256",
+        "context_sha256",
+        "inventory_sha256",
+        "policy_sha256",
+        "schema_sha256",
+        "compiler_source_sha256",
+        "compiler_version",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "owner_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "stager_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_index",
+        "offset",
+        "raw_bytes",
+        "chunk_sha256",
+        "utf8Base64"
+      ],
+      "properties": {
+        "file_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "chunk_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "utf8Base64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+        }
+      }
+    },
+    "stager_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "state",
+        "code",
+        "context_sha256",
+        "inventory_sha256",
+        "manifest_sha256",
+        "next_seq",
+        "frames_accepted",
+        "wire_bytes_accepted",
+        "raw_bytes_staged",
+        "files_completed",
+        "pending_bytes",
+        "credit_frame_sha256",
+        "raw_bytes_verified_in_model",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "actual_transfer",
+        "raw_content_verified",
+        "host_text_verified",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "loaded_code_attested",
+        "native_execution_attested",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-stager"
+        },
+        "status": {
+          "type": "string",
+          "const": "COMPILER_STREAM_STAGER_MODEL_ONLY_NOT_IMAGE_ADMITTED"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "NEW",
+            "OPEN",
+            "RECEIVING",
+            "SEALED",
+            "COMPLETE",
+            "BORROWING",
+            "ABORTED",
+            "DISPOSED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "stream_stager_policy_invalid",
+            "stream_stager_expected_invalid",
+            "stream_stager_deadline",
+            "stream_stager_order",
+            "stream_stager_frame_invalid",
+            "stream_stager_record_invalid",
+            "stream_stager_raw_identity",
+            "stream_stager_trailing",
+            "stream_stager_credit",
+            "stream_stager_budget",
+            "stream_stager_incomplete",
+            "stream_stager_interrupted",
+            "stream_stager_internal"
+          ]
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "next_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "frames_accepted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wire_bytes_accepted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "credit_frame_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_bytes_verified_in_model": {
+          "type": "boolean"
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "actual_transfer": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "host_text_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "const": "ABORTED"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "enum": [
+                  "stream_stager_policy_invalid",
+                  "stream_stager_expected_invalid",
+                  "stream_stager_deadline",
+                  "stream_stager_order",
+                  "stream_stager_frame_invalid",
+                  "stream_stager_record_invalid",
+                  "stream_stager_raw_identity",
+                  "stream_stager_trailing",
+                  "stream_stager_credit",
+                  "stream_stager_budget",
+                  "stream_stager_incomplete",
+                  "stream_stager_interrupted",
+                  "stream_stager_internal"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "NEW",
+                  "OPEN",
+                  "RECEIVING",
+                  "SEALED",
+                  "ABORTED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "raw_bytes_verified_in_model": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "COMPLETE",
+                  "BORROWING"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "raw_bytes_verified_in_model": {
+                "const": true
+              },
+              "credit_frame_sha256": {
+                "type": "null"
+              },
+              "pending_bytes": {
+                "const": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "NEW",
+                  "OPEN",
+                  "RECEIVING",
+                  "SEALED",
+                  "COMPLETE",
+                  "BORROWING"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    },
+    "js_stager_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "snapshot_definition",
+        "snapshot_status",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "layout_profile",
+        "stager_profile",
+        "model",
+        "schema_sha256",
+        "frame_definitions",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-js-stager"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_library_transport_plan.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "js_stager_policy"
+        },
+        "snapshot_definition": {
+          "type": "string",
+          "const": "js_stager_snapshot"
+        },
+        "snapshot_status": {
+          "type": "string",
+          "const": "COMPILER_STREAM_JS_STAGER_MODEL_ONLY_NOT_IMAGE_ADMITTED"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "layout_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_layout"
+        },
+        "stager_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_stager"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_js_independent_raw_staging_v1"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "frame_definitions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open",
+            "data",
+            "commit"
+          ],
+          "properties": {
+            "open": {
+              "type": "string",
+              "const": "js_stream_open"
+            },
+            "data": {
+              "type": "string",
+              "const": "js_stream_data"
+            },
+            "commit": {
+              "type": "string",
+              "const": "js_stream_commit"
+            }
+          }
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "js_stager_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "state",
+        "code",
+        "context_sha256",
+        "inventory_sha256",
+        "manifest_sha256",
+        "next_seq",
+        "frames_accepted",
+        "wire_bytes_accepted",
+        "raw_bytes_staged",
+        "files_completed",
+        "pending_bytes",
+        "credit_frame_sha256",
+        "raw_bytes_verified_in_model",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "actual_transfer",
+        "raw_content_verified",
+        "host_text_verified",
+        "source_freshness_verified",
+        "snapshot_bound",
+        "loaded_code_attested",
+        "native_execution_attested",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "owned_buffer_bytes"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-stream-js-stager"
+        },
+        "status": {
+          "type": "string",
+          "const": "COMPILER_STREAM_JS_STAGER_MODEL_ONLY_NOT_IMAGE_ADMITTED"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "NEW",
+            "OPEN",
+            "RECEIVING",
+            "SEALED",
+            "COMPLETE",
+            "BORROWING",
+            "ABORTED",
+            "DISPOSED"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "",
+            "stream_stager_policy_invalid",
+            "stream_stager_expected_invalid",
+            "stream_stager_deadline",
+            "stream_stager_order",
+            "stream_stager_frame_invalid",
+            "stream_stager_record_invalid",
+            "stream_stager_raw_identity",
+            "stream_stager_trailing",
+            "stream_stager_credit",
+            "stream_stager_budget",
+            "stream_stager_incomplete",
+            "stream_stager_interrupted",
+            "stream_stager_internal"
+          ]
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "next_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "frames_accepted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wire_bytes_accepted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "credit_frame_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_bytes_verified_in_model": {
+          "type": "boolean"
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "actual_transfer": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "host_text_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_freshness_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "owned_buffer_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "const": "ABORTED"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "enum": [
+                  "stream_stager_policy_invalid",
+                  "stream_stager_expected_invalid",
+                  "stream_stager_deadline",
+                  "stream_stager_order",
+                  "stream_stager_frame_invalid",
+                  "stream_stager_record_invalid",
+                  "stream_stager_raw_identity",
+                  "stream_stager_trailing",
+                  "stream_stager_credit",
+                  "stream_stager_budget",
+                  "stream_stager_incomplete",
+                  "stream_stager_interrupted",
+                  "stream_stager_internal"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "NEW",
+                  "OPEN",
+                  "RECEIVING",
+                  "SEALED",
+                  "ABORTED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "raw_bytes_verified_in_model": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "COMPLETE",
+                  "BORROWING"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "raw_bytes_verified_in_model": {
+                "const": true
+              },
+              "credit_frame_sha256": {
+                "type": "null"
+              },
+              "pending_bytes": {
+                "const": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "NEW",
+                  "OPEN",
+                  "RECEIVING",
+                  "SEALED",
+                  "COMPLETE",
+                  "BORROWING"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "const": ""
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "ABORTED",
+                  "DISPOSED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "owned_buffer_bytes": {
+                "const": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "js_stream_open": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "session_id",
+        "manifest_sha256",
+        "seq",
+        "kind",
+        "manifest"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-chunks"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "const": "open"
+        },
+        "manifest": {
+          "$ref": "#/$defs/stream_manifest"
+        }
+      }
+    },
+    "js_stream_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "session_id",
+        "manifest_sha256",
+        "seq",
+        "kind",
+        "records"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-chunks"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "const": "data"
+        },
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/stager_record"
+          }
+        }
+      }
+    },
+    "js_stream_commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "session_id",
+        "manifest_sha256",
+        "seq",
+        "kind",
+        "files_complete",
+        "raw_bytes_total",
+        "transcript_sha256"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-compiler-chunks"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "const": "commit"
+        },
+        "files_complete": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_bytes_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "transcript_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "driver_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "raw_transport_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "layout_profile",
+        "encoder_profile",
+        "stager_profile",
+        "result_definition",
+        "result_status",
+        "model",
+        "claim_boundary",
+        "schema_sha256",
+        "refusal_codes",
+        "expected_completion_definition"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-compiler-stream-driver"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/compiler_library_transport_plan.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "driver_policy"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_transport_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "layout_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_layout"
+        },
+        "encoder_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_encoder"
+        },
+        "stager_profile": {
+          "type": "string",
+          "const": "private_compiler_stream_js_stager"
+        },
+        "result_definition": {
+          "type": "string",
+          "const": "driver_result"
+        },
+        "result_status": {
+          "type": "string",
+          "const": "SYNTHETIC_COMPILER_STREAM_DRIVER_COMPLETED_NOT_IMAGE_ADMITTED"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_one_credit_os_pipe_v1"
+        },
+        "claim_boundary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "const": [
+            "stream_driver_context_invalid",
+            "stream_driver_deadline",
+            "stream_driver_cancelled",
+            "stream_driver_bootstrap_budget",
+            "stream_driver_response_budget",
+            "stream_driver_stderr_budget",
+            "stream_driver_response_incomplete",
+            "stream_driver_response_invalid",
+            "stream_driver_response_trailing",
+            "stream_driver_pipe",
+            "stream_driver_encoder_refused",
+            "stream_driver_child_failed",
+            "stream_driver_cleanup_unsettled"
+          ]
+        },
+        "expected_completion_definition": {
+          "type": "string",
+          "const": "driver_expected_completion"
+        }
+      }
+    },
+    "driver_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "status",
+        "session_id",
+        "manifest_sha256",
+        "context_sha256",
+        "inventory_sha256",
+        "files_completed",
+        "raw_bytes_staged",
+        "content_summary_sha256",
+        "receiver_state",
+        "owned_buffer_bytes",
+        "raw_bytes_verified_in_model",
+        "real_source_transfer",
+        "raw_content_verified",
+        "host_text_verified",
+        "production_enabled",
+        "native_execution_attested",
+        "semantic_lineage",
+        "cache_eligible",
+        "node_version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "result"
+        },
+        "version": {
+          "type": "string",
+          "const": "v1-private-synthetic-compiler-stream-driver"
+        },
+        "status": {
+          "type": "string",
+          "const": "SYNTHETIC_COMPILER_STREAM_DRIVER_COMPLETED_NOT_IMAGE_ADMITTED"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_summary_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "receiver_state": {
+          "type": "string",
+          "const": "DISPOSED"
+        },
+        "owned_buffer_bytes": {
+          "type": "integer",
+          "const": 0
+        },
+        "raw_bytes_verified_in_model": {
+          "type": "boolean",
+          "const": true
+        },
+        "real_source_transfer": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_content_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "host_text_verified": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_attested": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "node_version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "driver_expected_completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files_completed",
+        "raw_bytes_staged",
+        "content_summary_sha256"
+      ],
+      "properties": {
+        "files_completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_bytes_staged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_summary_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

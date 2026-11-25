@@ -37,7 +37,7 @@ class ProgressiveHitlTests(unittest.TestCase):
                 }
             ]
         }
-        with patch("tools.hitl_approval_ledger.verify_ledger", return_value={"status": "PASS", "invalid_entries": []}):
+        with patch("tools.hitl_approval_ledger.verify_supplied_ledger_observation", return_value={"status": "PASS", "invalid_entries": []}):
             self.assertTrue(active_approval("watchdog_auto_restore", scope, ledger=ledger)["approved"])
             self.assertFalse(active_approval("watchdog_auto_restore", "watchdog:/other", ledger=ledger)["approved"])
 
@@ -70,7 +70,7 @@ class ProgressiveHitlTests(unittest.TestCase):
                 },
             ]
         }
-        with patch("tools.hitl_approval_ledger.verify_ledger", return_value={"status": "PASS", "invalid_entries": []}):
+        with patch("tools.hitl_approval_ledger.verify_supplied_ledger_observation", return_value={"status": "PASS", "invalid_entries": []}):
             denied = active_approval("watchdog_auto_restore", scope, ledger=ledger)
             expired = active_approval("watchdog_auto_restore", "watchdog:/expired", ledger=ledger)
 
@@ -82,11 +82,20 @@ class ProgressiveHitlTests(unittest.TestCase):
         self.assertEqual(summarize_ledger_entries(ledger["entries"])["active_approvals"], 0)
 
     def test_authorize_action_routes_soft_and_hard_modes_through_single_gate(self):
-        soft = authorize_action("architecture_doctrine_proposal", "oracle:MAIN")
+        # Isolate this routing check from real policy/ledger/key state.
+        policy = {"actions": {
+            "architecture_doctrine_proposal": {"approval_mode": "soft"},
+            "watchdog_auto_restore": {"approval_mode": "hard", "gate": "watchdog_auto_restore"},
+        }}
+        with (
+            patch("tools.core.hitl_policy.load_hitl_policy", return_value=policy),
+            patch("tools.hitl_approval_ledger.load_existing_ledger_observation", return_value={"entries": []}),
+            patch("tools.hitl_approval_ledger.verify_supplied_ledger_observation", return_value={"status": "PASS"}),
+        ):
+            soft = authorize_action("architecture_doctrine_proposal", "oracle:MAIN")
+            hard = authorize_action("watchdog_auto_restore", "watchdog:/missing")
         self.assertTrue(soft["approved"])
         self.assertEqual(soft["approval_mode"], "soft")
-
-        hard = authorize_action("watchdog_auto_restore", "watchdog:/missing")
         self.assertFalse(hard["approved"])
         self.assertEqual(hard["gate"], "watchdog_auto_restore")
         self.assertEqual(hard["fallback"], "advise_without_mutation")

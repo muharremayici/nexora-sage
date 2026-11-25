@@ -300,8 +300,14 @@ def ingest_native_run_logs(
     except _InputError as exc:
         summary["reason_codes"].append(str(exc))
     if diagnostic_format is not None:
-        observation = _observe_native_warning(receipt, captured, tool, diagnostic_format,
-                                              contract["normalization"], declared_sources)
+        policy = contract["normalization"]
+        if policy["formats"].get(diagnostic_format, {}).get("parser") == "eslint_json_result_array_v1":
+            from tools.core.native_eslint_json import observe_eslint_json
+            observation = observe_eslint_json(receipt, captured, tool, diagnostic_format,
+                policy, declared_sources, _source_identifier_key, limits["input_files"])
+        else:
+            observation = _observe_native_warning(receipt, captured, tool, diagnostic_format,
+                                                  policy, declared_sources)
         receipt["diagnostic_observations"] = observation
         if observation["status"] in ("OBSERVED", "NO_SUPPORTED_OBSERVATIONS"):
             receipt["authority"]["diagnostics"] = "bounded_family_observations_only"

@@ -9,12 +9,15 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 from typing import Any, Mapping
 
 from tools.core.config import CODE_MAPS_DIR
 from tools.core.source_layer_classifier import classify_source_layer
 from tools.core.source_state_identity import source_state_identity
+from tools.core.release_source_index import build_local_python_module_index
 
 
 CONTRACT_PATH = CODE_MAPS_DIR / "config" / "release_validation_dependency_contract.json"
@@ -38,8 +41,13 @@ _DYNAMIC_IMPORT_CALLS = {
 _LITERAL_MODULE_IMPORT_CALLS = {"__import__", "import_module"}
 _REQUIRED_SEMANTIC_REUSE_ENGINE_PATHS = {
     "tools/core/release_proof_resume.py",
+    "tools/core/release_proof_steps.py",
     "tools/run_release_proof_bundle.py",
     "tools/core/release_validation_dependencies.py",
+    "tools/core/release_validation_source_recipe.py",
+    "tools/core/distribution_test_selection.py",
+    "tools/core/release_source_index.py",
+    "tools/doctrine_compiler.py",
     "config/release_validation_dependency_contract.json",
     "config/schemas/release_validation_dependency_contract.schema.json",
 }
@@ -60,7 +68,17 @@ _REVIEWED_SEMANTIC_CLOSURE_FLOORS = {
                 "path",
             )
         },
-    }
+    },
+    "next_boundary_policy_core": {
+        "exact_paths": {
+            "tools/validate_next_boundary_policy_core.py",
+            "tools/engines/next_boundary_analyzer.py",
+            "config/next_boundary_policy.json",
+        },
+        "source_text_only_paths": {"tools/engines/next_boundary_analyzer.py"},
+        "startup_configuration_tree": "config_full_tree_v1",
+        "contract_path_expansions": set(),
+    },
 }
 
 
@@ -172,6 +190,20 @@ def validate_dependency_contract(
     root: Path = CODE_MAPS_DIR,
 ) -> list[str]:
     errors: list[str] = []
+    if "canonical_test_unit_admission" in contract:
+        from tools.core.distribution_unit_input_identity import validate_canonical_unit_policy as validate_unit_admission
+
+        try:
+            validate_unit_admission(contract["canonical_test_unit_admission"], contract.get("diagnostic_test_unit_pilots"))
+        except ValueError:
+            errors.append("canonical_test_unit_admission_policy_invalid")
+    if "persisted_test_unit_reuse" in contract:
+        from tools.core.distribution_unit_input_identity import validate_persisted_unit_policy as validate_policy
+
+        try:
+            validate_policy(contract["persisted_test_unit_reuse"], contract.get("diagnostic_test_unit_pilots"))
+        except ValueError:
+            errors.append("persisted_test_unit_reuse_policy_invalid")
     meta = contract.get("meta") if isinstance(contract.get("meta"), Mapping) else {}
     if meta.get("kind") != "release_validation_dependency_contract":
         errors.append("meta.kind_invalid")
@@ -179,6 +211,16 @@ def validate_dependency_contract(
         errors.append("meta.version_invalid")
     if meta.get("authority") != "reuse_invalidation_only_no_release_or_publication_authority":
         errors.append("meta.authority_invalid")
+    projection_policy = contract.get("completed_dependency_input_projection")
+    if "completed_dependency_input_projection" in contract and (
+        not isinstance(projection_policy, Mapping)
+        or set(projection_policy) != {"version", "authority", "default_role"}
+        or not isinstance(projection_policy.get("version"), str)
+        or not projection_policy.get("version")
+        or projection_policy.get("authority") != "completed_identity_only_no_gate_or_checkpoint_relaxation"
+        or projection_policy.get("default_role") != "full_evidence"
+    ):
+        errors.append("completed_dependency_input_projection_invalid")
     try:
         foreign = _foreign_contracts(root, contract)
     except ValueError as exc:
@@ -316,10 +358,26 @@ def validate_dependency_contract(
             errors.append(f"semantic_closure_not_reviewed:{step_id}")
         if row.get("proof_domain") != domain_map.get(step_id):
             errors.append(f"semantic_closure_proof_domain_mismatch:{step_id}")
+        if "dependency_input_roles" in row:
+            roles = row["dependency_input_roles"]
+            if not isinstance(roles, Mapping) or any(
+                not isinstance(key, str) or not key or not isinstance(role, str) or not role
+                for key, role in roles.items()
+            ):
+                errors.append(f"semantic_closure_dependency_input_roles_invalid:{step_id}")
         if row.get("transitive_local_python_imports") is not True:
             errors.append(f"semantic_closure_transitive_imports_required:{step_id}")
-        if row.get("require_contract_path_expansions") is not True:
+        needs_expansions = bool(hard_floor.get("contract_path_expansions"))
+        if row.get("require_contract_path_expansions") is not needs_expansions:
             errors.append(f"semantic_closure_contract_expansions_required:{step_id}")
+        if row.get("startup_configuration_tree") != hard_floor.get("startup_configuration_tree"):
+            errors.append(f"semantic_closure_startup_inputs_invalid:{step_id}")
+        text_paths = row.get("source_text_only_paths", [])
+        if (not isinstance(text_paths, list)
+                or any(not isinstance(path, str) for path in text_paths)
+                or set(text_paths) != hard_floor.get("source_text_only_paths", set())
+                or len(text_paths) != len(set(text_paths))):
+            errors.append(f"semantic_closure_text_input_roles_invalid:{step_id}")
         allowed_layers = row.get("allowed_source_layers")
         allowed = {str(value) for value in allowed_layers} if isinstance(allowed_layers, list) else set()
         if not allowed or not allowed.issubset(taxonomy_ids):
@@ -344,9 +402,11 @@ def validate_dependency_contract(
                 elif not path.is_file():
                     errors.append(f"semantic_closure_path_missing:{step_id}:{relative}")
         expansions = row.get("contract_path_expansions")
-        if not isinstance(expansions, list) or not expansions:
+        if not isinstance(expansions, list) or (needs_expansions and not expansions):
             errors.append(f"semantic_closure_expansion_missing:{step_id}")
             continue
+        if not needs_expansions and expansions:
+            errors.append(f"semantic_closure_expansion_not_reviewed:{step_id}")
         declared_expansions = {
             (
                 str(expansion.get("contract") or ""),
@@ -375,24 +435,17 @@ def validate_dependency_contract(
                 errors.append(f"semantic_closure_expansion_contract_invalid:{step_id}")
             if expansion.get("json_pointer") != "/exact_path_rules/*/path" or expansion.get("path_field") != "path":
                 errors.append(f"semantic_closure_expansion_selector_invalid:{step_id}")
+    from tools.core.release_validation_source_recipe import validate_source_recipes
+    errors.extend(validate_source_recipes(
+        contract.get("source_recipes", {}), domain_map, disposition_map,
+        family_context={"steps": step_rows, "inventory": foreign["test_inventory"],
+                        "step_ids": validation.get("engine_test_shard_step_ids", [])}))
     return sorted(set(errors))
 
 
 def _module_index(root: Path) -> dict[str, Path]:
-    result: dict[str, Path] = {}
-    for path in sorted(root.rglob("*.py")):
-        try:
-            relative = path.relative_to(root)
-        except ValueError:
-            continue
-        if any(part in {".git", ".tmp", "node_modules", "output", "__pycache__"} for part in relative.parts):
-            continue
-        parts = list(relative.with_suffix("").parts)
-        if parts and parts[-1] == "__init__":
-            parts.pop()
-        if parts:
-            result[".".join(parts)] = path
-    return result
+    return build_local_python_module_index(
+        root, excluded_parts={".git", ".tmp", "node_modules", "output", "__pycache__"})
 
 
 def _module_name(path: Path, root: Path) -> tuple[str, bool]:
@@ -443,6 +496,33 @@ def _literal_module_import(node: ast.Call) -> str | None:
     return None
 
 
+def _package_initializers(path: Path, *, root: Path, index: Mapping[str, Path]) -> tuple[set[Path], list[str]]:
+    initializers: set[Path] = set()
+    risks: list[str] = []
+    for parent in path.parents:
+        if parent == root:
+            break
+        initializer = parent / "__init__.py"
+        if initializer == path:
+            continue
+        try:
+            mode = initializer.stat().st_mode
+        except FileNotFoundError:
+            package = ".".join(parent.relative_to(root).parts)
+            shadow = index.get(package)
+            if shadow is not None and shadow.name != "__init__.py":
+                risks.append(f"namespace_parent_shadowed_by_module:{package}")
+            continue
+        except OSError as exc:
+            risks.append(f"package_initializer_unavailable:{type(exc).__name__}")
+            continue
+        if not stat.S_ISREG(mode):
+            risks.append(f"package_initializer_not_regular:{initializer.relative_to(root).as_posix()}")
+        else:
+            initializers.add(initializer)
+    return initializers, risks
+
+
 def _local_python_import_closure(
     seeds: set[Path],
     *,
@@ -457,7 +537,17 @@ def _local_python_import_closure(
         path = pending.pop()
         if path in visited:
             continue
+        try:
+            resolved = _resolve_under_root(root, path.relative_to(root).as_posix())
+        except (OSError, RuntimeError):
+            resolved = None
+        if resolved is None or resolved != path:
+            risks.append(f"local_import_outside_or_aliased_root:{path.relative_to(root).as_posix()}")
+            continue
         visited.add(path)
+        initializers, package_risks = _package_initializers(path, root=root, index=index)
+        pending.extend(initializers - visited)
+        risks.extend(package_risks)
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=path.as_posix())
         except (OSError, UnicodeError, SyntaxError) as exc:
@@ -608,7 +698,11 @@ def resolve_local_python_import_closure(
     if seeds and not reasons:
         resolved, import_reasons = _local_python_import_closure(seeds, root=root)
         reasons.extend(import_reasons)
-    rows = _file_rows(resolved, root=root) if resolved else []
+    try:
+        rows = _file_rows(resolved, root=root) if resolved else []
+    except OSError as exc:
+        rows = []
+        reasons.append(f"closure_file_identity_unavailable:{type(exc).__name__}")
     return {
         "status": "BLOCKED" if reasons else "COMPLETE",
         "paths": [row["path"] for row in rows],
@@ -638,6 +732,133 @@ def _global_fallback(
         "closure": {"paths": [], "layers": [], "file_count": 0},
         "reasons": sorted(set(reasons)) or ["global_source_fingerprint_required"],
     }
+
+
+def _completed_dependency_input_plan(step_id, closure, payload, root, contract_sha256):
+    """Compile optional reviewed roles; unknown coverage retains full evidence."""
+    if "dependency_input_roles" not in closure:
+        return None  # Legacy declarations incur no extra authority read.
+    plan = {
+        "mode": "full_evidence", "roles": {}, "reasons": [],
+        "semantic_dependency_contract_sha256": contract_sha256,
+        "dependency_contract_sha256": "",
+    }
+    try:
+        relative = _safe_relative_path(payload["authorities"]["proof_steps"])
+        path = _resolve_under_root(root, relative or "")
+        steps = _load_json(path, label="dependency role steps")["steps"] if path else []
+        step = next(row for row in steps if row.get("id") == step_id)
+        dependencies = step.get("depends_on", [])
+        plan["roles"] = {dependency: "full_evidence" for dependency in dependencies}
+        plan["dependency_contract_sha256"] = canonical_sha256({
+            "depends_on": dependencies,
+            "dependency_failure_modes": step.get("dependency_failure_modes", {}),
+        })
+    except (OSError, ValueError, TypeError, KeyError, StopIteration, AttributeError):
+        plan["reasons"] = ["dependency_role_step_unavailable"]
+        return plan
+    policy = payload.get("completed_dependency_input_projection")
+    roles = closure["dependency_input_roles"]
+    if not isinstance(policy, Mapping) or policy.get("version") != "v1":
+        plan["reasons"] = ["dependency_role_protocol_absent_or_unsupported"]
+    elif not isinstance(roles, Mapping) or set(roles) != set(dependencies):
+        plan["reasons"] = ["dependency_roles_not_exact_direct_dependency_set"]
+    elif any(role not in {"full_evidence", "prerequisite_only"} for role in roles.values()):
+        plan["reasons"] = ["dependency_role_unclassified_or_unsupported"]
+    else:
+        from tools.core.release_proof_steps import dependency_failure_mode
+
+        try:
+            nonblocking = any(
+                role == "prerequisite_only" and dependency_failure_mode(step, dependency) != "blocking"
+                for dependency, role in roles.items())
+        except ValueError:
+            plan["reasons"] = ["dependency_failure_policy_unavailable"]
+            return plan
+        if any(role == "prerequisite_only" and disposition_by_step(payload).get(dependency) == "same_invocation_shared_producer"
+               for dependency, role in roles.items()):
+            plan["reasons"] = ["same_invocation_dependency_retains_full_evidence"]
+        elif nonblocking:
+            plan["reasons"] = ["advisory_dependency_retains_full_evidence"]
+        else:
+            plan.update(mode="reviewed_prerequisite_roles_v1", roles=dict(roles),
+                        reasons=["reviewed_direct_dependency_roles_complete"])
+    return plan
+
+
+def _startup_configuration_paths(root: Path) -> tuple[set[Path], list[str], list[str]]:
+    """Bind conservative startup data without running its compiler or loaders."""
+    if any(value and (key.startswith("CODEMAPS_TARGET_") or key in {
+            "CODEMAPS_TOPOLOGY_MODE", "CODEMAPS_EXTERNAL_RUN_ID"})
+           for key, value in os.environ.items()):
+        return set(), [], ["startup_external_context_not_reviewed"]
+    config = root / "config"
+    files: set[Path] = set()
+    directories: list[str] = []
+    pending = [config]
+    total_bytes = 0
+    try:
+        while pending:
+            directory = pending.pop()
+            state = directory.lstat()
+            if stat.S_ISLNK(state.st_mode) or getattr(state, "st_file_attributes", 0) & 0x400:
+                return set(), [], ["startup_configuration_alias_not_reviewed"]
+            directories.append(directory.relative_to(root).as_posix())
+            if len(directories) + len(files) > 2048:
+                return set(), [], ["startup_configuration_inventory_budget_exceeded"]
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    path = Path(entry.path)
+                    state = path.lstat()
+                    if (stat.S_ISLNK(state.st_mode)
+                            or getattr(state, "st_file_attributes", 0) & 0x400):
+                        return set(), [], ["startup_configuration_alias_not_reviewed"]
+                    if stat.S_ISDIR(state.st_mode):
+                        pending.append(path)
+                    elif stat.S_ISREG(state.st_mode):
+                        files.add(path)
+                        total_bytes += state.st_size
+                    else:
+                        return set(), [], ["startup_configuration_nonregular_input"]
+                    if len(pending) + len(directories) + len(files) > 2048 or total_bytes > 64 * 1024 * 1024:
+                        return set(), [], ["startup_configuration_inventory_budget_exceeded"]
+        manifest = config / "doctrines/manifest.json"
+        if manifest in files:
+            data = _load_json(manifest, label="startup doctrine manifest")
+            rows = data.get("active_doctrines")
+            if not isinstance(rows, list) or not rows:
+                return set(), [], ["startup_doctrine_manifest_invalid"]
+            for row in rows:
+                value = row.get("path") if isinstance(row, Mapping) else None
+                relative = _safe_relative_path(value)
+                target = (manifest.parent / relative).resolve() if relative else None
+                if target not in files:
+                    return set(), [], ["startup_doctrine_member_unavailable_or_unconfined"]
+    except (OSError, ValueError, UnicodeError) as exc:
+        return set(), [], [f"startup_configuration_unavailable:{type(exc).__name__}"]
+    return files, sorted(directories), []
+
+
+def reviewed_source_inputs_current(projection: Mapping[str, Any], *, root: Path) -> dict[str, Any]:
+    """Refuse reuse and baseline creation if mutable startup inputs drifted."""
+    closure = projection.get("closure", {})
+    paths, directories, reasons = _startup_configuration_paths(root)
+    if reasons:
+        return {"matches": False, "reasons": reasons}
+    try:
+        expected = closure.get("paths", [])
+        if not expected or any(not isinstance(row, Mapping) for row in expected):
+            return {"matches": False, "reasons": ["reviewed_input_rows_missing"]}
+        for row in expected:
+            path = _resolve_under_root(root, row.get("path", ""))
+            if path is None:
+                return {"matches": False, "reasons": ["reviewed_input_path_unavailable"]}
+            paths.add(path)
+        matches = (_file_rows(paths, root=root) == expected
+                   and directories == closure.get("startup_configuration_directories"))
+    except (OSError, ValueError, UnicodeError) as exc:
+        return {"matches": False, "reasons": [f"reviewed_input_recheck_unavailable:{type(exc).__name__}"]}
+    return {"matches": matches, "reasons": [] if matches else ["reviewed_source_inputs_changed"]}
 
 
 def _resolve_reviewed_step_dependency_identity(
@@ -674,13 +895,22 @@ def _resolve_reviewed_step_dependency_identity(
     paths.update(expanded)
     reasons.extend(expansion_reasons)
     if closure.get("transitive_local_python_imports") is True and not reasons:
+        # Observed source text remains content-bound; only execution roots
+        # seed import traversal. A real import can still reach a text input.
+        text_paths = {root / value for value in closure.get("source_text_only_paths", [])}
         imported, import_reasons = _local_python_import_closure(
-            paths,
+            paths - text_paths,
             root=root,
             module_index=module_index,
         )
         paths.update(imported)
         reasons.extend(import_reasons)
+
+    startup_directories: list[str] = []
+    if closure.get("startup_configuration_tree") == "config_full_tree_v1":
+        startup_paths, startup_directories, startup_reasons = _startup_configuration_paths(root)
+        paths.update(startup_paths)
+        reasons.extend(startup_reasons)
 
     allowed_layers = {str(value) for value in closure.get("allowed_source_layers", [])}
     observed_layers: set[str] = set()
@@ -712,12 +942,14 @@ def _resolve_reviewed_step_dependency_identity(
             "review_status": closure.get("review_status"),
             "layers": sorted(observed_layers),
             "files": rows,
+            "startup_configuration_directories": startup_directories,
         }
     )
-    return {
+    result = {
         "step_id": step_id,
         "disposition": disposition,
         "reuse_eligible": True,
+        "current_input_recheck_required": closure.get("startup_configuration_tree") == "config_full_tree_v1",
         "identity_mode": "semantic_closure_content_identity",
         "source_dependency_sha256": semantic_identity,
         "semantic_dependency_contract_sha256": contract_sha256,
@@ -725,9 +957,15 @@ def _resolve_reviewed_step_dependency_identity(
             "paths": rows,
             "layers": sorted(observed_layers),
             "file_count": len(rows),
+            "source_text_only_paths": list(closure.get("source_text_only_paths", [])),
+            "startup_configuration_directories": startup_directories,
         },
         "reasons": ["reviewed_semantic_closure_complete"],
     }
+    plan = _completed_dependency_input_plan(step_id, closure, payload, root, contract_sha256)
+    if plan is not None:
+        result["completed_dependency_input_plan"] = plan
+    return result
 
 
 def build_release_validation_dependency_context(
@@ -787,6 +1025,7 @@ def build_release_validation_dependency_context(
     )
     return {
         "complete": not errors and valid_engine_sha,
+        "source_root": str(root.resolve()),
         "semantic_dependency_contract_sha256": contract_sha256,
         "semantic_reuse_engine_sha256": engine_sha256,
         "step_dispositions": dispositions,
@@ -834,3 +1073,22 @@ def resolve_step_dependency_identity(
         root=root,
         contract_sha256=contract_sha256,
     )
+
+
+def observe_release_source_recipe(
+    step_id: str, *, root: Path = CODE_MAPS_DIR, contract: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Observe a disabled recipe without granting native receipt reuse."""
+    from tools.core.release_validation_source_recipe import (
+        observe_family_source_recipe, observe_source_recipe, source_recipe_context_reasons,
+    )
+    selected = load_release_validation_dependency_contract() if contract is None else contract
+    errors = [*validate_dependency_contract(selected, root=root), *source_recipe_context_reasons()]
+    recipes = selected.get("source_recipes", {})
+    recipe = recipes.get(step_id) if isinstance(recipes, Mapping) else None
+    if recipe and recipe.get("kind") in ("test_family_input_recipe_v1", "test_family_input_recipe_v2"):
+        return observe_family_source_recipe(step_id, root=root, contract=selected, errors=errors,
+                                            python_resolver=resolve_local_python_import_closure)
+    recipe = recipe if not errors else None
+    closure = resolve_local_python_import_closure(recipe["executable_python_roots"], root=root) if recipe else None
+    return observe_source_recipe(step_id, root=root, recipe=recipe, python_closure=closure, errors=errors)

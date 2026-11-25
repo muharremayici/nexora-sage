@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 def inject_vendor_paths(code_maps_dir: Path) -> list[Path]:
+    """Add readable vendors without overriding Python's user-site isolation."""
     runtime_vendor_dir = code_maps_dir / "vendor_runtime"
     workspace_vendor_dir = code_maps_dir.parent / "codemaps_vendor"
     local_vendor_dir = code_maps_dir / ".vendor"
@@ -27,10 +28,15 @@ def inject_vendor_paths(code_maps_dir: Path) -> list[Path]:
         if vendor_str not in sys.path:
             sys.path.insert(0, vendor_str)
 
-    user_site = Path(site.getusersitepackages())
-    if user_site.exists():
-        user_site_str = str(user_site)
-        if user_site_str not in sys.path:
-            sys.path.insert(0, user_site_str)
+    if (
+        site.ENABLE_USER_SITE is True
+        and not sys.flags.no_user_site
+        and not os.environ.get("PYTHONNOUSERSITE")
+    ):
+        user_site = Path(site.getusersitepackages())
+        if user_site.exists():
+            user_site_str = str(user_site)
+            if user_site_str not in sys.path:
+                sys.path.insert(0, user_site_str)
 
     return readable_vendors

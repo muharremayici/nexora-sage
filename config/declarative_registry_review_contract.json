@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "kind": "nexora.declarative_registry_review_contract",
+    "purpose": "Opt-in literal JSON registry equality review; no implicit domain inference or target execution."
+  },
+  "version": "v1-literal-json-key-id",
+  "typescript": {
+    "version": "v1-typescript-literal-key-id",
+    "lane_version": "v1-direct-const-string-map-source",
+    "limits": {
+      "source_bytes": 1048576,
+      "nodes": 10000,
+      "tables": 16,
+      "rows": 256,
+      "fields": 32,
+      "stored_bytes": 262144
+    },
+    "member_path": {
+      "version": "v2-typescript-literal-path-key-id",
+      "lane_version": "v1-direct-const-literal-member-path-source",
+      "limits": {
+        "selector_depth": 4,
+        "objects": 256,
+        "fields": 2048,
+        "stored_bytes": 262144
+      }
+    }
+  },
+  "limits": {
+    "contract_bytes": 16384,
+    "source_bytes": 1048576,
+    "json_nodes": 20000,
+    "json_depth": 32,
+    "registry_rows": 1000,
+    "display_rows": 50,
+    "output_bytes": 32768,
+    "name_characters": 256,
+    "reason_characters": 512
+  }
+}

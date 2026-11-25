@@ -35,6 +35,8 @@ from tools.core.audit_finding_facts import (
 from tools.core.path_identity import strip_current_directory_prefix
 from tools.core.stdio import best_effort_print
 from tools.core.unmanaged_atomic_io import native_filesystem_path
+from tools.core.search_identifiers import derived_search_identifier_valid
+from tools.core.class_member_search import recorded_class_members
 
 logger = logging.getLogger("SAGE.ArtifactStore")
 
@@ -676,17 +678,25 @@ class ArtifactStore:
             return value if isinstance(value, dict) else None
 
     def load_sqlite_atlas_declaration_metadata(self, project: str) -> tuple[Any, str] | None:
+        return self._load_sqlite_atlas_project_plane(project, "declaration_contract_evidence")
+
+    def load_sqlite_atlas_declared_artifact_metadata(self, project: str) -> tuple[Any, str] | None:
+        return self._load_sqlite_atlas_project_plane(project, "declared_artifact_observations")
+
+    def _load_sqlite_atlas_project_plane(self, project: str, plane: str) -> tuple[Any, str] | None:
         """Select one project plane and its same-read identity, never a shadow.
 
         Only selected metadata is materialized; integrity verification still
         scans/spools primary bytes. Missing metadata is not an empty contract.
         """
+        if plane not in {"declaration_contract_evidence", "declared_artifact_observations"}:
+            raise ValueError("Unsupported Atlas project plane")
         with self._verified_atlas_stream() as verified:
             if verified is None:
                 return None
             stream, identity = verified
             with io.TextIOWrapper(stream, encoding="utf-8", newline="") as text_stream:
-                value = select_json_object_path(text_stream, (project, "declaration_contract_evidence"),
+                value = select_json_object_path(text_stream, (project, plane),
                     chunk_size=max(1, self.state_payload_part_size_bytes // 4),
                     max_value_bytes=self.atlas_staging_file_aggregate_limit_bytes)
             return value, identity
@@ -1093,22 +1103,66 @@ class ArtifactStore:
         try:
             spool.seek(0)
             with self.db_manager.get_connection() as conn:
-                if storage_mode == "inline_json":
-                    stored_payload = spool.read().decode("utf-8")
-                else:
-                    part_count = (serialized_bytes_count + part_size - 1) // part_size
-                    stored_payload = _compact_json({
-                        "__sage_partitioned_payload__": {
-                            "format": storage_mode,
-                            "generation_id": generation_id,
-                            "part_count": part_count,
-                            "part_size_bytes": part_size,
-                            "payload_bytes": serialized_bytes_count,
-                            "payload_sha256": payload_sha,
-                        }
-                    })
-                conn.execute(
-                    """
+                part_count = self._write_prepared_state_payload_on_connection(
+                    conn, name, spool,
+                    storage_mode=storage_mode, generation_id=generation_id,
+                    payload_sha=payload_sha, serialized_bytes_count=serialized_bytes_count,
+                    part_size=part_size, source_mtime=source_mtime,
+                )
+        finally:
+            spool.close()
+        sqlite_seconds = time.perf_counter() - sqlite_start
+        return {
+            "state_payload_chars": serialized_chars,
+            "state_payload_bytes": serialized_bytes_count,
+            "state_payload_serialize_seconds": round(serialize_seconds, 3),
+            "state_payload_encode_seconds": round(encode_seconds, 3),
+            "state_payload_hash_seconds": round(hash_seconds, 3),
+            "state_payload_sqlite_seconds": round(sqlite_seconds, 3),
+            "state_payload_sha256": payload_sha,
+            "state_payload_generation_id": generation_id or f"inline-sha256-{payload_sha}",
+            "state_payload_storage_mode": storage_mode,
+            "state_payload_part_count": part_count,
+            "state_payload_part_size_bytes": part_size if part_count else 0,
+            "state_payload_stream_chunks": serialized_chunk_count,
+        }
+
+    def _write_prepared_state_payload_on_connection(
+        self,
+        conn,
+        name: str,
+        spool,
+        *,
+        storage_mode: str,
+        generation_id: str,
+        payload_sha: str,
+        serialized_bytes_count: int,
+        part_size: int,
+        source_mtime: float,
+    ) -> int:
+        """Persist a prepared, rewound body using the caller's connection.
+
+        Caller owns transaction/commit/rollback, connection and spool lifetime.
+        This internal storage operation validates no authority or revision.
+        The existing wrapper supplies one matching serialized body/metadata set.
+        """
+        part_count = 0
+        if storage_mode == "inline_json":
+            stored_payload = spool.read().decode("utf-8")
+        else:
+            part_count = (serialized_bytes_count + part_size - 1) // part_size
+            stored_payload = _compact_json({
+                "__sage_partitioned_payload__": {
+                    "format": storage_mode,
+                    "generation_id": generation_id,
+                    "part_count": part_count,
+                    "part_size_bytes": part_size,
+                    "payload_bytes": serialized_bytes_count,
+                    "payload_sha256": payload_sha,
+                }
+            })
+        conn.execute(
+            """
                     INSERT INTO state_payloads (
                         name, payload, payload_sha, payload_bytes, storage_mode,
                         generation_id, part_count, source_mtime, updated_at
@@ -1128,63 +1182,47 @@ class ArtifactStore:
                         END,
                         updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now');
                     """,
-                    (
-                        name,
-                        stored_payload,
-                        payload_sha,
-                        serialized_bytes_count,
-                        storage_mode,
-                        generation_id or None,
-                        part_count,
-                        source_mtime,
-                    ),
-                )
-                if storage_mode == "inline_json":
-                    conn.execute("DELETE FROM state_payload_parts WHERE name = ?;", (name,))
-                else:
-                    spool.seek(0)
-                    for part_index in range(part_count):
-                        part_bytes = spool.read(part_size)
-                        if not part_bytes:
-                            raise ArtifactPrimaryWriteError("Partitioned payload ended before the declared part count.")
-                        conn.execute(
-                            """
+            (
+                name,
+                stored_payload,
+                payload_sha,
+                serialized_bytes_count,
+                storage_mode,
+                generation_id or None,
+                part_count,
+                source_mtime,
+            ),
+        )
+        if storage_mode == "inline_json":
+            conn.execute("DELETE FROM state_payload_parts WHERE name = ?;", (name,))
+        else:
+            spool.seek(0)
+            for part_index in range(part_count):
+                part_bytes = spool.read(part_size)
+                if not part_bytes:
+                    raise ArtifactPrimaryWriteError("Partitioned payload ended before the declared part count.")
+                conn.execute(
+                    """
                             INSERT INTO state_payload_parts (
                                 name, generation_id, part_index, payload, payload_bytes, payload_sha
                             ) VALUES (?, ?, ?, ?, ?, ?);
                             """,
-                            (
-                                name,
-                                generation_id,
-                                part_index,
-                                part_bytes,
-                                len(part_bytes),
-                                _payload_sha(part_bytes),
-                            ),
-                        )
-                    if spool.read(1):
-                        raise ArtifactPrimaryWriteError("Partitioned payload exceeded the declared part count.")
-                    conn.execute(
-                        "DELETE FROM state_payload_parts WHERE name = ? AND generation_id <> ?;",
-                        (name, generation_id),
-                    )
-        finally:
-            spool.close()
-        sqlite_seconds = time.perf_counter() - sqlite_start
-        return {
-            "state_payload_chars": serialized_chars,
-            "state_payload_bytes": serialized_bytes_count,
-            "state_payload_serialize_seconds": round(serialize_seconds, 3),
-            "state_payload_encode_seconds": round(encode_seconds, 3),
-            "state_payload_hash_seconds": round(hash_seconds, 3),
-            "state_payload_sqlite_seconds": round(sqlite_seconds, 3),
-            "state_payload_sha256": payload_sha,
-            "state_payload_generation_id": generation_id or f"inline-sha256-{payload_sha}",
-            "state_payload_storage_mode": storage_mode,
-            "state_payload_part_count": part_count,
-            "state_payload_part_size_bytes": part_size if part_count else 0,
-            "state_payload_stream_chunks": serialized_chunk_count,
-        }
+                    (
+                        name,
+                        generation_id,
+                        part_index,
+                        part_bytes,
+                        len(part_bytes),
+                        _payload_sha(part_bytes),
+                    ),
+                )
+            if spool.read(1):
+                raise ArtifactPrimaryWriteError("Partitioned payload exceeded the declared part count.")
+            conn.execute(
+                "DELETE FROM state_payload_parts WHERE name = ? AND generation_id <> ?;",
+                (name, generation_id),
+            )
+        return part_count
 
     def begin_atlas_staging_run(self, producer_contract: str) -> str:
         """Open a resumable, non-canonical Atlas generation receipt."""
@@ -1700,51 +1738,27 @@ class ArtifactStore:
         of borrowing the enclosing class span or inventing execution authority.
         """
         conn.execute("DELETE FROM symbol_search_members WHERE file_id = ?;", (file_id,))
-        symbols = file_info.get("symbols")
-        partial = not isinstance(symbols, list)
-
-        def positive_line(value: Any) -> bool:
-            return type(value) is int and value > 0
-
-        def identifier(value: Any) -> bool:
-            return isinstance(value, str) and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", value) is not None
-
-        for symbol in symbols if isinstance(symbols, list) else []:
-            if not isinstance(symbol, dict):
-                partial = True
-                continue
-            if symbol.get("type") != "Class":
-                continue
-            parent = symbol.get("name")
-            start, end = symbol.get("line"), symbol.get("end_line")
-            members = symbol.get("member_details")
-            if (not identifier(parent) or not positive_line(start) or not positive_line(end)
-                    or end < start or not isinstance(members, list)):
-                partial = True
-                continue
-            for member in members:
-                if not isinstance(member, dict):
-                    partial = True
-                    continue
-                if member.get("kind") != "method":
-                    continue
-                name = member.get("name")
-                line, end_line = member.get("line"), member.get("end_line")
-                is_static = member.get("static")
-                if (not identifier(name) or not positive_line(line) or not positive_line(end_line)
-                        or not start <= line <= end_line <= end or type(is_static) is not bool):
-                    partial = True
-                    continue
-                conn.execute(
-                    """INSERT INTO symbol_search_members
-                       (file_id, declaring_symbol, declaring_line, name, member_name, is_static, line, end_line)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
-                    (file_id, parent, start, f"{parent}.{name}", name, int(is_static), line, end_line),
-                )
+        rows, partial = recorded_class_members(file_info, ('method',))
+        conn.executemany(
+            """INSERT INTO symbol_search_members
+               (file_id, declaring_symbol, declaring_line, name, member_name, is_static, line, end_line)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""", [(file_id, *row[:-1]) for row in rows])
         conn.execute(
             "UPDATE files SET class_method_search_status = ? WHERE file_id = ?;",
             ("partial_recorded_class_methods" if partial else "recorded_class_methods", file_id),
         )
+
+    @staticmethod
+    def _project_class_accessor_search(conn, file_id: int, file_info: dict[str, Any]) -> None:
+        """Separate accessor rows/coverage in the same enclosing write transaction."""
+        rows, partial = recorded_class_members(file_info, ('getter', 'setter'))
+        conn.execute("DELETE FROM symbol_search_accessors WHERE file_id = ?;", (file_id,))
+        conn.executemany(
+            """INSERT INTO symbol_search_accessors
+               (file_id, declaring_symbol, declaring_line, name, member_name, is_static, line, end_line, accessor_kind)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);""", [(file_id, *row) for row in rows])
+        conn.execute("UPDATE files SET class_accessor_search_status = ? WHERE file_id = ?;",
+            ("partial_recorded_class_accessors" if partial else "recorded_class_accessors", file_id))
 
     @staticmethod
     def _project_store_action_search(conn, file_id: int, file_info: dict[str, Any]) -> None:
@@ -1756,9 +1770,6 @@ class ArtifactStore:
         def positive_line(value: Any) -> bool:
             return type(value) is int and value > 0
 
-        def identifier(value: Any) -> bool:
-            return isinstance(value, str) and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", value) is not None
-
         for symbol in symbols if isinstance(symbols, list) else []:
             if not isinstance(symbol, dict):
                 partial = True
@@ -1768,7 +1779,7 @@ class ArtifactStore:
             parent = symbol.get("name")
             start, end = symbol.get("line"), symbol.get("end_line")
             evidence = symbol.get("initializer_member_evidence")
-            if (not identifier(parent) or not positive_line(start) or not positive_line(end)
+            if (not derived_search_identifier_valid(parent) or not positive_line(start) or not positive_line(end)
                     or end < start or not isinstance(evidence, dict)
                     or evidence.get("status") != "syntax_observed"
                     or evidence.get("runtime_owner_binding") != "not_established"
@@ -1807,7 +1818,7 @@ class ArtifactStore:
                 kind = member.get("kind")
                 line, end_line = member.get("line"), member.get("end_line")
                 factory_api = setter.get("factory_api") if isinstance(setter, dict) else None
-                if (not identifier(name) or kind not in {"member", "method"}
+                if (not derived_search_identifier_valid(name) or kind not in {"member", "method"}
                         or not positive_line(line) or not positive_line(end_line)
                         or not start <= line <= end_line <= end
                         or not isinstance(setter, dict) or setter.get("status") != "observed"
@@ -1861,10 +1872,10 @@ class ArtifactStore:
                     source = record.get("source")
                     kind = record.get("kind")
                     line, end_line = record.get("line"), record.get("endLine")
-                    if (not isinstance(name, str) or re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", name) is None
+                    if (not derived_search_identifier_valid(name)
                             or not isinstance(imported, str)
                             or (imported not in {"default", "*"}
-                                and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", imported) is None)
+                                and not derived_search_identifier_valid(imported))
                             or not isinstance(source, str) or not source.strip()
                             or kind not in {"default", "named", "namespace"}
                             or (kind == "namespace" and imported != "*")
@@ -1923,10 +1934,8 @@ class ArtifactStore:
                     receiver, member, source = (
                         call.get("localName"), call.get("member"), call.get("source"))
                     line, end_line = call.get("line"), call.get("end_line")
-                    if (not isinstance(receiver, str)
-                            or re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", receiver) is None
-                            or not isinstance(member, str)
-                            or re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", member) is None
+                    if (not derived_search_identifier_valid(receiver)
+                            or not derived_search_identifier_valid(member)
                             or not isinstance(source, str) or not source
                             or call.get("importedName") != "*"
                             or (receiver, source) not in bindings
@@ -2230,6 +2239,7 @@ class ArtifactStore:
                         continue
                     conn.execute("DELETE FROM symbols WHERE file_id = ?;", (file_id,))
                     self._project_class_method_search(conn, file_id, file_info)
+                    self._project_class_accessor_search(conn, file_id, file_info)
                     self._project_store_action_search(conn, file_id, file_info)
                     self._project_direct_import_binding_search(conn, file_id, file_info)
                     self._project_qualified_import_call_search(conn, file_id, file_info)
@@ -2417,6 +2427,7 @@ class ArtifactStore:
             conn.execute("DELETE FROM dependencies;")
             conn.execute("DELETE FROM symbols;")
             conn.execute("DELETE FROM symbol_search_members;")
+            conn.execute("DELETE FROM symbol_search_accessors;")
             conn.execute("DELETE FROM symbol_search_actions;")
             conn.execute("DELETE FROM symbol_search_import_bindings;")
             conn.execute("DELETE FROM symbol_search_qualified_import_calls;")
@@ -2511,6 +2522,7 @@ class ArtifactStore:
                             continue
                         file_symbols = file_info.get("symbols", [])
                         self._project_class_method_search(conn, file_id, file_info)
+                        self._project_class_accessor_search(conn, file_id, file_info)
                         self._project_store_action_search(conn, file_id, file_info)
                         self._project_direct_import_binding_search(conn, file_id, file_info)
                         self._project_qualified_import_call_search(conn, file_id, file_info)

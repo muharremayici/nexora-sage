@@ -24,6 +24,7 @@ from tools import run_distribution_tests as distribution_tests
 
 
 RECEIPT_SCHEMA = "nexora_sage_distribution_test_partition_receipt_v1"
+COMPOSED_SCHEMA = "nexora_sage_distribution_test_partition_receipt_v2"
 RECEIPT_AUTHORITY = "test_evidence_only_no_release_or_publication_authority"
 
 
@@ -61,9 +62,11 @@ def _validated_shard_row(
     *,
     selected_profile: str,
     partition_contract_sha256: str,
+    profile_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
-    if payload.get("schema") != RECEIPT_SCHEMA:
+    composed = payload.get("schema") == COMPOSED_SCHEMA
+    if payload.get("schema") not in {RECEIPT_SCHEMA, COMPOSED_SCHEMA}:
         errors.append("schema")
     if payload.get("authority") != RECEIPT_AUTHORITY:
         errors.append("authority")
@@ -99,9 +102,25 @@ def _validated_shard_row(
         errors.append("shard_test_paths")
     if shard.get("test_paths_sha256") != expected_union_sha256:
         errors.append("shard_test_paths_sha256")
+    if composed and (type(payload.get("selected_test_count")) is not int
+                     or type(shard.get("test_count")) is not int or type(shard.get("returncode")) is not int):
+        errors.append("composed_count_or_exit_type")
+    if composed and selected_profile != "canonical_all":
+        errors.append("composed_receipt_requires_canonical_profile")
+    if not composed and "unit_composition" in shard:
+        errors.append("legacy_receipt_cannot_admit_units")
     if errors:
         raise ValueError(f"Shard receipt mismatch for {family}: {','.join(sorted(errors))}")
-    return {
+    current_profile = dict(profile_payload) if profile_payload is not None else None
+    if selected_profile == "canonical_all":
+        current_profile = current_profile if current_profile is not None else distribution_tests._load_profile()
+        if current_profile.get("profiles", {}).get(selected_profile, {}).get("execution_units_contract") is not None:
+            from tools.core.distribution_test_family_units import plan_families
+
+            required = plan_families(distribution_tests.ROOT, current_profile, selected_profile, {family: expected_tests})
+            if family in required and not composed:
+                raise ValueError("Current canonical profile requires unit-composition evidence")
+    result = {
         "id": family,
         "status": "PASS",
         "returncode": 0,
@@ -109,6 +128,14 @@ def _validated_shard_row(
         "test_paths_sha256": expected_union_sha256,
         "test_paths": expected_tests,
     }
+    if composed:
+        from tools.core.distribution_test_family_units import validate_composition
+
+        result["unit_evidence"] = validate_composition(distribution_tests.ROOT,
+            current_profile,
+            family, expected_tests, shard.get("unit_composition"))
+        result["unit_composition"] = shard["unit_composition"]
+    return result
 
 
 def combine_partition_receipts(
@@ -135,12 +162,13 @@ def combine_partition_receipts(
             shard_receipts[family],
             selected_profile=selected_profile,
             partition_contract_sha256=partition_sha256,
+            profile_payload=profile_payload,
         )
         for family in expected_families
     ]
     selected_union = [path for family in expected_families for path in partitions[family]]
     receipt: dict[str, Any] = {
-        "schema": RECEIPT_SCHEMA,
+        "schema": COMPOSED_SCHEMA if any("unit_composition" in row for row in shard_rows) else RECEIPT_SCHEMA,
         "status": "PASS",
         "authority": RECEIPT_AUTHORITY,
         "profile": selected_profile,

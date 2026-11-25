@@ -1751,6 +1751,13 @@
       "storage_class": "managed_runtime_artifact"
     },
     {
+      "id": "test_suite_partition_runtime_compiler_receipt",
+      "schema": "config/schemas/generic_object.schema.json",
+      "path": "output/.raw/test_suite_partition_runtime_compiler_receipt.json",
+      "availability": "optional",
+      "storage_class": "managed_runtime_artifact"
+    },
+    {
       "id": "test_suite_partition_runtime_platform_receipt",
       "schema": "config/schemas/generic_object.schema.json",
       "path": "output/.raw/test_suite_partition_runtime_platform_receipt.json",

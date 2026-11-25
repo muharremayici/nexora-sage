@@ -1,11 +1,14 @@
 import argparse
 import json
 import os
+import subprocess
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import codemaps
 import pytest
-from tools.core import bootstrap_env, mcp_runtime_config
+from tools.core import bootstrap_env, mcp_runtime_config, vendor_bootstrap
 from tools.core.mcp_tool_profiles import (
     available_mcp_tool_profiles,
     project_mcp_tool_names,
@@ -252,3 +255,134 @@ def test_mcp_cli_reports_invalid_identity_before_dependency_probe_or_launch(monk
     output = capsys.readouterr().out
     assert "[ERROR]" in output and "Regenerate MCP configuration" in output
     assert '"mcpServers"' not in output
+
+
+
+def vendor_case(tmp_path, monkeypatch, *, enabled=True, no_user_site=0):
+    root = tmp_path / "product"
+    roots = [root / "vendor_runtime", root.parent / "codemaps_vendor",
+             root / ".vendor", root / ".vendor_user"]
+    for path in roots:
+        path.mkdir(parents=True)
+    user_site = tmp_path / "user-site"
+    user_site.mkdir()
+    runtime = SimpleNamespace(path=["stdlib"], flags=SimpleNamespace(no_user_site=no_user_site))
+    monkeypatch.setattr(vendor_bootstrap, "sys", runtime)
+    monkeypatch.setattr(vendor_bootstrap, "site", SimpleNamespace(
+        ENABLE_USER_SITE=enabled, getusersitepackages=lambda: str(user_site)))
+    monkeypatch.delenv("PYTHONNOUSERSITE", raising=False)
+    return root, roots, user_site, runtime
+
+
+@pytest.mark.parametrize("empty_flag", [False, True])
+def test_vendor_bootstrap_preserves_allowed_user_site_vendor_order_and_idempotence(
+    tmp_path, monkeypatch, empty_flag
+):
+    root, roots, user_site, runtime = vendor_case(tmp_path, monkeypatch)
+    if empty_flag:
+        monkeypatch.setenv("PYTHONNOUSERSITE", "")
+    assert vendor_bootstrap.inject_vendor_paths(root) == roots
+    expected = [str(user_site), *(str(path) for path in roots), "stdlib"]
+    assert runtime.path == expected
+    assert vendor_bootstrap.inject_vendor_paths(root) == roots
+    assert runtime.path == expected
+
+
+@pytest.mark.parametrize("enabled,no_user_site,env_flag", [
+    (False, 0, None), (None, 0, None), (True, 1, None),
+    (True, 0, "1"), (True, 0, "0"),
+])
+def test_vendor_bootstrap_never_discovers_or_inserts_suppressed_user_site(
+    tmp_path, monkeypatch, enabled, no_user_site, env_flag
+):
+    root, roots, user_site, runtime = vendor_case(
+        tmp_path, monkeypatch, enabled=enabled, no_user_site=no_user_site)
+    if env_flag is not None:
+        monkeypatch.setenv("PYTHONNOUSERSITE", env_flag)
+
+    def forbidden():
+        raise AssertionError("Suppressed user-site discovery must not run")
+
+    monkeypatch.setattr(vendor_bootstrap.site, "getusersitepackages", forbidden)
+    assert vendor_bootstrap.inject_vendor_paths(root) == roots
+    assert runtime.path == [*(str(path) for path in roots), "stdlib"]
+    assert str(user_site) not in runtime.path
+
+
+def test_vendor_bootstrap_retains_readable_vendors_when_a_vendor_is_locked(
+    tmp_path, monkeypatch
+):
+    root, roots, _, runtime = vendor_case(tmp_path, monkeypatch, enabled=False)
+    real_listdir = os.listdir
+
+    def readable(path):
+        if path == roots[0]:
+            raise PermissionError("synthetic locked vendor")
+        return real_listdir(path)
+
+    monkeypatch.setattr(vendor_bootstrap, "os", SimpleNamespace(
+        listdir=readable, environ=os.environ))
+    assert vendor_bootstrap.inject_vendor_paths(root) == roots[1:]
+    assert runtime.path == [*(str(path) for path in roots[1:]), "stdlib"]
+
+
+@pytest.mark.parametrize("consumer", [
+    "codemaps", "tools.core.bootstrap_env", "tools.mcp.server",
+])
+def test_bootstrap_consumers_keep_poisoned_user_site_out_of_spawn_children(
+    tmp_path, consumer
+):
+    user_site = tmp_path / "user-site"
+    user_site.mkdir()
+    (user_site / "pathlib.py").write_text(
+        "raise RuntimeError('synthetic user-site pathlib must not load')\n",
+        encoding="utf-8",
+    )
+    worker = tmp_path / "isolated_worker.py"
+    worker.write_text(
+        "from pathlib import Path\n"
+        "import pathlib\n"
+        "def report(connection):\n"
+        "    connection.send(str(Path(pathlib.__file__).resolve()))\n"
+        "    connection.close()\n",
+        encoding="utf-8",
+    )
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import importlib, json, multiprocessing, site, sys\n"
+        "from pathlib import Path\n"
+        "def main():\n"
+        "    root, poisoned, consumer = sys.argv[1:]\n"
+        "    sys.path.insert(0, root)\n"
+        "    site.getusersitepackages = lambda: poisoned\n"
+        "    importlib.import_module(consumer)\n"
+        "    assert poisoned not in sys.path, 'bootstrap reinserted user site'\n"
+        "    from isolated_worker import report\n"
+        "    ctx = multiprocessing.get_context('spawn')\n"
+        "    parent, child = ctx.Pipe(False)\n"
+        "    process = ctx.Process(target=report, args=(child,))\n"
+        "    process.start(); child.close(); process.join(15)\n"
+        "    if process.is_alive():\n"
+        "        process.terminate(); process.join(5)\n"
+        "        raise AssertionError('synthetic spawn did not settle')\n"
+        "    assert process.exitcode == 0, process.exitcode\n"
+        "    assert parent.poll(1), 'child did not report pathlib origin'\n"
+        "    origin = parent.recv(); parent.close(); process.close()\n"
+        "    assert not Path(origin).is_relative_to(Path(poisoned)), origin\n"
+        "    print(json.dumps({'consumer': consumer, 'user_site_inserted': False,\n"
+        "                      'child_exitcode': 0, 'pathlib_origin': origin}))\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run(
+        [sys.executable, "-B", str(probe), str(codemaps.CODE_MAPS_DIR),
+         str(user_site), consumer],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=40,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout.splitlines()[-1])
+    assert report["consumer"] == consumer
+    assert report["child_exitcode"] == 0
+    assert report["user_site_inserted"] is False

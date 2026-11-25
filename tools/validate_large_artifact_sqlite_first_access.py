@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_atomic
+from tools.core.json_io import load_raw_artifact_primary_with_identity
 from tools.core.python_source_index import PythonSourceIndex
 from tools.core.sqlite_first_access_policy import (
     sqlite_first_large_allowed_references,
@@ -166,6 +167,38 @@ def _external_raw_consumer_findings(
     return findings
 
 
+def _primary_reader_names(tree: ast.AST) -> set[str]:
+    """Recognize unambiguous, explicit imports of the SQLite primary reader."""
+    if not isinstance(tree, ast.Module):
+        return set()
+    reader = load_raw_artifact_primary_with_identity
+    imports = {
+        alias for stmt in tree.body
+        if isinstance(stmt, ast.ImportFrom) and stmt.level == 0 and stmt.module == reader.__module__
+        for alias in stmt.names if alias.name == reader.__name__
+    }
+    names = {alias.asname or alias.name for alias in imports}
+    if not names:
+        return names
+
+    # With competing bindings the spelling alone cannot establish which reader ran.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.alias) and node not in imports:
+            if node.name == "*":
+                return set()
+            names.discard(node.asname or node.name.partition(".")[0])
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            names.discard(node.id)
+        elif isinstance(node, ast.arg):
+            names.discard(node.arg)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                               ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
+            names.discard(node.name)
+        elif isinstance(node, ast.MatchMapping):
+            names.discard(node.rest)
+    return names
+
+
 def _scan_file(
     path: Path,
     text: str | None = None,
@@ -201,6 +234,7 @@ def _scan_file(
                 results[artifact_name]["bad_direct_reads"].append({"file": rel, "line": exc.lineno or 0, "kind": "syntax_error"})
             return results
 
+    primary_readers = _primary_reader_names(tree)
     artifact_vars_by_name = {
         artifact_name: _artifact_path_variables(tree, artifact_name)
         for artifact_name in present_artifacts
@@ -210,13 +244,14 @@ def _scan_file(
             continue
         line_no = int(getattr(node, "lineno", 0) or 0)
         call = _call_name(node)
+        primary_read = isinstance(node.func, ast.Name) and node.func.id in primary_readers
         line = _line_at(text, line_no)
         for artifact_name in present_artifacts:
             artifact_vars = artifact_vars_by_name[artifact_name]
             line_mentions_artifact = _mentions_artifact(line, artifact_name)
             call_uses_artifact = _call_uses_artifact_path(node, artifact_name, artifact_vars)
             if (
-                call in {
+                (primary_read or call in {
                     "load_json_file",
                     "load_raw_artifact_path",
                     "load_json_strict",
@@ -228,7 +263,7 @@ def _scan_file(
                     "_failed_checks",
                     "_load_raw",
                     "_summary",
-                }
+                })
                 and call_uses_artifact
             ) or (artifact_name == "audit_report.json" and call == "load_audit_report"):
                 results[artifact_name]["proxy_loads"].append({"file": rel, "line": line_no, "kind": call, "text": line})

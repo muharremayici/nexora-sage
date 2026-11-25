@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,53 @@ def test_python_only_target_does_not_require_node_or_npm():
     assert plan["summary"]["node_required_for_target"] is False
     assert not plan["actions"]
     assert not plan["blockers"]
+
+
+@pytest.fixture
+def release_doctor_plan_inputs(tmp_path):
+    return {
+        "target_root": tmp_path / "target",
+        "target_preflight": _target(languages={"python": 3}),
+        "machine": _machine(),
+        "bundled_typescript_available": False,
+        "installation_root": tmp_path,
+    }
+
+
+def test_public_plan_exposes_release_doctor_budget_and_preserves_private_plan(release_doctor_plan_inputs):
+    inputs = release_doctor_plan_inputs
+    private = build_installation_plan(**inputs)
+    (inputs["installation_root"] / "PUBLIC_DISTRIBUTION_MANIFEST.json").write_text("{}", encoding="utf-8")
+    public = build_installation_plan(**inputs)
+
+    assert "release_installation_doctor" not in private
+    assert public["summary"]["status"] == "READY"
+    assert public["release_installation_doctor"] == {
+        "validator_set_id": "doctor_repository_quick",
+        "quick_validation_seconds": 180,
+        "outer_doctor_watchdog_seconds": 240,
+        "minimum_non_validator_headroom_seconds": 60,
+    }
+
+
+@pytest.mark.parametrize("bad_budget", [
+    None,
+    {},
+    {"quick_validation_seconds": True, "outer_doctor_watchdog_seconds": 240, "minimum_non_validator_headroom_seconds": 60},
+    {"quick_validation_seconds": 180, "outer_doctor_watchdog_seconds": 90, "minimum_non_validator_headroom_seconds": 60},
+])
+def test_public_plan_blocks_incompatible_release_doctor_budget(release_doctor_plan_inputs, monkeypatch, bad_budget):
+    inputs = release_doctor_plan_inputs
+    (inputs["installation_root"] / "PUBLIC_DISTRIBUTION_MANIFEST.json").write_text("{}", encoding="utf-8")
+    contract = load_installation_preflight_contract()
+    profile = contract["validation_profiles"]["public_target_repository"]
+    profile["installation_proof_release_doctor_budget"] = bad_budget
+    monkeypatch.setattr(installation_preflight, "load_installation_preflight_contract", lambda: contract)
+
+    plan = build_installation_plan(**inputs)
+    assert plan["summary"]["status"] == "BLOCKED"
+    assert [item["id"] for item in plan["blockers"]] == ["release_installation_doctor_plan_invalid"]
+    assert "release_installation_doctor" not in plan
 
 
 def test_react_target_without_node_fails_closed_with_explicit_remediation():
@@ -181,6 +229,101 @@ def test_node_ast_cache_rejects_installed_version_mismatch(tmp_path):
 
     assert state["status"] == "REINSTALL_REQUIRED"
     assert "installed_version_mismatch" in state["errors"]
+
+
+def version_marker_fixture(root, *, version='5.9.3'):
+    engines = root / 'tools/engines'
+    marker = engines / 'node_modules/typescript/package.json'
+    marker.parent.mkdir(parents=True)
+    paths = {'manifest': engines / 'package.json', 'lock': engines / 'package-lock.json', 'installed': marker}
+    documents = {'manifest': {'dependencies': {'typescript': version}},
+                 'lock': {'packages': {'node_modules/typescript': {'version': version}}},
+                 'installed': {'version': version}}
+    for key, path in paths.items(): path.write_text(json.dumps(documents[key]), encoding='utf-8')
+    contract = {'package_manifest': 'tools/engines/package.json',
+                'bundled_typescript_marker': 'tools/engines/node_modules/typescript/package.json'}
+    return contract, paths, documents
+
+
+@pytest.mark.parametrize('role', ['manifest', 'lock', 'installed'])
+@pytest.mark.parametrize('value', [None, '', False, 0, [], {}, ' ', '5.9.3 '])
+def test_node_version_marker_refuses_unknown_or_noncanonical_declarations(tmp_path, role, value):
+    contract, paths, documents = version_marker_fixture(tmp_path)
+    if role == 'manifest': documents[role]['dependencies']['typescript'] = value
+    elif role == 'lock': documents[role]['packages']['node_modules/typescript']['version'] = value
+    else: documents[role]['version'] = value
+    paths[role].write_text(json.dumps(documents[role]), encoding='utf-8')
+    state = node_ast_cache_state(contract, root=tmp_path)
+    error = {'manifest': 'manifest_typescript_version_unavailable', 'lock': 'locked_typescript_version_unavailable',
+             'installed': 'installed_typescript_version_unavailable'}[role]
+    key = {'manifest': 'expected_typescript_version', 'lock': 'locked_typescript_version',
+           'installed': 'installed_typescript_version'}[role]
+    assert state['status'] == 'REINSTALL_REQUIRED' and state[key] is None
+    assert state['errors'] == [error]
+
+
+@pytest.mark.parametrize('role', ['manifest', 'lock', 'installed'])
+def test_node_version_marker_missing_member_is_explicit_unknown(tmp_path, role):
+    contract, paths, documents = version_marker_fixture(tmp_path)
+    if role == 'manifest': documents[role]['dependencies'].pop('typescript')
+    elif role == 'lock': documents[role]['packages']['node_modules/typescript'].pop('version')
+    else: documents[role].pop('version')
+    paths[role].write_text(json.dumps(documents[role]), encoding='utf-8')
+    state = node_ast_cache_state(contract, root=tmp_path)
+    assert state['status'] == 'REINSTALL_REQUIRED' and len(state['errors']) == 1
+    assert state['errors'][0].endswith('version_unavailable')
+
+
+@pytest.mark.parametrize('version', ['5.9.3', '6.0.0-beta.1'])
+def test_node_version_marker_keeps_matching_future_declared_versions(tmp_path, version):
+    import hashlib
+    contract, paths, _ = version_marker_fixture(tmp_path, version=version)
+    state = node_ast_cache_state(contract, root=tmp_path)
+    assert state['status'] == 'VERIFIED' and state['errors'] == []
+    assert all(state[k] == version for k in ['expected_typescript_version', 'locked_typescript_version', 'installed_typescript_version'])
+    digest = hashlib.sha256()
+    for path in [paths['manifest'], paths['lock']]:
+        name = path.relative_to(tmp_path).as_posix().encode(); data = path.read_bytes()
+        digest.update(len(name).to_bytes(8,'big')); digest.update(name)
+        digest.update(len(data).to_bytes(8,'big')); digest.update(data)
+    assert state['content_identity'] == 'sha256:' + digest.hexdigest()
+
+
+@pytest.mark.parametrize('damage', ['missing', 'corrupt', 'array'])
+def test_node_version_marker_retains_existing_unavailable_marker_causes(tmp_path, damage):
+    contract, paths, _ = version_marker_fixture(tmp_path)
+    if damage == 'missing': paths['installed'].unlink()
+    else: paths['installed'].write_text('{' if damage == 'corrupt' else '[]', encoding='utf-8')
+    state = node_ast_cache_state(contract, root=tmp_path)
+    assert state['status'] == 'REINSTALL_REQUIRED'
+    assert state['errors'] == ['installed_typescript_missing' if damage == 'missing' else 'installed_typescript_marker_unreadable']
+
+
+def test_node_version_marker_refuses_equal_but_nonstrings_across_all_inputs(tmp_path):
+    contract, paths, _ = version_marker_fixture(tmp_path, version=5)
+    state = node_ast_cache_state(contract, root=tmp_path)
+    assert state['status'] == 'REINSTALL_REQUIRED'
+    assert len(state['errors']) == 3
+    assert all(state[k] is None for k in ['expected_typescript_version','locked_typescript_version','installed_typescript_version'])
+
+
+def test_node_version_marker_real_owner_invalidates_environment_receipt_without_node_execution(tmp_path, monkeypatch):
+    from tools.core import release_proof_resume as resume
+    contract, paths, _ = version_marker_fixture(tmp_path)
+    paths['installed'].write_text('{}', encoding='utf-8')
+    monkeypatch.setattr(resume, 'CODE_MAPS_DIR', tmp_path)
+    monkeypatch.setattr(resume, '_node_runtime_receipt', lambda: {'complete': True, 'version': 'synthetic-node'})
+    monkeypatch.setattr(resume, '_installed_python_distribution_receipt', lambda names: {'complete': True, 'packages': []})
+    monkeypatch.setattr(resume, '_sha256_file', lambda path: 'a'*64)
+    resume.environment_receipt.cache_clear()
+    try:
+        receipt = resume.environment_receipt()
+        assert receipt['complete'] is False and resume.environment_sha256() == ''
+        assert receipt['node_dependency']['status'] == 'REINSTALL_REQUIRED'
+        assert receipt['node_dependency']['errors'] == ['installed_typescript_version_unavailable']
+        assert 'node_dependency_identity_unverified' in receipt['reasons']
+    finally:
+        resume.environment_receipt.cache_clear()
 
 
 def test_missing_default_human_and_ai_features_produce_one_python_install_action():

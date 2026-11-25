@@ -32,6 +32,17 @@ def confidence_value(name: str) -> float:
         raise ValueError(f"Invalid test impact confidence value for {name}: {raw!r}") from exc
 
 
+def dependency_witness_policy() -> dict[str, Any]:
+    """Optional navigation has one strict owner; it cannot invalidate old candidates."""
+    from tools.core.artifact_validator import ensure_against_schema
+    policy = load_test_impact_profiles().get("dependency_witness")
+    if not isinstance(policy, dict):
+        raise ValueError("Test impact dependency witness policy unavailable")
+    ensure_against_schema(CONFIG_DIR / "schemas/test_impact_profiles.schema.json",
+                          "test_impact_profiles", {**load_test_impact_profiles(), "dependency_witness": policy})
+    return policy
+
+
 def static_test_evidence_policy() -> dict[str, Any]:
     policy = load_test_impact_profiles().get("evidence_policy")
     if not isinstance(policy, dict):
@@ -256,3 +267,9 @@ def command_for_test(test_path: str) -> str:
         test_dir = "."
     class_name = Path(path).stem
     return template.format(test_path=path, test_dir=test_dir, class_name=class_name)
+
+
+def template_command_evidence(command: str, path: str) -> dict[str, str]:
+    """Overwrite inherited origin claims; prefix syntax is not a declaration."""
+    return {"origin": "generic_language_template" if command == command_for_test(path) else "unverified_inherited_suggestion",
+            "declaration": "not_verified", "execution": "not_run_by_sage", "file_argument_support": "not_established"}

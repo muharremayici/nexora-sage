@@ -1,0 +1,897 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private retained native receipt availability; no semantic admission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "schema_sha256",
+    "preparation_schema_sha256",
+    "default_enabled",
+    "native_execution_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "cache_eligible",
+    "config_profile",
+    "preparation_profile",
+    "detail_limit_from",
+    "metadata_limit_from",
+    "success_status",
+    "unknown_status",
+    "component_order",
+    "missing_inputs",
+    "refusal_codes",
+    "claim_boundary"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1-private-retained-native-receipt-view"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/typescript_native_receipt_view.schema.json"
+    },
+    "schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "preparation_schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_execution_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "cache_eligible": {
+      "type": "boolean",
+      "const": false
+    },
+    "config_profile": {
+      "type": "string",
+      "const": "private_owned_config_extends"
+    },
+    "preparation_profile": {
+      "type": "string",
+      "const": "private_source_config_parent_preparation"
+    },
+    "detail_limit_from": {
+      "type": "string",
+      "const": "semantic_context.max_observations"
+    },
+    "metadata_limit_from": {
+      "type": "string",
+      "const": "config_limit_profile.image_profile.limits.metadata_bytes"
+    },
+    "success_status": {
+      "type": "string",
+      "const": "RETAINED_NATIVE_RECEIPT_OBSERVATIONS_NOT_BOUND"
+    },
+    "unknown_status": {
+      "type": "string",
+      "const": "UNKNOWN_RETAINED_NATIVE_RECEIPT"
+    },
+    "component_order": {
+      "type": "array",
+      "const": [
+        "source_parser",
+        "frozen_parent",
+        "config_chain"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "missing_inputs": {
+      "type": "array",
+      "const": [
+        "full_validated_atlas",
+        "full_config_binding",
+        "held_atlas_source_record",
+        "semantic_collector_result",
+        "compiler_input_inventory"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "refusal_codes": {
+      "type": "array",
+      "const": [
+        "native_receipt_owner_unavailable",
+        "native_receipt_metadata_invalid",
+        "native_receipt_budget_exceeded",
+        "native_receipt_digest_mismatch",
+        "native_receipt_identity_mismatch",
+        "native_receipt_schema_invalid",
+        "native_receipt_components_incomplete",
+        "native_receipt_policy_refused"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "external_attempt_id",
+        "receipt_sha256",
+        "source_reference_sha256",
+        "source_sha256",
+        "parent_snapshot_id",
+        "atlas_sha256",
+        "config_binding_sha256",
+        "compiler_source_sha256",
+        "auxiliary_context_sha256",
+        "parser_response_sha256",
+        "parent_validation_sha256"
+      ],
+      "properties": {
+        "external_attempt_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 1
+        },
+        "receipt_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_reference_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_snapshot_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "config_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "auxiliary_context_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parser_response_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_validation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "counter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "forwarded",
+        "completed",
+        "thrown",
+        "denied"
+      ],
+      "properties": {
+        "attempted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forwarded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "thrown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "denied": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "native": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "phase",
+        "source_worker_requests",
+        "config_child_launches",
+        "collector_runs",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "capture",
+        "parser",
+        "parent",
+        "compiler",
+        "config_observation",
+        "config_binding_sha256",
+        "preparation_projection",
+        "source_writer_restored",
+        "scope",
+        "raw_retained",
+        "atlas_payload_retained",
+        "basis",
+        "whole_project_coverage",
+        "collector_executed"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "PRIVATE_SYNTHETIC_SOURCE_CONFIG_PARENT_JOIN_OBSERVED_NOT_BOUND"
+        },
+        "phase": {
+          "type": "string",
+          "const": "config_chain_observed"
+        },
+        "source_worker_requests": {
+          "type": "integer",
+          "const": 1
+        },
+        "config_child_launches": {
+          "type": "integer",
+          "const": 1
+        },
+        "collector_runs": {
+          "type": "integer",
+          "const": 0
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "capture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_sha256",
+            "auxiliary_context_sha256",
+            "content_reads",
+            "canonical_inputs",
+            "capture_sha256"
+          ],
+          "properties": {
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "auxiliary_context_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "content_reads": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "root",
+                "base"
+              ],
+              "properties": {
+                "source": {
+                  "type": "integer",
+                  "const": 1
+                },
+                "root": {
+                  "type": "integer",
+                  "const": 1
+                },
+                "base": {
+                  "type": "integer",
+                  "const": 1
+                }
+              }
+            },
+            "canonical_inputs": {
+              "type": "boolean",
+              "const": true
+            },
+            "capture_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "parser": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_sha256",
+            "parser_response_sha256",
+            "parser_status",
+            "counters",
+            "transport",
+            "loader_restored"
+          ],
+          "properties": {
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "parser_response_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "parser_status": {
+              "type": "string",
+              "const": "observed"
+            },
+            "counters": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "version",
+                "context",
+                "basis",
+                "native_execution_attested",
+                "disposed",
+                "counts"
+              ],
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "const": "v1-outer-compiler-api-cost"
+                },
+                "context": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "invocation_id",
+                    "attempt_id",
+                    "compiler_source_sha256"
+                  ],
+                  "properties": {
+                    "invocation_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]+$",
+                      "minLength": 1
+                    },
+                    "attempt_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]+$",
+                      "minLength": 1
+                    },
+                    "compiler_source_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                },
+                "basis": {
+                  "type": "string",
+                  "const": "outer_api_calls_only"
+                },
+                "native_execution_attested": {
+                  "type": "boolean",
+                  "const": false
+                },
+                "disposed": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "counts": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "createSourceFile",
+                    "createProgram"
+                  ],
+                  "properties": {
+                    "createSourceFile": {
+                      "$ref": "#/$defs/counter"
+                    },
+                    "createProgram": {
+                      "$ref": "#/$defs/counter"
+                    }
+                  }
+                }
+              }
+            },
+            "transport": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "worker_process_starts",
+                "worker_restarts",
+                "request_replays"
+              ],
+              "properties": {
+                "worker_process_starts": {
+                  "type": "integer",
+                  "const": 1
+                },
+                "worker_restarts": {
+                  "type": "integer",
+                  "const": 0
+                },
+                "request_replays": {
+                  "type": "integer",
+                  "const": 0
+                }
+              }
+            },
+            "loader_restored": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "parent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parent_snapshot_id",
+            "atlas_sha256",
+            "frozen",
+            "validation_receipt_sha256",
+            "source_records",
+            "source_symbols",
+            "source_exports"
+          ],
+          "properties": {
+            "parent_snapshot_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "atlas_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "frozen": {
+              "type": "boolean",
+              "const": true
+            },
+            "validation_receipt_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "source_records": {
+              "type": "integer",
+              "const": 1
+            },
+            "source_symbols": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_exports": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "compiler": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "source_sha256"
+          ],
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "config_observation": {
+          "type": "object"
+        },
+        "config_binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "preparation_projection": {
+          "type": "object"
+        },
+        "source_writer_restored": {
+          "type": "boolean",
+          "const": true
+        },
+        "scope": {
+          "type": "string",
+          "const": "one_synthetic_source_root_base"
+        },
+        "raw_retained": {
+          "type": "boolean",
+          "const": false
+        },
+        "atlas_payload_retained": {
+          "type": "boolean",
+          "const": false
+        },
+        "basis": {
+          "type": "string",
+          "const": "caller_observed_native_components_and_declared_metadata_correspondence"
+        },
+        "whole_project_coverage": {
+          "type": "boolean",
+          "const": false
+        },
+        "collector_executed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "external_attempt_id",
+        "source_reference_sha256",
+        "native"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-retained-native-receipt-view"
+        },
+        "external_attempt_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 1
+        },
+        "native": {
+          "$ref": "#/$defs/native"
+        },
+        "source_reference_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "facet",
+        "basis",
+        "detail_sha256"
+      ],
+      "properties": {
+        "facet": {
+          "enum": [
+            "source_parser",
+            "frozen_parent",
+            "config_chain"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "const": "retained_declared_observation_only"
+        },
+        "detail_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "details",
+        "shown",
+        "omitted"
+      ],
+      "properties": {
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "shown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "missing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "details",
+        "shown",
+        "omitted"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "UNKNOWN_UNAVAILABLE",
+            "KNOWN_UNAVAILABLE_IN_RETAINED_SUMMARY"
+          ]
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "full_validated_atlas",
+              "full_config_binding",
+              "held_atlas_source_record",
+              "semantic_collector_result",
+              "compiler_input_inventory"
+            ]
+          }
+        },
+        "shown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "costs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_worker_requests",
+        "source_outer_createSourceFile",
+        "source_outer_createProgram",
+        "worker_restarts",
+        "request_replays",
+        "config_chain_calls",
+        "config_sourcefiles",
+        "config_programs"
+      ],
+      "properties": {
+        "source_worker_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_outer_createSourceFile": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_outer_createProgram": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "worker_restarts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "request_replays": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "config_chain_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "config_sourcefiles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "config_programs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "authority",
+        "basis",
+        "code",
+        "external_attempt_sha256",
+        "receipt_sha256",
+        "source_reference_sha256",
+        "parent_snapshot_id",
+        "atlas_sha256",
+        "observed_components",
+        "missing_inputs",
+        "reported_costs",
+        "cost_basis",
+        "semantic_gap_view",
+        "config_sidecar_replayed",
+        "source_record_correspondence",
+        "snapshot_bound",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "native_project_equivalent",
+        "loaded_code_attested"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-retained-native-receipt-view"
+        },
+        "status": {
+          "enum": [
+            "RETAINED_NATIVE_RECEIPT_OBSERVATIONS_NOT_BOUND",
+            "UNKNOWN_RETAINED_NATIVE_RECEIPT"
+          ]
+        },
+        "authority": {
+          "type": "string",
+          "const": "declared_correspondence_only"
+        },
+        "basis": {
+          "type": "string",
+          "const": "held_retained_receipt_metadata_only"
+        },
+        "code": {
+          "type": "string"
+        },
+        "external_attempt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "receipt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_reference_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "parent_snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "atlas_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observed_components": {
+          "$ref": "#/$defs/components"
+        },
+        "missing_inputs": {
+          "$ref": "#/$defs/missing"
+        },
+        "reported_costs": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/costs"
+          }
+        },
+        "cost_basis": {
+          "type": "string",
+          "const": "outer_source_api_and_reported_config_counts_only"
+        },
+        "semantic_gap_view": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "gap_count"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN_UNAVAILABLE",
+                "UNAVAILABLE_COLLECTOR_NOT_EXECUTED"
+              ]
+            },
+            "gap_count": {
+              "type": "null"
+            }
+          }
+        },
+        "config_sidecar_replayed": {
+          "type": "boolean",
+          "const": false
+        },
+        "source_record_correspondence": {
+          "type": "string",
+          "const": "UNKNOWN_NOT_HELD"
+        },
+        "snapshot_bound": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_project_equivalent": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1365 @@
+{
+  "$id": "config/schemas/compiler_metadata_actual.schema.json",
+  "$defs": {
+    "calls": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "context_copy": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "context_encode": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "context_hash": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pair_hash_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pair_hash_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "payload_encode_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "payload_encode_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "payload_hash_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "payload_hash_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "receipt_encode_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "receipt_encode_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "receipt_hash_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "receipt_hash_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "structure_hash_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "structure_hash_completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "structure_write_attempted": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "structure_write_completed": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "context_copy",
+        "context_encode",
+        "context_hash",
+        "capture_attempted",
+        "capture_completed",
+        "payload_encode_attempted",
+        "payload_encode_completed",
+        "payload_hash_attempted",
+        "payload_hash_completed",
+        "receipt_encode_attempted",
+        "receipt_encode_completed",
+        "receipt_hash_attempted",
+        "receipt_hash_completed",
+        "structure_write_attempted",
+        "structure_write_completed",
+        "structure_hash_attempted",
+        "structure_hash_completed",
+        "pair_hash_attempted",
+        "pair_hash_completed"
+      ],
+      "type": "object"
+    },
+    "sources": {
+      "additionalProperties": false,
+      "properties": {
+        "implementation": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "layout_reference": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "strict_copy": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "implementation",
+        "strict_copy",
+        "layout_reference"
+      ],
+      "type": "object"
+    },
+    "component_refs": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_profile_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "canonical_schema_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "structure_profile_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "structure_schema_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "canonical_profile_sha256",
+        "canonical_schema_sha256",
+        "structure_profile_sha256",
+        "structure_schema_sha256"
+      ],
+      "type": "object"
+    },
+    "metadata_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "binding_sha256",
+        "metadata_declared_consistency_checked",
+        "manifest_same_read_pair_observed",
+        "installed_entry_observed",
+        "observed_entry_sha256",
+        "entry_owner_allocated",
+        "entry_owner_disposed",
+        "entry_payload_open_attempts",
+        "metadata_transaction_closed",
+        "metadata_records",
+        "pair",
+        "child",
+        "read_accounting",
+        "controlled_extension",
+        "lifecycle",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-historical-metadata-observer"
+        },
+        "status": {
+          "const": "HISTORICAL_FOUR_METADATA_COMPARISON_NOT_SOURCE_ATTESTATION"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "metadata_declared_consistency_checked": {
+          "const": true
+        },
+        "manifest_same_read_pair_observed": {
+          "const": true
+        },
+        "installed_entry_observed": {
+          "const": false
+        },
+        "observed_entry_sha256": {
+          "type": "null"
+        },
+        "entry_owner_allocated": {
+          "const": false
+        },
+        "entry_owner_disposed": {
+          "type": "null"
+        },
+        "entry_payload_open_attempts": {
+          "const": 0
+        },
+        "metadata_transaction_closed": {
+          "const": true
+        },
+        "metadata_records": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "expected_sha256": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "raw_sha256": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "relative_path_sha256": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "provenance",
+                  "manifest",
+                  "lockfile",
+                  "installed_package"
+                ]
+              },
+              "size_bytes": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "role",
+              "size_bytes",
+              "raw_sha256",
+              "relative_path_sha256",
+              "expected_sha256"
+            ],
+            "type": "object"
+          }
+        },
+        "pair": {
+          "additionalProperties": false,
+          "properties": {
+            "component_refs": {
+              "$ref": "#/$defs/component_refs"
+            },
+            "intent_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "joint_pair_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "payload_bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "payload_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "policy_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "receipt_bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "receipt_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "resource_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "schema_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "source_refs": {
+              "$ref": "#/$defs/sources"
+            },
+            "structure_bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "structure_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "payload_sha256",
+            "structure_sha256",
+            "joint_pair_sha256",
+            "receipt_sha256",
+            "policy_sha256",
+            "schema_sha256",
+            "resource_sha256",
+            "intent_sha256",
+            "payload_bytes",
+            "structure_bytes",
+            "receipt_bytes",
+            "source_refs",
+            "component_refs"
+          ],
+          "type": "object"
+        },
+        "child": {
+          "additionalProperties": false,
+          "properties": {
+            "calls": {
+              "$ref": "#/$defs/calls"
+            },
+            "metadata_byte_work_units": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "primitive_steps": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "calls",
+            "metadata_byte_work_units",
+            "primitive_steps"
+          ],
+          "type": "object"
+        },
+        "read_accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open_attempts",
+            "open_returns",
+            "open_unknown",
+            "read_attempts",
+            "read_returns",
+            "read_unknown",
+            "known_delivered_bytes",
+            "close_attempts",
+            "close_returns",
+            "close_unknown",
+            "secondary_cleanup_errors",
+            "known_open_descriptors",
+            "coverage"
+          ],
+          "properties": {
+            "open_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_delivered_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "secondary_cleanup_errors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_open_descriptors": {
+              "const": 0
+            },
+            "coverage": {
+              "const": "four_declared_metadata_payloads_only"
+            }
+          }
+        },
+        "controlled_extension": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scope",
+            "prepaid_wrapper_work",
+            "charged_wrapper_work",
+            "child_work_ceiling",
+            "child_step_ceiling",
+            "named_extension_upper",
+            "capture_named_partial",
+            "known_named_partial_bytes",
+            "record_primitive_bytes",
+            "full_acquisition_work",
+            "actual_phase_fit",
+            "physical_heap_rss"
+          ],
+          "properties": {
+            "scope": {
+              "const": "controlled_handoff_and_record_extension_only"
+            },
+            "prepaid_wrapper_work": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "charged_wrapper_work": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "child_work_ceiling": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "child_step_ceiling": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "named_extension_upper": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "capture_named_partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_named_partial_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "record_primitive_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "full_acquisition_work": {
+              "type": "null"
+            },
+            "actual_phase_fit": {
+              "type": "null"
+            },
+            "physical_heap_rss": {
+              "type": "null"
+            }
+          }
+        },
+        "lifecycle": {
+          "additionalProperties": false,
+          "properties": {
+            "child_attempts": {
+              "const": 1
+            },
+            "child_returns": {
+              "const": 1
+            },
+            "consume_attempts": {
+              "const": 1
+            },
+            "consumptions": {
+              "const": 1
+            },
+            "mints": {
+              "const": 1
+            },
+            "receipt_parse_attempts": {
+              "const": 1
+            },
+            "receipt_parse_returns": {
+              "const": 1
+            },
+            "references_cleared": {
+              "const": true
+            },
+            "metadata_transaction_closed": {
+              "const": true
+            }
+          },
+          "required": [
+            "mints",
+            "consume_attempts",
+            "consumptions",
+            "child_attempts",
+            "child_returns",
+            "receipt_parse_attempts",
+            "receipt_parse_returns",
+            "references_cleared",
+            "metadata_transaction_closed"
+          ],
+          "type": "object"
+        },
+        "flags": {
+          "additionalProperties": false,
+          "properties": {
+            "actual_owned_phase_fit": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "external_origin_authenticated": {
+              "const": false
+            },
+            "physical_memory_attested": {
+              "const": false
+            },
+            "production": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "runtime": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "source_freshness": {
+              "const": false
+            },
+            "complete_compiler_inputs": {
+              "const": false
+            }
+          },
+          "required": [
+            "read_authority_granted",
+            "external_origin_authenticated",
+            "source_freshness",
+            "actual_owned_phase_fit",
+            "physical_memory_attested",
+            "compiler_loaded",
+            "runtime",
+            "production",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority",
+            "complete_compiler_inputs"
+          ],
+          "type": "object"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "scope",
+        "status",
+        "child_id",
+        "node_success_status",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "limits",
+        "denied_flags",
+        "source_sha256",
+        "child_source_sha256",
+        "dispatch_policy_sha256",
+        "observer_policy_sha256",
+        "observer_result_schema_sha256",
+        "shared_source_sha256",
+        "child_driver_source_sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-historical-metadata-adapter"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_metadata_actual.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scope": {
+          "const": "historical_anchor_one_intent_one_observer_v1"
+        },
+        "status": {
+          "const": "HISTORICAL_METADATA_COMPARISON_COMPLETED_NOT_SOURCE_ATTESTATION"
+        },
+        "child_id": {
+          "const": "v1-fixed-historical-metadata-observer"
+        },
+        "node_success_status": {
+          "const": "HISTORICAL_FOUR_METADATA_OBSERVER_COMPLETED"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "metadata_bytes",
+            "image_bytes",
+            "child_input_bytes",
+            "child_output_bytes",
+            "result_bytes",
+            "wrapper_steps",
+            "operation_ms"
+          ],
+          "properties": {
+            "metadata_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "image_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_input_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "child_output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "result_bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "wrapper_steps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "operation_ms": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "denied_flags": {
+          "const": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_installed_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ]
+        },
+        "source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_policy_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observer_policy_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observer_result_schema_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "shared_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_driver_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "implementation_sha256",
+        "child_source_sha256",
+        "observer_context_sha256",
+        "child_id",
+        "external_authority_sha256"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "implementation_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_source_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observer_context_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "child_id": {
+          "const": "v1-fixed-historical-metadata-observer"
+        },
+        "external_authority_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "real_read_granted",
+        "dispatch_decision_sha256",
+        "binding_sha256",
+        "external_authority_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "trusted_parent_metadata_integration_declaration"
+        },
+        "real_read_granted": {
+          "const": true
+        },
+        "dispatch_decision_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "external_authority_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "node_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "context_sha256",
+        "decision_binding_sha256",
+        "dispatch_request_sha256",
+        "observation",
+        "error",
+        "payload_accounting",
+        "late_module_loads",
+        "unscoped_accesses",
+        "backend_attempts",
+        "wrapper_steps"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-fixed-historical-metadata-observer"
+        },
+        "status": {
+          "enum": [
+            "HISTORICAL_FOUR_METADATA_OBSERVER_COMPLETED",
+            "HISTORICAL_FOUR_METADATA_OBSERVER_REFUSED"
+          ]
+        },
+        "context_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision_binding_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dispatch_request_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observation": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "payload_accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "open_attempts",
+            "open_returns",
+            "open_unknown",
+            "read_attempts",
+            "read_unknown",
+            "close_attempts",
+            "close_returns",
+            "close_unknown",
+            "known_delivered_bytes",
+            "emergency_closes",
+            "known_open_descriptors",
+            "roles",
+            "coverage"
+          ],
+          "properties": {
+            "open_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_returns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "close_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_delivered_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "emergency_closes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "known_open_descriptors": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "cap",
+                  "known_delivered_bytes",
+                  "read_attempts",
+                  "closed"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "provenance",
+                      "manifest",
+                      "lockfile",
+                      "installed_package"
+                    ]
+                  },
+                  "cap": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "known_delivered_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "read_attempts": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "closed": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "maxItems": 4
+            },
+            "coverage": {
+              "const": "four_declared_metadata_payloads_only"
+            }
+          }
+        },
+        "late_module_loads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unscoped_accesses": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "backend_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wrapper_steps": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "binding_sha256",
+        "expected",
+        "dispatch_request_sha256",
+        "observer",
+        "expectation_classes",
+        "known_parent_metadata_bytes",
+        "joined_named_image_bytes",
+        "node_attempts",
+        "node_reaped",
+        "io_threads_remaining",
+        "flags",
+        "external_authority_sha256",
+        "historical_expectations"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-historical-metadata-adapter"
+        },
+        "status": {
+          "const": "HISTORICAL_METADATA_COMPARISON_COMPLETED_NOT_SOURCE_ATTESTATION"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "dispatch_request_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observer": {
+          "$ref": "#/$defs/node_result"
+        },
+        "expectation_classes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provenance",
+            "manifest",
+            "lockfile",
+            "installed_package"
+          ],
+          "properties": {
+            "provenance": {
+              "const": "historical_supplied"
+            },
+            "manifest": {
+              "const": "historical_supplied"
+            },
+            "lockfile": {
+              "const": "historical_supplied"
+            },
+            "installed_package": {
+              "const": "historical_supplied"
+            }
+          }
+        },
+        "known_parent_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "joined_named_image_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node_attempts": {
+          "const": 1
+        },
+        "node_reaped": {
+          "const": true
+        },
+        "io_threads_remaining": {
+          "const": 0
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "permission_authenticated",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "physical_path_binding_verified",
+            "actual_installed_metadata_observed",
+            "compiler_loaded",
+            "input_code_evaluated",
+            "native_execution_attested",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "permission_authenticated": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "physical_path_binding_verified": {
+              "const": false
+            },
+            "actual_installed_metadata_observed": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "native_execution_attested": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            }
+          }
+        },
+        "external_authority_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "historical_expectations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provenance",
+            "manifest",
+            "lockfile",
+            "installed_package"
+          ],
+          "properties": {
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "class",
+                "sha256",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "class": {
+                  "const": "historical_supplied"
+                },
+                "sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "anchor_ref_sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "class",
+                "sha256",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "class": {
+                  "const": "historical_supplied"
+                },
+                "sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "anchor_ref_sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "lockfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "class",
+                "sha256",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "class": {
+                  "const": "historical_supplied"
+                },
+                "sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "anchor_ref_sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "installed_package": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "class",
+                "sha256",
+                "anchor_ref_sha256"
+              ],
+              "properties": {
+                "class": {
+                  "const": "historical_supplied"
+                },
+                "sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "anchor_ref_sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "external_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_ref",
+        "decision_ref",
+        "purpose",
+        "state",
+        "issued_at",
+        "expires_at",
+        "request_binding_sha256",
+        "intent_store_ref_sha256",
+        "kind",
+        "granted",
+        "maximum_dispatches",
+        "retry_authorized",
+        "dispatch_expected_sha256"
+      ],
+      "properties": {
+        "principal_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "unused",
+            "consumed"
+          ]
+        },
+        "issued_at": {
+          "type": "number"
+        },
+        "expires_at": {
+          "type": "number"
+        },
+        "request_binding_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "intent_store_ref_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "kind": {
+          "const": "externally_held_one_shot_metadata_decision"
+        },
+        "granted": {
+          "const": true
+        },
+        "maximum_dispatches": {
+          "const": 1
+        },
+        "retry_authorized": {
+          "const": false
+        },
+        "dispatch_expected_sha256": {
+          "type": "string",
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

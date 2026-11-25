@@ -18,9 +18,11 @@ from tools.core.config import RAW_DIR, REPORTS_DIR, save_json_atomic, save_text_
 from tools.core.installation_authority import (
     PRIVATE_MAINTAINER_PROFILE,
     PUBLIC_TARGET_REPOSITORY_PROFILE,
+    public_release_doctor_budget,
     resolve_installation_authority_profile,
 )
 from tools.core.external_feature_modules import declared_external_module_targets
+from tools.core.installation_preflight import command_observation_policy, load_installation_preflight_contract
 from tools.core.quality_gate_ci import (
     load_ci_execution_policy,
     supported_python_versions,
@@ -191,18 +193,31 @@ def _installation_doctor_matches_ci_selection() -> tuple[bool, dict[str, Any]]:
     try:
         ci_args = shlex.split(load_ci_execution_policy()["commands"]["target_doctor"])[4:]
         steps = _commands_for_level(
-            "release", skip_deps=True, max_doctor_seconds=90, public_distribution=True,
+            "release", skip_deps=True, max_doctor_seconds=None, public_distribution=True,
         )
+        budget = public_release_doctor_budget(load_installation_preflight_contract())
         step_ids = [row["id"] for row in steps]
         doctors = [row for row in steps if row["id"] == "doctor"]
-        expected = [sys.executable, "sage.py", "doctor", "--skip-release-proof", *ci_args]
-        passed = (
+        expected_selection = [sys.executable, "sage.py", "doctor", "--skip-release-proof", *ci_args[:-1]]
+        selection_matches = (
             len(doctors) == 1
-            and doctors[0]["command"] == expected
+            and doctors[0]["command"][:-1] == expected_selection
+            and step_ids.count("init") == step_ids.count("daily_run") == 1
             and step_ids.index("init") < step_ids.index("doctor") < step_ids.index("daily_run")
-            and step_ids.count("daily_run") == 1
         )
-        return passed, {"expected_command": expected, "doctor_steps": doctors, "step_order": step_ids}
+        budget_matches = (
+            len(doctors) == 1
+            and doctors[0]["command"][-1:] == [str(budget["quick_validation_seconds"])]
+            and doctors[0]["timeout"] == budget["outer_doctor_watchdog_seconds"]
+        )
+        return selection_matches and budget_matches, {
+            "expected_command": [*expected_selection, str(budget["quick_validation_seconds"])],
+            "doctor_steps": doctors,
+            "step_order": step_ids,
+            "release_doctor_budget": budget,
+            "selection_matches": selection_matches,
+            "budget_matches": budget_matches,
+        }
     except (KeyError, ValueError, OSError) as exc:
         return False, {"error": f"{type(exc).__name__}:{exc}"}
 
@@ -244,6 +259,12 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
         installation_preflight_contract_path.read_text(encoding="utf-8")
     )
     installation_profile = installation_preflight_contract.get("profile", {})
+    try:
+        probe_policy = command_observation_policy(installation_preflight_contract)
+        probe_policy_error = None
+    except ValueError as exc:
+        probe_policy = None
+        probe_policy_error = str(exc)
     installation_validation_profiles = installation_preflight_contract.get("validation_profiles", {})
     omitted_check_names = _installation_profile_omissions(
         installation_preflight_contract, authority_profile
@@ -778,6 +799,11 @@ def run_validation(*, public_distribution: bool | None = None) -> dict[str, Any]
         ),
     ]
 
+    checks.append(_check(
+        "runtime_command_observation_policy_is_bounded",
+        probe_policy is not None,
+        {"policy": probe_policy, "error": probe_policy_error},
+    ))
     known_check_names = {str(check.get("name")) for check in checks}
     unknown_omissions = sorted(omitted_check_names - known_check_names)
     if unknown_omissions:

@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexora.prepared_compiler_image_ingress",
+  "title": "Disabled synthetic registered base-image ingress",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_definition",
+        "expected_definition",
+        "summary_definition",
+        "schema_sha256",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "image_profile",
+        "handoff_profile",
+        "handoff_policy_sha256",
+        "handoff_schema_sha256",
+        "compiler_virtual_root",
+        "model",
+        "result_status",
+        "refusal_codes",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-private-prepared-compiler-image-ingress"
+        },
+        "schema": {
+          "type": "string",
+          "const": "config/schemas/prepared_compiler_image_ingress.schema.json"
+        },
+        "schema_definition": {
+          "type": "string",
+          "const": "policy"
+        },
+        "expected_definition": {
+          "type": "string",
+          "const": "expected"
+        },
+        "summary_definition": {
+          "type": "string",
+          "const": "summary"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "default_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_execution_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "image_profile": {
+          "type": "string",
+          "const": "private_input_image_experiment"
+        },
+        "handoff_profile": {
+          "type": "string",
+          "const": "private_compiler_declaration_text_handoff_preparation"
+        },
+        "handoff_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "handoff_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "compiler_virtual_root": {
+          "type": "string",
+          "const": "/__sage_ts_image__/compiler"
+        },
+        "model": {
+          "type": "string",
+          "const": "synthetic_registered_base_image_v1"
+        },
+        "result_status": {
+          "type": "string",
+          "const": "PRIVATE_PREPARED_COMPILER_IMAGE_NOT_ADMITTED"
+        },
+        "refusal_codes": {
+          "type": "array",
+          "const": [
+            "prepared_ingress_policy_refused",
+            "prepared_ingress_context_refused",
+            "prepared_ingress_profile_refused",
+            "prepared_ingress_inputs_refused",
+            "prepared_ingress_budget",
+            "prepared_ingress_deadline"
+          ]
+        },
+        "claim_boundary": {
+          "type": "string",
+          "const": "Disabled base-image synthetic ingress through the exact registered preparation owner only. Independent source/config/Atlas/image and compiler-stream pins; canonical image gates and staged final publication. Compiler API doubles do not attest installed TypeScript, Program results, loaded code, native origin, React/package arms, peak RSS, hostile isolation, erasure, production, semantics, cache or release acceptance."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_sha256",
+        "source_inputs_sha256",
+        "ingress_policy_sha256",
+        "ingress_schema_sha256",
+        "stream_session_id",
+        "preparation"
+      ],
+      "properties": {
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_inputs_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "ingress_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "ingress_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "stream_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preparation": {
+          "type": "object"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image_sha256",
+        "envelope_sha256",
+        "prepared_ingress_sha256",
+        "content_bytes",
+        "metadata_bytes",
+        "file_count",
+        "ingress_metadata_bytes",
+        "admission_stage_known_metadata_bytes",
+        "admission_stage_known_image_bytes",
+        "status",
+        "whole_image_within_limit",
+        "peak_rss_bytes",
+        "image_admitted",
+        "native_project_equivalent",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "loaded_code_attested"
+      ],
+      "properties": {
+        "image_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "envelope_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "prepared_ingress_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "content_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ingress_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "admission_stage_known_metadata_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "admission_stage_known_image_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "const": "PRIVATE_PREPARED_COMPILER_IMAGE_NOT_ADMITTED"
+        },
+        "whole_image_within_limit": {
+          "type": "null"
+        },
+        "peak_rss_bytes": {
+          "type": "null"
+        },
+        "image_admitted": {
+          "type": "boolean",
+          "const": false
+        },
+        "native_project_equivalent": {
+          "type": "boolean",
+          "const": false
+        },
+        "production_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "semantic_lineage": {
+          "type": "boolean",
+          "const": false
+        },
+        "cache_eligible": {
+          "type": "boolean",
+          "const": false
+        },
+        "loaded_code_attested": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/summary"
+}

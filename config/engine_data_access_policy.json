@@ -63,11 +63,19 @@
         },
         "tools/engines/quant_engine.py|run_quant_engine|load_json_file|audit_path": {
           "reason": "Direct-scope and broad-scope branches are mutually exclusive evidence universes: one reads the scoped watchdog Audit and the other reads canonical broad Audit, so only one acquisition occurs per invocation."
+        },
+        "tools/core/sage_active_work_package.py|save_work_package_scope_amendment|read_bytes|LEDGER_PATH": {
+          "reason": "The initial byte snapshot feeds strict ledger parsing and binds the original record. The final acquisition follows reviewed-plan, bootstrap and source checks and rejects an intervening writer before one native atomic save. These are distinct freshness boundaries, guarded by test_scope_writer_rechecks_after_bootstrap_and_preserves_other_writer; they must not be consolidated."
         }
       }
     }
   },
   "filesystem_inventory_allowlist": {
+    "tools/core/declared_artifact_inputs.py": {
+      "class": "ingestion",
+      "status": "accepted",
+      "reason": "Atlas-owned exact manifest-selected output leaves only, using confined bounded IO and nearest-project ownership; no walk, glob, parser, execution or downstream acquisition."
+    },
     "tools/engines/generate_atlas.py": {
       "class": "ingestion",
       "status": "accepted",
@@ -208,11 +216,6 @@
       "status": "accepted",
       "reason": "bounded AST inventory of repeated source acquisitions for central-decision validation"
     },
-    "tools/core/release_validation_dependencies.py": {
-      "class": "source_governance_inventory",
-      "status": "accepted_bounded",
-      "reason": "builds the deterministic local Python module index for content-bound release-validation dependency closures while excluding generated and runtime roots"
-    },
     "tools/core/source_state_identity.py": {
       "class": "source_governance_identity",
       "status": "accepted",
@@ -227,6 +230,21 @@
       "class": "source_governance_identity",
       "status": "accepted",
       "reason": "deterministic clean-distribution inventory and fingerprint verification excluding Git metadata and the generated delivery marker"
+    },
+    "tools/core/source_maintainability.py": {
+      "class": "source_governance_inventory",
+      "status": "accepted_bounded",
+      "reason": "Read-only SAGE source line inventory for the existing source-contract policy, limited to its declared suffixes and exclusions. Shared by preparation and source-contract validation."
+    },
+    "tools/core/release_source_index.py": {
+      "class": "source_governance_inventory",
+      "status": "accepted_bounded",
+      "reason": "extracted deterministic local Python module inventory for content-bound SAGE release dependency closures, preserving native fallback matching and excluding generated/runtime roots; not an Atlas fallback for target analysis"
+    },
+    "tools/core/distribution_test_selection.py": {
+      "class": "source_governance_inventory",
+      "status": "accepted_bounded",
+      "reason": "Enumerates only the centrally declared distribution-test glob under a caller-supplied distribution root for exact authority classification and deterministic family selection. No target analysis, Atlas fallback, test import, execution or reuse admission."
     }
   },
   "atlas_bound_source_adapter": "tools/core/source_evidence.py"

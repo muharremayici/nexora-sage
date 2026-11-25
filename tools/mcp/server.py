@@ -43,6 +43,7 @@ from tools.core.atlas_integrity import ATLAS_COMMIT_KIND, ATLAS_COMMIT_VERSION
 from tools.core.state_flow import TRANSITIVE_HOOK_COVERAGE
 from tools.core.external_target_generation import external_target_output_slug, resolve_external_target_artifact_dir
 from tools.core.unmanaged_atomic_io import native_filesystem_path, sqlite_read_only_uri
+from tools.core.class_member_search import valid_recorded_class_member
 
 BASE_DIR = Path(_ROOT)
 TARGET_ROOT = Path(CONFIG_ROOT)
@@ -231,12 +232,18 @@ from tools.core.execution_identity import (
 from tools.generate_nexora_agent_handoff import run as run_agent_handoff
 from tools.generate_nexora_brief import run as run_nexora_brief
 from tools.generate_nexora_operator_packet import run as run_operator_packet
-from tools.hitl_approval_ledger import init_ledger, record_decision, verify_ledger
+from tools.hitl_approval_ledger import init_ledger, record_decision, verify_ledger, verify_ledger_observation
 from tools.hitl_decision_requests import create_request, init_requests, update_request_status
 from tools.inspect_target import (
     AGENT_INSPECTION_MAX_TARGET_SPANS,
     project_client_local_parser_evidence,
     project_manifest_source_links,
+    project_wiring_source_observations,
+    project_safeparse_success_evidence,
+    project_effect_safeparse_callback_evidence,
+    project_effect_safeparse_merge_evidence,
+    project_safeparse_early_return_evidence,
+    project_resolver_factory_evidence,
     project_dead_code_matches_for_file,
     render_agent_inspection_brief,
     write_inspection,
@@ -255,6 +262,7 @@ from tools.core.json_io import (
 from tools.core.artifact_freshness_contract import artifact_state_meta
 from tools.core.atlas_io import load_atlas_data, load_atlas_data_with_identity, load_atlas_file_metadata, AtlasRead
 from tools.core.declaration_contract_view import declaration_file_inspection, declaration_symbol_search, render_declaration_inspection
+from tools.core.declared_artifact_view import declared_artifact_inspection, render_declared_artifact_inspection
 from tools.core.text_normalizer import deep_repair, repair_text
 from tools.core.config import DOCTRINE, ROOT as ANALYZED_REPOSITORY_ROOT
 from tools.core.doctrine_contract import require_doctrine_mapping
@@ -304,6 +312,9 @@ from tools.core.sage_active_work_package import active_work_package
 from tools.core.work_package_receipts import record_work_package_operation_safely
 from tools.core.path_identity import strip_current_directory_prefix
 from tools.core.test_impact_profiles import command_for_test, confidence_value, extract_logical_base_name, is_test_path, snapshot_mock_declaration_evidence, static_candidate_evidence, static_test_evidence_policy, test_candidate_project
+from tools.core.test_command_source import TestCommandSourceObserver
+from tools.core.test_impact_profiles import template_command_evidence
+from tools.core.test_dependency_witness import optional_witness_policy, project_dependency_witness, normalize_dependency_navigation
 
 
 def _with_context_budget(
@@ -1832,7 +1843,9 @@ def _sqlite_file_context_from_raw(raw_dir: Path, target: str) -> tuple[str, dict
                     project_path = ""
                 if project_path.startswith("./"):
                     project_path = project_path[2:].strip("/")
-                if absolute_project_path:
+                if absolute_project_path and not conn.execute(
+                    "SELECT 1 FROM files WHERE project_key=? AND rel_path=? LIMIT 1", (project_key, rel)
+                ).fetchone():
                     # A physical project root is not a repo-relative prefix.
                     # Use only this artifact's declared file identities; never
                     # guess from host ROOT or walk a log/request-derived path.
@@ -1991,7 +2004,8 @@ def _symbol_search_candidate_sort_key(query: str, row: dict[str, Any]) -> tuple[
 def _declared_atlas_workspace_path(raw_dir: Path, project_key: str, rel_path: str, *, allow_legacy_relative_root: bool = False, project_data: dict | None = None) -> str:
     """Resolve an exact indexed file's display path from this artifact only."""
     if project_data is None:
-        project_data = _atlas(raw_dir=raw_dir).get(project_key) or {}
+        project_data = ((_atlas(raw_dir=raw_dir).get(project_key) or {}) if allow_legacy_relative_root else
+                        {"files": {rel_path: load_atlas_file_metadata(raw_dir, project_key, rel_path)}})
     project_files = project_data.get("files") or {}
     meta = project_files.get(rel_path) if isinstance(project_files, dict) else None
     value = meta.get("workspace_rel") if isinstance(meta, dict) else None
@@ -2102,10 +2116,41 @@ def _symbol_search_derived_order(alias: str, query: str) -> tuple[str, tuple[Any
 def _find_class_method_search_matches(
     query: str, project: str | None = None, raw_dir: Path | None = None,
 ) -> tuple[list[dict], dict[str, Any]]:
-    """Read derived method syntax only; never migrate, rescan or load Atlas."""
+    return _find_recorded_class_member_search_matches(query, project, raw_dir)
+
+
+def _class_accessor_search_policy():
+    from tools.core.artifact_validator import validate_against_schema
+    policy = _agent_surface_contract()['symbol_search_policy']['class_accessor_search']
+    if validate_against_schema(BASE_DIR / 'config/schemas/class_accessor_search.schema.json', 'class_accessor_search', policy):
+        raise ValueError('Invalid Class accessor search policy')
+    return policy
+
+
+def _find_class_accessor_search_matches(
+    query: str, project: str | None = None, raw_dir: Path | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    try:
+        policy = _class_accessor_search_policy()
+    except (KeyError, ValueError, OSError, TypeError):
+        return [], {"status": "unavailable", "reason": "invalid_accessor_policy",
+                    "scope": "recorded_identifier_named_class_accessors_only", "indexed_files": 0,
+                    "projected_files": 0, "partial_files": 0, "unprojected_files": 0,
+                    "source_tree_complete": False}
+    return _find_recorded_class_member_search_matches(query, project, raw_dir, accessor_policy=policy)
+
+
+def _find_recorded_class_member_search_matches(
+    query: str, project: str | None = None, raw_dir: Path | None = None, *, accessor_policy=None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Read one derived Class-member lane; never migrate, rescan or load Atlas."""
+    accessors = accessor_policy is not None
+    table = "symbol_search_accessors" if accessors else "symbol_search_members"
+    source = "accessors" if accessors else "methods"
+    status_column = "class_accessor_search_status" if accessors else "class_method_search_status"
     coverage = {
         "status": "unavailable", "reason": "missing_sqlite_index",
-        "scope": "recorded_identifier_named_class_methods_only",
+        "scope": accessor_policy['scope'] if accessors else "recorded_identifier_named_class_methods_only",
         "indexed_files": 0, "projected_files": 0, "partial_files": 0,
         "unprojected_files": 0, "source_tree_complete": False,
     }
@@ -2125,16 +2170,16 @@ def _find_class_method_search_matches(
             conn.create_function("sage_lower", 1, _symbol_search_unicode_lower, deterministic=True)
             conn.execute("BEGIN;")  # One read snapshot for coverage and candidate rows.
             counts = conn.execute(
-                f"""SELECT class_method_search_status AS status, COUNT(*) AS count
-                    FROM files {clause} GROUP BY class_method_search_status;""",
+                f"""SELECT {status_column} AS status, COUNT(*) AS count
+                    FROM files {clause} GROUP BY {status_column};""",
                 tuple(project_params),
             ).fetchall()
             for row in counts:
                 count = int(row["count"])
                 coverage["indexed_files"] += count
-                if row["status"] == "recorded_class_methods":
+                if row["status"] == "recorded_class_" + source:
                     coverage["projected_files"] += count
-                elif row["status"] == "partial_recorded_class_methods":
+                elif row["status"] == "partial_recorded_class_" + source:
                     coverage["partial_files"] += count
                 else:
                     coverage["unprojected_files"] += count
@@ -2144,7 +2189,7 @@ def _find_class_method_search_matches(
             _symbol_search_register_derived_path_rank(conn, q, ascii_token_query=ascii_token_query)
             rows = conn.execute(
                 f"""SELECT m.*, files.project_key, files.rel_path, projects.path
-                    FROM symbol_search_members m
+                    FROM {table} m
                     JOIN files ON files.file_id = m.file_id
                     LEFT JOIN projects ON projects.project_key = files.project_key
                     WHERE (instr(sage_lower(m.name), ?) > 0 OR instr(sage_lower(files.rel_path), ?) > 0)
@@ -2159,24 +2204,32 @@ def _find_class_method_search_matches(
         truncated = len(rows) > limit
         matches = []
         for row in rows[:limit]:
+            if accessors and (row['accessor_kind'] not in accessor_policy['kind_types']
+                    or type(row['is_static']) is not int or row['is_static'] not in (0, 1)
+                    or not valid_recorded_class_member(row['declaring_symbol'], row['declaring_line'],
+                        row['member_name'], row['line'], row['end_line'], bool(row['is_static']))
+                    or row['name'] != f"{row['declaring_symbol']}.{row['member_name']}"):
+                coverage.update(status="unavailable", reason="invalid_recorded_accessor_projection")
+                return [], coverage
             repo_rel = _symbol_search_repo_relative(str(row["path"] or ""), row["rel_path"],
                                                    project_key=row["project_key"], raw_dir=raw_dir)
             score = min(_symbol_search_match_score(query, row["name"], row["rel_path"])[0],
                         _symbol_search_match_score(query, row["member_name"], row["rel_path"])[0])
             matches.append({
-                "name": row["name"], "type": "ClassMethod",
+                "name": row["name"], "type": accessor_policy['kind_types'][row['accessor_kind']] if accessors else "ClassMethod",
                 "declaring_symbol": row["declaring_symbol"], "declaring_line": row["declaring_line"],
                 "member_name": row["member_name"], "is_static": bool(row["is_static"]),
                 "project": row["project_key"], "file": row["rel_path"],
                 "repo_relative_path": repo_rel, "atlas_node": f"{row['project_key']}::{row['rel_path']}",
                 "line": row["line"], "end_line": row["end_line"],
                 "source_lines": f"L{row['line']}-L{row['end_line']}",
-                "evidence_kind": "recorded_class_method_syntax",
+                "evidence_kind": "recorded_class_accessor_syntax" if accessors else "recorded_class_method_syntax",
+                **({"member_kind": row['accessor_kind']} if accessors else {}),
                 "match_score": score, "search_truncated": truncated,
             })
         return matches, coverage
     except sqlite3.Error:
-        coverage.update(status="unavailable", reason="legacy_or_unreadable_method_projection")
+        coverage.update(status="unavailable", reason="legacy_or_unreadable_accessor_projection" if accessors else "legacy_or_unreadable_method_projection")
         return [], coverage
 
 
@@ -2755,6 +2808,7 @@ def _render_symbol_search_brief(
     store_action_search: dict[str, Any] | None = None,
     import_binding_search: dict[str, Any] | None = None,
     qualified_import_call_search: dict[str, Any] | None = None,
+    class_accessor_search: dict[str, Any] | None = None,
 ) -> str:
     display_root = analysis_root or _analysis_root_display()
     visible, counts = _symbol_search_display(matches, limit=_symbol_search_policy()["brief_max_visible_items"])
@@ -2766,6 +2820,7 @@ def _render_symbol_search_brief(
         f"  query: {json.dumps(query, ensure_ascii=False)}",
         *[f"  {key}: {json.dumps(value, ensure_ascii=False)}" for key, value in counts.items()],
         "  class_method_search: " + json.dumps(class_method_search or {"status": "not_evaluated"}, ensure_ascii=False),
+        "  class_accessor_search: " + json.dumps(class_accessor_search or {"status": "not_evaluated"}, ensure_ascii=False),
         "  store_action_search: " + json.dumps(store_action_search or {"status": "not_evaluated"}, ensure_ascii=False),
         "  import_binding_search: " + json.dumps(import_binding_search or {"status": "not_evaluated"}, ensure_ascii=False),
         "  qualified_import_call_search: " + json.dumps(
@@ -2801,9 +2856,9 @@ def _render_symbol_search_brief(
                     yaml_lines.append(f"    end_line: {int(row.get('end_line') or row.get('line') or 0)}")
                 if row.get("source_lines"):
                     yaml_lines.append("    source_lines: " + json.dumps(row.get("source_lines") or "", ensure_ascii=False))
-                if row.get("type") not in {"ClassMethod", "StoreActionCandidate", "ImportBindingCandidate", "QualifiedImportCallCandidate"}:
+                if row.get("type") not in {"ClassMethod", "StoreActionCandidate", "ImportBindingCandidate", "QualifiedImportCallCandidate"} and row.get("evidence_kind") != "recorded_class_accessor_syntax":
                     yaml_lines.append(f"    char: {int(row.get('char') or 0)}")
-            if row.get("type") not in {"ClassMethod", "StoreActionCandidate", "ImportBindingCandidate", "QualifiedImportCallCandidate"}:
+            if row.get("type") not in {"ClassMethod", "StoreActionCandidate", "ImportBindingCandidate", "QualifiedImportCallCandidate"} and row.get("evidence_kind") != "recorded_class_accessor_syntax":
                 yaml_lines.append(f"    dependencies: {int(row.get('dependencies') or 0)}")
             yaml_lines.append("    next_tool: " + json.dumps(f"inspect_file(file_path={json.dumps(target_ref, ensure_ascii=False)})", ensure_ascii=False))
     else:
@@ -2817,6 +2872,7 @@ def _render_symbol_search_brief(
             "do_not:",
             "  - Do not edit from search results alone.",
             "  - Method candidates are recorded syntax, not proven calls, runtime behavior or a complete source-tree inventory. Unavailable/partial method coverage is not evidence of absence.",
+            "  - Getter/setter candidates are recorded accessor syntax, not evaluated values, property read/write flow, inheritance or runtime behavior. Unavailable/partial accessor coverage is not evidence of absence.",
             "  - Store action candidates are recorded direct Zustand initializer setter-call syntax, not proven call-result ownership, execution or a complete source-tree inventory. Unavailable/partial action coverage is not evidence of absence.",
             "  - Import binding candidates are top-level ES import syntax, not proof of use, module resolution, runtime execution or a complete source-tree inventory. Unavailable/partial binding coverage is not evidence of absence.",
             "  - Qualified import call candidates are checker-bound namespace.member() syntax in indexed callable bodies or module-root expressions outside nested callables/classes, not proven module resolution, invocation or a complete source-tree inventory. Partial/legacy coverage is not evidence of absence.",
@@ -3638,6 +3694,38 @@ def _attach_test_source_snippets(raw_dir: Path, payload: dict[str, Any], *, max_
     payload["test_source_snippet_limit"] = max_tests_with_snippets
     payload["test_source_snippets_attached"] = snippets_attached
     payload["test_source_snippets_omitted"] = max(0, len(tests) - snippets_attached)
+    payload = _attach_test_command_sources(payload, atlas)
+    return payload
+
+
+def _attach_test_command_sources(payload: dict[str, Any], atlas: dict) -> dict[str, Any]:
+    """Optional current package observations, independently of Atlas freshness."""
+    payload=dict(payload)
+    rows=[dict(row) for row in payload.get("impacted_tests", [])]
+    payload['impacted_tests']=rows
+    try:
+        observer=TestCommandSourceObserver(payload.get("analysis_root"))
+    except (ValueError,OSError,RuntimeError):
+        payload["test_command_source_status"]="unavailable_policy_or_root"
+        return payload
+    count=min(len(rows),observer.policy['max_candidates'])
+    suggestions=[]
+    for row in rows[:count]:
+        project=test_candidate_project(row)
+        node=str(row.get('atlas_node') or '').partition('::')
+        data=atlas.get(project) if isinstance(atlas,dict) else None
+        candidate=str(row.get('repo_relative_path') or row.get('file') or '')
+        files=data.get('files') if isinstance(data,dict) else None
+        info=files.get(node[2]) if isinstance(files,dict) and node[1] and node[0]==project else None
+        if not isinstance(info,dict) or info.get('workspace_rel')!=candidate:
+            suggestions.append({'status':'unavailable','reason':'exact_candidate_metadata_unavailable','execution':'not_run_by_sage'})
+            continue
+        suggestions.append(observer.observe(project=project,project_root=data.get('root_path'),
+            candidate_path=candidate,atlas_path=node[2]))
+    for row,suggestion in zip(rows,observer.settle(suggestions)):
+        row['package_script_suggestion']=suggestion
+    payload['test_command_sources_shown']=count
+    payload['test_command_sources_omitted']=max(0,len(rows)-count)
     return payload
 
 
@@ -5528,7 +5616,8 @@ def _render_test_impact_brief(payload: dict[str, Any]) -> str:
     for visible_limit in range(8, 0, -1):
         body = _render_test_impact_page(payload, visible_test_limit=visible_limit)
         if context_budget_profile(body, budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)["status"] == "pass":
-            return body
+            body = _append_test_command_sources(body, payload, visible_limit)
+            return _append_test_dependency_witnesses(body, payload, visible_limit)
     tests = payload.get("impacted_tests") if isinstance(payload.get("impacted_tests"), list) else []
     return "\n".join([
         "# Test Impact Brief", "", "```yaml",
@@ -5542,6 +5631,53 @@ def _render_test_impact_brief(payload: dict[str, Any]) -> str:
         "do_not:", "  - Do not infer absence of relevant tests or successful execution from this fallback.",
         "```", "",
     ])
+
+
+def _append_test_dependency_witnesses(body: str, payload: dict, visible_limit: int) -> str:
+    """Whole optional graph paths settle after all older candidate/command detail."""
+    policy = optional_witness_policy()
+    rows = payload.get("impacted_tests", [])
+    if policy is None or not any("dependency_witness" in row for row in rows):
+        return body
+    details = []
+    for row in rows[:min(visible_limit, policy["max_brief_candidates"])]:
+        view = project_dependency_witness(row, payload)
+        detail = {"test_ref": str(row.get("project")) + "::" + str(row.get("repo_relative_path") or row.get("file")),
+                  "status": view["status"]}
+        if view["status"] == "observed":
+            detail.update(dependency_path=view["target_refs"], trace_retention=view["trace_retention"])
+        else:
+            detail["reason"] = view["reason"]
+        details.append(detail)
+    for shown in range(len(details), -1, -1):
+        summary = {"scope": "loaded_static_dependency_graph_only", "items": details[:shown],
+                   "shown_candidates": shown, "omitted_candidates": len(rows) - shown,
+                   "status": "shown" if shown else "withheld_context_budget",
+                   "proof_boundary": policy["proof_boundary"]}
+        addition = "\nDependency navigation (not executed): " + json.dumps(summary, ensure_ascii=False)
+        if context_budget_profile(body + addition, budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)["status"] == "pass":
+            return body + addition
+    return body
+
+
+def _append_test_command_sources(body: str, payload: dict, visible_limit: int) -> str:
+    """Fit new whole origin records only after the older brief has settled."""
+    rows=payload.get('impacted_tests', [])[:visible_limit]
+    details=[]
+    for row in rows:
+        suggestion=row.get('package_script_suggestion')
+        if not isinstance(suggestion,dict):
+            continue
+        detail='\nCommand source (not executed): '+json.dumps({
+            'test_ref':row.get('atlas_node'),'compatibility_run_command':row.get('run_command_evidence'),
+            'package_script_suggestion':suggestion},ensure_ascii=False)
+        if context_budget_profile(body+''.join(details)+detail,budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)['status']=='pass':
+            details.append(detail)
+    if len(details)<len(rows):
+        notice='\nAdditional command-source detail is unavailable or withheld by the existing packet budget; inspect format=machine. Compatibility commands are unverified suggestions.'
+        if context_budget_profile(body+''.join(details)+notice,budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)['status']=='pass':
+            details.append(notice)
+    return body+''.join(details)
 
 
 def _render_test_impact_page(payload: dict[str, Any], *, visible_test_limit: int) -> str:
@@ -5713,12 +5849,15 @@ def _normalize_test_impact_payload_for_agent(payload: dict[str, Any]) -> dict[st
         return payload
     normalized = dict(payload)
     normalized["evidence_boundary"] = static_test_evidence_policy()["proof_boundary"]
+    for field in ('test_command_source_status','test_command_sources_shown','test_command_sources_omitted'):
+        normalized.pop(field, None)
     tests = payload.get("impacted_tests") if isinstance(payload.get("impacted_tests"), list) else []
     normalized_tests: list[dict[str, Any]] = []
     for row in tests:
         if not isinstance(row, dict):
             continue
         item = dict(row)
+        item.pop('package_script_suggestion', None)
         item["candidate_evidence"] = static_candidate_evidence(item)
         repo_path = str(item.get("repo_relative_path") or item.get("file") or "").replace("\\", "/").strip("/")
         old_file = str(item.get("file") or "").replace("\\", "/").strip("/")
@@ -5728,9 +5867,10 @@ def _normalize_test_impact_payload_for_agent(payload: dict[str, Any]) -> dict[st
             command = str(item.get("run_command") or "").strip()
             if not command or (old_file and old_file != repo_path and old_file in command):
                 item["run_command"] = command_for_test(repo_path)
+        item['run_command_evidence']=template_command_evidence(str(item.get('run_command') or ''), repo_path)
         normalized_tests.append(item)
     normalized["impacted_tests"] = normalized_tests
-    return normalized
+    return normalize_dependency_navigation(normalized)
 
 
 def _is_likely_test_path(path: str) -> bool:
@@ -6505,6 +6645,33 @@ def _render_supporting_context_brief(title: str, payload: dict[str, Any]) -> str
     return "\n".join([f"# {resolved_title}", "", "```yaml", *_with_context_budget(yaml_lines), "```", ""])
 
 
+def _render_audit_brief_with_import_locations(title: str, yaml_lines: list[str], items: list[dict], *, budget_tokens: int) -> str:
+    """Optional navigation fits after mandatory content; it cannot evict work items."""
+    from tools.core.audit_finding_generation import audit_import_location_brief_policy, audit_import_location_brief
+    def render(lines):
+        return '\n'.join([title, '', '```yaml', *_with_context_budget(lines, budget_tokens=budget_tokens), '```', ''])
+    original = render(yaml_lines)
+    if context_budget_profile(original, budget_tokens=budget_tokens)['status'] != 'pass':
+        return original
+    try:
+        policy = audit_import_location_brief_policy()
+        summary = audit_import_location_brief(items, policy)
+    except (OSError, KeyError, TypeError, ValueError):
+        return original  # An invalid optional display policy does not replace the existing brief.
+    if summary is None:
+        return original
+    for count in range(len(summary['items']), 0, -1):
+        trial_summary = {**summary, 'shown_items': count,
+            'omitted_items': summary['omitted_items'] + len(summary['items']) - count, 'items': summary['items'][:count]}
+        lines = [*yaml_lines, 'captured_import_navigation: ' + json.dumps(trial_summary, ensure_ascii=False)]
+        trial = render(lines)
+        if context_budget_profile(trial, budget_tokens=budget_tokens)['status'] == 'pass':
+            return trial
+    notice = {'status': 'omitted_context_budget', 'follow_up': 'Request format=machine for per-finding captured locations; no live edit authority.'}
+    trial = render([*yaml_lines, 'captured_import_navigation: ' + json.dumps(notice)])
+    return trial if context_budget_profile(trial, budget_tokens=budget_tokens)['status'] == 'pass' else original
+
+
 def _render_module_integrity_brief(payload: dict[str, Any]) -> str:
     items = payload.get("items") if isinstance(payload.get("items"), list) else []
     yaml_lines = [
@@ -6553,7 +6720,8 @@ def _render_module_integrity_brief(payload: dict[str, Any]) -> str:
             "  - Do not add suppressions or allowlists without explicit human approval.",
         ]
     )
-    return "\n".join(["# Module Integrity Brief", "", "```yaml", *_with_context_budget(yaml_lines), "```", ""])
+    return _render_audit_brief_with_import_locations('# Module Integrity Brief', yaml_lines, items[:20],
+        budget_tokens=DEFAULT_AGENT_PACKET_BUDGET_TOKENS)
 
 
 def _artifact_or_missing(raw_dir: Path, filename: str, tool_name: str, target: str, target_root: str) -> tuple[Any | None, str | None]:
@@ -6747,7 +6915,7 @@ def _audit_violation_work_items_from_sqlite(
         return [], 0, False
 
     doctrine = _doctrine()
-    from tools.core.audit_finding_generation import project_audit_import_subject, audit_import_rule_contract
+    from tools.core.audit_finding_generation import project_audit_import_context, audit_import_rule_contract
     from tools.core.pipeline_policy import project_loc_finding_semantics
     from tools.core.json_syntax import loads_json_strict
     import_evidence_cache: dict = {}
@@ -6810,9 +6978,9 @@ def _audit_violation_work_items_from_sqlite(
         if loc_semantics:
             items[-1]["finding_semantics"] = loc_semantics
         if audit_import_rule_contract(rule_id) is not None or "finding_evidence" in violation:
-            items[-1]["finding_evidence"] = project_audit_import_subject(
+            items[-1].update(project_audit_import_context(
                 {**violation, "rule": rule_id}, raw_dir=raw_dir, project=project_key,
-                rel_path=file_path, cache=import_evidence_cache)
+                rel_path=file_path, cache=import_evidence_cache))
     return items, total, True
 
 
@@ -6912,7 +7080,7 @@ def _module_integrity_items_from_sqlite(
         return [], 0, False
 
     doctrine = _doctrine()
-    from tools.core.audit_finding_generation import project_audit_import_subject, audit_import_rule_contract
+    from tools.core.audit_finding_generation import project_audit_import_context, audit_import_rule_contract
     from tools.core.json_syntax import loads_json_strict
     import_evidence_cache: dict = {}
     filtered: list[dict[str, Any]] = []
@@ -6959,9 +7127,9 @@ def _module_integrity_items_from_sqlite(
             }
         )
         if audit_import_rule_contract(rule_id) is not None or "finding_evidence" in violation:
-            filtered[-1]["finding_evidence"] = project_audit_import_subject(
+            filtered[-1].update(project_audit_import_context(
                 {**violation, "rule": rule_id}, raw_dir=raw_dir, project=project_key,
-                rel_path=rel_path, cache=import_evidence_cache)
+                rel_path=rel_path, cache=import_evidence_cache))
     return filtered, total, True
 
 
@@ -7462,16 +7630,8 @@ def _render_violation_work_queue_page(payload: dict[str, Any], *, visible_limit:
             "  completion_rule: " + json.dumps(validation_completion_rule or "", ensure_ascii=False),
         ]
     )
-    return "\n".join(
-        [
-            "# Technical Debt Work Queue",
-            "",
-            "```yaml",
-            *_with_context_budget(yaml_lines, budget_tokens=BOUNDED_AGENT_PACKET_TOKENS),
-            "```",
-            "",
-        ]
-    )
+    return _render_audit_brief_with_import_locations('# Technical Debt Work Queue', yaml_lines, visible_items,
+        budget_tokens=BOUNDED_AGENT_PACKET_TOKENS)
 
 
 def _group_violation_work_items_for_agent(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -7658,12 +7818,13 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
         return _invalid_external_target_brief("search_symbols", target_root)
     matches = _find_symbol_matches(query, project=project or None, raw_dir=raw_dir)
     methods, method_coverage = _find_class_method_search_matches(query, project=project or None, raw_dir=raw_dir)
+    accessors, accessor_coverage = _find_class_accessor_search_matches(query, project=project or None, raw_dir=raw_dir)
     actions, action_coverage = _find_store_action_search_matches(query, project=project or None, raw_dir=raw_dir)
     bindings, binding_coverage = _find_direct_import_binding_search_matches(query, project=project or None, raw_dir=raw_dir)
     qualified_calls, qualified_coverage = _find_qualified_import_call_search_matches(
         query, project=project or None, raw_dir=raw_dir)
-    if methods or actions or bindings or qualified_calls:
-        matches = [*matches, *methods, *actions, *bindings, *qualified_calls]
+    if methods or accessors or actions or bindings or qualified_calls:
+        matches = [*matches, *methods, *accessors, *actions, *bindings, *qualified_calls]
         matches.sort(key=lambda row: _symbol_search_candidate_sort_key(query, row))
         truncated = any(bool(row.get("search_truncated")) for row in matches)
         matches = [{**row, "search_truncated": truncated} for row in matches]
@@ -7671,10 +7832,12 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
         if requested_format in {"json", "machine"}:
             return (f"No symbols found matching '{query}'. Class method coverage: "
                     + json.dumps(method_coverage, ensure_ascii=False)
+                    + ". Class accessor coverage: " + json.dumps(accessor_coverage, ensure_ascii=False)
                     + ". Store action coverage: " + json.dumps(action_coverage, ensure_ascii=False)
                     + ". Import binding coverage: " + json.dumps(binding_coverage, ensure_ascii=False)
                     + ". Qualified import call coverage: " + json.dumps(qualified_coverage, ensure_ascii=False))
         return _render_symbol_search_brief(query, [], analysis_root=analysis_root,
+                                           class_accessor_search=accessor_coverage,
                                            class_method_search=method_coverage, store_action_search=action_coverage,
                                            import_binding_search=binding_coverage,
                                            qualified_import_call_search=qualified_coverage)
@@ -7683,10 +7846,12 @@ def search_symbols(query: str, project: str = "MAIN", target_root: str = "", for
     if requested_format in {"json", "machine"}:
         visible, counts = _symbol_search_display(matches, limit=_symbol_search_policy()["machine_max_visible_items"])
         return json.dumps([{**row, **counts, "class_method_search": method_coverage,
+                            "class_accessor_search": accessor_coverage,
                             "store_action_search": action_coverage,
                             "import_binding_search": binding_coverage,
                             "qualified_import_call_search": qualified_coverage} for row in visible], indent=2, ensure_ascii=False)
     return _render_symbol_search_brief(query, matches, analysis_root=analysis_root,
+                                       class_accessor_search=accessor_coverage,
                                        class_method_search=method_coverage, store_action_search=action_coverage,
                                        import_binding_search=binding_coverage,
                                        qualified_import_call_search=qualified_coverage)
@@ -8402,20 +8567,40 @@ def get_human_approval_gates(target_root: str = "") -> str:
     return json.dumps(gates, indent=2, ensure_ascii=False)
 
 
+def _read_hitl_approval_ledger_observation() -> str:
+    """Display existing selected-backend content without initializing or healing.
+
+    This is not signature verification or native current-approval evidence. The
+    legacy primary decoder retains its compatibility and resource boundaries.
+    """
+    from tools.hitl_approval_ledger import load_existing_ledger_observation
+
+    missing = "HITL approval ledger artifact not found."
+    try:
+        data = load_existing_ledger_observation(RAW_DIR)
+        if data is None:
+            return missing
+        return json.dumps(deep_repair(data), indent=2, ensure_ascii=False)
+    except FileNotFoundError:
+        return missing
+    except Exception as exc:
+        # Keep failure distinct from an empty ledger. Do not expose payload or
+        # secret/path fragments from decoder exceptions, or trigger recovery.
+        return f"HITL approval ledger observation unavailable ({type(exc).__name__})."
+
+
 @mcp.tool()
 def get_hitl_approval_ledger(human_report: bool = False) -> str:
-    """Return the Human-in-the-Loop approval decision ledger."""
-    if not (RAW_DIR / "hitl_approval_ledger.json").exists():
-        init_ledger()
+    """Read existing Human-in-the-Loop ledger content or report without writes."""
     if human_report:
         return _read_text_artifact(REPORTS_DIR / "hitl_approval_ledger.md", "HITL approval ledger report not found.")
-    return _read_json_artifact(RAW_DIR / "hitl_approval_ledger.json", "HITL approval ledger artifact not found.")
+    return _read_hitl_approval_ledger_observation()
 
 
 @mcp.tool()
 def verify_hitl_approval_ledger() -> str:
     """Verify HITL approval ledger HMAC signatures and hash-chain continuity."""
-    return json.dumps(verify_ledger(), indent=2, ensure_ascii=False)
+    return json.dumps(verify_ledger_observation(raw_dir=RAW_DIR), indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -9145,16 +9330,28 @@ def inspect_file(
     target_root: str = "",
     line_start: int = 0,
     line_end: int = 0,
+    evidence_focus: str = "",
 ) -> str:
-    """Inspect one file; qualified declaration paths return stored-only headers."""
+    """Inspect one file; evidence_focus selects an optional source lane, not edit/runtime authority."""
+    if evidence_focus not in ("", "effect_safeparse", "effect_safeparse_merge", "safeparse_early_return", "resolver_factory", "resolver_parameter", "resolver_chain", "declared_artifact"):
+        return json.dumps({"status": "unavailable", "reason": "unsupported_evidence_focus",
+            "allowed_evidence_focus": ["", "effect_safeparse", "effect_safeparse_merge", "safeparse_early_return", "resolver_factory", "resolver_parameter", "resolver_chain", "declared_artifact"], "edit_authority": "not_granted"})
     try:
         raw_dir = _raw_dir_for_target(target_root)
         reports_dir = _reports_dir_for_target(target_root)
     except ValueError as exc:
         return _invalid_external_target_brief("inspect_file", target_root)
+    if evidence_focus == "declared_artifact":
+        observed = declared_artifact_inspection(raw_dir, file_path,
+            record_limit=AGENT_INSPECTION_MAX_TARGET_SPANS, line_requested=bool(line_start or line_end))
+        if str(format or "brief").strip().lower() in {"brief", "md", "markdown", "brief_debug", "debug"}:
+            return render_declared_artifact_inspection(observed)
+        return json.dumps(observed, ensure_ascii=False)
     declaration = declaration_file_inspection(raw_dir, file_path,
         record_limit=AGENT_INSPECTION_MAX_TARGET_SPANS, line_requested=bool(line_start or line_end))
     if declaration is not None:
+        if evidence_focus:
+            declaration["evidence_focus"] = {"requested": evidence_focus, "status": "not_applicable_declaration_header"}
         if str(format or "brief").strip().lower() in {"brief", "md", "markdown", "brief_debug", "debug"}:
             return render_agent_inspection_brief(declaration)
         return json.dumps(declaration, ensure_ascii=False)
@@ -9208,19 +9405,118 @@ def inspect_file(
                 except Exception:
                     pass
     candidate_cache = {}
-    def parser_source_candidate(record):
+    def parser_source_candidate(record, *, factory_export=False):
         binding = record["import_binding"]
-        key = (binding["source"], binding["imported_name"], binding["local_name"])
+        key = (binding["source"], binding["imported_name"], binding["local_name"], factory_export)
         if key not in candidate_cache:
             candidate_cache[key] = _imported_parser_source_candidate(
-                raw_dir, file_info, record, project, target_root)
+                raw_dir, file_info, record, project, target_root, factory_export=factory_export)
         return candidate_cache[key]
-    local_syntax = project_client_local_parser_evidence(file_info, status, source_candidate=parser_source_candidate)
+    factory_bindings = None
+    def factory_source_candidate(record, valid_span):
+        # Join retained parser facts, not a new import parser/module resolver.
+        # Build this bounded inventory once, and share exact export reads with
+        # the older imported-parser lane through the invocation-local cache.
+        nonlocal factory_bindings
+        unresolved = {"status": "unresolved", "reason": "factory_import_binding_unavailable", "source_binding": "unavailable"}
+        if factory_bindings is None:
+            declared = file_info.get("direct_import_binding_evidence")
+            rows = declared.get("records") if isinstance(declared, dict) and declared.get("status") == "observed" else None
+            budget = _state_flow_brief_policy()["focus_scan_limit"]
+            factory_bindings = rows if isinstance(rows, list) and len(rows) <= budget else []
+        spans = record["spans"]
+        matches = [row for row in factory_bindings if isinstance(row, dict)
+            and isinstance(row.get("localName"), str) and row["localName"]
+            and valid_span(spans["factory_import_binding"], row["localName"])]
+        if len(matches) != 1:
+            return {**unresolved, "reason": "factory_import_binding_missing_or_ambiguous"}
+        binding = matches[0]
+        if (binding.get("kind") != "named" or binding.get("typeOnly") is not False
+                or binding.get("bindingScope") != "file_top_level_import_declaration"
+                or any(not isinstance(binding.get(key), str) or not binding[key] for key in ("source", "importedName"))
+                or any(type(binding.get(key)) is not int for key in ("line", "endLine"))
+                or not (spans["factory_import"]["line"] <= binding["line"] <= spans["factory_import_binding"]["line"]
+                    <= spans["factory_import_binding"]["end_line"] <= binding["endLine"] <= spans["factory_import"]["end_line"])
+                or not valid_span(spans["factory_ref"], binding["localName"])):
+            return {**unresolved, "reason": "factory_import_binding_incompatible"}
+        candidate = parser_source_candidate({"import_binding": {"source": binding["source"], "imported_name": binding["importedName"],
+            "local_name": binding["localName"], "kind": "named", "type_only": False}}, factory_export=True)
+        if "factory_argument_name" not in record:
+            return candidate
+        # Candidate reads are cached by import, not by call site. Never attach
+        # one caller's actual argument to another caller through that cache.
+        candidate = dict(candidate)
+        parameter = candidate.get("return_construction", {}).get("single_parameter")
+        association = {"status":"unavailable", "reason":"single_formal_source_binding_unavailable",
+            "argument_value_semantics":"not_established", "type_compatibility":"not_established",
+            "parameter_usage":"not_established", "runtime_proof":"not_performed",
+            "edit_authority":"not_granted", "mutation_proposed":False}
+        if (candidate.get("status") == "source_candidate" and candidate.get("source_binding") == "snapshot_and_live_match"
+                and candidate.get("return_construction", {}).get("status") == "observed" and isinstance(parameter,dict)):
+            declaration = spans["argument_declaration_list"]
+            association.update(status="observed",reason="single_positional_source_association_only",
+                source_binding="snapshot_and_live_match", actual_name=record["factory_argument_name"], formal_name=parameter["name"],
+                actual_source_followup={"tool":"inspect_file","file_path":f"{project}::{atlas_rel}",
+                    "line_start":declaration["line"],"line_end":declaration["end_line"]},
+                formal_source_followup=dict(parameter["source_followup"]))
+            association["source_uses"] = parameter["source_uses"]
+        candidate["call_parameter_binding"] = association
+        return candidate
+    # Explicit focus selects an output scope; it is not automatic eviction to
+    # fit a new fact. Ordinary grounding/snippets remain unchanged in both modes.
+    local_syntax = ({} if evidence_focus else
+        project_client_local_parser_evidence(file_info, status, source_candidate=parser_source_candidate))
+    if evidence_focus:
+        payload["evidence_focus"] = {"requested": evidence_focus, "other_optional_sections": "not_requested"}
     if file_info is None:
         for section in local_syntax.values():
             section["reason"] = metadata_reason
     payload.update(local_syntax)
-    project_manifest_source_links(payload, file_info, project if file_info is not None else "", atlas_rel if file_info is not None else "", syntax_sections=local_syntax)
+    if not evidence_focus:
+        project_manifest_source_links(payload, file_info, project if file_info is not None else "", atlas_rel if file_info is not None else "", syntax_sections=local_syntax)
+    snapshot_content = None
+    if (isinstance(file_info, dict)
+            and (not evidence_focus and isinstance(file_info.get("wiring_source_observations"), dict)
+                 and file_info["wiring_source_observations"].get("status") in ("observed", "partial")
+                 or not evidence_focus and isinstance(file_info.get("client_safeparse_success_evidence"), dict)
+                 and file_info["client_safeparse_success_evidence"].get("status") in ("observed", "partial")
+                 and bool(file_info["client_safeparse_success_evidence"].get("records"))
+                 or isinstance(file_info.get("effect_safeparse_callback_evidence"), dict)
+                 and file_info["effect_safeparse_callback_evidence"].get("status") in ("observed", "partial")
+                 and bool(file_info["effect_safeparse_callback_evidence"].get("records"))
+                 or isinstance(file_info.get("effect_safeparse_merge_evidence"), dict)
+                 and file_info["effect_safeparse_merge_evidence"].get("status") in ("observed", "partial")
+                 and bool(file_info["effect_safeparse_merge_evidence"].get("records"))
+                 or isinstance(file_info.get("safeparse_early_return_evidence"), dict)
+                 and file_info["safeparse_early_return_evidence"].get("status") in ("observed", "partial")
+                 and bool(file_info["safeparse_early_return_evidence"].get("records"))
+                 or isinstance(file_info.get("resolver_factory_evidence"), dict)
+                 and file_info["resolver_factory_evidence"].get("status") in ("observed", "partial")
+                 and bool(file_info["resolver_factory_evidence"].get("records")))
+            and status.get("source_snapshot_status") == "ok" and status.get("drift_check_status") == "match"
+            and all(status.get(key) is True for key in ("inside_root", "exists", "indexed"))):
+        from tools.core.source_snapshot_reader import read_source_snapshot_binding
+        binding = read_source_snapshot_binding(raw_dir, project, atlas_rel, expected_hash=file_info.get("hash"))
+        if binding["status"] == "ok":
+            snapshot_content = binding["content"]
+    safeparse_coordinates = {}
+    if not evidence_focus:
+        project_wiring_source_observations(payload, file_info, status, snapshot_content=snapshot_content, syntax_sections=local_syntax)
+        project_safeparse_success_evidence(payload, file_info, status, snapshot_content=snapshot_content,
+            syntax_sections=local_syntax, coordinate_cache=safeparse_coordinates)
+    if evidence_focus in ("", "effect_safeparse"):
+        project_effect_safeparse_callback_evidence(payload, file_info, status, snapshot_content=snapshot_content,
+            syntax_sections=local_syntax, coordinate_cache=safeparse_coordinates)
+    if evidence_focus in ("", "effect_safeparse_merge"):
+        project_effect_safeparse_merge_evidence(payload, file_info, status, snapshot_content=snapshot_content,
+            syntax_sections=local_syntax, coordinate_cache=safeparse_coordinates)
+    if evidence_focus in ("", "safeparse_early_return"):
+        project_safeparse_early_return_evidence(payload, file_info, status, snapshot_content=snapshot_content,
+            syntax_sections=local_syntax, coordinate_cache=safeparse_coordinates, source_candidate=factory_source_candidate)
+    if evidence_focus in ("", "resolver_factory", "resolver_parameter", "resolver_chain"):
+        project_resolver_factory_evidence(payload, file_info, status, snapshot_content=snapshot_content,
+            syntax_sections=local_syntax, coordinate_cache=safeparse_coordinates, source_candidate=factory_source_candidate,
+            parameter_focus=evidence_focus == "resolver_parameter", chain_focus=evidence_focus == "resolver_chain")
     requested_format = str(format or "brief").strip().lower()
     if requested_format in {"brief", "md", "markdown"}:
         return render_agent_inspection_brief(payload)
@@ -9230,12 +9526,13 @@ def inspect_file(
 
 
 def _imported_parser_source_candidate(raw_dir: Path, caller: dict, record: dict,
-                                      project: str, target_root: str) -> dict:
+                                      project: str, target_root: str, *, factory_export=False) -> dict:
     """One indexed direct export, using exact primary reads; never chase barrels."""
-    from tools.core.state_flow import _focus_relative_path, _focus_storage_direct_export
+    from tools.core.state_flow import _focus_direct_export, _focus_relative_path, _focus_storage_direct_export
 
     result = {"status": "unresolved", "reason": "module_resolution_unavailable",
-              "source_binding": "unavailable", "relation": "named_import_direct_variable_export_candidate"}
+              "source_binding": "unavailable", "relation": ("named_import_direct_arrow_export_candidate" if factory_export
+                  else "named_import_direct_variable_export_candidate")}
     binding = record["import_binding"]
     imports = caller.get("import_records")
     budget = _state_flow_brief_policy()["focus_scan_limit"]
@@ -9252,21 +9549,53 @@ def _imported_parser_source_candidate(raw_dir: Path, caller: dict, record: dict,
     if len(resolved) != 1:
         return {**result, "reason": "module_resolution_not_unique"}
     ref = next(iter(resolved)).replace("\\", "/")
+    workspace_candidate = None
+    if factory_export and any("workspace_source_candidate" in row for row in matches):
+        candidates = [row.get("workspace_source_candidate") for row in matches]
+        expected_keys = {"version", "source_project", "target_ref", "workspace_rel"}
+        if any(not isinstance(item, dict) or set(item) != expected_keys
+                or item.get("version") != "v1-declared-workspace-alias-source"
+                or item.get("source_project") != project
+                or not isinstance(item.get("target_ref"), str)
+                or not _focus_relative_path(item.get("workspace_rel")) for item in candidates):
+            return {**result, "reason": "workspace_source_candidate_invalid"}
+        if any(item != candidates[0] for item in candidates):
+            return {**result, "reason": "workspace_source_candidate_ambiguous"}
+        workspace_candidate = candidates[0]
+        ref = workspace_candidate["target_ref"]
     if "::" not in ref:
         ref = f"{project}::{ref}"
     prefix, _, rel = ref.partition("::")
-    if prefix != project or not _focus_relative_path(rel):
+    if not prefix or not _focus_relative_path(rel) or (prefix != project and workspace_candidate is None):
         return {**result, "reason": "module_outside_exact_project"}
     try:
-        info = load_atlas_file_metadata(raw_dir, project, rel)
+        info = load_atlas_file_metadata(raw_dir, prefix, rel)
         parser = info.get("parser_evidence") if isinstance(info, dict) else None
         if (not isinstance(info, dict) or info.get("ast_contract_version") != caller.get("ast_contract_version")
                 or not isinstance(parser, dict) or parser.get("status") != "observed"
                 or not _focus_relative_path(info.get("workspace_rel"))):
             return {**result, "reason": "target_metadata_missing_or_unbound"}
+        if workspace_candidate is not None and (prefix == project
+                or info.get("project_key") != prefix or info.get("atlas_rel_path") != rel
+                or info.get("workspace_rel") != workspace_candidate["workspace_rel"]
+                or info.get("repo_relative_path") != workspace_candidate["workspace_rel"]
+                or info.get("target_ref") != f"{prefix}::{workspace_candidate['workspace_rel']}"):
+            return {**result, "reason": "workspace_target_identity_mismatch"}
         target = {"atlas_ref": ref, "target_file": info["workspace_rel"], "source_hash": info.get("hash")}
-        candidate = _focus_storage_direct_export({"target": target,
-            "reference": {"importedName": binding["imported_name"]}}, {rel: info}, project, budget)
+        if factory_export:
+            candidate, _, symbol = _focus_direct_export({"status": "target_candidate", "target": target},
+                binding["imported_name"], {rel: info}, prefix, {}, {binding["imported_name"]}, budget)
+            if candidate["status"] == "target_candidate":
+                if symbol.get("type") not in {"Arrow","Function"}:
+                    return {**result, "reason": "factory_export_not_direct_arrow"}
+                if symbol["type"] == "Function": result["relation"] = "named_import_direct_function_export_candidate"
+                # Keep this source candidate small; callable facts remain with
+                # their existing owner and grant no factory behavior authority.
+                candidate["target"] = {**target, **{key:candidate["target"][key]
+                    for key in ("symbol", "start_line", "end_line")}}
+        else:
+            candidate = _focus_storage_direct_export({"target": target,
+                "reference": {"importedName": binding["imported_name"]}}, {rel: info}, prefix, budget)
         if candidate["status"] != "target_candidate":
             return {**result, "reason": candidate["reason"]}
         target = candidate["target"]
@@ -9275,10 +9604,32 @@ def _imported_parser_source_candidate(raw_dir: Path, caller: dict, record: dict,
         bound = _state_flow_endpoint_binding(raw_dir, target, target_root, binding["imported_name"])
         if bound["source_binding"] != "snapshot_and_live_match":
             return {**result, "reason": "target_source_binding_unavailable", "source_binding": bound["source_binding"]}
-        return {**result, "status": "source_candidate", "reason": "direct_export_source_orientation_only",
+        result = {**result, "status": "source_candidate", "reason": "direct_export_source_orientation_only",
                 "source_binding": bound["source_binding"], "target": target,
                 "source_followup": {"tool": "inspect_file", "file_path": ref,
                     "line_start": target["start_line"], "line_end": target["end_line"]}}
+        if factory_export:
+            from tools.inspect_target import project_factory_return_construction
+            from tools.core.source_snapshot_reader import read_source_snapshot_binding
+            lane = info.get("factory_return_construction_evidence")
+            rows = lane.get("records") if isinstance(lane, dict) else None
+            content = None
+            if isinstance(rows, list) and 0 < len(rows) <= 64:
+                try:
+                    snapshot = read_source_snapshot_binding(raw_dir, prefix, rel, expected_hash=info["hash"])
+                    if snapshot["status"] == "ok": content = snapshot["content"]
+                except Exception as exc:
+                    from tools.core.honesty_telemetry import record_honesty_event
+                    record_honesty_event(component="mcp.server", category="storage_fallback",
+                        operation="inspect_file_factory_construction", subject=ref,
+                        reason="Optional construction snapshot could not be read after definition grounding.",
+                        fallback="unavailable_construction_with_definition_preserved", claim_impact="construction_unavailable", exception=exc)
+            result["return_construction"] = project_factory_return_construction(info, symbol, bound["source_binding"],
+                snapshot_content=content, target_ref=ref)
+            if symbol["type"] == "Function" and result["return_construction"]["status"] != "observed":
+                return {"status":"unresolved", "reason":"function_factory_construction_unavailable",
+                    "source_binding":bound["source_binding"], "relation":"named_import_direct_function_export_candidate"}
+        return result
     except Exception as exc:
         try:
             from tools.core.honesty_telemetry import record_honesty_event
@@ -12404,7 +12755,7 @@ def get_test_impact(target_file: str, target_root: str = "", format: str = "brie
     """
     Returns polyglot unit and integration test candidates affected by changes to the target file.
     Target format: PROJECT::path/to/file.tsx or just path/to/file.py
-    Analyzes dual vectors: Static Dependency Graph and Semantic Convention Match, and outputs runnable commands.
+    Analyzes static dependency and naming candidates with unexecuted command suggestions, not verified runnable commands.
     """
     started = time.perf_counter()
 

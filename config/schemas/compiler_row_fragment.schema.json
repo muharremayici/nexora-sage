@@ -1,0 +1,457 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compiler_row_fragment.schema.json",
+  "title": "Disabled supplied local row-fragment observation",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "schema_sha256",
+        "schema_definition",
+        "expected_definition",
+        "result_definition",
+        "default_enabled",
+        "native_execution_enabled",
+        "production_enabled",
+        "semantic_lineage",
+        "cache_eligible",
+        "image_policy_sha256",
+        "cursor_limit_reference_sha256",
+        "model",
+        "grammar",
+        "input_kind",
+        "text_policy",
+        "span_scheme",
+        "privacy",
+        "limits",
+        "resource_limits",
+        "complete_status",
+        "incomplete_status",
+        "claim_boundary"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-local-row-fragment"
+        },
+        "schema": {
+          "const": "config/schemas/compiler_row_fragment.schema.json"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_definition": {
+          "const": "policy"
+        },
+        "expected_definition": {
+          "const": "expected"
+        },
+        "result_definition": {
+          "const": "result"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "native_execution_enabled": {
+          "const": false
+        },
+        "production_enabled": {
+          "const": false
+        },
+        "semantic_lineage": {
+          "const": false
+        },
+        "cache_eligible": {
+          "const": false
+        },
+        "image_policy_sha256": {
+          "const": "6cee9e466a22781a52b6e2803e986c2e18608e9ebb37251d75b135ae138baf47"
+        },
+        "cursor_limit_reference_sha256": {
+          "const": "a91254f742efb810ee150c41934346299ca5d2bb6a9c34e656b1fc49eb5b3c85"
+        },
+        "model": {
+          "const": "supplied_immutable_string_local_rows_v1"
+        },
+        "grammar": {
+          "const": "literal_arrow_rows_ascii_v1"
+        },
+        "input_kind": {
+          "const": "supplied_immutable_string_v1"
+        },
+        "text_policy": {
+          "const": "strict_utf8_preserve_bom_shebang_crlf_v1"
+        },
+        "span_scheme": {
+          "const": "view_local_utf16_half_open_strict_utf8_slice_v1"
+        },
+        "privacy": {
+          "const": "local_row_fragment_summary_only_v1"
+        },
+        "limits": {
+          "const": {
+            "row_count": 16,
+            "name_utf8_bytes": 1024,
+            "token_count": 1024,
+            "scan_code_units": 8192,
+            "work_units": 32768,
+            "fact_bytes": 16384,
+            "gap_bytes": 1024,
+            "cursor_bytes": 4096,
+            "summary_bytes": 8192
+          }
+        },
+        "resource_limits": {
+          "const": {
+            "source_utf8_bytes": 32768,
+            "metadata_bytes": 2097152,
+            "image_bytes": 41943040,
+            "operation_ms": 30000
+          }
+        },
+        "complete_status": {
+          "const": "LOCAL_ROW_FRAGMENT_OBSERVED_NOT_TABLE_OR_CALLSITE"
+        },
+        "incomplete_status": {
+          "const": "INCOMPLETE_LOCAL_ROW_FRAGMENT_NOT_TABLE_OR_CALLSITE"
+        },
+        "claim_boundary": {
+          "const": "Disabled supplied immutable string local-row syntax summary only. No filesystem origin, enclosing table/callsite/bindings, actual exports, compiler evaluation, production/semantic/cache/publication or physical heap/RSS claim."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_sha256",
+        "schema_sha256",
+        "source_text_sha256",
+        "source_utf16_units",
+        "source_utf8_bytes",
+        "invocation_id"
+      ],
+      "properties": {
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_utf16_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fragment_syntax_complete",
+        "name_count",
+        "fragment_units",
+        "fragment_facts_sha256",
+        "name_set_sha256",
+        "gap"
+      ],
+      "properties": {
+        "fragment_syntax_complete": {
+          "type": "boolean"
+        },
+        "name_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fragment_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fragment_facts_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "name_set_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "gap": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "start_utf16",
+            "end_utf16",
+            "start_utf8",
+            "end_utf8",
+            "column_utf16_0based",
+            "line_1based",
+            "slice_text_utf8_sha256",
+            "code"
+          ],
+          "properties": {
+            "start_utf16": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end_utf16": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "start_utf8": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end_utf8": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "column_utf16_0based": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "line_1based": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "slice_text_utf8_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "code": {
+              "type": "string",
+              "enum": [
+                "unsupported_structure",
+                "unsupported_identifier",
+                "unsupported_name",
+                "unsupported_token",
+                "unsupported_string",
+                "unclosed_comment",
+                "unclosed_string",
+                "empty_table",
+                "duplicate_name",
+                "unsupported_suffix",
+                "arrow_line_terminator",
+                "unsupported_line_separator",
+                "empty_fragment"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "status",
+        "producer_policy_sha256",
+        "producer_schema_sha256",
+        "expected_sha256",
+        "source_text_sha256",
+        "observation",
+        "observation_sha256",
+        "scan_code_units",
+        "token_count",
+        "work_units",
+        "fact_bytes",
+        "name_utf8_bytes",
+        "gap_bytes",
+        "source_utf8_bytes",
+        "source_utf16_units",
+        "source_identity_bytes_hashed",
+        "metadata_reserved_bytes",
+        "known_inputs_reserved_bytes",
+        "raw_source_retained",
+        "private_facts_cleared",
+        "absolute_mapping",
+        "flags"
+      ],
+      "properties": {
+        "version": {
+          "const": "v1-private-supplied-local-row-fragment"
+        },
+        "status": {
+          "enum": [
+            "LOCAL_ROW_FRAGMENT_OBSERVED_NOT_TABLE_OR_CALLSITE",
+            "INCOMPLETE_LOCAL_ROW_FRAGMENT_NOT_TABLE_OR_CALLSITE"
+          ]
+        },
+        "producer_policy_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producer_schema_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observation": {
+          "$ref": "#/$defs/observation"
+        },
+        "observation_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scan_code_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "token_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "work_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fact_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gap_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_utf8_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_utf16_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_identity_bytes_hashed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_inputs_reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_source_retained": {
+          "const": false
+        },
+        "private_facts_cleared": {
+          "const": true
+        },
+        "absolute_mapping": {
+          "const": null
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "filesystem_capture_attested",
+            "read_authority_granted",
+            "source_freshness_verified",
+            "table_membership_verified",
+            "table_complete",
+            "actual_callsite_context_verified",
+            "helper_identity_resolved",
+            "binding_resolved",
+            "global_byte_line_mapping_verified",
+            "actual_export_set_complete",
+            "input_code_evaluated",
+            "compiler_loaded",
+            "production_enabled",
+            "semantic_lineage",
+            "cache_eligible",
+            "publication_authority"
+          ],
+          "properties": {
+            "filesystem_capture_attested": {
+              "const": false
+            },
+            "read_authority_granted": {
+              "const": false
+            },
+            "source_freshness_verified": {
+              "const": false
+            },
+            "table_membership_verified": {
+              "const": false
+            },
+            "table_complete": {
+              "const": false
+            },
+            "actual_callsite_context_verified": {
+              "const": false
+            },
+            "helper_identity_resolved": {
+              "const": false
+            },
+            "binding_resolved": {
+              "const": false
+            },
+            "global_byte_line_mapping_verified": {
+              "const": false
+            },
+            "actual_export_set_complete": {
+              "const": false
+            },
+            "input_code_evaluated": {
+              "const": false
+            },
+            "compiler_loaded": {
+              "const": false
+            },
+            "production_enabled": {
+              "const": false
+            },
+            "semantic_lineage": {
+              "const": false
+            },
+            "cache_eligible": {
+              "const": false
+            },
+            "publication_authority": {
+              "const": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

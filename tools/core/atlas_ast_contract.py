@@ -1,14 +1,163 @@
 """Pure shared Atlas AST identity and finite-record validation. No producer imports."""
 
-AST_CONTRACT_VERSION = "v18.51-direct-callable-loc-source-facts"
+AST_CONTRACT_VERSION = "v18.66-unicode-derived-search"
+
+
+EFFECT_SAFE_PARSE_VERSION = "v1-effect-safeparse-data-spread-callback"
+EFFECT_SAFE_PARSE_ROLES = frozenset({
+    "component_body", "hook_import", "hook_ref", "effect", "body", "dependencies", "dependency_ref",
+    "input", "input_binding", "parser_owner", "parser_owner_binding", "parser_owner_ref", "parser_call",
+    "parser_input", "result", "result_binding", "branch", "condition", "condition_result_ref", "success_property",
+    "then_body", "callback_binding", "callback_ref", "sink", "argument", "spread", "data_result_ref", "data_property",
+})
+
+EFFECT_SAFE_PARSE_MERGE_VERSION = "v1-effect-safeparse-parameter-spread"
+EFFECT_SAFE_PARSE_MERGE_ROLES = EFFECT_SAFE_PARSE_ROLES | frozenset({
+    "prior_declaration", "prior_binding", "prior_spread", "prior_ref",
+})
+
+
+def effect_safe_parse_merge_record_valid(record, valid_span):
+    """Two ordered spread sources, not object contents or collision resolution."""
+    return effect_safe_parse_record_valid(record, valid_span, merge=True)
+
+
+def effect_safe_parse_record_valid(record, valid_span, *, merge=False):
+    """Finite source associations only; no schema, hook or callback execution claim."""
+    roles = EFFECT_SAFE_PARSE_MERGE_ROLES if merge else EFFECT_SAFE_PARSE_ROLES
+    containment = [("component_body", role) for role in ("input", "effect")]
+    containment += [("effect", role) for role in ("hook_ref", "body", "dependencies")]
+    containment += [("body", role) for role in ("result", "branch")]
+    containment += [("input", "input_binding"), ("dependencies", "dependency_ref"),
+        ("parser_owner", "parser_owner_binding"), ("result", "result_binding"), ("result", "parser_call"),
+        ("parser_call", "parser_owner_ref"), ("parser_call", "parser_input"),
+        ("branch", "condition"), ("branch", "then_body"), ("condition", "condition_result_ref"),
+        ("condition", "success_property"), ("then_body", "sink"), ("sink", "callback_ref"), ("sink", "argument"),
+        ("argument", "spread"), ("spread", "data_result_ref"), ("spread", "data_property")]
+    order = [("hook_import", "effect"), ("parser_owner", "component_body"), ("callback_binding", "component_body"),
+        ("input", "effect"), ("hook_ref", "body"), ("body", "dependencies"), ("result", "branch"),
+        ("condition", "then_body"), ("condition_result_ref", "success_property"),
+        ("callback_ref", "argument"), ("data_result_ref", "data_property")]
+    if merge:
+        containment += [("prior_declaration", "prior_binding"), ("argument", "prior_spread"), ("prior_spread", "prior_ref")]
+        order += [("prior_declaration", "component_body"), ("prior_spread", "spread")]
+    return _finite_source_record_relations(record, valid_span, roles, containment, order)
+
+SAFE_PARSE_SUCCESS_VERSION = "v1-const-safeparse-success-data-to-state"
+SAFE_PARSE_SUCCESS_ROLES = frozenset({
+    "body", "fetch", "fetch_binding", "json", "json_binding", "parser_owner",
+    "parser_owner_binding", "parser_owner_ref", "parser_call", "parser_input", "result", "result_binding",
+    "branch", "condition", "condition_result_ref", "success_property", "then_body", "data_result_ref", "data_property",
+    "state_declaration", "state_import", "setter_binding", "setter_ref", "sink", "argument",
+})
+
+
+def safe_parse_success_record_valid(record, valid_span):
+    """Exact source associations, not schema/type/branch execution authority."""
+    containment = [("body", role) for role in ("fetch", "json", "result", "branch")]
+    containment += [("fetch", "fetch_binding"), ("json", "json_binding"),
+        ("parser_owner", "parser_owner_binding"), ("result", "result_binding"), ("result", "parser_call"),
+        ("parser_call", "parser_owner_ref"), ("parser_call", "parser_input"),
+        ("branch", "condition"), ("branch", "then_body"), ("condition", "condition_result_ref"),
+        ("condition", "success_property"), ("then_body", "sink"), ("sink", "setter_ref"), ("sink", "argument"),
+        ("argument", "data_result_ref"), ("argument", "data_property"), ("state_declaration", "setter_binding")]
+    order = [("fetch", "json"), ("json", "result"), ("result", "branch"), ("parser_owner", "parser_call"),
+        ("state_import", "state_declaration"), ("state_declaration", "sink"), ("condition", "then_body"),
+        ("condition_result_ref", "success_property"), ("setter_ref", "argument"), ("data_result_ref", "data_property")]
+    return _finite_source_record_relations(record, valid_span, SAFE_PARSE_SUCCESS_ROLES, containment, order)
+
+
+def _finite_source_record_relations(record, valid_span, roles, containment, order):
+    if not isinstance(record, dict) or set(record) != {"spans"}:
+        return False
+    spans = record["spans"]
+    if (not isinstance(spans, dict) or set(spans) != roles
+            or not all(valid_span(span) for span in spans.values())):
+        return False
+    return (all(spans[a]["start"] <= spans[b]["start"] < spans[b]["end"] <= spans[a]["end"] for a,b in containment)
+        and all(spans[a]["end"] <= spans[b]["start"] for a,b in order))
+
+def safe_parse_success_stored_problem(evidence, source_hash, valid_span=None):
+    """Validate the original state lane without widening its grammar."""
+    return _safe_parse_stored_problem(evidence, source_hash, valid_span, effect=False)
+
+
+def effect_safe_parse_stored_problem(evidence, source_hash, valid_span=None):
+    """Validate only the separately versioned stored effect/callback source lane."""
+    return _safe_parse_stored_problem(evidence, source_hash, valid_span, effect=True)
+
+
+def effect_safe_parse_merge_stored_problem(evidence, source_hash, valid_span=None):
+    return _safe_parse_stored_problem(evidence, source_hash, valid_span, effect=True, merge=True)
+
+
+def _safe_parse_stored_problem(evidence, source_hash, valid_span, *, effect, merge=False):
+    """Pure stored-lane validation; caller owns primary/snapshot/live identity.
+
+    No source parser, coordinate repair, storage access or schema authority.
+    Check all retained rows before sampling; empty needs no coordinate index.
+    """
+    fields = {"status", "reason", "version", "scope", "offset_unit", "ast_contract_version", "source_hash",
+        "records", "record_count", "omitted", "schema_authority", "type_compatibility", "runtime_proof", "mutation_proposed"}
+    version = EFFECT_SAFE_PARSE_VERSION if effect else SAFE_PARSE_SUCCESS_VERSION
+    scope = ("finite_named_react_effect_safeparse_success_data_spread_to_parameter_callback" if effect
+        else "finite_same_file_safeparse_success_data_to_react_state")
+    validator = effect_safe_parse_record_valid if effect else safe_parse_success_record_valid
+    if merge:
+        fields |= {"prior_value_semantics", "merge_result_semantics"}
+        version = EFFECT_SAFE_PARSE_MERGE_VERSION
+        scope = "finite_named_react_effect_safeparse_parameter_then_data_spreads"
+        validator = effect_safe_parse_merge_record_valid
+    if (not isinstance(evidence, dict) or set(evidence) != fields
+            or evidence.get("version") != version or evidence.get("scope") != scope
+            or evidence.get("offset_unit") != "utf8_bytes" or evidence.get("ast_contract_version") != AST_CONTRACT_VERSION
+            or evidence.get("schema_authority") != "not_established" or evidence.get("type_compatibility") != "not_established"
+            or evidence.get("runtime_proof") != "not_performed" or evidence.get("mutation_proposed") is not False
+            or merge and (evidence.get("prior_value_semantics") != "not_established"
+                or evidence.get("merge_result_semantics") != "not_established")):
+        return "stored_contract_invalid"
+    records, status, omitted = evidence["records"], evidence["status"], evidence["omitted"]
+    if (not isinstance(records, list) or len(records) > 64 or type(evidence["record_count"]) is not int
+            or evidence["record_count"] != len(records) or type(omitted) is not int or omitted < 0
+            or not isinstance(evidence["reason"], str)):
+        return "stored_count_or_status_invalid"
+    if status == "unavailable":
+        return "producer_evidence_unavailable" if not records and not omitted and evidence["reason"] else "stored_unavailable_contract_invalid"
+    if (evidence["source_hash"] != source_hash
+            or not ((status == "observed" and not omitted and evidence["reason"] == "")
+                or (status == "partial" and omitted > 0 and len(records) == 64 and evidence["reason"] == "record_budget_exceeded"))):
+        return "stored_identity_or_coverage_invalid"
+    seen = set()
+    for row in records:
+        if valid_span is None or not validator(row, valid_span):
+            return "stored_record_or_coordinates_invalid"
+        spans = row["spans"]
+        key = spans["sink"]["start"], spans["sink"]["end"]
+        if key in seen:
+            return "stored_duplicate_sink"
+        seen.add(key)
+        if (not valid_span(spans["success_property"], "success") or not valid_span(spans["data_property"], "data")
+                or not valid_span.trivia_between(spans["condition_result_ref"]["end"], spans["success_property"]["start"], ".")
+                or not valid_span.trivia_between(spans["data_result_ref"]["end"], spans["data_property"]["start"], ".")
+                or not valid_span.trivia_between(spans["parser_owner_ref"]["end"], spans["parser_input"]["start"], ".safeParse(")
+                or not valid_span.trivia_between(spans["parser_input"]["end"], spans["parser_call"]["end"], ")")):
+            return "stored_source_tokens_invalid"
+        if effect and (not valid_span.trivia_between(spans["spread"]["start"], spans["data_result_ref"]["start"], "...")
+                or not valid_span.trivia_between(spans["data_property"]["end"], spans["spread"]["end"], "")
+                or not valid_span.trivia_between(spans["callback_ref"]["end"], spans["argument"]["start"], "(")
+                or not valid_span.trivia_between(spans["argument"]["end"], spans["sink"]["end"], ")")):
+            return "stored_source_tokens_invalid"
+        if merge and (not valid_span.trivia_between(spans["argument"]["start"], spans["prior_spread"]["start"], "{")
+                or not valid_span.trivia_between(spans["prior_spread"]["start"], spans["prior_ref"]["start"], "...")
+                or not valid_span.trivia_between(spans["prior_ref"]["end"], spans["prior_spread"]["end"], "")
+                or not valid_span.trivia_between(spans["prior_spread"]["end"], spans["spread"]["start"], ",")
+                or not (valid_span.trivia_between(spans["spread"]["end"], spans["argument"]["end"], "}")
+                    or valid_span.trivia_between(spans["spread"]["end"], spans["argument"]["end"], ",}"))):
+            return "stored_source_tokens_invalid"
+    return ""
+
 
 LOC_MEASUREMENT_VERSION = "v1-direct-js-callable-all-lines"
-
-
-
-
-
-
 
 
 def loc_measurement_record_valid(record, outer, *, offset_unit, valid_span=None):

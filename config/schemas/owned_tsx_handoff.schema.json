@@ -1,0 +1,232 @@
+{
+  "type": "object",
+  "required": [
+    "version",
+    "schema",
+    "default_enabled",
+    "production_enabled",
+    "semantic_lineage",
+    "max_source_files",
+    "max_auxiliary_files",
+    "max_auxiliary_bytes",
+    "max_config_bytes",
+    "max_request_bytes",
+    "max_import_edges",
+    "max_type_properties",
+    "declaration_shape",
+    "module_specifier",
+    "capture_profile",
+    "bridge_profile",
+    "image_profile",
+    "parser_virtual_path",
+    "compiler_virtual_path",
+    "atlas_relative_path",
+    "auxiliary_virtual_path",
+    "auxiliary_atlas_path",
+    "config_virtual_path",
+    "config_atlas_path",
+    "input_observation_version",
+    "input_observation_schema",
+    "input_observation_authority",
+    "type_import_observation_version",
+    "type_import_observation_schema",
+    "claim_boundary",
+    "max_jsx_bytes",
+    "jsx_atlas_path",
+    "jsx_virtual_path",
+    "source_script_kind",
+    "jsx_contract"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v6-private-synthetic-tsx"
+    },
+    "schema": {
+      "type": "string",
+      "const": "config/schemas/owned_tsx_handoff.schema.json"
+    },
+    "default_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "max_source_files": {
+      "type": "integer",
+      "const": 1
+    },
+    "max_auxiliary_files": {
+      "type": "integer",
+      "const": 3
+    },
+    "max_auxiliary_bytes": {
+      "type": "integer",
+      "const": 65536
+    },
+    "max_config_bytes": {
+      "type": "integer",
+      "const": 8192
+    },
+    "max_request_bytes": {
+      "type": "integer",
+      "const": 1600000
+    },
+    "max_import_edges": {
+      "type": "integer",
+      "const": 1
+    },
+    "max_type_properties": {
+      "type": "integer",
+      "const": 1
+    },
+    "declaration_shape": {
+      "type": "string",
+      "const": "single_required_primitive_property"
+    },
+    "module_specifier": {
+      "type": "string",
+      "const": "./types"
+    },
+    "capture_profile": {
+      "type": "string",
+      "const": "private_owned_tsx_config_handoff"
+    },
+    "bridge_profile": {
+      "type": "string",
+      "const": "private_owned_tsx_text_bridge"
+    },
+    "image_profile": {
+      "type": "string",
+      "const": "private_input_image_experiment"
+    },
+    "parser_virtual_path": {
+      "type": "string",
+      "const": "/__sage_owned_text__/entry.tsx"
+    },
+    "compiler_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/entry.tsx"
+    },
+    "atlas_relative_path": {
+      "type": "string",
+      "const": "entry.tsx"
+    },
+    "auxiliary_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/types.d.ts"
+    },
+    "auxiliary_atlas_path": {
+      "type": "string",
+      "const": "types.d.ts"
+    },
+    "config_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/tsconfig.json"
+    },
+    "config_atlas_path": {
+      "type": "string",
+      "const": "tsconfig.json"
+    },
+    "input_observation_version": {
+      "type": "string",
+      "const": "v4-private-tsx-input-summary"
+    },
+    "input_observation_schema": {
+      "type": "string",
+      "const": "config/schemas/compiler_tsx_input_observation.schema.json"
+    },
+    "input_observation_authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "type_import_observation_version": {
+      "type": "string",
+      "const": "v1-private-cached-type-import"
+    },
+    "type_import_observation_schema": {
+      "type": "string",
+      "const": "config/schemas/type_import_observation.schema.json"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "max_jsx_bytes": {
+      "type": "integer",
+      "const": 8192
+    },
+    "jsx_atlas_path": {
+      "type": "string",
+      "const": "jsx.d.ts"
+    },
+    "jsx_virtual_path": {
+      "type": "string",
+      "const": "/__sage_ts_image__/project/jsx.d.ts"
+    },
+    "source_script_kind": {
+      "type": "string",
+      "const": "TSX"
+    },
+    "jsx_contract": {
+      "type": "object",
+      "required": [
+        "version",
+        "namespace",
+        "tag",
+        "attribute",
+        "attribute_type",
+        "element_members",
+        "max_intrinsic_elements",
+        "max_attributes",
+        "max_bytes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "v1-synthetic-jsx-span-title"
+        },
+        "namespace": {
+          "type": "string",
+          "const": "JSX"
+        },
+        "tag": {
+          "type": "string",
+          "const": "span"
+        },
+        "attribute": {
+          "type": "string",
+          "const": "title"
+        },
+        "attribute_type": {
+          "type": "string",
+          "const": "string"
+        },
+        "element_members": {
+          "type": "integer",
+          "const": 0
+        },
+        "max_intrinsic_elements": {
+          "type": "integer",
+          "const": 1
+        },
+        "max_attributes": {
+          "type": "integer",
+          "const": 1
+        },
+        "max_bytes": {
+          "type": "integer",
+          "const": 8192
+        }
+      }
+    }
+  }
+}

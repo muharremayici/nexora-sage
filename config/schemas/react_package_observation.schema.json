@@ -1,0 +1,195 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "authority",
+    "status",
+    "handoff_sha256",
+    "compiler_version",
+    "edges",
+    "jsx_origin",
+    "program_completeness_established",
+    "native_project_equivalent",
+    "semantic_lineage",
+    "production_enabled"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v2-private-react-package-edges"
+    },
+    "authority": {
+      "type": "string",
+      "const": "producer_observed_only"
+    },
+    "status": {
+      "type": "string",
+      "const": "matched_cached_package_context"
+    },
+    "handoff_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "compiler_version": {
+      "type": "string",
+      "const": "5.9.3"
+    },
+    "edges": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_role",
+          "target_role",
+          "source_path_sha256",
+          "target_path_sha256",
+          "source_host_sha256",
+          "target_host_sha256",
+          "module_specifier_sha256",
+          "type_only",
+          "extension",
+          "external",
+          "package_id"
+        ],
+        "properties": {
+          "source_role": {
+            "type": "string"
+          },
+          "target_role": {
+            "type": "string"
+          },
+          "source_path_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "target_path_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "source_host_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "target_host_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "module_specifier_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "type_only": {
+            "type": "boolean"
+          },
+          "extension": {
+            "type": "string",
+            "const": ".d.ts"
+          },
+          "external": {
+            "type": "boolean"
+          },
+          "package_id": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "present",
+              "name",
+              "version",
+              "sub_module"
+            ],
+            "properties": {
+              "present": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "sub_module": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "jsx_origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "intrinsic",
+        "package",
+        "version",
+        "target_role",
+        "host_text_sha256",
+        "source_path_sha256",
+        "same_program_symbol_match",
+        "global_reference_role",
+        "global_reference_host_sha256"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "const": "React.JSX"
+        },
+        "intrinsic": {
+          "type": "string",
+          "const": "span"
+        },
+        "package": {
+          "type": "string",
+          "const": "@types/react"
+        },
+        "version": {
+          "type": "string",
+          "const": "19.2.2"
+        },
+        "target_role": {
+          "type": "string"
+        },
+        "host_text_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_path_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "same_program_symbol_match": {
+          "type": "boolean",
+          "const": true
+        },
+        "global_reference_role": {
+          "type": "string"
+        },
+        "global_reference_host_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "program_completeness_established": {
+      "type": "boolean",
+      "const": false
+    },
+    "native_project_equivalent": {
+      "type": "boolean",
+      "const": false
+    },
+    "semantic_lineage": {
+      "type": "boolean",
+      "const": false
+    },
+    "production_enabled": {
+      "type": "boolean",
+      "const": false
+    }
+  }
+}

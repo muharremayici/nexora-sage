@@ -109,6 +109,7 @@
   "large_source_allowlist": {
     "codemaps.py": "unified CLI surface; guarded by release-check/source-contract validators",
     "tools/core/config.py": "central runtime configuration, target-root and output-path projection spine; guarded by configuration, external-target and lifecycle contract tests while compatibility seams are migrated deliberately",
+    "tools/core/installation_preflight.py": "cohesive installation readiness, bounded runtime version observation and deterministic action-planning owner; preserves one central probe policy and typed failure/cleanup semantics; guarded by focused probe lifecycle/refusal controls and installation contract validation; split only along an independently owned contract boundary with unchanged evidence and installation authority",
     "tools/engines/architecture_oracle.py": "central evidence-backed architecture proposal, effective-policy and progressive-HITL materialization engine; guarded by architecture blueprint, target-policy and Oracle contract validators",
     "tools/engines/ai_context_generator.py": "report assembler with many artifact readers",
     "tools/engines/ast_sequencer.cjs": "AST sequence engine with parser/token fixtures",
@@ -159,6 +160,10 @@
     "tools/tests/test_work_package_receipts.py": "cohesive private work-package receipt and governance evaluator regression suite sharing the same active-package, source-identity and fail-closed authority contracts; public runtime telemetry remains separately owned by test_governance_trace.py, and the canonical distribution runner retains the complete private cohort",
     "tools/tests/test_release_proof_dispatch_cadence.py": "cohesive dispatch, append-only history, source-stability and external-blocker propagation regression suite; split only along an independently owned contract boundary",
     "tools/validate_source_contracts.py": "central repository source-governance contract with explicit self-allowlist",
-    "tools/tests/test_source_snapshot_integrity.py": "cohesive source snapshot, primary SQLite and MCP provenance regression suite sharing one real AST/Atlas fixture; caller-result and adapter-return endpoint corruption controls stay adjacent under the same source-evidence owner; split only when an independent contract boundary preserves fixture reuse and cross-consumer identity proof"
+    "tools/tests/test_source_snapshot_integrity.py": "cohesive source snapshot, primary SQLite and MCP provenance regression suite sharing one real AST/Atlas fixture; caller-result and adapter-return endpoint corruption controls stay adjacent under the same source-evidence owner; split only when an independent contract boundary preserves fixture reuse and cross-consumer identity proof",
+    "tools/core/release_validation_dependencies.py": "single reviewed-source closure, role-coverage and semantic-context owner; keeps path/import/failure policy and conservative global fallback together; guarded by dependency-contract, role-coverage and source-identity controls; split only with one authoritative dependency context and unchanged floors",
+    "tools/tests/test_release_proof_resume.py": "cohesive native checkpoint/completed-proof identity, provenance and execution-order controls sharing isolated environment and declared-input fixtures; keeps strict resume and semantic reuse counterexamples together without real children",
+    "tools/tests/test_release_validation_dependency_contract.py": "central dependency schema, reviewed-closure floors, inventory and role-fallback controls sharing one synthetic authority fixture; retains canonical-versus-constructed and global-fallback boundaries",
+    "tools/tests/test_release_validation_source_recipe.py": "shared synthetic source-observation v1/v2 and compiler-input controls for the existing native observation owner; keeps no-execution, manifest/presence, capture-bound and non-admission variants together without a second fixture or selector owner"
   }
 }

@@ -91,6 +91,14 @@ def load_atlas_file_metadata(raw_dir: Path, project: str, rel_path: str) -> dict
 
 
 def load_atlas_declaration_metadata(raw_dir: Path, project: str) -> AtlasRead:
+    return _load_atlas_project_plane(raw_dir, project, "declaration_contract_evidence")
+
+
+def load_atlas_declared_artifact_metadata(raw_dir: Path, project: str) -> AtlasRead:
+    return _load_atlas_project_plane(raw_dir, project, "declared_artifact_observations")
+
+
+def _load_atlas_project_plane(raw_dir: Path, project: str, plane: str) -> AtlasRead:
     """A partial Atlas view of one stored project plane, not live source.
 
     Both selected backends retain only bounded project metadata. JSON identity
@@ -100,20 +108,23 @@ def load_atlas_declaration_metadata(raw_dir: Path, project: str) -> AtlasRead:
     """
     from tools.core.artifact_store import ArtifactStore, STORE, _record_atlas_primary_read_failure
 
+    if plane not in {"declaration_contract_evidence", "declared_artifact_observations"}:
+        raise ValueError("Unsupported Atlas project plane")
     store = STORE if Path(raw_dir).resolve() == RAW_DIR.resolve() else ArtifactStore(raw_dir=raw_dir)
     sqlite_selected = store.use_sqlite if store is STORE else store.db_manager.db_path.is_file() or store.use_sqlite
     try:
         if not sqlite_selected:
             path = Path(native_filesystem_path(Path(raw_dir) / "atlas.json"))
             with path.open("rb") as stream:
-                value, digest = select_json_object_path_with_sha256(stream, (project, "declaration_contract_evidence"),
+                value, digest = select_json_object_path_with_sha256(stream, (project, plane),
                     chunk_size=max(1, store.state_payload_part_size_bytes // 4),
                     max_value_bytes=store.atlas_staging_file_aggregate_limit_bytes)
-            return AtlasRead({project: {"declaration_contract_evidence": value}}, "json:" + digest, "json_primary")
-        selected = store.load_sqlite_atlas_declaration_metadata(project)
+            return AtlasRead({project: {plane: value}}, "json:" + digest, "json_primary")
+        selected = (store.load_sqlite_atlas_declaration_metadata(project) if plane == "declaration_contract_evidence"
+            else store.load_sqlite_atlas_declared_artifact_metadata(project))
         if selected is not None:
             value, identity = selected
-            return AtlasRead({project: {"declaration_contract_evidence": value}}, identity, "sqlite_primary")
+            return AtlasRead({project: {plane: value}}, identity, "sqlite_primary")
     except Exception as exc:
         _record_atlas_primary_read_failure(Path(raw_dir), exc)
     return AtlasRead({}, None, "unavailable")
