@@ -206,7 +206,13 @@ def test_fixture_admission_does_not_exempt_unknown_or_hot_reads(
     monkeypatch.setattr(validator, "pipeline_declared_artifact_modules", lambda _: {})
     monkeypatch.setattr(validator, "save_json_atomic", lambda *args: None)
     monkeypatch.setattr(validator, "save_text_atomic", lambda *args: None)
+    assert validator.affected_by_change(consumer)
     result = validator.validate()
+    monkeypatch.setattr(validator, "save_json_atomic", lambda *args: pytest.fail("early canonical write"))
+    monkeypatch.setattr(validator, "save_text_atomic", lambda *args: pytest.fail("early report write"))
+    early = validator.preparation_observation(tmp_path)
+    assert early["status"] == result["summary"]["status"]
+    assert early["checks"] == {row["name"]: row["passed"] for row in result["checks"]}
     assert (result["summary"]["status"] == "PASS") is expected_pass
     if not declared:
         assert result["undeclared_reference_candidates"][0]["file"] == consumer
@@ -218,6 +224,48 @@ def test_fixture_admission_does_not_exempt_unknown_or_hot_reads(
         assert {row["name"] for row in result["checks"] if not row["passed"]} == {
             "hot_agent_context_consumers_do_not_direct_load_atlas_json",
         }
+
+
+def test_atlas_checks_read_policy_sources_once_per_invocation(tmp_path, monkeypatch):
+    from tools import validate_atlas_sqlite_first_access as validator
+
+    adapter = tmp_path / "tools" / "adapter.py"
+    adapter.parent.mkdir()
+    adapter.write_text("sqlite_first_marker = True", encoding="utf-8")
+    ordinary = adapter.with_name("ordinary.py")
+    ordinary.write_text("", encoding="utf-8")
+    external = tmp_path / "consumer.py"
+    external.write_text("from adapter import load_atlas_data", encoding="utf-8")
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+    monkeypatch.setattr(validator, "CENTRAL_ADAPTER", "tools/adapter.py")
+    monkeypatch.setattr(validator, "SQLITE_FIRST_MARKER", "sqlite_first_marker")
+    monkeypatch.setattr(validator, "CENTRAL_APIS", {"load_atlas_data"})
+    monkeypatch.setattr(validator, "HOT_ATLAS_CONSUMERS", {"tools/adapter.py", "consumer.py"})
+    monkeypatch.setattr(validator, "pipeline_declared_artifact_modules", lambda _: {"consumer.py": "fixture"})
+    monkeypatch.setattr(validator, "save_json_atomic", lambda *args: None)
+    monkeypatch.setattr(validator, "save_text_atomic", lambda *args: None)
+
+    reads = {}
+    original_read = Path.read_text
+
+    def count_read(path, *args, **kwargs):
+        reads[path] = reads.get(path, 0) + 1
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", count_read)
+    assert validator.validate()["summary"]["status"] == "PASS"
+    assert reads == {adapter: 1, ordinary: 1, external: 1}
+
+    reads.clear()
+    adapter.write_text("different_marker = True", encoding="utf-8")
+    external.unlink()
+    result = validator.preparation_observation(tmp_path)
+    assert result["status"] == "FAIL"
+    assert {name for name, passed in result["checks"].items() if not passed} == {
+        "central_atlas_io_is_sqlite_first",
+        "hot_agent_context_consumers_use_central_atlas_api",
+    }
+    assert reads == {adapter: 1, ordinary: 1}
 
 
 def test_reviewed_fixture_references_use_exact_existing_policy_admission() -> None:

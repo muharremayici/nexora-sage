@@ -1,8 +1,9 @@
 'use strict';
 // Test-only fault peer: never an admissible API body or production selector.
 const vm=require('node:vm'),Module=require('node:module');
+const {writeSync}=require('node:fs');
 const mode=process.argv[4];process.argv=process.argv.slice(0,4);
-const mark=()=>process.stderr.write('fixture fault reached\n');
+const mark=()=>writeSync(2,'fixture fault reached\n');
 if(mode==='broken_pipe')process.exit(1);
 if(mode==='hang_compile')vm.compileFunction=()=>{mark();for(;;){}};
 if(mode==='hang_construct'){

@@ -351,6 +351,29 @@ def candidate_preflight_plan(payload: dict, *, root: Path = ROOT) -> dict:
             "canonical_test_step_reuse": False, "publication_authority": False}
 
 
+def manual_sample_readiness_observation() -> dict:
+    """Render just the two workspace-sensitive packets using their proof owners."""
+    from tools import generate_agent_surface_manual_seal_pack as pack
+    from tools import generate_agent_surface_quality_review as quality
+
+    policy = pack.load_agent_surface_seal_contract()["manual_agent_review_evidence_policy"]
+    evidence = pack._manual_evidence_map()
+    rows = []
+    for sample in (quality.sample_state_flow_for_review(), quality.sample_missing_watchdog_for_review()):
+        name = sample["name"]
+        checked = quality._review_named_sample(sample)
+        binding = {}
+        status, _ = pack._manual_evidence_status(
+            name, sample, evidence.get(name, {}), policy, portability_observation=binding,
+        )
+        rows.append({"sample": name, "quality_passed": checked["passed"],
+                     "review_status": status, "packet_sha256": pack._packet_sha256(sample), **binding})
+    return {"status": "MANUAL_SAMPLES_READY" if all(
+                row["quality_passed"] and row["review_status"] == "current" for row in rows
+            ) else "MANUAL_SAMPLE_REVIEW_REQUIRED",
+            "samples": rows, "publication_authority": False}
+
+
 def work_item_readiness_observation(*, root: Path) -> dict:
     """Read lifecycle SSoT; do not run a validator or consume its prior verdict."""
     from tools.core.json_io import load_json_object_strict

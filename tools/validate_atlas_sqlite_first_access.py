@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import sys
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -62,8 +63,7 @@ def _contains_atlas_json(node: ast.AST) -> bool:
     return False
 
 
-def _direct_atlas_consumption_calls(path: Path) -> list[dict[str, Any]]:
-    text = path.read_text(encoding="utf-8", errors="replace")
+def _direct_atlas_consumption_calls(path: Path, text: str) -> list[dict[str, Any]]:
     try:
         tree = ast.parse(text, filename=_rel(path))
     except SyntaxError as exc:
@@ -88,9 +88,11 @@ def _direct_atlas_consumption_calls(path: Path) -> list[dict[str, Any]]:
     return findings
 
 
-def _path_reference_lines(path: Path) -> list[dict[str, Any]]:
+def _path_reference_lines(path: Path, text: str) -> list[dict[str, Any]]:
+    if ARTIFACT_FILE not in text:
+        return []
     findings: list[dict[str, Any]] = []
-    for line_no, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
+    for line_no, line in enumerate(text.splitlines(), start=1):
         if ARTIFACT_FILE not in line:
             continue
         stripped = line.strip()
@@ -100,7 +102,27 @@ def _path_reference_lines(path: Path) -> list[dict[str, Any]]:
     return findings
 
 
-def validate() -> dict[str, Any]:
+def affected_by_change(relative: str) -> bool:
+    """Select the Atlas guard for local development diagnostics."""
+    if relative in {"config/sqlite_first_access_policy.json", "tools/core/sqlite_first_access_policy.py",
+                    "tools/validate_atlas_sqlite_first_access.py"} or relative in HOT_ATLAS_CONSUMERS:
+        return True
+    part = Path(relative)
+    if part.anchor or ".." in part.parts or part.parts[:1] != ("tools",) or part.suffix != ".py":
+        return False
+    path = ROOT / part
+    if not path.is_file() or not path.resolve().is_relative_to(ROOT.resolve()):
+        return False
+    return bool(_path_reference_lines(path, path.read_text(encoding="utf-8", errors="replace")))
+
+
+def preparation_observation(root: Path) -> dict[str, Any]:
+    if root.resolve() != ROOT.resolve():
+        raise ValueError("atlas_preparation_source_root_mismatch")
+    return validate(preparation_only=True)
+
+
+def validate(*, preparation_only: bool = False) -> dict[str, Any]:
     pipeline_declared_modules = pipeline_declared_artifact_modules(ARTIFACT_ID)
     missing_pipeline_hot_consumers = [
         {"file": file, "step": step}
@@ -111,11 +133,23 @@ def validate() -> dict[str, Any]:
     python_files = sorted((ROOT / "tools").rglob("*.py"))
     direct_calls: list[dict[str, Any]] = []
     references: list[dict[str, Any]] = []
+    policy_sources = HOT_ATLAS_CONSUMERS | {CENTRAL_ADAPTER}
+
+    @cache
+    def policy_source_text(relative: str) -> str:
+        # Share text across checks within this invocation only.
+        return (ROOT / relative).read_text(encoding="utf-8", errors="replace")
+
     for path in python_files:
         if "__pycache__" in path.parts:
             continue
-        direct_calls.extend(_direct_atlas_consumption_calls(path))
-        references.extend(_path_reference_lines(path))
+        rel = _rel(path)
+        text = policy_source_text(rel) if rel in policy_sources else path.read_text(encoding="utf-8", errors="replace")
+        # Only hot-consumer direct calls affect the verdict. The full report
+        # also inventories direct calls in every other module.
+        if not preparation_only or rel in HOT_ATLAS_CONSUMERS:
+            direct_calls.extend(_direct_atlas_consumption_calls(path, text))
+        references.extend(_path_reference_lines(path, text))
 
     hot_direct = [item for item in direct_calls if item.get("file") in HOT_ATLAS_CONSUMERS and item.get("file") != CENTRAL_ADAPTER]
     undeclared_references = [
@@ -130,7 +164,7 @@ def validate() -> dict[str, Any]:
         if not path.exists():
             hot_imports[rel_path] = {"passed": False, "reason": "missing hot consumer file"}
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = policy_source_text(rel_path)
         touches_atlas = (
             rel_path == CENTRAL_ADAPTER
             or rel_path in pipeline_declared_modules
@@ -150,7 +184,7 @@ def validate() -> dict[str, Any]:
     checks = [
         {
             "name": "central_atlas_io_is_sqlite_first",
-            "passed": bool(SQLITE_FIRST_MARKER) and SQLITE_FIRST_MARKER in (ROOT / CENTRAL_ADAPTER).read_text(encoding="utf-8", errors="replace"),
+            "passed": bool(SQLITE_FIRST_MARKER) and SQLITE_FIRST_MARKER in policy_source_text(CENTRAL_ADAPTER),
             "details": "Default Atlas reads must go through ArtifactStore SQLite-first path.",
         },
         {
@@ -176,6 +210,10 @@ def validate() -> dict[str, Any]:
         },
     ]
     status = "PASS" if all(check["passed"] for check in checks) else "FAIL"
+    if preparation_only:
+        return {"status": status, "checks": {row["name"]: row["passed"] for row in checks},
+                "undeclared_references": [{"file": row["file"], "line": row["line"]}
+                                          for row in undeclared_references[:100]]}
     payload = {
         "meta": {"kind": "atlas_sqlite_first_access_validation", "version": "v1"},
         "summary": {

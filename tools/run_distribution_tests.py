@@ -323,7 +323,7 @@ def _run_candidate_preflight(*, root: Path, expected_source: dict | None,
                              source_queue=None, max_source_steps: int | None = None) -> dict:
     from tools.core.release_candidate_preflight import (
         candidate_preflight_plan, source_validator_observation, required_fixture_observation,
-        work_item_readiness_observation, AUTHORITY,
+        manual_sample_readiness_observation, work_item_readiness_observation, AUTHORITY,
     )
     from tools.core.distribution_test_execution import build_execution_identity
     from tools.core.source_state_identity import source_state_identity
@@ -362,12 +362,26 @@ def _run_candidate_preflight(*, root: Path, expected_source: dict | None,
     source_observations = list(source_queue.results) if source_queue is not None else []
     previously_completed = len(source_observations)
     fixture_observation = None
+    sample_observation = None
+    atlas_observation = None
     lifecycle_observation = {"status": "NOT_REQUESTED_SOURCE_ONLY" if source_only else "LIFECYCLE_METADATA_UNAVAILABLE"}
     code, error, interrupted, source_end = None, None, None, None
     attempt_started = time.monotonic()
     deadline = attempt_started + plan["policy"]["timeout_seconds"] - (source_queue.spent if source_queue is not None else 0)
     source_finished = test_started = test_finished = None
     try:
+        # Check once on the completing source-readiness attempt or standalone pre-freeze
+        # preparation. The dispatched proof owns its later, full manual-pack check.
+        remaining_steps = len(plan["source_validators"]) - previously_completed
+        if parent_dispatch_id is None and (max_source_steps is None or remaining_steps <= max_source_steps):
+            from tools import validate_atlas_sqlite_first_access as atlas_access
+
+            atlas_observation = atlas_access.preparation_observation(root)
+            if atlas_observation["status"] != "PASS":
+                raise ValueError("pre_freeze_atlas_access_failed")
+            sample_observation = manual_sample_readiness_observation()
+            if sample_observation["status"] != "MANUAL_SAMPLES_READY":
+                raise ValueError("pre_freeze_manual_sample_review_required")
         if not source_only:
             lifecycle_observation = work_item_readiness_observation(root=root)
             if lifecycle_observation["status"] != "LIFECYCLE_METADATA_READY":
@@ -479,6 +493,8 @@ def _run_candidate_preflight(*, root: Path, expected_source: dict | None,
                     "output_budget_shared": True},
                 "fixture_input_observation": fixture_observation,
                 "work_item_readiness_observation": lifecycle_observation,
+               "manual_sample_readiness_observation": sample_observation,
+               "atlas_access_readiness_observation": atlas_observation,
                "canonical_test_step_reuse": False, "publication_authority": False}
     if source_queue is not None:
         receipt["source_queue"] = {"queue_id": ident, "attempt": source_queue.attempt,
@@ -581,14 +597,24 @@ def main() -> int:
         if diagnostic:
             if args.receipt or args.basetemp_root or args.profile != "auto" or "public_projection" in profile_payload:
                 raise ValueError("Diagnostics require canonical source and forbid profile/canonical receipt/basetemp overrides")
+            from tools import validate_atlas_sqlite_first_access as atlas_access
             from tools.core import distribution_test_execution as execution
 
-            inventory = _canonical_classification(profile_payload)[0]
+            atlas_paths = {path for path in args.preflight_changed_file or [] if atlas_access.affected_by_change(path)}
             if args.preflight_changed_file and any(
-                    not execution.early_consumer_tests([path], profile_payload)
+                    path not in atlas_paths and not execution.early_consumer_tests([path], profile_payload)
                     for path in args.preflight_changed_file):
                 raise ValueError("Unmapped changed file in preflight request; no global-suite fallback")
             tests = args.diagnostic_test or execution.early_consumer_tests(args.preflight_changed_file, profile_payload)
+            if atlas_paths and args.collect_only:
+                print("[distribution-tests] selected source guard: atlas_sqlite_first_access")
+            if atlas_paths and not tests:
+                if args.collect_only:
+                    return 0
+                observed = atlas_access.preparation_observation(ROOT)
+                print("[distribution-tests] atlas_sqlite_first_access " + json.dumps(observed))
+                return 0 if observed["status"] == "PASS" else 1
+            inventory = _canonical_classification(profile_payload)[0]
             if not tests or len(tests) != len(set(tests)) or any(test.split("::", 1)[0] not in inventory for test in tests):
                 raise ValueError("Diagnostic selection must name unique classified tests")
             target_fixture = None

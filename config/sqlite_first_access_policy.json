@@ -83,6 +83,8 @@
         "tools/core/artifact_store.py": "storage, restore and projection owner",
         "tools/core/artifact_validator.py": "artifact path registry",
         "tools/core/artifact_trust.py": "artifact freshness/trust boundary",
+        "tools/core/agent_surface_review_portability.py": "Bind the reviewed state-flow snapshot to the stored Atlas primary content fingerprint and commit digest.",
+        "tools/prepare_candidate_worktree.py": "Read the reviewed checkout inventory and its SQLite primary identity together, then verify the supplied digest and Atlas commit.",
         "tools/engines/generate_atlas.py": "Atlas producer and shadow export owner",
         "tools/ingest_native_run_logs.py": "Standalone opt-in explicit Atlas scope is read through SQLite-first load_raw_artifact_path; no refresh, global Atlas substitution or JSON-only runtime authority",
         "tools/validate_sqlite_artifact_parity.py": "explicit SQLite-vs-shadow parity validator",
@@ -457,6 +459,7 @@
     "state_flow.json": {
       "producer": "tools/engines/state_flow_scanner.py",
       "hot_consumers": [
+        "tools/core/agent_surface_review_portability.py",
         "tools/engines/ai_context_generator.py",
         "tools/engines/proof_obligations_engine.py",
         "tools/engines/quality_gate.py",
